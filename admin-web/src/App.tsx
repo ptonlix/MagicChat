@@ -1,0 +1,62 @@
+import { useState } from "react"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
+
+import Console from "@/console"
+import { isAuthenticated } from "@/lib/auth"
+import { defaultConsolePage } from "@/lib/console-pages"
+import LoginPage from "@/pages/login-page"
+import MembersPage from "@/pages/members-page"
+
+export function App() {
+  const [authenticated, setAuthenticated] = useState(() => isAuthenticated())
+
+  return (
+    <Routes>
+      <Route
+        element={
+          <LoginPage
+            authenticated={authenticated}
+            onLogin={() => setAuthenticated(true)}
+          />
+        }
+        path="/login"
+      />
+      <Route element={<ProtectedConsole authenticated={authenticated} />} path="/">
+        <Route element={<Navigate replace to={defaultConsolePage} />} index />
+        <Route element={<MembersPage />} path="members" />
+      </Route>
+      <Route
+        element={
+          <Navigate
+            replace
+            to={authenticated ? defaultConsolePage : "/login"}
+          />
+        }
+        path="*"
+      />
+    </Routes>
+  )
+}
+
+function ProtectedConsole({ authenticated }: { authenticated: boolean }) {
+  const location = useLocation()
+
+  if (!authenticated) {
+    return (
+      <Navigate
+        replace
+        state={{
+          from: {
+            pathname: location.pathname,
+            search: location.search,
+          },
+        }}
+        to="/login"
+      />
+    )
+  }
+
+  return <Console />
+}
+
+export default App
