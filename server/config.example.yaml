@@ -1,0 +1,5 @@
+database:
+  dsn: "postgres://app:app@localhost:5432/app?sslmode=disable"
+
+admin:
+  password: "change-me"

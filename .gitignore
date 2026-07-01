@@ -1,0 +1,39 @@
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+server/config.yaml
+server/config.local.yaml
+
+# Node.js
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+.turbo/
+
+# Go
+*.test
+*.out
+coverage.out
+
+# Local binaries and temporary files
+/bin/
+/tmp/
+tmp/
+
+# Local worktrees
+.worktrees/
+worktrees/

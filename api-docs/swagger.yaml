@@ -1,0 +1,418 @@
+basePath: /
+definitions:
+  httpserver.adminLoginResponse:
+    properties:
+      admin:
+        $ref: '#/definitions/httpserver.adminResponse'
+    type: object
+  httpserver.adminResponse:
+    properties:
+      email:
+        example: admin
+        type: string
+    type: object
+  httpserver.createUserRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      name:
+        example: 张三
+        type: string
+    type: object
+  httpserver.createUserResponse:
+    properties:
+      initial_password:
+        example: aB3dE5gH7jK9mN2p
+        type: string
+      user:
+        $ref: '#/definitions/httpserver.userResponse'
+    type: object
+  httpserver.errorBody:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  httpserver.errorEnvelope:
+    properties:
+      error:
+        $ref: '#/definitions/httpserver.errorBody'
+      success:
+        example: false
+        type: boolean
+    type: object
+  httpserver.listUsersResponse:
+    properties:
+      order:
+        example: desc
+        type: string
+      page:
+        example: 1
+        type: integer
+      page_size:
+        example: 20
+        type: integer
+      sort:
+        example: created_at
+        type: string
+      total:
+        example: 12
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/httpserver.userResponse'
+        type: array
+    type: object
+  httpserver.loginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: password
+        type: string
+    type: object
+  httpserver.resetUserPasswordResponse:
+    properties:
+      new_password:
+        example: aB3dE5gH7jK9mN2p
+        type: string
+      user:
+        $ref: '#/definitions/httpserver.userResponse'
+    type: object
+  httpserver.successEnvelope:
+    properties:
+      data: {}
+      success:
+        example: true
+        type: boolean
+    type: object
+  httpserver.updateUserStatusResponse:
+    properties:
+      user:
+        $ref: '#/definitions/httpserver.userResponse'
+    type: object
+  httpserver.userLoginResponse:
+    properties:
+      user:
+        $ref: '#/definitions/httpserver.userResponse'
+    type: object
+  httpserver.userResponse:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      name:
+        example: 张三
+        type: string
+      status:
+        example: active
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 私有部署企业协作产品的服务端 API。当前阶段包含管理员登录、管理员创建普通用户、普通用户登录。
+  title: AI 原生企业协作服务 API
+  version: 0.1.0
+paths:
+  /api/admin/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 默认管理员账号固定为 admin，密码来自服务端配置。
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.adminLoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 管理员登录
+      tags:
+      - 管理员认证
+  /api/admin/users:
+    get:
+      description: 管理员列出普通用户。keyword 会同时搜索邮箱和名称；sort 仅支持 email、created_at、status；order
+        仅支持 asc、desc。
+      parameters:
+      - description: 搜索关键字，匹配邮箱或名称
+        in: query
+        name: keyword
+        type: string
+      - description: 页码，从 1 开始
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，最大 1000
+        in: query
+        name: page_size
+        type: integer
+      - description: 排序字段：email、created_at、status
+        in: query
+        name: sort
+        type: string
+      - description: 排序方向：asc、desc
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listUsersResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 列出普通用户
+      tags:
+      - 管理员用户
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建普通用户。邮箱会规范化为小写并全局唯一，初始密码只在本次响应中返回。
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.createUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.createUserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 创建普通用户
+      tags:
+      - 管理员用户
+  /api/admin/users/{id}/disable:
+    post:
+      description: 管理员禁用普通用户。禁用后该用户不能继续登录。
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.updateUserStatusResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 禁用普通用户
+      tags:
+      - 管理员用户
+  /api/admin/users/{id}/enable:
+    post:
+      description: 管理员启用普通用户。启用后该用户可以正常登录。
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.updateUserStatusResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 启用普通用户
+      tags:
+      - 管理员用户
+  /api/admin/users/{id}/reset-password:
+    post:
+      description: 管理员为普通用户重新生成随机密码。新密码只在本次响应中返回一次，并会清理该用户已有登录 session。
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.resetUserPasswordResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 重置普通用户密码
+      tags:
+      - 管理员用户
+  /api/client/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 普通用户使用管理员创建的邮箱和密码登录。
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.userLoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 普通用户登录
+      tags:
+      - 客户端认证
+swagger: "2.0"
