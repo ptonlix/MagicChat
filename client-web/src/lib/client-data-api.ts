@@ -112,6 +112,10 @@ type CreateMessageResponse = {
   message?: MessageResponse
 }
 
+type MessageCreatedEventPayloadResponse = {
+  message?: MessageResponse
+}
+
 export type ClientUser = {
   avatar: string
   createdAt: string
@@ -423,6 +427,18 @@ export async function sendConversationTextMessage(
   return normalizeMessage(message)
 }
 
+export function normalizeMessageCreatedEventPayload(
+  payload: unknown
+): ClientMessage {
+  if (!isObject(payload)) {
+    throw new ClientDataRequestError("消息推送格式不正确")
+  }
+
+  return normalizeMessage(
+    (payload as MessageCreatedEventPayloadResponse).message
+  )
+}
+
 function normalizeClientUser(user: ClientUserResponse | undefined): ClientUser {
   if (!user?.created_at || !user.email || !user.id || !user.name) {
     throw new ClientDataRequestError("当前用户响应格式不正确")
@@ -555,6 +571,10 @@ function normalizeMessagePage(
     newestSeq: page.newest_seq,
     oldestSeq: page.oldest_seq,
   }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
 }
 
 function createRequestError(

@@ -37,6 +37,8 @@ type PendingRequest = {
   resolve: (value: unknown) => void
 }
 
+export type RealtimeEventHandler = (payload: unknown) => void
+
 type RealtimeClientOptions = {
   authCheck?: () => boolean | Promise<boolean>
   createWebSocket?: (url: string) => RealtimeWebSocketLike
@@ -51,6 +53,7 @@ const defaultReconnectDelaysMs = [500, 1_000, 2_000, 5_000, 10_000, 30_000]
 export class RealtimeClient {
   private authCheck?: () => boolean | Promise<boolean>
   private createWebSocket: (url: string) => RealtimeWebSocketLike
+  private eventListeners = new Map<string, Set<RealtimeEventHandler>>()
   private listeners = new Set<() => void>()
   private onUnauthorized?: () => void
   private pendingRequests = new Map<string, PendingRequest>()
@@ -135,6 +138,19 @@ export class RealtimeClient {
 
     return () => {
       this.listeners.delete(listener)
+    }
+  }
+
+  subscribeEvent(eventName: string, handler: RealtimeEventHandler) {
+    const eventListeners = this.eventListeners.get(eventName) ?? new Set()
+    eventListeners.add(handler)
+    this.eventListeners.set(eventName, eventListeners)
+
+    return () => {
+      eventListeners.delete(handler)
+      if (eventListeners.size === 0) {
+        this.eventListeners.delete(eventName)
+      }
     }
   }
 
@@ -254,6 +270,10 @@ export class RealtimeClient {
       this.notify()
       return
     }
+
+    if (envelope.event) {
+      this.dispatchEvent(envelope.event, envelope.payload)
+    }
   }
 
   private handleResponse(envelope: RealtimeEnvelope) {
@@ -294,6 +314,17 @@ export class RealtimeClient {
   private notify() {
     for (const listener of this.listeners) {
       listener()
+    }
+  }
+
+  private dispatchEvent(eventName: string, payload: unknown) {
+    const eventListeners = this.eventListeners.get(eventName)
+    if (!eventListeners) {
+      return
+    }
+
+    for (const listener of eventListeners) {
+      listener(payload)
     }
   }
 }

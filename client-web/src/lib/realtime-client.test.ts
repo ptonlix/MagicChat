@@ -133,6 +133,45 @@ describe("RealtimeClient", () => {
     })
   })
 
+  it("dispatches subscribed realtime events and stops after unsubscribe", () => {
+    const client = createClient()
+    const handler = vi.fn()
+    const unsubscribe = client.subscribeEvent("message.created", handler)
+
+    client.connect()
+    FakeWebSocket.instances[0].open()
+    FakeWebSocket.instances[0].receive({
+      v: 1,
+      kind: "event",
+      event: "message.created",
+      payload: {
+        message: {
+          id: "message-13",
+        },
+      },
+    })
+
+    expect(handler).toHaveBeenCalledWith({
+      message: {
+        id: "message-13",
+      },
+    })
+
+    unsubscribe()
+    FakeWebSocket.instances[0].receive({
+      v: 1,
+      kind: "event",
+      event: "message.created",
+      payload: {
+        message: {
+          id: "message-14",
+        },
+      },
+    })
+
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
   it("marks the realtime connection ready only after system.ready", () => {
     const client = createClient()
     client.connect()

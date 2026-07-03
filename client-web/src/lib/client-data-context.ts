@@ -3,6 +3,7 @@ import { createContext, useContext } from "react"
 import {
   type ClientConversation,
   type ClientDataRequestError,
+  type ClientMessage,
   type ClientUser,
   type ContactUser,
 } from "@/lib/client-data-api"
@@ -21,6 +22,7 @@ export type ClientDataContextValue = {
   refreshConversations: () => Promise<void>
   refreshContacts: () => Promise<void>
   refreshMe: () => Promise<void>
+  updateConversationLastMessage: (message: ClientMessage) => void
 }
 
 export const ClientDataContext = createContext<ClientDataContextValue | null>(

@@ -90,13 +90,20 @@ export function ClientRealtimeProvider({
     (method: string, payload: unknown) => client.sendRequest(method, payload),
     [client]
   )
+  const subscribeRealtimeEvent = useCallback(
+    (eventName: string, handler: (payload: unknown) => void) =>
+      client.subscribeEvent(eventName, handler),
+    [client]
+  )
 
   const value = useMemo<RealtimeContextValue>(
     () => ({
+      ready: snapshot.ready,
       sendRealtimeRequest,
+      subscribeRealtimeEvent,
       status: snapshot.status,
     }),
-    [sendRealtimeRequest, snapshot.status]
+    [sendRealtimeRequest, snapshot.ready, snapshot.status, subscribeRealtimeEvent]
   )
 
   const ready = snapshot.ready || hasReadyOnce

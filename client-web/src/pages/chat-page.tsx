@@ -5,13 +5,17 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { useClientData } from "@/lib/client-data-context"
+import { useRealtime } from "@/lib/realtime-context"
 import {
   ClientDataRequestError,
   listConversationMessages,
+  normalizeMessageCreatedEventPayload,
   sendConversationTextMessage,
   type ClientConversation,
   type ClientMessage,
   type ClientMessagePage,
+  type ClientUser,
+  type ContactUser,
 } from "@/lib/client-data-api"
 import { formatConversationLastMessageTime } from "@/lib/conversation-format"
 import { createClientMessageId } from "@/lib/message-id"
@@ -66,12 +70,21 @@ function getMessageTime(createdAt: string) {
 }
 
 export function ChatPage() {
-  const { conversations, me, refreshConversations } = useClientData()
+  const {
+    contacts,
+    conversations,
+    me,
+    refreshConversations,
+    updateConversationLastMessage,
+  } = useClientData()
+  const { ready: realtimeReady, subscribeRealtimeEvent } = useRealtime()
   const [searchParams, setSearchParams] = useSearchParams()
   const [messageStates, setMessageStates] = React.useState<
     Record<string, ConversationMessageState>
   >({})
   const loadingConversationIdsRef = React.useRef<Set<string>>(new Set())
+  const previousRealtimeReadyRef = React.useRef(realtimeReady)
+  const syncingAfterConversationIdsRef = React.useRef<Set<string>>(new Set())
   const [draft, setDraft] = React.useState("")
   const requestedConversationId = searchParams.get("conversation_id") ?? ""
 
@@ -92,14 +105,23 @@ export function ChatPage() {
   const activeLoaded = Boolean(activeMessageState?.loaded)
   const activeClientMessages =
     activeMessageState?.messages ?? emptyClientMessages
+  const contactsById = React.useMemo(
+    () => new Map(contacts.map((contact) => [contact.id, contact])),
+    [contacts]
+  )
   const activeMessages = React.useMemo(
     () =>
       activeConversation
         ? activeClientMessages.map((message) =>
-            toConversationPanelMessage(message, activeConversation, me.id)
+            toConversationPanelMessage(
+              message,
+              activeConversation,
+              me,
+              contactsById
+            )
           )
         : [],
-    [activeClientMessages, activeConversation, me.id]
+    [activeClientMessages, activeConversation, contactsById, me]
   )
 
   const updateConversationMessageState = React.useCallback(
@@ -120,6 +142,38 @@ export function ChatPage() {
       })
     },
     []
+  )
+
+  const rememberConversationMessage = React.useCallback(
+    (message: ClientMessage) => {
+      updateConversationLastMessage(message)
+      if (
+        !conversations.some(
+          (conversation) => conversation.id === message.conversationId
+        )
+      ) {
+        void refreshConversations().catch(() => undefined)
+      }
+    },
+    [conversations, refreshConversations, updateConversationLastMessage]
+  )
+
+  const mergeIncomingMessage = React.useCallback(
+    (message: ClientMessage, options: { markLoaded?: boolean } = {}) => {
+      updateConversationMessageState(message.conversationId, (state) => {
+        const messages = mergeConversationMessages(state.messages, [message])
+
+        return {
+          ...state,
+          error: null,
+          loaded: options.markLoaded ? true : state.loaded,
+          messages,
+          page: updatePageWithMessage(state.page, messages),
+        }
+      })
+      rememberConversationMessage(message)
+    },
+    [rememberConversationMessage, updateConversationMessageState]
   )
 
   React.useEffect(() => {
@@ -163,6 +217,16 @@ export function ChatPage() {
     updateConversationMessageState,
   ])
 
+  React.useEffect(() => {
+    return subscribeRealtimeEvent("message.created", (payload) => {
+      try {
+        mergeIncomingMessage(normalizeMessageCreatedEventPayload(payload))
+      } catch {
+        // Ignore malformed realtime events. The websocket remains usable.
+      }
+    })
+  }, [mergeIncomingMessage, subscribeRealtimeEvent])
+
   const loadBeforeMessages = React.useCallback(() => {
     if (!activeConversationId) {
       return
@@ -198,7 +262,11 @@ export function ChatPage() {
             currentState.messages,
             result.messages
           ),
-          page: result.page,
+          page: mergePageWithBeforeResult(
+            currentState.page,
+            result.page,
+            mergeConversationMessages(currentState.messages, result.messages)
+          ),
         }))
       })
       .catch((error: unknown) => {
@@ -211,6 +279,73 @@ export function ChatPage() {
         toast.error(message)
       })
   }, [activeConversationId, messageStates, updateConversationMessageState])
+
+  const syncAfterMessages = React.useCallback(
+    (conversationId: string, afterSeq: number) => {
+      if (syncingAfterConversationIdsRef.current.has(conversationId)) {
+        return
+      }
+
+      syncingAfterConversationIdsRef.current.add(conversationId)
+
+      void listConversationMessages(conversationId, {
+        afterSeq,
+        limit: messagePageLimit,
+      })
+        .then((result) => {
+          const lastReceivedMessage =
+            result.messages[result.messages.length - 1]
+          updateConversationMessageState(conversationId, (currentState) => {
+            const messages = mergeConversationMessages(
+              currentState.messages,
+              result.messages
+            )
+
+            return {
+              ...currentState,
+              error: null,
+              messages,
+              page: mergePageWithAfterResult(
+                currentState.page,
+                result.page,
+                messages
+              ),
+            }
+          })
+
+          if (lastReceivedMessage) {
+            rememberConversationMessage(lastReceivedMessage)
+          }
+        })
+        .catch((error: unknown) => {
+          toast.error(getClientDataErrorMessage(error, "同步新消息失败"))
+        })
+        .finally(() => {
+          syncingAfterConversationIdsRef.current.delete(conversationId)
+        })
+    },
+    [rememberConversationMessage, updateConversationMessageState]
+  )
+
+  React.useEffect(() => {
+    const wasReady = previousRealtimeReadyRef.current
+    previousRealtimeReadyRef.current = realtimeReady
+
+    if (!realtimeReady || wasReady) {
+      return
+    }
+
+    for (const [conversationId, state] of Object.entries(messageStates)) {
+      if (!state.loaded) {
+        continue
+      }
+
+      const newestSeq = getNewestMessageSeq(state)
+      if (newestSeq > 0) {
+        syncAfterMessages(conversationId, newestSeq)
+      }
+    }
+  }, [messageStates, realtimeReady, syncAfterMessages])
 
   function sendMessage() {
     const content = draft.trim()
@@ -229,19 +364,8 @@ export function ChatPage() {
       content,
     })
       .then((message) => {
-        updateConversationMessageState(activeConversationId, (state) => {
-          const messages = mergeConversationMessages(state.messages, [message])
-
-          return {
-            ...state,
-            error: null,
-            loaded: true,
-            messages,
-            page: updatePageWithMessage(state.page, messages),
-          }
-        })
+        mergeIncomingMessage(message, { markLoaded: true })
         setDraft("")
-        void refreshConversations().catch(() => undefined)
       })
       .catch((error: unknown) => {
         toast.error(getClientDataErrorMessage(error, "发送消息失败"))
@@ -434,15 +558,58 @@ function updatePageWithMessage(
   }
 }
 
+function mergePageWithBeforeResult(
+  currentPage: ClientMessagePage | null,
+  resultPage: ClientMessagePage,
+  messages: ClientMessage[]
+): ClientMessagePage {
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+
+  return {
+    hasMoreAfter: currentPage?.hasMoreAfter ?? resultPage.hasMoreAfter,
+    hasMoreBefore: resultPage.hasMoreBefore,
+    limit: resultPage.limit,
+    newestSeq: lastMessage?.seq ?? currentPage?.newestSeq ?? 0,
+    oldestSeq: firstMessage?.seq ?? resultPage.oldestSeq,
+  }
+}
+
+function mergePageWithAfterResult(
+  currentPage: ClientMessagePage | null,
+  resultPage: ClientMessagePage,
+  messages: ClientMessage[]
+): ClientMessagePage {
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+
+  return {
+    hasMoreAfter: resultPage.hasMoreAfter,
+    hasMoreBefore: currentPage?.hasMoreBefore ?? resultPage.hasMoreBefore,
+    limit: resultPage.limit,
+    newestSeq: lastMessage?.seq ?? resultPage.newestSeq,
+    oldestSeq: firstMessage?.seq ?? currentPage?.oldestSeq ?? 0,
+  }
+}
+
+function getNewestMessageSeq(state: ConversationMessageState) {
+  const lastMessage = state.messages[state.messages.length - 1]
+
+  return Math.max(state.page?.newestSeq ?? 0, lastMessage?.seq ?? 0)
+}
+
 function toConversationPanelMessage(
   message: ClientMessage,
   conversation: ClientConversation,
-  currentUserId: string
+  currentUser: Pick<ClientUser, "avatar" | "id">,
+  contactsById: ReadonlyMap<string, ContactUser>
 ): ConversationPanelMessage {
-  const fromMe = message.sender.type === "user" && message.sender.id === currentUserId
+  const fromMe =
+    message.sender.type === "user" && message.sender.id === currentUser.id
 
   return {
-    author: getMessageAuthor(message, conversation, currentUserId),
+    author: getMessageAuthor(message, conversation, currentUser.id),
+    avatar: getMessageAvatar(message, conversation, currentUser, contactsById),
     content: message.body.content,
     id: message.id,
     role: fromMe ? "me" : "other",
@@ -472,6 +639,30 @@ function getMessageAuthor(
   }
 
   return "成员"
+}
+
+function getMessageAvatar(
+  message: ClientMessage,
+  conversation: ClientConversation,
+  currentUser: Pick<ClientUser, "avatar" | "id">,
+  contactsById: ReadonlyMap<string, ContactUser>
+) {
+  if (message.sender.type === "user" && message.sender.id === currentUser.id) {
+    return currentUser.avatar
+  }
+
+  if (message.sender.type === "user") {
+    return (
+      contactsById.get(message.sender.id)?.avatar ||
+      (conversation.type === "direct" ? conversation.avatar : "")
+    )
+  }
+
+  if (message.sender.type === "app") {
+    return conversation.avatar
+  }
+
+  return ""
 }
 
 function getClientDataErrorMessage(error: unknown, fallbackMessage: string) {

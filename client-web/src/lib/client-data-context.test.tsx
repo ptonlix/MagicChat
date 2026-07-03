@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ClientDataProvider } from "@/components/client-data-provider"
 import { useClientData } from "@/lib/client-data-context"
+import { type ClientMessage } from "@/lib/client-data-api"
 
 function createSuccessResponse(data: unknown) {
   return new Response(
@@ -88,6 +89,30 @@ function createDirectConversationResponse() {
   })
 }
 
+function createClientMessage({
+  content,
+  seq,
+}: {
+  content: string
+  seq: number
+}): ClientMessage {
+  return {
+    body: {
+      content,
+      type: "text",
+    },
+    clientMessageId: `client-message-${seq}`,
+    conversationId: "conversation-1",
+    createdAt: `2026-07-03T08:${String(seq).padStart(2, "0")}:00Z`,
+    id: `message-${seq}`,
+    sender: {
+      id: "user-2",
+      type: "user",
+    },
+    seq,
+  }
+}
+
 function createClientDataFetchMock() {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input)
@@ -159,6 +184,7 @@ function DataProbe() {
     openDirectConversation,
     refreshContacts,
     refreshMe,
+    updateConversationLastMessage,
   } = useClientData()
 
   return (
@@ -168,6 +194,12 @@ function DataProbe() {
       <span data-testid="conversation-count">{conversations.length}</span>
       <span data-testid="first-conversation-name">
         {conversations[0]?.name ?? ""}
+      </span>
+      <span data-testid="first-conversation-summary">
+        {conversations[0]?.lastMessageSummary ?? ""}
+      </span>
+      <span data-testid="first-conversation-seq">
+        {String(conversations[0]?.lastMessageSeq ?? "")}
       </span>
       <span data-testid="me-refreshing">{String(meRefreshing)}</span>
       <span data-testid="contacts-refreshing">
@@ -184,6 +216,26 @@ function DataProbe() {
         onClick={() => void openDirectConversation("user-3")}
       >
         open direct
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          updateConversationLastMessage(
+            createClientMessage({ content: "更新后的新消息", seq: 13 })
+          )
+        }
+      >
+        update newest message
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          updateConversationLastMessage(
+            createClientMessage({ content: "延迟到达的旧消息", seq: 11 })
+          )
+        }
+      >
+        update stale message
       </button>
     </div>
   )
@@ -319,6 +371,39 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("conversation-count")).toHaveTextContent("2")
     expect(screen.getByTestId("first-conversation-name")).toHaveTextContent(
       "Carol Wang"
+    )
+  })
+
+  it("does not let stale message pushes regress conversation summary", async () => {
+    vi.useFakeTimers()
+    renderProvider()
+
+    await act(async () => {
+      await flushBootstrapPromises()
+      vi.advanceTimersByTime(2_000)
+      await flushBootstrapPromises()
+    })
+
+    await act(async () => {
+      screen.getByRole("button", { name: "update newest message" }).click()
+    })
+
+    expect(screen.getByTestId("first-conversation-summary")).toHaveTextContent(
+      "更新后的新消息"
+    )
+    expect(screen.getByTestId("first-conversation-seq")).toHaveTextContent(
+      "13"
+    )
+
+    await act(async () => {
+      screen.getByRole("button", { name: "update stale message" }).click()
+    })
+
+    expect(screen.getByTestId("first-conversation-summary")).toHaveTextContent(
+      "更新后的新消息"
+    )
+    expect(screen.getByTestId("first-conversation-seq")).toHaveTextContent(
+      "13"
     )
   })
 

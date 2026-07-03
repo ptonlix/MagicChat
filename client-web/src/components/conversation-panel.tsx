@@ -10,7 +10,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import type { ClientConversation } from "@/lib/client-data-api"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -26,6 +26,7 @@ export type ConversationPanelMessage = {
   id: string
   role: "me" | "other"
   author: string
+  avatar: string
   content: string
   time: string
 }
@@ -237,7 +238,10 @@ function ConversationPanelHistory({
       }}
       viewportRef={viewportRef}
     >
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-5 py-6">
+      <div
+        className="flex w-full flex-col gap-5 px-5 py-6"
+        data-testid="conversation-history-content"
+      >
         {loadingBefore && (
           <div
             className="flex items-center justify-center gap-2 text-xs text-muted-foreground"
@@ -368,6 +372,13 @@ function MessageBubble({
     <div className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}>
       {!fromMe && (
         <Avatar className="mt-1 size-8 rounded-sm bg-muted after:rounded-sm">
+          {message.avatar && (
+            <AvatarImage
+              alt={message.author}
+              className="rounded-sm"
+              src={message.avatar}
+            />
+          )}
           <AvatarFallback className="rounded-sm">{fallback}</AvatarFallback>
         </Avatar>
       )}
@@ -394,6 +405,13 @@ function MessageBubble({
       </div>
       {fromMe && (
         <Avatar className="mt-1 size-8 rounded-sm bg-muted after:rounded-sm">
+          {message.avatar && (
+            <AvatarImage
+              alt={message.author}
+              className="rounded-sm"
+              src={message.avatar}
+            />
+          )}
           <AvatarFallback className="rounded-sm bg-primary text-primary-foreground">
             我
           </AvatarFallback>

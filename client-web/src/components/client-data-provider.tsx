@@ -14,6 +14,7 @@ import {
   listClientContacts,
   listClientConversations,
   type ClientConversation,
+  type ClientMessage,
   type ClientUser,
   type ContactUser,
 } from "@/lib/client-data-api"
@@ -108,6 +109,39 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       throw handleError(error, "加载会话列表失败")
     }
   }, [handleError])
+
+  const updateConversationLastMessage = useCallback((message: ClientMessage) => {
+    setConversations((currentConversations) => {
+      const conversation = currentConversations.find(
+        (currentConversation) =>
+          currentConversation.id === message.conversationId
+      )
+
+      if (!conversation) {
+        return currentConversations
+      }
+
+      if (message.seq < conversation.lastMessageSeq) {
+        return currentConversations
+      }
+
+      const updatedConversation: ClientConversation = {
+        ...conversation,
+        lastMessageAt: message.createdAt,
+        lastMessageId: message.id,
+        lastMessageSeq: message.seq,
+        lastMessageSummary: getMessageSummary(message),
+      }
+
+      return [
+        updatedConversation,
+        ...currentConversations.filter(
+          (currentConversation) =>
+            currentConversation.id !== message.conversationId
+        ),
+      ]
+    })
+  }, [])
 
   const upsertConversation = useCallback((conversation: ClientConversation) => {
     setConversations((currentConversations) => [
@@ -236,6 +270,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       refreshConversations,
       refreshContacts,
       refreshMe,
+      updateConversationLastMessage,
     }
   }, [
     conversations,
@@ -251,6 +286,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     refreshConversations,
     refreshContacts,
     refreshMe,
+    updateConversationLastMessage,
   ])
 
   if (bootstrapState === "loading") {
@@ -281,6 +317,14 @@ function wait(ms: number) {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms)
   })
+}
+
+function getMessageSummary(message: ClientMessage) {
+  if (message.body.type === "text") {
+    return message.body.content
+  }
+
+  return ""
 }
 
 function ClientDataErrorPage({

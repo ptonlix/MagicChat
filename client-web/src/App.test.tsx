@@ -855,9 +855,18 @@ describe("App", () => {
     )
     expect(initialHistory).toHaveAttribute("data-slot", "scroll-area")
     expect(initialHistory).toHaveClass("bg-muted/30")
+    const historyContent = within(initialHistory).getByTestId(
+      "conversation-history-content"
+    )
+    expect(historyContent).toHaveClass("w-full")
+    expect(historyContent).not.toHaveClass("max-w-4xl", "mx-auto")
     expect(
       within(initialHistory).getByText("好的，我看一下")
     ).toBeInTheDocument()
+    expect(within(initialHistory).getByAltText("Bob Li")).toHaveAttribute(
+      "src",
+      "/assets/avatars/builtin/03.webp"
+    )
     const composer = screen.getByTestId("conversation-panel-composer")
     const composerContent = screen.getByTestId(
       "conversation-panel-composer-content"
@@ -906,6 +915,10 @@ describe("App", () => {
     expect(
       within(history).getByText("帮我总结今天的消息")
     ).toBeInTheDocument()
+    expect(within(history).getByAltText("我")).toHaveAttribute(
+      "src",
+      "/assets/avatars/builtin/17.webp"
+    )
     expect(
       screen.queryByText(/收到，我会先作为你的内置助手/)
     ).not.toBeInTheDocument()
@@ -1901,6 +1914,198 @@ describe("App", () => {
     ).toBeInTheDocument()
     expect(editor).toHaveValue("")
     await waitFor(() => expect(sendButton).not.toBeDisabled())
+  }, 10_000)
+
+  it("收到当前会话的新消息推送时插入聊天记录并去重", async () => {
+    renderApp("/chat?conversation_id=conversation-bob")
+
+    const socket = await openLatestAppWebSocket()
+    const history = await screen.findByTestId("conversation-panel-history")
+
+    expect(within(history).getByText("好的，我看一下")).toBeInTheDocument()
+
+    const pushedMessage = createConversationMessage({
+      clientMessageId: "client-message-13",
+      content: "这是一条实时推送消息",
+      conversationId: "conversation-bob",
+      createdAt: "2026-07-03T08:02:00Z",
+      id: "message-13",
+      senderId: "user-2",
+      seq: 13,
+    })
+
+    socket.receive({
+      v: 1,
+      kind: "event",
+      event: "message.created",
+      payload: {
+        message: pushedMessage,
+      },
+    })
+    socket.receive({
+      v: 1,
+      kind: "event",
+      event: "message.created",
+      payload: {
+        message: pushedMessage,
+      },
+    })
+
+    await waitFor(() =>
+      expect(
+        within(history).getAllByText("这是一条实时推送消息")
+      ).toHaveLength(1)
+    )
+    expect(
+      screen.getByRole("button", { name: /这是一条实时推送消息/ })
+    ).toBeInTheDocument()
+  }, 10_000)
+
+  it("实时连接恢复后按当前会话最新 seq 补拉漏掉的消息", async () => {
+    const fetcher = createClientFetchMock({
+      conversationMessagesHandler: (conversationId, url) => {
+        if (conversationId !== "conversation-bob") {
+          return createDefaultConversationMessagesResponse(conversationId)
+        }
+
+        if (url.searchParams.get("after_seq") === "12") {
+          return createConversationMessagesResponse({
+            conversationId,
+            messages: [
+              createConversationMessage({
+                clientMessageId: "client-message-13",
+                content: "断线期间的新消息",
+                conversationId,
+                createdAt: "2026-07-03T08:03:00Z",
+                id: "message-13",
+                senderId: "user-2",
+                seq: 13,
+              }),
+            ],
+          })
+        }
+
+        return createDefaultConversationMessagesResponse(conversationId)
+      },
+    })
+    vi.stubGlobal("fetch", fetcher)
+
+    renderApp("/chat?conversation_id=conversation-bob")
+
+    const firstSocket = await openLatestAppWebSocket()
+    const history = await screen.findByTestId("conversation-panel-history")
+
+    expect(within(history).getByText("好的，我看一下")).toBeInTheDocument()
+    firstSocket.failClose()
+
+    const secondSocket = await openLatestAppWebSocket(1, { ready: false })
+    secondSocket.receive({
+      v: 1,
+      kind: "event",
+      event: "system.ready",
+      payload: {},
+    })
+
+    await waitFor(() =>
+      expect(within(history).getByText("断线期间的新消息")).toBeInTheDocument()
+    )
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-bob/messages?limit=20&after_seq=12",
+      {
+        credentials: "include",
+        method: "GET",
+      }
+    )
+  }, 10_000)
+
+  it("实时连接恢复后会补拉所有已加载会话的漏掉消息", async () => {
+    const user = userEvent.setup()
+    const fetcher = createClientFetchMock({
+      conversationMessagesHandler: (conversationId, url) => {
+        if (conversationId === "conversation-bob") {
+          if (url.searchParams.get("after_seq") === "12") {
+            return createConversationMessagesResponse({
+              conversationId,
+              messages: [
+                createConversationMessage({
+                  clientMessageId: "client-message-13",
+                  content: "Bob 断线期间的新消息",
+                  conversationId,
+                  createdAt: "2026-07-03T08:03:00Z",
+                  id: "message-13",
+                  senderId: "user-2",
+                  seq: 13,
+                }),
+              ],
+            })
+          }
+
+          return createDefaultConversationMessagesResponse(conversationId)
+        }
+
+        if (conversationId === "conversation-team") {
+          if (url.searchParams.get("after_seq") === "3") {
+            return createConversationMessagesResponse({
+              conversationId,
+              messages: [],
+            })
+          }
+
+          return createDefaultConversationMessagesResponse(conversationId)
+        }
+
+        return createDefaultConversationMessagesResponse(conversationId)
+      },
+    })
+    vi.stubGlobal("fetch", fetcher)
+
+    renderApp("/chat?conversation_id=conversation-bob")
+
+    const firstSocket = await openLatestAppWebSocket()
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("conversation-panel-history")).getByText(
+          "好的，我看一下"
+        )
+      ).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole("button", { name: /产品讨论组/ }))
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("conversation-panel-history")).getByText(
+          "今天下午同步"
+        )
+      ).toBeInTheDocument()
+    )
+
+    firstSocket.failClose()
+    const secondSocket = await openLatestAppWebSocket(1, { ready: false })
+    secondSocket.receive({
+      v: 1,
+      kind: "event",
+      event: "system.ready",
+      payload: {},
+    })
+
+    await waitFor(() =>
+      expect(fetcher).toHaveBeenCalledWith(
+        "/api/client/conversations/conversation-bob/messages?limit=20&after_seq=12",
+        {
+          credentials: "include",
+          method: "GET",
+        }
+      )
+    )
+
+    await user.click(screen.getByRole("button", { name: /Bob Li/ }))
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("conversation-panel-history")).getByText(
+          "Bob 断线期间的新消息"
+        )
+      ).toBeInTheDocument()
+    )
   }, 10_000)
 
   it("聊天历史上滚到顶部时继续拉取更早消息", async () => {
