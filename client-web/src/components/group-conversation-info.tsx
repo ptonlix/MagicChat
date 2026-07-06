@@ -1,4 +1,4 @@
-import { LogOut, UsersRound } from "lucide-react"
+import { LogOut } from "lucide-react"
 
 import type { ClientConversationMember } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
@@ -45,33 +45,6 @@ export function GroupConversationInfo({
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="flex flex-col gap-5">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-14 rounded-sm bg-muted after:rounded-sm">
-              {conversation.avatar && (
-                <AvatarImage
-                  alt={conversation.name}
-                  className="rounded-sm"
-                  src={conversation.avatar}
-                />
-              )}
-              <AvatarFallback className="rounded-sm text-lg">
-                {getInitial(conversation.name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium">
-                {conversation.name}
-              </div>
-              <div className="truncate text-xs text-muted-foreground">群聊</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 border-b py-2 text-sm">
-            <UsersRound className="size-4 text-muted-foreground" />
-            <span className="w-12 shrink-0 text-muted-foreground">群名</span>
-            <span className="min-w-0 truncate">{conversation.name}</span>
-          </div>
-
           <div className="grid gap-2">
             <div className="text-sm font-medium">
               群成员（{conversation.memberCount}）

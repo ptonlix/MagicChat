@@ -64,6 +64,7 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.ThirdPartyLoginProvider{},
 		&store.ThirdPartyLoginState{},
 		&store.ThirdPartyAccount{},
+		&store.LLMModel{},
 	)
 }
 
@@ -1730,6 +1731,9 @@ func TestGeneratedSwaggerSpecIsServed(t *testing.T) {
 		"/api/admin/users/{id}/enable",
 		"/api/admin/users/{id}/reset-password",
 		"/api/admin/settings/info",
+		"/api/admin/assistant/models",
+		"/api/admin/assistant/models/discover",
+		"/api/admin/assistant/models/{id}/health-check",
 		"/api/client/auth/login",
 		"/api/client/auth/logout",
 		"/api/client/me",

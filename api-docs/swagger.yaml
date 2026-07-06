@@ -11,6 +11,17 @@ definitions:
         example: admin
         type: string
     type: object
+  httpserver.clientLLMModelResponse:
+    properties:
+      connectivity_status:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: string
+      last_response_duration_ms:
+        type: integer
+    type: object
   httpserver.contactUserResponse:
     properties:
       avatar:
@@ -171,6 +182,27 @@ definitions:
       user:
         $ref: '#/definitions/httpserver.userResponse'
     type: object
+  httpserver.discoverLLMModelsRequest:
+    properties:
+      api_key:
+        type: string
+      base_url:
+        type: string
+    type: object
+  httpserver.discoverLLMModelsResponse:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/httpserver.discoveredLLMModelResponse'
+        type: array
+    type: object
+  httpserver.discoveredLLMModelResponse:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: string
+    type: object
   httpserver.errorBody:
     properties:
       code:
@@ -222,19 +254,26 @@ definitions:
       app_name:
         example: MyGod
         type: string
-      oidc_providers:
-        items:
-          $ref: '#/definitions/httpserver.publicOIDCProviderResponse'
-        type: array
       organization_name:
         example: 长亭科技
         type: string
+      third_party_providers:
+        items:
+          $ref: '#/definitions/httpserver.publicThirdPartyProviderResponse'
+        type: array
     type: object
   httpserver.listClientConversationsResponse:
     properties:
       conversations:
         items:
           $ref: '#/definitions/httpserver.conversationListItemResponse'
+        type: array
+    type: object
+  httpserver.listClientLLMModelsResponse:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/httpserver.clientLLMModelResponse'
         type: array
     type: object
   httpserver.listContactUsersResponse:
@@ -252,6 +291,13 @@ definitions:
         type: array
       page:
         $ref: '#/definitions/httpserver.listMessagesPageResponse'
+    type: object
+  httpserver.listLLMModelsResponse:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/httpserver.llmModelResponse'
+        type: array
     type: object
   httpserver.listMessagesPageResponse:
     properties:
@@ -271,11 +317,11 @@ definitions:
         example: 101
         type: integer
     type: object
-  httpserver.listOIDCProvidersResponse:
+  httpserver.listThirdPartyProvidersResponse:
     properties:
       providers:
         items:
-          $ref: '#/definitions/httpserver.oidcProviderResponse'
+          $ref: '#/definitions/httpserver.thirdPartyProviderResponse'
         type: array
     type: object
   httpserver.listUsersResponse:
@@ -299,6 +345,56 @@ definitions:
         items:
           $ref: '#/definitions/httpserver.userResponse'
         type: array
+    type: object
+  httpserver.llmModelEnvelope:
+    properties:
+      model:
+        $ref: '#/definitions/httpserver.llmModelResponse'
+    type: object
+  httpserver.llmModelMoveRequest:
+    properties:
+      direction:
+        type: string
+    type: object
+  httpserver.llmModelRequest:
+    properties:
+      api_key:
+        type: string
+      base_url:
+        type: string
+      display_name:
+        type: string
+      model_name:
+        type: string
+    type: object
+  httpserver.llmModelResponse:
+    properties:
+      api_key:
+        type: string
+      base_url:
+        type: string
+      connectivity_status:
+        type: string
+      display_name:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      last_checked_at:
+        type: string
+      last_connected_at:
+        type: string
+      last_error_message:
+        type: string
+      last_response_duration_ms:
+        type: integer
+      model_name:
+        type: string
+      protocol:
+        type: string
+      sort_order:
+        type: integer
     type: object
   httpserver.loginRequest:
     properties:
@@ -340,83 +436,7 @@ definitions:
         example: user
         type: string
     type: object
-  httpserver.oidcProviderEnvelope:
-    properties:
-      provider:
-        $ref: '#/definitions/httpserver.oidcProviderResponse'
-    type: object
-  httpserver.oidcProviderMoveRequest:
-    properties:
-      direction:
-        type: string
-    type: object
-  httpserver.oidcProviderRequest:
-    properties:
-      authorize_url:
-        type: string
-      avatar_field:
-        type: string
-      client_id:
-        type: string
-      client_secret:
-        type: string
-      email_field:
-        type: string
-      name:
-        type: string
-      name_field:
-        type: string
-      nickname_field:
-        type: string
-      phone_field:
-        type: string
-      scopes:
-        items:
-          type: string
-        type: array
-      token_url:
-        type: string
-      userinfo_url:
-        type: string
-    type: object
-  httpserver.oidcProviderResponse:
-    properties:
-      authorize_url:
-        type: string
-      avatar_field:
-        type: string
-      client_id:
-        type: string
-      client_secret:
-        type: string
-      email_field:
-        type: string
-      enabled:
-        type: boolean
-      id:
-        type: string
-      key:
-        type: string
-      name:
-        type: string
-      name_field:
-        type: string
-      nickname_field:
-        type: string
-      phone_field:
-        type: string
-      scopes:
-        items:
-          type: string
-        type: array
-      sort_order:
-        type: integer
-      token_url:
-        type: string
-      userinfo_url:
-        type: string
-    type: object
-  httpserver.publicOIDCProviderResponse:
+  httpserver.publicThirdPartyProviderResponse:
     properties:
       key:
         example: company-sso
@@ -439,6 +459,60 @@ definitions:
       success:
         example: true
         type: boolean
+    type: object
+  httpserver.thirdPartyProviderEnvelope:
+    properties:
+      provider:
+        $ref: '#/definitions/httpserver.thirdPartyProviderResponse'
+    type: object
+  httpserver.thirdPartyProviderMoveRequest:
+    properties:
+      direction:
+        type: string
+    type: object
+  httpserver.thirdPartyProviderRequest:
+    properties:
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      config:
+        additionalProperties: {}
+        type: object
+      name:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+    type: object
+  httpserver.thirdPartyProviderResponse:
+    properties:
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      config:
+        additionalProperties: {}
+        type: object
+      enabled:
+        type: boolean
+      id:
+        type: string
+      key:
+        type: string
+      name:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      sort_order:
+        type: integer
+      type:
+        type: string
     type: object
   httpserver.updateCurrentUserRequest:
     properties:
@@ -507,6 +581,363 @@ info:
   title: AI 原生企业协作服务 API
   version: 0.1.0
 paths:
+  /api/admin/assistant/models:
+    get:
+      description: 管理员读取 MyGod 助手的大模型配置，包含 API Key 和健康检查状态。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listLLMModelsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 列出大模型配置
+      tags:
+      - 管理员 MyGod 助手
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建一个 Anthropic 协议的大模型配置。
+      parameters:
+      - description: 大模型配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.llmModelRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.llmModelEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 创建大模型配置
+      tags:
+      - 管理员 MyGod 助手
+  /api/admin/assistant/models/{id}:
+    delete:
+      description: 管理员删除一个大模型配置。
+      parameters:
+      - description: 大模型 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpserver.successEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 删除大模型配置
+      tags:
+      - 管理员 MyGod 助手
+    put:
+      consumes:
+      - application/json
+      description: 管理员更新一个大模型配置。API Key 每次更新都需要提交完整值，配置更新后健康状态会重置为未检测。
+      parameters:
+      - description: 大模型 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 大模型配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.llmModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.llmModelEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 更新大模型配置
+      tags:
+      - 管理员 MyGod 助手
+  /api/admin/assistant/models/{id}/disable:
+    post:
+      description: 管理员禁用一个大模型配置。
+      parameters:
+      - description: 大模型 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.llmModelEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 禁用大模型配置
+      tags:
+      - 管理员 MyGod 助手
+  /api/admin/assistant/models/{id}/enable:
+    post:
+      description: 管理员启用一个大模型配置。
+      parameters:
+      - description: 大模型 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.llmModelEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 启用大模型配置
+      tags:
+      - 管理员 MyGod 助手
+  /api/admin/assistant/models/{id}/health-check:
+    post:
+      description: 管理员主动发起一次 Anthropic 非流式健康检查，并返回更新后的健康状态。
+      parameters:
+      - description: 大模型 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.llmModelEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 主动检测大模型连接
+      tags:
+      - 管理员 MyGod 助手
+  /api/admin/assistant/models/{id}/move:
+    post:
+      consumes:
+      - application/json
+      description: 管理员将一个大模型配置上移或下移，服务端会重新归一化所有配置的排序值。
+      parameters:
+      - description: 大模型 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 移动方向
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.llmModelMoveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listLLMModelsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 移动大模型配置
+      tags:
+      - 管理员 MyGod 助手
+  /api/admin/assistant/models/discover:
+    post:
+      consumes:
+      - application/json
+      description: 管理员用临时 Base URL 和 API Key 读取 Anthropic 协议的大模型列表，不会保存配置。
+      parameters:
+      - description: Anthropic 临时连接信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.discoverLLMModelsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.discoverLLMModelsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 读取 Anthropic 大模型列表
+      tags:
+      - 管理员 MyGod 助手
   /api/admin/auth/login:
     post:
       consumes:
@@ -546,288 +977,6 @@ paths:
       summary: 管理员登录
       tags:
       - 管理员认证
-  /api/admin/oidc/providers:
-    get:
-      description: 管理员读取已配置的 OIDC 登录方式，包含 Client Secret。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/httpserver.listOIDCProvidersResponse'
-              type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 列出 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
-    post:
-      consumes:
-      - application/json
-      description: 管理员创建一个普通用户可用的 OIDC 登录方式。
-      parameters:
-      - description: OIDC 登录方式
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/httpserver.oidcProviderRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 创建 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
-  /api/admin/oidc/providers/{id}:
-    delete:
-      description: 管理员删除一个 OIDC 登录方式。
-      parameters:
-      - description: OIDC 登录方式 ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/httpserver.successEnvelope'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 删除 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
-    put:
-      consumes:
-      - application/json
-      description: 管理员更新一个 OIDC 登录方式。Client Secret 每次更新都需要提交完整值。
-      parameters:
-      - description: OIDC 登录方式 ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: OIDC 登录方式
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/httpserver.oidcProviderRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 更新 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
-  /api/admin/oidc/providers/{id}/disable:
-    post:
-      description: 管理员禁用一个 OIDC 登录方式。
-      parameters:
-      - description: OIDC 登录方式 ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 禁用 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
-  /api/admin/oidc/providers/{id}/enable:
-    post:
-      description: 管理员启用一个 OIDC 登录方式。
-      parameters:
-      - description: OIDC 登录方式 ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 启用 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
-  /api/admin/oidc/providers/{id}/move:
-    post:
-      consumes:
-      - application/json
-      description: 管理员将一个 OIDC 登录方式上移或下移，服务端会重新归一化所有登录方式的排序值。
-      parameters:
-      - description: OIDC 登录方式 ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 移动方向
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/httpserver.oidcProviderMoveRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/httpserver.listOIDCProvidersResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 移动 OIDC 登录方式
-      tags:
-      - 管理员 OIDC
   /api/admin/settings/info:
     get:
       description: 管理员读取 App 名称和组织名称。
@@ -892,6 +1041,288 @@ paths:
       summary: 更新系统基础信息设置
       tags:
       - 管理员设置
+  /api/admin/third-party/providers:
+    get:
+      description: 管理员读取已配置的第三方登录方式，包含 Client Secret。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listThirdPartyProvidersResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 列出第三方登录方式
+      tags:
+      - 管理员第三方登录
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建一个普通用户可用的第三方登录方式。
+      parameters:
+      - description: 第三方登录方式
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.thirdPartyProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.thirdPartyProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 创建第三方登录方式
+      tags:
+      - 管理员第三方登录
+  /api/admin/third-party/providers/{id}:
+    delete:
+      description: 管理员删除一个第三方登录方式。
+      parameters:
+      - description: 第三方登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpserver.successEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 删除第三方登录方式
+      tags:
+      - 管理员第三方登录
+    put:
+      consumes:
+      - application/json
+      description: 管理员更新一个第三方登录方式。Client Secret 每次更新都需要提交完整值。
+      parameters:
+      - description: 第三方登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 第三方登录方式
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.thirdPartyProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.thirdPartyProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 更新第三方登录方式
+      tags:
+      - 管理员第三方登录
+  /api/admin/third-party/providers/{id}/disable:
+    post:
+      description: 管理员禁用一个第三方登录方式。
+      parameters:
+      - description: 第三方登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.thirdPartyProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 禁用第三方登录方式
+      tags:
+      - 管理员第三方登录
+  /api/admin/third-party/providers/{id}/enable:
+    post:
+      description: 管理员启用一个第三方登录方式。
+      parameters:
+      - description: 第三方登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.thirdPartyProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 启用第三方登录方式
+      tags:
+      - 管理员第三方登录
+  /api/admin/third-party/providers/{id}/move:
+    post:
+      consumes:
+      - application/json
+      description: 管理员将一个第三方登录方式上移或下移，服务端会重新归一化所有登录方式的排序值。
+      parameters:
+      - description: 第三方登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 移动方向
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.thirdPartyProviderMoveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listThirdPartyProvidersResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 移动第三方登录方式
+      tags:
+      - 管理员第三方登录
   /api/admin/users:
     get:
       description: 管理员列出普通用户。keyword 会同时搜索邮箱、名称、昵称和手机号；sort 仅支持 email、created_at、status；order
@@ -1106,6 +1537,32 @@ paths:
       summary: 重置普通用户密码
       tags:
       - 管理员用户
+  /api/client/assistant/models:
+    get:
+      description: 普通用户读取可用的大模型列表，只返回展示和健康检查状态，不暴露模型调用配置。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listClientLLMModelsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 列出客户端可用大模型
+      tags:
+      - 客户端 MyGod 助手
   /api/client/auth/login:
     post:
       consumes:
@@ -1162,21 +1619,21 @@ paths:
       summary: 普通用户退出登录
       tags:
       - 客户端认证
-  /api/client/auth/oidc/{key}/callback:
+  /api/client/auth/third-party/{key}/callback:
     get:
-      description: 处理第三方 OIDC 回调，创建或关联普通用户并写入用户登录 Session。
+      description: 处理第三方登录回调，创建或关联普通用户并写入用户登录 Session。
       parameters:
-      - description: OIDC 登录方式 Key
+      - description: 第三方登录方式 Key
         in: path
         name: key
         required: true
         type: string
-      - description: OIDC 授权码
+      - description: 第三方授权码
         in: query
         name: code
         required: true
         type: string
-      - description: OIDC 登录状态
+      - description: 第三方登录状态
         in: query
         name: state
         required: true
@@ -1206,14 +1663,14 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 完成 OIDC 登录
+      summary: 完成第三方登录
       tags:
       - 客户端认证
-  /api/client/auth/oidc/{key}/start:
+  /api/client/auth/third-party/{key}/start:
     get:
-      description: 根据登录方式 Key 创建 OIDC 登录状态，并重定向到第三方授权地址。
+      description: 根据登录方式 Key 创建第三方登录状态，并重定向到第三方授权地址。
       parameters:
-      - description: OIDC 登录方式 Key
+      - description: 第三方登录方式 Key
         in: path
         name: key
         required: true
@@ -1239,7 +1696,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 发起 OIDC 登录
+      summary: 发起第三方登录
       tags:
       - 客户端认证
   /api/client/contacts/users:

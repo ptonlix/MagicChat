@@ -21,9 +21,10 @@ const (
 )
 
 type Server struct {
-	db       *gorm.DB
-	cfg      config.Config
-	realtime *realtime.ConnectionPool
+	db               *gorm.DB
+	cfg              config.Config
+	realtime         *realtime.ConnectionPool
+	llmHealthChecker *LLMHealthChecker
 }
 
 func NewRouter(db *gorm.DB, cfg config.Config) *echo.Echo {
@@ -31,9 +32,18 @@ func NewRouter(db *gorm.DB, cfg config.Config) *echo.Echo {
 }
 
 func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOptions realtime.Options) *echo.Echo {
+	return NewRouterWithRealtimeAndLLMHealthChecker(db, cfg, realtimeOptions, NewLLMHealthChecker(db))
+}
+
+func NewRouterWithLLMHealthChecker(db *gorm.DB, cfg config.Config, llmHealthChecker *LLMHealthChecker) *echo.Echo {
+	return NewRouterWithRealtimeAndLLMHealthChecker(db, cfg, realtime.Options{}, llmHealthChecker)
+}
+
+func NewRouterWithRealtimeAndLLMHealthChecker(db *gorm.DB, cfg config.Config, realtimeOptions realtime.Options, llmHealthChecker *LLMHealthChecker) *echo.Echo {
 	server := &Server{
-		db:  db,
-		cfg: cfg,
+		db:               db,
+		cfg:              cfg,
+		llmHealthChecker: llmHealthChecker,
 	}
 	realtimeOptions.RecordUserPong = server.recordUserPong
 	server.realtime = realtime.NewConnectionPool(realtimeOptions)
@@ -60,6 +70,7 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	client.GET("/me", server.getCurrentUser)
 	client.PATCH("/me", server.updateCurrentUser)
 	client.GET("/contacts/users", server.listContactUsers)
+	client.GET("/assistant/models", server.listClientLLMModels)
 	client.GET("/conversations", server.listClientConversations)
 	client.POST("/conversations/direct", server.createDirectConversation)
 	client.POST("/conversations/groups", server.createGroupConversation)
@@ -77,6 +88,15 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	admin.POST("/third-party/providers/:id/disable", server.disableThirdPartyProvider)
 	admin.POST("/third-party/providers/:id/move", server.moveThirdPartyProvider)
 	admin.DELETE("/third-party/providers/:id", server.deleteThirdPartyProvider)
+	admin.GET("/assistant/models", server.listLLMModels)
+	admin.POST("/assistant/models", server.createLLMModel)
+	admin.POST("/assistant/models/discover", server.discoverLLMModels)
+	admin.PUT("/assistant/models/:id", server.updateLLMModel)
+	admin.POST("/assistant/models/:id/enable", server.enableLLMModel)
+	admin.POST("/assistant/models/:id/disable", server.disableLLMModel)
+	admin.POST("/assistant/models/:id/move", server.moveLLMModel)
+	admin.POST("/assistant/models/:id/health-check", server.checkLLMModelHealth)
+	admin.DELETE("/assistant/models/:id", server.deleteLLMModel)
 	admin.GET("/users", server.listUsers)
 	admin.POST("/users", server.createUser)
 	admin.POST("/users/:id/disable", server.disableUser)

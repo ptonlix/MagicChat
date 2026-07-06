@@ -520,7 +520,7 @@ function TextMessageBody({ content }: { content: string }) {
 
 function getConversationHeaderDescription(conversation: ClientConversation) {
   if (conversation.type === "direct") {
-    return "单聊"
+    return "私聊"
   }
   if (conversation.type === "app") {
     return "应用会话"

@@ -551,7 +551,7 @@ func newConversationListItemResponse(
 			break
 		}
 		if strings.TrimSpace(name) == "" {
-			name = "单聊"
+			name = "私聊"
 		}
 	} else if strings.TrimSpace(name) == "" {
 		name = "群聊"

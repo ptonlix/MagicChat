@@ -65,7 +65,7 @@ function ConversationInfoContent({
       <>
         <SheetHeader className="border-b">
           <SheetTitle>会话信息</SheetTitle>
-          <SheetDescription>单聊</SheetDescription>
+          <SheetDescription>私聊</SheetDescription>
         </SheetHeader>
         <div className="px-4 py-6 text-sm text-muted-foreground">
           用户信息不可用

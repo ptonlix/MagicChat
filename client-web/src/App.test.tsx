@@ -303,8 +303,8 @@ function createClientFetchMock({
           success: true,
           data: {
             app_name: "星环协作",
-            third_party_providers: thirdPartyProviders,
             organization_name: "长亭科技",
+            third_party_providers: thirdPartyProviders,
           },
         }),
         {
@@ -2006,6 +2006,31 @@ describe("App", () => {
         await screen.findByTestId("conversation-panel-history")
       ).getAllByText("今天下午同步").length
     ).toBeGreaterThan(0)
+  }, 10_000)
+
+  it("群聊信息抽屉不展示群聊头像和群名摘要", async () => {
+    const user = userEvent.setup()
+
+    renderApp("/chat?conversation_id=conversation-team")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole(
+      "heading",
+      { name: "产品讨论组" },
+      { timeout: 4_000 }
+    )
+
+    await user.click(screen.getByRole("button", { name: "会话设置" }))
+    const groupInfoSheet = await screen.findByRole("dialog", {
+      name: "群聊信息",
+    })
+
+    expect(within(groupInfoSheet).getByText("3 人群聊")).toBeInTheDocument()
+    expect(within(groupInfoSheet).queryByText("群名")).not.toBeInTheDocument()
+    expect(
+      within(groupInfoSheet).queryByText("产品讨论组")
+    ).not.toBeInTheDocument()
+    expect(within(groupInfoSheet).queryByText("群聊")).not.toBeInTheDocument()
   }, 10_000)
 
   it("打开会话时先显示消息加载状态，接口返回空列表后再显示空态", async () => {

@@ -8,6 +8,582 @@
     },
     "basePath": "/",
     "paths": {
+        "/api/admin/assistant/models": {
+            "get": {
+                "description": "管理员读取 MyGod 助手的大模型配置，包含 API Key 和健康检查状态。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "列出大模型配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.listLLMModelsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "管理员创建一个 Anthropic 协议的大模型配置。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "创建大模型配置",
+                "parameters": [
+                    {
+                        "description": "大模型配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.llmModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.llmModelEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/assistant/models/discover": {
+            "post": {
+                "description": "管理员用临时 Base URL 和 API Key 读取 Anthropic 协议的大模型列表，不会保存配置。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "读取 Anthropic 大模型列表",
+                "parameters": [
+                    {
+                        "description": "Anthropic 临时连接信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.discoverLLMModelsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.discoverLLMModelsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/assistant/models/{id}": {
+            "put": {
+                "description": "管理员更新一个大模型配置。API Key 每次更新都需要提交完整值，配置更新后健康状态会重置为未检测。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "更新大模型配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "大模型 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "大模型配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.llmModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.llmModelEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "管理员删除一个大模型配置。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "删除大模型配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "大模型 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.successEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/assistant/models/{id}/disable": {
+            "post": {
+                "description": "管理员禁用一个大模型配置。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "禁用大模型配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "大模型 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.llmModelEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/assistant/models/{id}/enable": {
+            "post": {
+                "description": "管理员启用一个大模型配置。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "启用大模型配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "大模型 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.llmModelEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/assistant/models/{id}/health-check": {
+            "post": {
+                "description": "管理员主动发起一次 Anthropic 非流式健康检查，并返回更新后的健康状态。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "主动检测大模型连接",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "大模型 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.llmModelEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/assistant/models/{id}/move": {
+            "post": {
+                "description": "管理员将一个大模型配置上移或下移，服务端会重新归一化所有配置的排序值。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员 MyGod 助手"
+                ],
+                "summary": "移动大模型配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "大模型 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "移动方向",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.llmModelMoveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.listLLMModelsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/auth/login": {
             "post": {
                 "description": "默认管理员账号固定为 admin，密码来自服务端配置。",
@@ -59,459 +635,6 @@
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/oidc/providers": {
-            "get": {
-                "description": "管理员读取已配置的 OIDC 登录方式，包含 Client Secret。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "列出 OIDC 登录方式",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.listOIDCProvidersResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "管理员创建一个普通用户可用的 OIDC 登录方式。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "创建 OIDC 登录方式",
-                "parameters": [
-                    {
-                        "description": "OIDC 登录方式",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.oidcProviderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.oidcProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/oidc/providers/{id}": {
-            "put": {
-                "description": "管理员更新一个 OIDC 登录方式。Client Secret 每次更新都需要提交完整值。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "更新 OIDC 登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "OIDC 登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "OIDC 登录方式",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.oidcProviderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.oidcProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "管理员删除一个 OIDC 登录方式。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "删除 OIDC 登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "OIDC 登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.successEnvelope"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/oidc/providers/{id}/disable": {
-            "post": {
-                "description": "管理员禁用一个 OIDC 登录方式。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "禁用 OIDC 登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "OIDC 登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.oidcProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/oidc/providers/{id}/enable": {
-            "post": {
-                "description": "管理员启用一个 OIDC 登录方式。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "启用 OIDC 登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "OIDC 登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.oidcProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/oidc/providers/{id}/move": {
-            "post": {
-                "description": "管理员将一个 OIDC 登录方式上移或下移，服务端会重新归一化所有登录方式的排序值。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员 OIDC"
-                ],
-                "summary": "移动 OIDC 登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "OIDC 登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "移动方向",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.oidcProviderMoveRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.listOIDCProvidersResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httpserver.errorEnvelope"
                         }
@@ -618,6 +741,459 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/third-party/providers": {
+            "get": {
+                "description": "管理员读取已配置的第三方登录方式，包含 Client Secret。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "列出第三方登录方式",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.listThirdPartyProvidersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "管理员创建一个普通用户可用的第三方登录方式。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "创建第三方登录方式",
+                "parameters": [
+                    {
+                        "description": "第三方登录方式",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.thirdPartyProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/third-party/providers/{id}": {
+            "put": {
+                "description": "管理员更新一个第三方登录方式。Client Secret 每次更新都需要提交完整值。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "更新第三方登录方式",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "第三方登录方式 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "第三方登录方式",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.thirdPartyProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "管理员删除一个第三方登录方式。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "删除第三方登录方式",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "第三方登录方式 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.successEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/third-party/providers/{id}/disable": {
+            "post": {
+                "description": "管理员禁用一个第三方登录方式。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "禁用第三方登录方式",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "第三方登录方式 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/third-party/providers/{id}/enable": {
+            "post": {
+                "description": "管理员启用一个第三方登录方式。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "启用第三方登录方式",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "第三方登录方式 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/third-party/providers/{id}/move": {
+            "post": {
+                "description": "管理员将一个第三方登录方式上移或下移，服务端会重新归一化所有登录方式的排序值。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员第三方登录"
+                ],
+                "summary": "移动第三方登录方式",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "第三方登录方式 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "移动方向",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.thirdPartyProviderMoveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.listThirdPartyProvidersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httpserver.errorEnvelope"
                         }
@@ -976,6 +1552,50 @@
                 }
             }
         },
+        "/api/client/assistant/models": {
+            "get": {
+                "description": "普通用户读取可用的大模型列表，只返回展示和健康检查状态，不暴露模型调用配置。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端 MyGod 助手"
+                ],
+                "summary": "列出客户端可用大模型",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.listClientLLMModelsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/auth/login": {
             "post": {
                 "description": "普通用户使用管理员创建的邮箱和密码登录。",
@@ -1066,34 +1686,34 @@
                 }
             }
         },
-        "/api/client/auth/oidc/{key}/callback": {
+        "/api/client/auth/third-party/{key}/callback": {
             "get": {
-                "description": "处理第三方 OIDC 回调，创建或关联普通用户并写入用户登录 Session。",
+                "description": "处理第三方登录回调，创建或关联普通用户并写入用户登录 Session。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "客户端认证"
                 ],
-                "summary": "完成 OIDC 登录",
+                "summary": "完成第三方登录",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "OIDC 登录方式 Key",
+                        "description": "第三方登录方式 Key",
                         "name": "key",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "OIDC 授权码",
+                        "description": "第三方授权码",
                         "name": "code",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "OIDC 登录状态",
+                        "description": "第三方登录状态",
                         "name": "state",
                         "in": "query",
                         "required": true
@@ -1136,20 +1756,20 @@
                 }
             }
         },
-        "/api/client/auth/oidc/{key}/start": {
+        "/api/client/auth/third-party/{key}/start": {
             "get": {
-                "description": "根据登录方式 Key 创建 OIDC 登录状态，并重定向到第三方授权地址。",
+                "description": "根据登录方式 Key 创建第三方登录状态，并重定向到第三方授权地址。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "客户端认证"
                 ],
-                "summary": "发起 OIDC 登录",
+                "summary": "发起第三方登录",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "OIDC 登录方式 Key",
+                        "description": "第三方登录方式 Key",
                         "name": "key",
                         "in": "path",
                         "required": true
@@ -1779,6 +2399,23 @@
                 }
             }
         },
+        "httpserver.clientLLMModelResponse": {
+            "type": "object",
+            "properties": {
+                "connectivity_status": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_response_duration_ms": {
+                    "type": "integer"
+                }
+            }
+        },
         "httpserver.contactUserResponse": {
             "type": "object",
             "properties": {
@@ -2008,6 +2645,39 @@
                 }
             }
         },
+        "httpserver.discoverLLMModelsRequest": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.discoverLLMModelsResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.discoveredLLMModelResponse"
+                    }
+                }
+            }
+        },
+        "httpserver.discoveredLLMModelResponse": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                }
+            }
+        },
         "httpserver.errorBody": {
             "type": "object",
             "properties": {
@@ -2081,15 +2751,15 @@
                     "type": "string",
                     "example": "MyGod"
                 },
-                "oidc_providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.publicOIDCProviderResponse"
-                    }
-                },
                 "organization_name": {
                     "type": "string",
                     "example": "长亭科技"
+                },
+                "third_party_providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.publicThirdPartyProviderResponse"
+                    }
                 }
             }
         },
@@ -2100,6 +2770,17 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/httpserver.conversationListItemResponse"
+                    }
+                }
+            }
+        },
+        "httpserver.listClientLLMModelsResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.clientLLMModelResponse"
                     }
                 }
             }
@@ -2129,6 +2810,17 @@
                 }
             }
         },
+        "httpserver.listLLMModelsResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.llmModelResponse"
+                    }
+                }
+            }
+        },
         "httpserver.listMessagesPageResponse": {
             "type": "object",
             "properties": {
@@ -2154,13 +2846,13 @@
                 }
             }
         },
-        "httpserver.listOIDCProvidersResponse": {
+        "httpserver.listThirdPartyProvidersResponse": {
             "type": "object",
             "properties": {
                 "providers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/httpserver.oidcProviderResponse"
+                        "$ref": "#/definitions/httpserver.thirdPartyProviderResponse"
                     }
                 }
             }
@@ -2193,6 +2885,83 @@
                     "items": {
                         "$ref": "#/definitions/httpserver.userResponse"
                     }
+                }
+            }
+        },
+        "httpserver.llmModelEnvelope": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "$ref": "#/definitions/httpserver.llmModelResponse"
+                }
+            }
+        },
+        "httpserver.llmModelMoveRequest": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.llmModelRequest": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "model_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.llmModelResponse": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "connectivity_status": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_checked_at": {
+                    "type": "string"
+                },
+                "last_connected_at": {
+                    "type": "string"
+                },
+                "last_error_message": {
+                    "type": "string"
+                },
+                "last_response_duration_ms": {
+                    "type": "integer"
+                },
+                "model_name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
                 }
             }
         },
@@ -2253,123 +3022,7 @@
                 }
             }
         },
-        "httpserver.oidcProviderEnvelope": {
-            "type": "object",
-            "properties": {
-                "provider": {
-                    "$ref": "#/definitions/httpserver.oidcProviderResponse"
-                }
-            }
-        },
-        "httpserver.oidcProviderMoveRequest": {
-            "type": "object",
-            "properties": {
-                "direction": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.oidcProviderRequest": {
-            "type": "object",
-            "properties": {
-                "authorize_url": {
-                    "type": "string"
-                },
-                "avatar_field": {
-                    "type": "string"
-                },
-                "client_id": {
-                    "type": "string"
-                },
-                "client_secret": {
-                    "type": "string"
-                },
-                "email_field": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "name_field": {
-                    "type": "string"
-                },
-                "nickname_field": {
-                    "type": "string"
-                },
-                "phone_field": {
-                    "type": "string"
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "token_url": {
-                    "type": "string"
-                },
-                "userinfo_url": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.oidcProviderResponse": {
-            "type": "object",
-            "properties": {
-                "authorize_url": {
-                    "type": "string"
-                },
-                "avatar_field": {
-                    "type": "string"
-                },
-                "client_id": {
-                    "type": "string"
-                },
-                "client_secret": {
-                    "type": "string"
-                },
-                "email_field": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "name_field": {
-                    "type": "string"
-                },
-                "nickname_field": {
-                    "type": "string"
-                },
-                "phone_field": {
-                    "type": "string"
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "sort_order": {
-                    "type": "integer"
-                },
-                "token_url": {
-                    "type": "string"
-                },
-                "userinfo_url": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.publicOIDCProviderResponse": {
+        "httpserver.publicThirdPartyProviderResponse": {
             "type": "object",
             "properties": {
                 "key": {
@@ -2401,6 +3054,88 @@
                 "success": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "httpserver.thirdPartyProviderEnvelope": {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "$ref": "#/definitions/httpserver.thirdPartyProviderResponse"
+                }
+            }
+        },
+        "httpserver.thirdPartyProviderMoveRequest": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.thirdPartyProviderRequest": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_secret": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.thirdPartyProviderResponse": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_secret": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
