@@ -10,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   DropdownMenu,
@@ -24,49 +23,110 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import {
   AdminSettingsRequestError,
-  createOIDCProvider,
-  deleteOIDCProvider,
-  disableOIDCProvider,
-  enableOIDCProvider,
+  createThirdPartyLoginProvider,
+  deleteThirdPartyLoginProvider,
+  disableThirdPartyLoginProvider,
+  enableThirdPartyLoginProvider,
   getInfoSettings,
-  listOIDCProviders,
-  moveOIDCProvider,
-  type OIDCProvider,
-  type OIDCProviderMoveDirection,
-  type OIDCProviderInput,
-  updateOIDCProvider,
+  listThirdPartyLoginProviders,
+  moveThirdPartyLoginProvider,
+  type ThirdPartyLoginProvider,
+  type ThirdPartyLoginProviderInput,
+  type ThirdPartyLoginProviderMoveDirection,
+  type ThirdPartyLoginProviderType,
   updateInfoSettings,
+  updateThirdPartyLoginProvider,
 } from "@/lib/admin-settings"
 
-export type OIDCProviderForm = {
+type ThirdPartyLoginProviderOption = {
+  clientIdLabel: string
+  label: string
+  name: string
+  secretLabel: string
+  type: ThirdPartyLoginProviderType
+}
+
+export type ThirdPartyLoginProviderForm = {
+  agentId: string
   avatarField: string
   authorizeUrl: string
   clientId: string
   clientSecret: string
   emailField: string
+  externalIdField: string
   name: string
   nameField: string
   nicknameField: string
   phoneField: string
   scopesText: string
   tokenUrl: string
+  type: ThirdPartyLoginProviderType
   userinfoUrl: string
 }
+
+const thirdPartyLoginProviderOptions: ThirdPartyLoginProviderOption[] = [
+  {
+    clientIdLabel: "AppKey / Client ID",
+    label: "钉钉",
+    name: "钉钉",
+    secretLabel: "AppSecret / Client Secret",
+    type: "dingtalk",
+  },
+  {
+    clientIdLabel: "Corp ID",
+    label: "企业微信",
+    name: "企业微信",
+    secretLabel: "Secret",
+    type: "wecom",
+  },
+  {
+    clientIdLabel: "App ID",
+    label: "飞书",
+    name: "飞书",
+    secretLabel: "App Secret",
+    type: "feishu",
+  },
+  {
+    clientIdLabel: "Client ID",
+    label: "GitHub",
+    name: "GitHub",
+    secretLabel: "Client Secret",
+    type: "github",
+  },
+  {
+    clientIdLabel: "Client ID",
+    label: "Google",
+    name: "Google",
+    secretLabel: "Client Secret",
+    type: "google",
+  },
+  {
+    clientIdLabel: "Client ID",
+    label: "通用 OIDC",
+    name: "通用 OIDC",
+    secretLabel: "Client Secret",
+    type: "oidc",
+  },
+]
 
 export default function SettingsPage() {
   const appNameId = useId()
   const organizationNameId = useId()
   const [appName, setAppName] = useState("")
-  const [editingOIDCProvider, setEditingOIDCProvider] =
-    useState<OIDCProvider | null>(null)
+  const [callbackProvider, setCallbackProvider] =
+    useState<ThirdPartyLoginProvider | null>(null)
+  const [dialogProviderType, setDialogProviderType] =
+    useState<ThirdPartyLoginProviderType>("oidc")
+  const [editingProvider, setEditingProvider] =
+    useState<ThirdPartyLoginProvider | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isOIDCDialogOpen, setIsOIDCDialogOpen] = useState(false)
+  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [oidcProviders, setOIDCProviders] = useState<OIDCProvider[]>([])
-  const [updatingOIDCProviderId, setUpdatingOIDCProviderId] = useState<
-    string | null
-  >(null)
   const [organizationName, setOrganizationName] = useState("")
+  const [providers, setProviders] = useState<ThirdPartyLoginProvider[]>([])
+  const [updatingProviderId, setUpdatingProviderId] = useState<string | null>(
+    null
+  )
   const isSubmitDisabled =
     isLoading ||
     isSaving ||
@@ -80,9 +140,9 @@ export default function SettingsPage() {
       setIsLoading(true)
 
       try {
-        const [settings, providers] = await Promise.all([
+        const [settings, loadedProviders] = await Promise.all([
           getInfoSettings(),
-          listOIDCProviders(),
+          listThirdPartyLoginProviders(),
         ])
 
         if (ignore) {
@@ -91,7 +151,7 @@ export default function SettingsPage() {
 
         setAppName(settings.appName)
         setOrganizationName(settings.organizationName)
-        setOIDCProviders(sortOIDCProvidersForDisplay(providers))
+        setProviders(sortThirdPartyProvidersForDisplay(loadedProviders))
       } catch (error) {
         if (ignore) {
           return
@@ -145,106 +205,122 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleOIDCDelete(provider: OIDCProvider) {
-    setUpdatingOIDCProviderId(provider.id)
+  async function handleProviderDelete(provider: ThirdPartyLoginProvider) {
+    setUpdatingProviderId(provider.id)
 
     try {
-      await deleteOIDCProvider(provider.id)
-      setOIDCProviders((providers) =>
-        providers.filter(
+      await deleteThirdPartyLoginProvider(provider.id)
+      setProviders((currentProviders) =>
+        currentProviders.filter(
           (currentProvider) => currentProvider.id !== provider.id
         )
       )
-      if (editingOIDCProvider?.id === provider.id) {
-        handleOIDCDialogOpenChange(false)
+      if (editingProvider?.id === provider.id) {
+        handleProviderDialogOpenChange(false)
       }
-      toast.success("OIDC 登录方式已删除")
+      toast.success("第三方登录方式已删除")
     } catch (error) {
       toast.error(
         error instanceof AdminSettingsRequestError
           ? error.message
-          : "删除 OIDC 登录方式失败"
+          : "删除第三方登录方式失败"
       )
     } finally {
-      setUpdatingOIDCProviderId(null)
+      setUpdatingProviderId(null)
     }
   }
 
-  async function handleOIDCStatusChange(
-    provider: OIDCProvider,
+  async function handleProviderStatusChange(
+    provider: ThirdPartyLoginProvider,
     enabled: boolean
   ) {
-    setUpdatingOIDCProviderId(provider.id)
+    setUpdatingProviderId(provider.id)
 
     try {
       const updatedProvider = enabled
-        ? await enableOIDCProvider(provider.id)
-        : await disableOIDCProvider(provider.id)
+        ? await enableThirdPartyLoginProvider(provider.id)
+        : await disableThirdPartyLoginProvider(provider.id)
 
-      setOIDCProviders((providers) =>
-        sortOIDCProvidersForDisplay(
-          providers.map((currentProvider) =>
+      setProviders((currentProviders) =>
+        sortThirdPartyProvidersForDisplay(
+          currentProviders.map((currentProvider) =>
             currentProvider.id === updatedProvider.id
               ? updatedProvider
               : currentProvider
           )
         )
       )
-      toast.success(enabled ? "OIDC 登录方式已启用" : "OIDC 登录方式已禁用")
+      toast.success(enabled ? "第三方登录方式已启用" : "第三方登录方式已禁用")
     } catch (error) {
       toast.error(
         error instanceof AdminSettingsRequestError
           ? error.message
-          : "更新 OIDC 登录方式状态失败"
+          : "更新第三方登录方式状态失败"
       )
     } finally {
-      setUpdatingOIDCProviderId(null)
+      setUpdatingProviderId(null)
     }
   }
 
-  async function handleOIDCMove(
-    provider: OIDCProvider,
-    direction: OIDCProviderMoveDirection
+  async function handleProviderMove(
+    provider: ThirdPartyLoginProvider,
+    direction: ThirdPartyLoginProviderMoveDirection
   ) {
-    setUpdatingOIDCProviderId(provider.id)
+    setUpdatingProviderId(provider.id)
 
     try {
-      const providers = await moveOIDCProvider(provider.id, direction)
-      setOIDCProviders(sortOIDCProvidersForDisplay(providers))
-      toast.success("OIDC 登录方式排序已更新")
+      const updatedProviders = await moveThirdPartyLoginProvider(
+        provider.id,
+        direction
+      )
+      setProviders(sortThirdPartyProvidersForDisplay(updatedProviders))
+      toast.success("第三方登录方式排序已更新")
     } catch (error) {
       toast.error(
         error instanceof AdminSettingsRequestError
           ? error.message
-          : "移动 OIDC 登录方式失败"
+          : "移动第三方登录方式失败"
       )
     } finally {
-      setUpdatingOIDCProviderId(null)
+      setUpdatingProviderId(null)
     }
   }
 
-  function handleOIDCDialogOpenChange(open: boolean) {
-    setIsOIDCDialogOpen(open)
+  function handleProviderDialogOpenChange(open: boolean) {
+    setIsProviderDialogOpen(open)
     if (!open) {
-      setEditingOIDCProvider(null)
+      setEditingProvider(null)
     }
   }
 
-  function openEditOIDCForm(provider: OIDCProvider) {
-    setEditingOIDCProvider(provider)
-    setIsOIDCDialogOpen(true)
+  function openCreateProviderForm(type: ThirdPartyLoginProviderType) {
+    setDialogProviderType(type)
+    setEditingProvider(null)
+    setIsProviderDialogOpen(true)
   }
 
-  function handleOIDCProviderSaved(provider: OIDCProvider) {
-    setOIDCProviders((providers) =>
-      sortOIDCProvidersForDisplay([
+  function openEditProviderForm(provider: ThirdPartyLoginProvider) {
+    setDialogProviderType(provider.type)
+    setEditingProvider(provider)
+    setIsProviderDialogOpen(true)
+  }
+
+  function handleCallbackDialogOpenChange(open: boolean) {
+    if (!open) {
+      setCallbackProvider(null)
+    }
+  }
+
+  function handleProviderSaved(provider: ThirdPartyLoginProvider) {
+    setProviders((currentProviders) =>
+      sortThirdPartyProvidersForDisplay([
         provider,
-        ...providers.filter(
+        ...currentProviders.filter(
           (currentProvider) => currentProvider.id !== provider.id
         ),
       ])
     )
-    handleOIDCDialogOpenChange(false)
+    handleProviderDialogOpenChange(false)
   }
 
   return (
@@ -294,58 +370,102 @@ export default function SettingsPage() {
       <Card className={getSettingsCardClassName()}>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
-            <CardTitle>OIDC 登录</CardTitle>
-            <OIDCProviderDialog
+            <CardTitle>第三方登录</CardTitle>
+            <ThirdPartyProviderAddMenu
               disabled={isLoading}
-              editingProvider={editingOIDCProvider}
-              onOpenChange={handleOIDCDialogOpenChange}
-              onProviderSaved={handleOIDCProviderSaved}
-              open={isOIDCDialogOpen}
+              onSelect={openCreateProviderForm}
             />
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            {oidcProviders.length === 0 ? (
+            {providers.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                暂无 OIDC 登录方式
+                暂无第三方登录方式
               </div>
             ) : (
-              oidcProviders.map((provider, index) => (
+              providers.map((provider, index) => (
                 <div
                   className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
                   key={provider.id}
                 >
-                  <div className={getOIDCProviderTextClassName(provider.enabled)}>
+                  <div
+                    className={getThirdPartyProviderTextClassName(
+                      provider.enabled
+                    )}
+                  >
                     <div className="truncate text-sm font-medium">
                       {provider.name}
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {provider.key}
                       {provider.enabled ? "" : " · 已禁用"}
                     </div>
                   </div>
-                  <OIDCProviderActions
+                  <ThirdPartyProviderActions
                     isFirst={index === 0}
-                    isLast={index === oidcProviders.length - 1}
-                    isUpdating={updatingOIDCProviderId === provider.id}
-                    onDelete={handleOIDCDelete}
-                    onEdit={openEditOIDCForm}
-                    onMove={handleOIDCMove}
-                    onStatusChange={handleOIDCStatusChange}
+                    isLast={index === providers.length - 1}
+                    isUpdating={updatingProviderId === provider.id}
+                    onDelete={handleProviderDelete}
+                    onEdit={openEditProviderForm}
+                    onMove={handleProviderMove}
+                    onStatusChange={handleProviderStatusChange}
+                    onViewCallback={setCallbackProvider}
                     provider={provider}
                   />
                 </div>
               ))
             )}
           </div>
+          <ThirdPartyCallbackURLDialog
+            onOpenChange={handleCallbackDialogOpenChange}
+            provider={callbackProvider}
+          />
+          <ThirdPartyProviderDialog
+            disabled={isLoading}
+            editingProvider={editingProvider}
+            onOpenChange={handleProviderDialogOpenChange}
+            onProviderSaved={handleProviderSaved}
+            open={isProviderDialogOpen}
+            providerType={dialogProviderType}
+          />
         </CardContent>
       </Card>
     </div>
   )
 }
 
-function OIDCProviderActions({
+function ThirdPartyProviderAddMenu({
+  disabled,
+  onSelect,
+}: {
+  disabled: boolean
+  onSelect: (type: ThirdPartyLoginProviderType) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button disabled={disabled} size="sm" type="button" variant="outline" />
+        }
+      >
+        <PlusIcon data-icon="inline-start" />
+        添加
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          {thirdPartyLoginProviderOptions.map((option) => (
+            <DropdownMenuItem
+              key={option.type}
+              onClick={() => onSelect(option.type)}
+            >
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function ThirdPartyProviderActions({
   isFirst,
   isLast,
   isUpdating,
@@ -353,16 +473,21 @@ function OIDCProviderActions({
   onEdit,
   onMove,
   onStatusChange,
+  onViewCallback,
   provider,
 }: {
   isFirst: boolean
   isLast: boolean
   isUpdating: boolean
-  onDelete: (provider: OIDCProvider) => void
-  onEdit: (provider: OIDCProvider) => void
-  onMove: (provider: OIDCProvider, direction: OIDCProviderMoveDirection) => void
-  onStatusChange: (provider: OIDCProvider, enabled: boolean) => void
-  provider: OIDCProvider
+  onDelete: (provider: ThirdPartyLoginProvider) => void
+  onEdit: (provider: ThirdPartyLoginProvider) => void
+  onMove: (
+    provider: ThirdPartyLoginProvider,
+    direction: ThirdPartyLoginProviderMoveDirection
+  ) => void
+  onStatusChange: (provider: ThirdPartyLoginProvider, enabled: boolean) => void
+  onViewCallback: (provider: ThirdPartyLoginProvider) => void
+  provider: ThirdPartyLoginProvider
 }) {
   return (
     <DropdownMenu>
@@ -381,6 +506,9 @@ function OIDCProviderActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onViewCallback(provider)}>
+            查看回调地址
+          </DropdownMenuItem>
           <DropdownMenuItem
             disabled={isUpdating}
             onClick={() => onEdit(provider)}
@@ -424,48 +552,89 @@ function OIDCProviderActions({
   )
 }
 
-function OIDCProviderDialog({
+function ThirdPartyCallbackURLDialog({
+  onOpenChange,
+  provider,
+}: {
+  onOpenChange: (open: boolean) => void
+  provider: ThirdPartyLoginProvider | null
+}) {
+  const callbackURL = provider ? getThirdPartyCallbackURL(provider.key) : ""
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={provider !== null}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>第三方登录回调地址</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <div className="text-sm font-medium">{provider?.name}</div>
+            <div className="text-xs text-muted-foreground">{provider?.key}</div>
+          </div>
+          <div className="break-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm">
+            {callbackURL}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)} type="button">
+            关闭
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ThirdPartyProviderDialog({
   disabled,
   editingProvider,
   onOpenChange,
   onProviderSaved,
   open,
+  providerType,
 }: {
   disabled: boolean
-  editingProvider: OIDCProvider | null
+  editingProvider: ThirdPartyLoginProvider | null
   onOpenChange: (open: boolean) => void
-  onProviderSaved: (provider: OIDCProvider) => void
+  onProviderSaved: (provider: ThirdPartyLoginProvider) => void
   open: boolean
+  providerType: ThirdPartyLoginProviderType
 }) {
-  const oidcAvatarFieldId = useId()
-  const oidcAuthorizeUrlId = useId()
-  const oidcClientIdId = useId()
-  const oidcClientSecretId = useId()
-  const oidcEmailFieldId = useId()
-  const oidcNameFieldId = useId()
-  const oidcNameId = useId()
-  const oidcNicknameFieldId = useId()
-  const oidcPhoneFieldId = useId()
-  const oidcScopesId = useId()
-  const oidcTokenUrlId = useId()
-  const oidcUserinfoUrlId = useId()
-  const [form, setForm] = useState<OIDCProviderForm>(
-    createDefaultOIDCProviderForm
+  const agentId = useId()
+  const avatarFieldId = useId()
+  const authorizeUrlId = useId()
+  const clientIdId = useId()
+  const clientSecretId = useId()
+  const emailFieldId = useId()
+  const externalIdFieldId = useId()
+  const nameFieldId = useId()
+  const nameId = useId()
+  const nicknameFieldId = useId()
+  const phoneFieldId = useId()
+  const scopesId = useId()
+  const tokenUrlId = useId()
+  const userinfoUrlId = useId()
+  const [form, setForm] = useState<ThirdPartyLoginProviderForm>(() =>
+    createDefaultThirdPartyProviderForm(providerType)
   )
   const [isSaving, setIsSaving] = useState(false)
   const isEditing = editingProvider !== null
+  const option = getThirdPartyProviderOption(form.type)
+  const isOIDC = form.type === "oidc"
+  const isWeCom = form.type === "wecom"
   const isSubmitDisabled =
     disabled ||
     isSaving ||
     form.name.trim() === "" ||
-    form.authorizeUrl.trim() === "" ||
-    form.tokenUrl.trim() === "" ||
-    form.userinfoUrl.trim() === "" ||
     form.clientId.trim() === "" ||
     form.clientSecret.trim() === "" ||
-    form.emailField.trim() === "" ||
-    form.nameField.trim() === "" ||
-    oidcProviderFormToInput(form).scopes.length === 0
+    (isWeCom && form.agentId.trim() === "") ||
+    (isOIDC &&
+      (form.authorizeUrl.trim() === "" ||
+        form.tokenUrl.trim() === "" ||
+        form.userinfoUrl.trim() === "" ||
+        form.externalIdField.trim() === ""))
 
   useEffect(() => {
     if (!open) {
@@ -474,10 +643,10 @@ function OIDCProviderDialog({
 
     setForm(
       editingProvider
-        ? oidcProviderToForm(editingProvider)
-        : createDefaultOIDCProviderForm()
+        ? thirdPartyProviderToForm(editingProvider)
+        : createDefaultThirdPartyProviderForm(providerType)
     )
-  }, [editingProvider, open])
+  }, [editingProvider, open, providerType])
 
   function handleOpenChange(nextOpen: boolean) {
     if (isSaving) {
@@ -497,18 +666,18 @@ function OIDCProviderDialog({
     setIsSaving(true)
 
     try {
-      const input = oidcProviderFormToInput(form)
+      const input = thirdPartyProviderFormToInput(form)
       const provider = editingProvider
-        ? await updateOIDCProvider(editingProvider.id, input)
-        : await createOIDCProvider(input)
+        ? await updateThirdPartyLoginProvider(editingProvider.id, input)
+        : await createThirdPartyLoginProvider(input)
 
       onProviderSaved(provider)
-      toast.success("OIDC 登录方式已保存")
+      toast.success("第三方登录方式已保存")
     } catch (error) {
       toast.error(
         error instanceof AdminSettingsRequestError
           ? error.message
-          : "保存 OIDC 登录方式失败"
+          : "保存第三方登录方式失败"
       )
     } finally {
       setIsSaving(false)
@@ -517,35 +686,22 @@ function OIDCProviderDialog({
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
-      <DialogTrigger
-        render={
-          <Button
-            disabled={disabled}
-            size="sm"
-            type="button"
-            variant="outline"
-          />
-        }
-      >
-        <PlusIcon data-icon="inline-start" />
-        添加
-      </DialogTrigger>
       <DialogContent
         className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl"
         showCloseButton={!isSaving}
       >
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "编辑登录方式" : "添加登录方式"}
+            {isEditing ? "编辑第三方登录" : `添加${option.label}登录`}
           </DialogTitle>
         </DialogHeader>
         <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel htmlFor={oidcNameId}>名称</FieldLabel>
+              <FieldLabel htmlFor={nameId}>名称</FieldLabel>
               <Input
                 disabled={isSaving}
-                id={oidcNameId}
+                id={nameId}
                 onChange={(event) =>
                   setForm((currentForm) => ({
                     ...currentForm,
@@ -555,167 +711,205 @@ function OIDCProviderDialog({
                 value={form.name}
               />
             </Field>
-            <Field>
-              <FieldLabel htmlFor={oidcAuthorizeUrlId}>
-                Authorize URL
-              </FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={oidcAuthorizeUrlId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    authorizeUrl: event.target.value,
-                  }))
-                }
-                value={form.authorizeUrl}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={oidcTokenUrlId}>Access Token URL</FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={oidcTokenUrlId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    tokenUrl: event.target.value,
-                  }))
-                }
-                value={form.tokenUrl}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={oidcUserinfoUrlId}>用户信息 URL</FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={oidcUserinfoUrlId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    userinfoUrl: event.target.value,
-                  }))
-                }
-                value={form.userinfoUrl}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={oidcClientIdId}>Client ID</FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={oidcClientIdId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    clientId: event.target.value,
-                  }))
-                }
-                value={form.clientId}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={oidcClientSecretId}>
-                Client Secret
-              </FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={oidcClientSecretId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    clientSecret: event.target.value,
-                  }))
-                }
-                value={form.clientSecret}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={oidcScopesId}>Scope</FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={oidcScopesId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    scopesText: event.target.value,
-                  }))
-                }
-                placeholder="email,profile"
-                value={form.scopesText}
-              />
-            </Field>
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor={oidcEmailFieldId}>邮箱字段</FieldLabel>
+                <FieldLabel htmlFor={clientIdId}>
+                  {option.clientIdLabel}
+                </FieldLabel>
                 <Input
                   disabled={isSaving}
-                  id={oidcEmailFieldId}
+                  id={clientIdId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      emailField: event.target.value,
+                      clientId: event.target.value,
                     }))
                   }
-                  value={form.emailField}
+                  value={form.clientId}
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor={oidcPhoneFieldId}>手机字段</FieldLabel>
+                <FieldLabel htmlFor={clientSecretId}>
+                  {option.secretLabel}
+                </FieldLabel>
                 <Input
                   disabled={isSaving}
-                  id={oidcPhoneFieldId}
+                  id={clientSecretId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      phoneField: event.target.value,
+                      clientSecret: event.target.value,
                     }))
                   }
-                  value={form.phoneField}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={oidcNameFieldId}>姓名字段</FieldLabel>
-                <Input
-                  disabled={isSaving}
-                  id={oidcNameFieldId}
-                  onChange={(event) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      nameField: event.target.value,
-                    }))
-                  }
-                  value={form.nameField}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={oidcNicknameFieldId}>昵称字段</FieldLabel>
-                <Input
-                  disabled={isSaving}
-                  id={oidcNicknameFieldId}
-                  onChange={(event) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      nicknameField: event.target.value,
-                    }))
-                  }
-                  value={form.nicknameField}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={oidcAvatarFieldId}>头像字段</FieldLabel>
-                <Input
-                  disabled={isSaving}
-                  id={oidcAvatarFieldId}
-                  onChange={(event) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      avatarField: event.target.value,
-                    }))
-                  }
-                  value={form.avatarField}
+                  value={form.clientSecret}
                 />
               </Field>
             </div>
+            {isWeCom && (
+              <Field>
+                <FieldLabel htmlFor={agentId}>Agent ID</FieldLabel>
+                <Input
+                  disabled={isSaving}
+                  id={agentId}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      agentId: event.target.value,
+                    }))
+                  }
+                  value={form.agentId}
+                />
+              </Field>
+            )}
+            {isOIDC && (
+              <>
+                <Field>
+                  <FieldLabel htmlFor={authorizeUrlId}>Authorize URL</FieldLabel>
+                  <Input
+                    disabled={isSaving}
+                    id={authorizeUrlId}
+                    onChange={(event) =>
+                      setForm((currentForm) => ({
+                        ...currentForm,
+                        authorizeUrl: event.target.value,
+                      }))
+                    }
+                    value={form.authorizeUrl}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={tokenUrlId}>Access Token URL</FieldLabel>
+                  <Input
+                    disabled={isSaving}
+                    id={tokenUrlId}
+                    onChange={(event) =>
+                      setForm((currentForm) => ({
+                        ...currentForm,
+                        tokenUrl: event.target.value,
+                      }))
+                    }
+                    value={form.tokenUrl}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={userinfoUrlId}>用户信息 URL</FieldLabel>
+                  <Input
+                    disabled={isSaving}
+                    id={userinfoUrlId}
+                    onChange={(event) =>
+                      setForm((currentForm) => ({
+                        ...currentForm,
+                        userinfoUrl: event.target.value,
+                      }))
+                    }
+                    value={form.userinfoUrl}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={scopesId}>Scope</FieldLabel>
+                  <Input
+                    disabled={isSaving}
+                    id={scopesId}
+                    onChange={(event) =>
+                      setForm((currentForm) => ({
+                        ...currentForm,
+                        scopesText: event.target.value,
+                      }))
+                    }
+                    placeholder="openid,email,profile"
+                    value={form.scopesText}
+                  />
+                </Field>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor={externalIdFieldId}>
+                      用户标识字段
+                    </FieldLabel>
+                    <Input
+                      disabled={isSaving}
+                      id={externalIdFieldId}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          externalIdField: event.target.value,
+                        }))
+                      }
+                      value={form.externalIdField}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={emailFieldId}>邮箱字段</FieldLabel>
+                    <Input
+                      disabled={isSaving}
+                      id={emailFieldId}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          emailField: event.target.value,
+                        }))
+                      }
+                      value={form.emailField}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={phoneFieldId}>手机字段</FieldLabel>
+                    <Input
+                      disabled={isSaving}
+                      id={phoneFieldId}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          phoneField: event.target.value,
+                        }))
+                      }
+                      value={form.phoneField}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={nameFieldId}>姓名字段</FieldLabel>
+                    <Input
+                      disabled={isSaving}
+                      id={nameFieldId}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          nameField: event.target.value,
+                        }))
+                      }
+                      value={form.nameField}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={nicknameFieldId}>昵称字段</FieldLabel>
+                    <Input
+                      disabled={isSaving}
+                      id={nicknameFieldId}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          nicknameField: event.target.value,
+                        }))
+                      }
+                      value={form.nicknameField}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={avatarFieldId}>头像字段</FieldLabel>
+                    <Input
+                      disabled={isSaving}
+                      id={avatarFieldId}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          avatarField: event.target.value,
+                        }))
+                      }
+                      value={form.avatarField}
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -750,67 +944,103 @@ export function getSettingsCardClassName() {
   return "w-full"
 }
 
-export function getOIDCProviderTextClassName(enabled: boolean) {
+export function getThirdPartyProviderTextClassName(enabled: boolean) {
   return enabled ? "min-w-0" : "min-w-0 text-muted-foreground"
 }
 
-export function createDefaultOIDCProviderForm(): OIDCProviderForm {
+export function getThirdPartyCallbackURL(
+  providerKey: string,
+  location = window.location
+) {
+  return `${location.origin}/api/client/auth/third-party/${encodeURIComponent(
+    providerKey
+  )}/callback`
+}
+
+export function createDefaultThirdPartyProviderForm(
+  type: ThirdPartyLoginProviderType = "oidc"
+): ThirdPartyLoginProviderForm {
+  const option = getThirdPartyProviderOption(type)
+
   return {
+    agentId: "",
     avatarField: "picture",
     authorizeUrl: "",
     clientId: "",
     clientSecret: "",
     emailField: "email",
-    name: "",
+    externalIdField: "sub",
+    name: option.name,
     nameField: "name",
     nicknameField: "nickname",
     phoneField: "phone",
-    scopesText: "email,profile",
+    scopesText: type === "oidc" ? "openid,email,profile" : "",
     tokenUrl: "",
+    type,
     userinfoUrl: "",
   }
 }
 
-export function oidcProviderToForm(provider: OIDCProvider): OIDCProviderForm {
+export function thirdPartyProviderToForm(
+  provider: ThirdPartyLoginProvider
+): ThirdPartyLoginProviderForm {
+  const baseForm = createDefaultThirdPartyProviderForm(provider.type)
+
   return {
-    avatarField: provider.avatarField,
-    authorizeUrl: provider.authorizeUrl,
+    ...baseForm,
+    agentId: provider.config.agent_id ?? "",
+    avatarField: provider.config.avatar_field ?? baseForm.avatarField,
+    authorizeUrl: provider.config.authorize_url ?? "",
     clientId: provider.clientId,
     clientSecret: provider.clientSecret,
-    emailField: provider.emailField,
+    emailField: provider.config.email_field ?? baseForm.emailField,
+    externalIdField:
+      provider.config.external_id_field ?? baseForm.externalIdField,
     name: provider.name,
-    nameField: provider.nameField,
-    nicknameField: provider.nicknameField,
-    phoneField: provider.phoneField,
+    nameField: provider.config.name_field ?? baseForm.nameField,
+    nicknameField: provider.config.nickname_field ?? baseForm.nicknameField,
+    phoneField: provider.config.phone_field ?? baseForm.phoneField,
     scopesText: provider.scopes.join(","),
-    tokenUrl: provider.tokenUrl,
-    userinfoUrl: provider.userinfoUrl,
+    tokenUrl: provider.config.token_url ?? "",
+    userinfoUrl: provider.config.userinfo_url ?? "",
   }
 }
 
-export function oidcProviderFormToInput(
-  form: OIDCProviderForm
-): OIDCProviderInput {
+export function thirdPartyProviderFormToInput(
+  form: ThirdPartyLoginProviderForm
+): ThirdPartyLoginProviderInput {
+  const config: Record<string, string> = {}
+  if (form.type === "wecom") {
+    config.agent_id = form.agentId.trim()
+  }
+  if (form.type === "oidc") {
+    config.authorize_url = form.authorizeUrl.trim()
+    config.token_url = form.tokenUrl.trim()
+    config.userinfo_url = form.userinfoUrl.trim()
+    config.external_id_field = form.externalIdField.trim()
+    config.email_field = form.emailField.trim()
+    config.phone_field = form.phoneField.trim()
+    config.name_field = form.nameField.trim()
+    config.nickname_field = form.nicknameField.trim()
+    config.avatar_field = form.avatarField.trim()
+  }
+
   return {
-    avatarField: form.avatarField.trim(),
-    authorizeUrl: form.authorizeUrl.trim(),
     clientId: form.clientId.trim(),
     clientSecret: form.clientSecret.trim(),
-    emailField: form.emailField.trim(),
+    config,
     name: form.name.trim(),
-    nameField: form.nameField.trim(),
-    nicknameField: form.nicknameField.trim(),
-    phoneField: form.phoneField.trim(),
     scopes: form.scopesText
       .split(",")
       .map((scope) => scope.trim())
       .filter(Boolean),
-    tokenUrl: form.tokenUrl.trim(),
-    userinfoUrl: form.userinfoUrl.trim(),
+    type: form.type,
   }
 }
 
-export function sortOIDCProvidersForDisplay(providers: OIDCProvider[]) {
+export function sortThirdPartyProvidersForDisplay(
+  providers: ThirdPartyLoginProvider[]
+) {
   return [...providers].sort((firstProvider, secondProvider) => {
     if (firstProvider.sortOrder !== secondProvider.sortOrder) {
       return firstProvider.sortOrder - secondProvider.sortOrder
@@ -824,3 +1054,18 @@ export function sortOIDCProvidersForDisplay(providers: OIDCProvider[]) {
     return firstProvider.id.localeCompare(secondProvider.id)
   })
 }
+
+function getThirdPartyProviderOption(type: ThirdPartyLoginProviderType) {
+  return (
+    thirdPartyLoginProviderOptions.find((option) => option.type === type) ??
+    thirdPartyLoginProviderOptions[thirdPartyLoginProviderOptions.length - 1]
+  )
+}
+
+export type OIDCProviderForm = ThirdPartyLoginProviderForm
+export const createDefaultOIDCProviderForm = createDefaultThirdPartyProviderForm
+export const getOIDCCallbackURL = getThirdPartyCallbackURL
+export const getOIDCProviderTextClassName = getThirdPartyProviderTextClassName
+export const oidcProviderFormToInput = thirdPartyProviderFormToInput
+export const oidcProviderToForm = thirdPartyProviderToForm
+export const sortOIDCProvidersForDisplay = sortThirdPartyProvidersForDisplay

@@ -18,30 +18,33 @@ type ClientInfoErrorEnvelope = {
 
 type ClientInfoResponse = {
   app_name?: string
-  oidc_providers?: ClientInfoOIDCProviderResponse[]
+  oidc_providers?: ClientInfoThirdPartyProviderResponse[]
   organization_name?: string
+  third_party_providers?: ClientInfoThirdPartyProviderResponse[]
 }
 
-type ClientInfoOIDCProviderResponse = {
+type ClientInfoThirdPartyProviderResponse = {
   key?: string
   name?: string
 }
 
-export type AppInfoOIDCProvider = {
+export type AppInfoThirdPartyProvider = {
   key: string
   name: string
 }
 
 export type AppInfo = {
   appName: string
-  oidcProviders: AppInfoOIDCProvider[]
+  oidcProviders: AppInfoThirdPartyProvider[]
   organizationName: string
+  thirdPartyProviders: AppInfoThirdPartyProvider[]
 }
 
 export const defaultAppInfo: AppInfo = {
   appName: "MyGod",
   oidcProviders: [],
   organizationName: "长亭科技",
+  thirdPartyProviders: [],
 }
 
 export class ClientInfoRequestError extends Error {
@@ -94,16 +97,21 @@ function normalizeClientInfo(info: ClientInfoResponse | undefined): AppInfo {
     throw new ClientInfoRequestError("应用信息响应格式不正确")
   }
 
+  const thirdPartyProviders = normalizeThirdPartyProviders(
+    info.third_party_providers ?? info.oidc_providers
+  )
+
   return {
     appName: info.app_name,
-    oidcProviders: normalizeOIDCProviders(info.oidc_providers),
+    oidcProviders: thirdPartyProviders,
     organizationName: info.organization_name,
+    thirdPartyProviders,
   }
 }
 
-function normalizeOIDCProviders(
-  providers: ClientInfoOIDCProviderResponse[] | undefined
-): AppInfoOIDCProvider[] {
+function normalizeThirdPartyProviders(
+  providers: ClientInfoThirdPartyProviderResponse[] | undefined
+): AppInfoThirdPartyProvider[] {
   if (!providers) {
     return []
   }

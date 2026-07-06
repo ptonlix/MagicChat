@@ -61,8 +61,9 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.Message{},
 		&store.DirectConversation{},
 		&store.AppSettings{},
-		&store.OIDCProvider{},
-		&store.OIDCLoginState{},
+		&store.ThirdPartyLoginProvider{},
+		&store.ThirdPartyLoginState{},
+		&store.ThirdPartyAccount{},
 	)
 }
 
@@ -239,26 +240,44 @@ func insertTestUser(t *testing.T, db *gorm.DB, email string, name string, status
 	return user
 }
 
-func insertTestOIDCProvider(t *testing.T, db *gorm.DB, input store.OIDCProvider) store.OIDCProvider {
+func insertTestThirdPartyLoginProvider(t *testing.T, db *gorm.DB, input store.ThirdPartyLoginProvider) store.ThirdPartyLoginProvider {
 	t.Helper()
 
 	if input.ID == "" {
 		input.ID = uuid.NewString()
 	}
+	if input.Type == "" {
+		input.Type = store.ThirdPartyLoginProviderTypeOIDC
+	}
 	if len(input.Scopes) == 0 {
 		input.Scopes = json.RawMessage(`["openid","email","profile"]`)
 	}
-	if input.EmailField == "" {
-		input.EmailField = "email"
-	}
-	if input.NameField == "" {
-		input.NameField = "name"
+	if len(input.Config) == 0 {
+		input.Config = json.RawMessage(`{
+			"authorize_url":"https://sso.example.com/authorize",
+			"token_url":"https://sso.example.com/token",
+			"userinfo_url":"https://sso.example.com/userinfo",
+			"external_id_field":"sub",
+			"email_field":"email",
+			"name_field":"name"
+		}`)
 	}
 	if err := db.Create(&input).Error; err != nil {
-		t.Fatalf("create test oidc provider: %v", err)
+		t.Fatalf("create test third-party provider: %v", err)
 	}
 
 	return input
+}
+
+func thirdPartyProviderConfig(t *testing.T, value map[string]any) json.RawMessage {
+	t.Helper()
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal third-party provider config: %v", err)
+	}
+
+	return raw
 }
 
 type testConversationInput struct {
@@ -383,7 +402,7 @@ func requireContacts(t *testing.T, data map[string]any) []any {
 	return contacts
 }
 
-func requireOIDCProviders(t *testing.T, data map[string]any) []any {
+func requireThirdPartyLoginProviders(t *testing.T, data map[string]any) []any {
 	t.Helper()
 
 	providers, ok := data["providers"].([]any)
@@ -477,12 +496,12 @@ func requireUserSessionCookie(t *testing.T, resp *http.Response) *http.Cookie {
 	return requireCookieNamed(t, resp, "user_session")
 }
 
-func requireOIDCStateCookie(t *testing.T, resp *http.Response) *http.Cookie {
+func requireThirdPartyStateCookie(t *testing.T, resp *http.Response) *http.Cookie {
 	t.Helper()
 
-	cookie := requireCookieNamed(t, resp, "oidc_login_state")
+	cookie := requireCookieNamed(t, resp, "third_party_login_state")
 	if cookie.SameSite != http.SameSiteLaxMode {
-		t.Fatalf("oidc_login_state SameSite = %v, want Lax", cookie.SameSite)
+		t.Fatalf("third_party_login_state SameSite = %v, want Lax", cookie.SameSite)
 	}
 
 	return cookie
@@ -1745,37 +1764,45 @@ func TestClientInfoIsPublicAndReturnsDefaultSettings(t *testing.T) {
 	}
 }
 
-func TestClientInfoReturnsEnabledOIDCProviders(t *testing.T) {
+func TestClientInfoReturnsEnabledThirdPartyLoginProviders(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
 
-	insertTestOIDCProvider(t, db, store.OIDCProvider{
+	insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Disabled SSO",
 		Key:          "disabled-sso",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      false,
-		AuthorizeURL: "https://disabled.example.com/authorize",
-		TokenURL:     "https://disabled.example.com/token",
-		UserinfoURL:  "https://disabled.example.com/userinfo",
 		ClientID:     "disabled-client",
 		ClientSecret: "disabled-secret",
 		Scopes:       json.RawMessage(`["openid","email"]`),
-		EmailField:   "email",
-		NameField:    "name",
-		SortOrder:    1,
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     "https://disabled.example.com/authorize",
+			"token_url":         "https://disabled.example.com/token",
+			"userinfo_url":      "https://disabled.example.com/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
+		SortOrder: 1,
 	})
-	insertTestOIDCProvider(t, db, store.OIDCProvider{
+	insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Enterprise SSO",
 		Key:          "enterprise",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      true,
-		AuthorizeURL: "https://sso.example.com/authorize",
-		TokenURL:     "https://sso.example.com/token",
-		UserinfoURL:  "https://sso.example.com/userinfo",
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 		Scopes:       json.RawMessage(`["openid","email","profile"]`),
-		EmailField:   "email",
-		NameField:    "name",
-		SortOrder:    2,
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     "https://sso.example.com/authorize",
+			"token_url":         "https://sso.example.com/token",
+			"userinfo_url":      "https://sso.example.com/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
+		SortOrder: 2,
 	})
 
 	resp, body := getJSON(t, server, "/api/client/info")
@@ -1783,29 +1810,29 @@ func TestClientInfoReturnsEnabledOIDCProviders(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	data := requireSuccess(t, body)
-	providers, ok := data["oidc_providers"].([]any)
+	providers, ok := data["third_party_providers"].([]any)
 	if !ok {
-		t.Fatalf("oidc_providers = %#v, want array", data["oidc_providers"])
+		t.Fatalf("third_party_providers = %#v, want array", data["third_party_providers"])
 	}
 	if len(providers) != 1 {
-		t.Fatalf("oidc provider count = %d, want 1", len(providers))
+		t.Fatalf("third-party provider count = %d, want 1", len(providers))
 	}
-	provider := providers[0].(map[string]any)
-	if provider["key"] != "enterprise" {
-		t.Fatalf("provider key = %#v, want enterprise", provider["key"])
+	publicProvider := providers[0].(map[string]any)
+	if publicProvider["key"] != "enterprise" {
+		t.Fatalf("provider key = %#v, want enterprise", publicProvider["key"])
 	}
-	if provider["name"] != "Enterprise SSO" {
-		t.Fatalf("provider name = %#v, want Enterprise SSO", provider["name"])
+	if publicProvider["name"] != "Enterprise SSO" {
+		t.Fatalf("provider name = %#v, want Enterprise SSO", publicProvider["name"])
 	}
-	if _, ok := provider["client_secret"]; ok {
-		t.Fatalf("public oidc provider leaks client_secret: %#v", provider)
+	if _, ok := publicProvider["client_secret"]; ok {
+		t.Fatalf("public third-party provider leaks client_secret: %#v", publicProvider)
 	}
 }
 
-func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
+func TestThirdPartyLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 	var tokenCalled bool
 	var userinfoCalled bool
-	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	thirdPartyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/token":
 			tokenCalled = true
@@ -1836,9 +1863,10 @@ func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{
-				"mail": "Alice.OIDC@example.com",
+				"sub": "alice-external-id",
+				"mail": "Alice.ThirdParty@example.com",
 				"mobile": "13812345678",
-				"real_name": "Alice OIDC",
+				"real_name": "Alice ThirdParty",
 				"nick": "Ali",
 				"picture": "https://sso.example.com/alice.webp"
 			}`))
@@ -1846,32 +1874,36 @@ func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	defer oidcServer.Close()
+	defer thirdPartyServer.Close()
 
 	server, db := newTestRouter(t)
 	defer server.Close()
-	insertTestOIDCProvider(t, db, store.OIDCProvider{
-		Name:          "Enterprise SSO",
-		Key:           "enterprise",
-		Enabled:       true,
-		AuthorizeURL:  oidcServer.URL + "/authorize",
-		TokenURL:      oidcServer.URL + "/token",
-		UserinfoURL:   oidcServer.URL + "/userinfo",
-		ClientID:      "client-id",
-		ClientSecret:  "client-secret",
-		Scopes:        json.RawMessage(`["openid","email","profile"]`),
-		EmailField:    "mail",
-		PhoneField:    "mobile",
-		NameField:     "real_name",
-		NicknameField: "nick",
-		AvatarField:   "picture",
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
+		Name:         "Enterprise SSO",
+		Key:          "enterprise",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
+		Enabled:      true,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		Scopes:       json.RawMessage(`["openid","email","profile"]`),
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     thirdPartyServer.URL + "/authorize",
+			"token_url":         thirdPartyServer.URL + "/token",
+			"userinfo_url":      thirdPartyServer.URL + "/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "mail",
+			"phone_field":       "mobile",
+			"name_field":        "real_name",
+			"nickname_field":    "nick",
+			"avatar_field":      "picture",
+		}),
 	})
 	noRedirectClient := server.Client()
 	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
-	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/start?redirect=/init")
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/enterprise/start?redirect=/init")
 	if startResp.StatusCode != http.StatusFound {
 		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
 	}
@@ -1903,9 +1935,9 @@ func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 	if query.Get("code_challenge") == "" {
 		t.Fatal("code_challenge is empty")
 	}
-	stateCookie := requireOIDCStateCookie(t, startResp)
+	stateCookie := requireThirdPartyStateCookie(t, startResp)
 
-	callbackResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/callback?code=callback-code&state="+url.QueryEscape(state), stateCookie)
+	callbackResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/enterprise/callback?code=callback-code&state="+url.QueryEscape(state), stateCookie)
 	if callbackResp.StatusCode != http.StatusFound {
 		t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
 	}
@@ -1921,11 +1953,11 @@ func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 	}
 
 	var user store.User
-	if err := db.First(&user, "email = ?", "alice.oidc@example.com").Error; err != nil {
-		t.Fatalf("find oidc user: %v", err)
+	if err := db.First(&user, "email = ?", "alice.thirdparty@example.com").Error; err != nil {
+		t.Fatalf("find third-party user: %v", err)
 	}
-	if user.Name != "Alice OIDC" {
-		t.Fatalf("user name = %q, want Alice OIDC", user.Name)
+	if user.Name != "Alice ThirdParty" {
+		t.Fatalf("user name = %q, want Alice ThirdParty", user.Name)
 	}
 	if user.Nickname != "Ali" {
 		t.Fatalf("user nickname = %q, want Ali", user.Nickname)
@@ -1934,7 +1966,14 @@ func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 		t.Fatalf("user phone = %#v, want +8613812345678", user.Phone)
 	}
 	if user.Avatar != "https://sso.example.com/alice.webp" {
-		t.Fatalf("user avatar = %q, want oidc avatar", user.Avatar)
+		t.Fatalf("user avatar = %q, want third-party avatar", user.Avatar)
+	}
+	var account store.ThirdPartyAccount
+	if err := db.First(&account, "provider_id = ? AND external_user_id = ?", provider.ID, "alice-external-id").Error; err != nil {
+		t.Fatalf("find third-party account binding: %v", err)
+	}
+	if account.UserID != user.ID {
+		t.Fatalf("third-party account user_id = %q, want %q", account.UserID, user.ID)
 	}
 
 	var userSessionCount int64
@@ -1945,17 +1984,714 @@ func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
 		t.Fatalf("user session count = %d, want 1", userSessionCount)
 	}
 
-	var stateRecord store.OIDCLoginState
+	var stateRecord store.ThirdPartyLoginState
 	if err := db.First(&stateRecord).Error; err != nil {
-		t.Fatalf("find oidc state: %v", err)
+		t.Fatalf("find third-party state: %v", err)
 	}
 	if stateRecord.ConsumedAt == nil {
 		t.Fatal("state consumed_at = nil, want consumed timestamp")
 	}
 }
 
-func TestOIDCCallbackRequiresStateCookie(t *testing.T) {
-	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestThirdPartyLoginReusesExternalAccountWhenEmailIsMissing(t *testing.T) {
+	var userinfoCalls int
+	identityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"access-token","token_type":"Bearer"}`))
+		case "/userinfo":
+			userinfoCalls++
+			if r.Header.Get("Authorization") != "Bearer access-token" {
+				t.Fatalf("Authorization = %q, want Bearer access-token", r.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id": 42,
+				"login": "octocat",
+				"name": "Octo Cat",
+				"avatar_url": "https://example.com/octocat.webp"
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer identityServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
+		Name:         "GitHub",
+		Key:          "github",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
+		Enabled:      true,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		Scopes:       json.RawMessage(`["read:user"]`),
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     identityServer.URL + "/authorize",
+			"token_url":         identityServer.URL + "/token",
+			"userinfo_url":      identityServer.URL + "/userinfo",
+			"external_id_field": "id",
+			"name_field":        "name",
+			"nickname_field":    "login",
+			"avatar_field":      "avatar_url",
+		}),
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/github/start?redirect=/init")
+		if startResp.StatusCode != http.StatusFound {
+			t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+		}
+		parsedAuthorizeURL, err := url.Parse(startResp.Header.Get("Location"))
+		if err != nil {
+			t.Fatalf("parse authorize location: %v", err)
+		}
+		state := parsedAuthorizeURL.Query().Get("state")
+		if state == "" {
+			t.Fatal("state is empty")
+		}
+
+		callbackResp := getResponseWithClient(
+			t,
+			noRedirectClient,
+			server,
+			"/api/client/auth/third-party/github/callback?code=callback-code&state="+url.QueryEscape(state),
+			requireThirdPartyStateCookie(t, startResp),
+		)
+		if callbackResp.StatusCode != http.StatusFound {
+			t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
+		}
+		requireUserSessionCookie(t, callbackResp)
+	}
+
+	if userinfoCalls != 2 {
+		t.Fatalf("userinfo calls = %d, want 2", userinfoCalls)
+	}
+	var userCount int64
+	if err := db.Model(&store.User{}).Count(&userCount).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if userCount != 1 {
+		t.Fatalf("user count = %d, want 1", userCount)
+	}
+	var account store.ThirdPartyAccount
+	if err := db.First(&account, "provider_id = ? AND external_user_id = ?", provider.ID, "42").Error; err != nil {
+		t.Fatalf("find third-party account: %v", err)
+	}
+	var user store.User
+	if err := db.First(&user, "id = ?", account.UserID).Error; err != nil {
+		t.Fatalf("find bound user: %v", err)
+	}
+	if user.Email == "" || !strings.HasSuffix(user.Email, "@third-party.local") {
+		t.Fatalf("generated user email = %q, want third-party.local address", user.Email)
+	}
+	if user.Name != "Octo Cat" {
+		t.Fatalf("user name = %q, want Octo Cat", user.Name)
+	}
+}
+
+func TestDingTalkLoginUsesUserAccessTokenHeaderForUserInfo(t *testing.T) {
+	var tokenCalled bool
+	var userinfoCalled bool
+	dingTalkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1.0/oauth2/userAccessToken":
+			tokenCalled = true
+			if r.Method != http.MethodPost {
+				t.Fatalf("token method = %q, want POST", r.Method)
+			}
+			if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+				t.Fatalf("token content-type = %q, want json", r.Header.Get("Content-Type"))
+			}
+			var payload map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode token payload: %v", err)
+			}
+			if payload["clientId"] != "ding-client-id" {
+				t.Fatalf("clientId = %q, want ding-client-id", payload["clientId"])
+			}
+			if payload["clientSecret"] != "ding-client-secret" {
+				t.Fatalf("clientSecret = %q, want ding-client-secret", payload["clientSecret"])
+			}
+			if payload["code"] != "callback-code" {
+				t.Fatalf("code = %q, want callback-code", payload["code"])
+			}
+			if payload["grantType"] != "authorization_code" {
+				t.Fatalf("grantType = %q, want authorization_code", payload["grantType"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"accessToken":"dingtalk-token","expireIn":7200}`))
+		case "/v1.0/contact/users/me":
+			userinfoCalled = true
+			if r.Header.Get("Authorization") != "" {
+				t.Fatalf("Authorization = %q, want empty", r.Header.Get("Authorization"))
+			}
+			if r.Header.Get("x-acs-dingtalk-access-token") != "dingtalk-token" {
+				t.Fatalf("x-acs-dingtalk-access-token = %q, want dingtalk-token", r.Header.Get("x-acs-dingtalk-access-token"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"unionId": "ding-union-id",
+				"openId": "ding-open-id",
+				"email": "Ding.User@example.com",
+				"mobile": "13900000000",
+				"nick": "Ding User",
+				"avatarUrl": "https://example.com/ding.webp"
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer dingTalkServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
+		Name:         "钉钉",
+		Key:          "dingtalk",
+		Type:         store.ThirdPartyLoginProviderTypeDingTalk,
+		Enabled:      true,
+		ClientID:     "ding-client-id",
+		ClientSecret: "ding-client-secret",
+		Scopes:       json.RawMessage(`["openid"]`),
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     dingTalkServer.URL + "/oauth2/auth",
+			"token_url":         dingTalkServer.URL + "/v1.0/oauth2/userAccessToken",
+			"userinfo_url":      dingTalkServer.URL + "/v1.0/contact/users/me",
+			"external_id_field": "unionId",
+			"email_field":       "email",
+			"phone_field":       "mobile",
+			"name_field":        "nick",
+			"nickname_field":    "nick",
+			"avatar_field":      "avatarUrl",
+		}),
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/dingtalk/start?redirect=/init")
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+	}
+	parsedAuthorizeURL, err := url.Parse(startResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	if parsedAuthorizeURL.Query().Get("client_id") != "ding-client-id" {
+		t.Fatalf("client_id = %q, want ding-client-id", parsedAuthorizeURL.Query().Get("client_id"))
+	}
+	if parsedAuthorizeURL.Query().Get("scope") != "openid" {
+		t.Fatalf("scope = %q, want openid", parsedAuthorizeURL.Query().Get("scope"))
+	}
+	if parsedAuthorizeURL.Query().Get("code_challenge") != "" {
+		t.Fatalf("code_challenge = %q, want empty", parsedAuthorizeURL.Query().Get("code_challenge"))
+	}
+	state := parsedAuthorizeURL.Query().Get("state")
+	if state == "" {
+		t.Fatal("state is empty")
+	}
+
+	callbackResp := getResponseWithClient(
+		t,
+		noRedirectClient,
+		server,
+		"/api/client/auth/third-party/dingtalk/callback?authCode=callback-code&state="+url.QueryEscape(state),
+		requireThirdPartyStateCookie(t, startResp),
+	)
+	if callbackResp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
+	}
+	requireUserSessionCookie(t, callbackResp)
+	if !tokenCalled {
+		t.Fatal("dingtalk token endpoint was not called")
+	}
+	if !userinfoCalled {
+		t.Fatal("dingtalk userinfo endpoint was not called")
+	}
+
+	var account store.ThirdPartyAccount
+	if err := db.First(&account, "provider_id = ? AND external_user_id = ?", provider.ID, "ding-union-id").Error; err != nil {
+		t.Fatalf("find dingtalk account: %v", err)
+	}
+	var user store.User
+	if err := db.First(&user, "id = ?", account.UserID).Error; err != nil {
+		t.Fatalf("find dingtalk user: %v", err)
+	}
+	if user.Email != "ding.user@example.com" {
+		t.Fatalf("user email = %q, want ding.user@example.com", user.Email)
+	}
+	if user.Name != "Ding User" {
+		t.Fatalf("user name = %q, want Ding User", user.Name)
+	}
+	if user.Phone == nil || *user.Phone != "+8613900000000" {
+		t.Fatalf("user phone = %#v, want +8613900000000", user.Phone)
+	}
+	if user.Avatar != "https://example.com/ding.webp" {
+		t.Fatalf("user avatar = %q, want dingtalk avatar", user.Avatar)
+	}
+}
+
+func TestFeishuLoginExchangesCodeWithJSONBody(t *testing.T) {
+	var tokenCalled bool
+	var userinfoCalled bool
+	feishuServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/v3/token":
+			tokenCalled = true
+			if r.Method != http.MethodPost {
+				t.Fatalf("token method = %q, want POST", r.Method)
+			}
+			if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+				t.Fatalf("token content-type = %q, want json", r.Header.Get("Content-Type"))
+			}
+			var payload map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode token payload: %v", err)
+			}
+			if payload["grant_type"] != "authorization_code" {
+				t.Fatalf("grant_type = %q, want authorization_code", payload["grant_type"])
+			}
+			if payload["client_id"] != "feishu-client-id" {
+				t.Fatalf("client_id = %q, want feishu-client-id", payload["client_id"])
+			}
+			if payload["client_secret"] != "feishu-client-secret" {
+				t.Fatalf("client_secret = %q, want feishu-client-secret", payload["client_secret"])
+			}
+			if payload["code"] != "callback-code" {
+				t.Fatalf("code = %q, want callback-code", payload["code"])
+			}
+			if payload["redirect_uri"] == "" {
+				t.Fatal("redirect_uri is empty")
+			}
+			if payload["code_verifier"] == "" {
+				t.Fatal("code_verifier is empty")
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"feishu-user-token","token_type":"Bearer"}`))
+		case "/open-apis/authen/v1/user_info":
+			userinfoCalled = true
+			if r.Header.Get("Authorization") != "Bearer feishu-user-token" {
+				t.Fatalf("Authorization = %q, want Bearer feishu-user-token", r.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"code": 0,
+				"msg": "success",
+				"data": {
+					"union_id": "feishu-union-id",
+					"open_id": "feishu-open-id",
+					"email": "Feishu.User@example.com",
+					"mobile": "+8613800000000",
+					"name": "Feishu User",
+					"en_name": "Feishu",
+					"avatar_url": "https://example.com/feishu.webp"
+				}
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer feishuServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
+		Name:         "飞书",
+		Key:          "feishu",
+		Type:         store.ThirdPartyLoginProviderTypeFeishu,
+		Enabled:      true,
+		ClientID:     "feishu-client-id",
+		ClientSecret: "feishu-client-secret",
+		Scopes:       json.RawMessage(`["contact:user.base:readonly"]`),
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     feishuServer.URL + "/open-apis/authen/v1/authorize",
+			"token_url":         feishuServer.URL + "/oauth/v3/token",
+			"userinfo_url":      feishuServer.URL + "/open-apis/authen/v1/user_info",
+			"external_id_field": "union_id",
+			"email_field":       "email",
+			"phone_field":       "mobile",
+			"name_field":        "name",
+			"nickname_field":    "en_name",
+			"avatar_field":      "avatar_url",
+		}),
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/feishu/start?redirect=/init")
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+	}
+	parsedAuthorizeURL, err := url.Parse(startResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	if parsedAuthorizeURL.Query().Get("client_id") != "feishu-client-id" {
+		t.Fatalf("client_id = %q, want feishu-client-id", parsedAuthorizeURL.Query().Get("client_id"))
+	}
+	if parsedAuthorizeURL.Query().Get("code_challenge") == "" {
+		t.Fatal("code_challenge is empty")
+	}
+	state := parsedAuthorizeURL.Query().Get("state")
+	if state == "" {
+		t.Fatal("state is empty")
+	}
+
+	callbackResp := getResponseWithClient(
+		t,
+		noRedirectClient,
+		server,
+		"/api/client/auth/third-party/feishu/callback?code=callback-code&state="+url.QueryEscape(state),
+		requireThirdPartyStateCookie(t, startResp),
+	)
+	if callbackResp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
+	}
+	requireUserSessionCookie(t, callbackResp)
+	if !tokenCalled {
+		t.Fatal("feishu token endpoint was not called")
+	}
+	if !userinfoCalled {
+		t.Fatal("feishu userinfo endpoint was not called")
+	}
+
+	var account store.ThirdPartyAccount
+	if err := db.First(&account, "provider_id = ? AND external_user_id = ?", provider.ID, "feishu-union-id").Error; err != nil {
+		t.Fatalf("find feishu account: %v", err)
+	}
+	var user store.User
+	if err := db.First(&user, "id = ?", account.UserID).Error; err != nil {
+		t.Fatalf("find feishu user: %v", err)
+	}
+	if user.Email != "feishu.user@example.com" {
+		t.Fatalf("user email = %q, want feishu.user@example.com", user.Email)
+	}
+	if user.Name != "Feishu User" {
+		t.Fatalf("user name = %q, want Feishu User", user.Name)
+	}
+	if user.Nickname != "Feishu" {
+		t.Fatalf("user nickname = %q, want Feishu", user.Nickname)
+	}
+	if user.Phone == nil || *user.Phone != "+8613800000000" {
+		t.Fatalf("user phone = %#v, want +8613800000000", user.Phone)
+	}
+	if user.Avatar != "https://example.com/feishu.webp" {
+		t.Fatalf("user avatar = %q, want feishu avatar", user.Avatar)
+	}
+}
+
+func TestGitHubLoginFetchesPrimaryVerifiedEmailWhenUserEmailIsMissing(t *testing.T) {
+	var userinfoCalled bool
+	var emailsCalled bool
+	gitHubServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login/oauth/access_token":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse token form: %v", err)
+			}
+			if r.Form.Get("client_id") != "github-client-id" {
+				t.Fatalf("client_id = %q, want github-client-id", r.Form.Get("client_id"))
+			}
+			if r.Form.Get("client_secret") != "github-client-secret" {
+				t.Fatalf("client_secret = %q, want github-client-secret", r.Form.Get("client_secret"))
+			}
+			if r.Form.Get("code") != "callback-code" {
+				t.Fatalf("code = %q, want callback-code", r.Form.Get("code"))
+			}
+			if r.Form.Get("code_verifier") != "" {
+				t.Fatalf("code_verifier = %q, want empty", r.Form.Get("code_verifier"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"github-token","token_type":"bearer"}`))
+		case "/user":
+			userinfoCalled = true
+			if r.Header.Get("Authorization") != "Bearer github-token" {
+				t.Fatalf("Authorization = %q, want Bearer github-token", r.Header.Get("Authorization"))
+			}
+			if r.Header.Get("X-GitHub-Api-Version") != "2022-11-28" {
+				t.Fatalf("X-GitHub-Api-Version = %q, want 2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id": 42,
+				"login": "octocat",
+				"name": "Octo Cat",
+				"avatar_url": "https://example.com/octocat.webp"
+			}`))
+		case "/user/emails":
+			emailsCalled = true
+			if r.Header.Get("Authorization") != "Bearer github-token" {
+				t.Fatalf("Authorization = %q, want Bearer github-token", r.Header.Get("Authorization"))
+			}
+			if r.Header.Get("X-GitHub-Api-Version") != "2022-11-28" {
+				t.Fatalf("X-GitHub-Api-Version = %q, want 2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[
+				{"email":"secondary@example.com","primary":false,"verified":true},
+				{"email":"octocat@example.com","primary":true,"verified":true}
+			]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer gitHubServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
+		Name:         "GitHub",
+		Key:          "github",
+		Type:         store.ThirdPartyLoginProviderTypeGitHub,
+		Enabled:      true,
+		ClientID:     "github-client-id",
+		ClientSecret: "github-client-secret",
+		Scopes:       json.RawMessage(`["read:user","user:email"]`),
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     gitHubServer.URL + "/login/oauth/authorize",
+			"token_url":         gitHubServer.URL + "/login/oauth/access_token",
+			"userinfo_url":      gitHubServer.URL + "/user",
+			"emails_url":        gitHubServer.URL + "/user/emails",
+			"external_id_field": "id",
+			"email_field":       "email",
+			"name_field":        "name",
+			"nickname_field":    "login",
+			"avatar_field":      "avatar_url",
+		}),
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/github/start?redirect=/init")
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+	}
+	parsedAuthorizeURL, err := url.Parse(startResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	if parsedAuthorizeURL.Query().Get("client_id") != "github-client-id" {
+		t.Fatalf("client_id = %q, want github-client-id", parsedAuthorizeURL.Query().Get("client_id"))
+	}
+	if parsedAuthorizeURL.Query().Get("scope") != "read:user user:email" {
+		t.Fatalf("scope = %q, want read:user user:email", parsedAuthorizeURL.Query().Get("scope"))
+	}
+	if parsedAuthorizeURL.Query().Get("code_challenge") != "" {
+		t.Fatalf("code_challenge = %q, want empty", parsedAuthorizeURL.Query().Get("code_challenge"))
+	}
+	state := parsedAuthorizeURL.Query().Get("state")
+	if state == "" {
+		t.Fatal("state is empty")
+	}
+
+	callbackResp := getResponseWithClient(
+		t,
+		noRedirectClient,
+		server,
+		"/api/client/auth/third-party/github/callback?code=callback-code&state="+url.QueryEscape(state),
+		requireThirdPartyStateCookie(t, startResp),
+	)
+	if callbackResp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
+	}
+	requireUserSessionCookie(t, callbackResp)
+	if !userinfoCalled {
+		t.Fatal("github user endpoint was not called")
+	}
+	if !emailsCalled {
+		t.Fatal("github emails endpoint was not called")
+	}
+
+	var account store.ThirdPartyAccount
+	if err := db.First(&account, "provider_id = ? AND external_user_id = ?", provider.ID, "42").Error; err != nil {
+		t.Fatalf("find github account: %v", err)
+	}
+	var user store.User
+	if err := db.First(&user, "id = ?", account.UserID).Error; err != nil {
+		t.Fatalf("find github user: %v", err)
+	}
+	if user.Email != "octocat@example.com" {
+		t.Fatalf("user email = %q, want octocat@example.com", user.Email)
+	}
+	if user.Name != "Octo Cat" {
+		t.Fatalf("user name = %q, want Octo Cat", user.Name)
+	}
+}
+
+func TestWeComLoginUsesEnterpriseAccessTokenQueryForUserInfo(t *testing.T) {
+	var tokenCalled bool
+	var userinfoCalled bool
+	var userdetailCalled bool
+	wecomServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/cgi-bin/gettoken":
+			tokenCalled = true
+			if r.URL.Query().Get("corpid") != "corp-id" {
+				t.Fatalf("corpid = %q, want corp-id", r.URL.Query().Get("corpid"))
+			}
+			if r.URL.Query().Get("corpsecret") != "corp-secret" {
+				t.Fatalf("corpsecret = %q, want corp-secret", r.URL.Query().Get("corpsecret"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok","access_token":"enterprise-token","expires_in":7200}`))
+		case "/cgi-bin/auth/getuserinfo":
+			userinfoCalled = true
+			if r.Header.Get("Authorization") != "" {
+				t.Fatalf("Authorization = %q, want empty", r.Header.Get("Authorization"))
+			}
+			if r.URL.Query().Get("access_token") != "enterprise-token" {
+				t.Fatalf("access_token = %q, want enterprise-token", r.URL.Query().Get("access_token"))
+			}
+			if r.URL.Query().Get("code") != "callback-code" {
+				t.Fatalf("code = %q, want callback-code", r.URL.Query().Get("code"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok","userid":"zhangsan","user_ticket":"user-ticket"}`))
+		case "/cgi-bin/auth/getuserdetail":
+			userdetailCalled = true
+			if r.Method != http.MethodPost {
+				t.Fatalf("userdetail method = %q, want POST", r.Method)
+			}
+			if r.URL.Query().Get("access_token") != "enterprise-token" {
+				t.Fatalf("access_token = %q, want enterprise-token", r.URL.Query().Get("access_token"))
+			}
+			if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+				t.Fatalf("userdetail content-type = %q, want json", r.Header.Get("Content-Type"))
+			}
+			var payload map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode userdetail payload: %v", err)
+			}
+			if payload["user_ticket"] != "user-ticket" {
+				t.Fatalf("user_ticket = %q, want user-ticket", payload["user_ticket"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"errcode": 0,
+				"errmsg": "ok",
+				"userid": "zhangsan",
+				"name": "张三",
+				"mobile": "13800000000",
+				"email": "zhangsan@example.com",
+				"avatar": "https://example.com/wecom.webp"
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer wecomServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
+		Name:         "企业微信",
+		Key:          "wecom",
+		Type:         store.ThirdPartyLoginProviderTypeWeCom,
+		Enabled:      true,
+		ClientID:     "corp-id",
+		ClientSecret: "corp-secret",
+		Scopes:       json.RawMessage(`["snsapi_base"]`),
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"agent_id":       "agent-id",
+			"authorize_url":  wecomServer.URL + "/wwlogin/sso/login",
+			"token_url":      wecomServer.URL + "/cgi-bin/gettoken",
+			"userinfo_url":   wecomServer.URL + "/cgi-bin/auth/getuserinfo",
+			"userdetail_url": wecomServer.URL + "/cgi-bin/auth/getuserdetail",
+		}),
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/wecom/start?redirect=/init")
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+	}
+	parsedAuthorizeURL, err := url.Parse(startResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	if parsedAuthorizeURL.Path != "/wwlogin/sso/login" {
+		t.Fatalf("authorize path = %q, want /wwlogin/sso/login", parsedAuthorizeURL.Path)
+	}
+	if parsedAuthorizeURL.Query().Get("login_type") != "CorpApp" {
+		t.Fatalf("login_type = %q, want CorpApp", parsedAuthorizeURL.Query().Get("login_type"))
+	}
+	if parsedAuthorizeURL.Query().Get("appid") != "corp-id" {
+		t.Fatalf("appid = %q, want corp-id", parsedAuthorizeURL.Query().Get("appid"))
+	}
+	if parsedAuthorizeURL.Query().Get("agentid") != "agent-id" {
+		t.Fatalf("agentid = %q, want agent-id", parsedAuthorizeURL.Query().Get("agentid"))
+	}
+	if parsedAuthorizeURL.Query().Get("scope") != "" {
+		t.Fatalf("scope = %q, want empty", parsedAuthorizeURL.Query().Get("scope"))
+	}
+	if parsedAuthorizeURL.Fragment != "" {
+		t.Fatalf("fragment = %q, want empty", parsedAuthorizeURL.Fragment)
+	}
+	state := parsedAuthorizeURL.Query().Get("state")
+	if state == "" {
+		t.Fatal("state is empty")
+	}
+
+	callbackResp := getResponseWithClient(
+		t,
+		noRedirectClient,
+		server,
+		"/api/client/auth/third-party/wecom/callback?code=callback-code&state="+url.QueryEscape(state),
+		requireThirdPartyStateCookie(t, startResp),
+	)
+	if callbackResp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
+	}
+	requireUserSessionCookie(t, callbackResp)
+	if !tokenCalled {
+		t.Fatal("enterprise token endpoint was not called")
+	}
+	if !userinfoCalled {
+		t.Fatal("userinfo endpoint was not called")
+	}
+	if !userdetailCalled {
+		t.Fatal("userdetail endpoint was not called")
+	}
+
+	var account store.ThirdPartyAccount
+	if err := db.First(&account, "provider_id = ? AND external_user_id = ?", provider.ID, "zhangsan").Error; err != nil {
+		t.Fatalf("find wecom account: %v", err)
+	}
+	var user store.User
+	if err := db.First(&user, "id = ?", account.UserID).Error; err != nil {
+		t.Fatalf("find wecom user: %v", err)
+	}
+	if user.Email != "zhangsan@example.com" {
+		t.Fatalf("user email = %q, want zhangsan@example.com", user.Email)
+	}
+	if user.Name != "张三" {
+		t.Fatalf("user name = %q, want 张三", user.Name)
+	}
+	if user.Phone == nil || *user.Phone != "+8613800000000" {
+		t.Fatalf("user phone = %#v, want +8613800000000", user.Phone)
+	}
+	if user.Avatar != "https://example.com/wecom.webp" {
+		t.Fatalf("user avatar = %q, want wecom avatar", user.Avatar)
+	}
+}
+
+func TestThirdPartyCallbackRequiresStateCookie(t *testing.T) {
+	thirdPartyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
@@ -1967,29 +2703,33 @@ func TestOIDCCallbackRequiresStateCookie(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	defer oidcServer.Close()
+	defer thirdPartyServer.Close()
 
 	server, db := newTestRouter(t)
 	defer server.Close()
-	insertTestOIDCProvider(t, db, store.OIDCProvider{
+	insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Enterprise SSO",
 		Key:          "enterprise",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      true,
-		AuthorizeURL: oidcServer.URL + "/authorize",
-		TokenURL:     oidcServer.URL + "/token",
-		UserinfoURL:  oidcServer.URL + "/userinfo",
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 		Scopes:       json.RawMessage(`["openid","email","profile"]`),
-		EmailField:   "email",
-		NameField:    "name",
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     thirdPartyServer.URL + "/authorize",
+			"token_url":         thirdPartyServer.URL + "/token",
+			"userinfo_url":      thirdPartyServer.URL + "/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
 	})
 	noRedirectClient := server.Client()
 	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
-	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/start?redirect=/init")
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/enterprise/start?redirect=/init")
 	authorizeLocation := startResp.Header.Get("Location")
 	parsedAuthorizeURL, err := url.Parse(authorizeLocation)
 	if err != nil {
@@ -1999,40 +2739,44 @@ func TestOIDCCallbackRequiresStateCookie(t *testing.T) {
 	if state == "" {
 		t.Fatal("state is empty")
 	}
-	requireOIDCStateCookie(t, startResp)
+	requireThirdPartyStateCookie(t, startResp)
 
-	callbackResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/callback?code=callback-code&state="+url.QueryEscape(state))
+	callbackResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/enterprise/callback?code=callback-code&state="+url.QueryEscape(state))
 	if callbackResp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("callback status = %d, want 400", callbackResp.StatusCode)
 	}
 
 	var userCount int64
 	if err := db.Model(&store.User{}).Where("email = ?", "mallory@example.com").Count(&userCount).Error; err != nil {
-		t.Fatalf("count oidc user: %v", err)
+		t.Fatalf("count third-party user: %v", err)
 	}
 	if userCount != 0 {
-		t.Fatalf("oidc user count = %d, want 0", userCount)
+		t.Fatalf("third-party user count = %d, want 0", userCount)
 	}
 }
 
-func TestOIDCStartCleansExpiredLoginStates(t *testing.T) {
+func TestThirdPartyStartCleansExpiredLoginStates(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
-	provider := insertTestOIDCProvider(t, db, store.OIDCProvider{
+	provider := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Enterprise SSO",
 		Key:          "enterprise",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      true,
-		AuthorizeURL: "https://sso.example.com/authorize",
-		TokenURL:     "https://sso.example.com/token",
-		UserinfoURL:  "https://sso.example.com/userinfo",
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 		Scopes:       json.RawMessage(`["openid","email","profile"]`),
-		EmailField:   "email",
-		NameField:    "name",
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     "https://sso.example.com/authorize",
+			"token_url":         "https://sso.example.com/token",
+			"userinfo_url":      "https://sso.example.com/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
 	})
 	now := time.Now().UTC()
-	expiredState := store.OIDCLoginState{
+	expiredState := store.ThirdPartyLoginState{
 		StateHash:    auth.HashSessionToken("expired-state"),
 		ProviderID:   provider.ID,
 		CodeVerifier: "expired-verifier",
@@ -2042,24 +2786,24 @@ func TestOIDCStartCleansExpiredLoginStates(t *testing.T) {
 		UserAgent:    "test",
 	}
 	if err := db.Create(&expiredState).Error; err != nil {
-		t.Fatalf("create expired oidc state: %v", err)
+		t.Fatalf("create expired third-party state: %v", err)
 	}
 	noRedirectClient := server.Client()
 	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
-	resp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/start?redirect=/init")
+	resp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/enterprise/start?redirect=/init")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("start status = %d, want 302", resp.StatusCode)
 	}
 
 	var expiredCount int64
-	if err := db.Model(&store.OIDCLoginState{}).Where("state_hash = ?", expiredState.StateHash).Count(&expiredCount).Error; err != nil {
-		t.Fatalf("count expired oidc states: %v", err)
+	if err := db.Model(&store.ThirdPartyLoginState{}).Where("state_hash = ?", expiredState.StateHash).Count(&expiredCount).Error; err != nil {
+		t.Fatalf("count expired third-party states: %v", err)
 	}
 	if expiredCount != 0 {
-		t.Fatalf("expired oidc state count = %d, want 0", expiredCount)
+		t.Fatalf("expired third-party state count = %d, want 0", expiredCount)
 	}
 }
 
@@ -2106,24 +2850,28 @@ func TestAdminCanReadAndUpdateInfoSettings(t *testing.T) {
 	}
 }
 
-func TestAdminCanManageOIDCProviders(t *testing.T) {
+func TestAdminCanManageThirdPartyLoginProviders(t *testing.T) {
 	server, _ := newTestRouter(t)
 	defer server.Close()
 	adminCookie := loginAsAdmin(t, server)
 
-	createResp, createBody := postJSON(t, server, "/api/admin/oidc/providers", map[string]any{
-		"name":           "企业 SSO",
-		"authorize_url":  "https://sso.example.com/oauth/authorize",
-		"token_url":      "https://sso.example.com/oauth/token",
-		"userinfo_url":   "https://sso.example.com/oauth/userinfo",
-		"client_id":      "client-id",
-		"client_secret":  "client-secret",
-		"scopes":         []any{"email", "profile"},
-		"email_field":    "email",
-		"phone_field":    "mobile",
-		"name_field":     "real_name",
-		"nickname_field": "nickname",
-		"avatar_field":   "avatar_url",
+	createResp, createBody := postJSON(t, server, "/api/admin/third-party/providers", map[string]any{
+		"name":          "企业 SSO",
+		"type":          "oidc",
+		"client_id":     "client-id",
+		"client_secret": "client-secret",
+		"scopes":        []any{"email", "profile"},
+		"config": map[string]any{
+			"authorize_url":     "https://sso.example.com/oauth/authorize",
+			"token_url":         "https://sso.example.com/oauth/token",
+			"userinfo_url":      "https://sso.example.com/oauth/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"phone_field":       "mobile",
+			"name_field":        "real_name",
+			"nickname_field":    "nickname",
+			"avatar_field":      "avatar_url",
+		},
 	}, adminCookie)
 	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201, body = %#v", createResp.StatusCode, createBody)
@@ -2136,8 +2884,12 @@ func TestAdminCanManageOIDCProviders(t *testing.T) {
 	if createdProvider["client_secret"] != "client-secret" {
 		t.Fatalf("created client_secret = %#v, want client-secret", createdProvider["client_secret"])
 	}
-	if createdProvider["phone_field"] != "mobile" {
-		t.Fatalf("created phone_field = %#v, want mobile", createdProvider["phone_field"])
+	if createdProvider["type"] != "oidc" {
+		t.Fatalf("created type = %#v, want oidc", createdProvider["type"])
+	}
+	createdConfig := createdProvider["config"].(map[string]any)
+	if createdConfig["phone_field"] != "mobile" {
+		t.Fatalf("created config.phone_field = %#v, want mobile", createdConfig["phone_field"])
 	}
 	if createdProvider["key"] != "sso" {
 		t.Fatalf("created key = %#v, want generated sso", createdProvider["key"])
@@ -2150,11 +2902,11 @@ func TestAdminCanManageOIDCProviders(t *testing.T) {
 	}
 	requireStringSliceField(t, createdProvider, "scopes", []string{"email", "profile"})
 
-	listResp, listBody := getJSON(t, server, "/api/admin/oidc/providers", adminCookie)
+	listResp, listBody := getJSON(t, server, "/api/admin/third-party/providers", adminCookie)
 	if listResp.StatusCode != http.StatusOK {
 		t.Fatalf("list status = %d, want 200", listResp.StatusCode)
 	}
-	providers := requireOIDCProviders(t, requireSuccess(t, listBody))
+	providers := requireThirdPartyLoginProviders(t, requireSuccess(t, listBody))
 	if len(providers) != 1 {
 		t.Fatalf("provider count = %d, want 1", len(providers))
 	}
@@ -2163,19 +2915,23 @@ func TestAdminCanManageOIDCProviders(t *testing.T) {
 		t.Fatalf("listed client_secret = %#v, want client-secret", listedProvider["client_secret"])
 	}
 
-	updateResp, updateBody := putJSON(t, server, "/api/admin/oidc/providers/"+providerID, map[string]any{
-		"name":           "企业统一身份",
-		"authorize_url":  "https://idp.example.com/oauth/authorize",
-		"token_url":      "https://idp.example.com/oauth/token",
-		"userinfo_url":   "https://idp.example.com/oauth/userinfo",
-		"client_id":      "updated-client-id",
-		"client_secret":  "updated-secret",
-		"scopes":         []any{"email"},
-		"email_field":    "mail",
-		"phone_field":    "phone",
-		"name_field":     "name",
-		"nickname_field": "nick",
-		"avatar_field":   "picture",
+	updateResp, updateBody := putJSON(t, server, "/api/admin/third-party/providers/"+providerID, map[string]any{
+		"name":          "企业统一身份",
+		"type":          "oidc",
+		"client_id":     "updated-client-id",
+		"client_secret": "updated-secret",
+		"scopes":        []any{"email"},
+		"config": map[string]any{
+			"authorize_url":     "https://idp.example.com/oauth/authorize",
+			"token_url":         "https://idp.example.com/oauth/token",
+			"userinfo_url":      "https://idp.example.com/oauth/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "mail",
+			"phone_field":       "phone",
+			"name_field":        "name",
+			"nickname_field":    "nick",
+			"avatar_field":      "picture",
+		},
 	}, adminCookie)
 	if updateResp.StatusCode != http.StatusOK {
 		t.Fatalf("update status = %d, want 200, body = %#v", updateResp.StatusCode, updateBody)
@@ -2194,7 +2950,7 @@ func TestAdminCanManageOIDCProviders(t *testing.T) {
 		t.Fatalf("updated sort_order = %#v, want preserved 10", updatedProvider["sort_order"])
 	}
 
-	disableResp, disableBody := postJSON(t, server, "/api/admin/oidc/providers/"+providerID+"/disable", map[string]any{}, adminCookie)
+	disableResp, disableBody := postJSON(t, server, "/api/admin/third-party/providers/"+providerID+"/disable", map[string]any{}, adminCookie)
 	if disableResp.StatusCode != http.StatusOK {
 		t.Fatalf("disable status = %d, want 200, body = %#v", disableResp.StatusCode, disableBody)
 	}
@@ -2203,32 +2959,32 @@ func TestAdminCanManageOIDCProviders(t *testing.T) {
 		t.Fatalf("disabled enabled = %#v, want false", disabledProvider["enabled"])
 	}
 
-	deleteResp, deleteBody := requestJSON(t, server, http.MethodDelete, "/api/admin/oidc/providers/"+providerID, map[string]any{}, adminCookie)
+	deleteResp, deleteBody := requestJSON(t, server, http.MethodDelete, "/api/admin/third-party/providers/"+providerID, map[string]any{}, adminCookie)
 	if deleteResp.StatusCode != http.StatusOK {
 		t.Fatalf("delete status = %d, want 200, body = %#v", deleteResp.StatusCode, deleteBody)
 	}
 	requireSuccess(t, deleteBody)
 
-	finalListResp, finalListBody := getJSON(t, server, "/api/admin/oidc/providers", adminCookie)
+	finalListResp, finalListBody := getJSON(t, server, "/api/admin/third-party/providers", adminCookie)
 	if finalListResp.StatusCode != http.StatusOK {
 		t.Fatalf("final list status = %d, want 200", finalListResp.StatusCode)
 	}
-	finalProviders := requireOIDCProviders(t, requireSuccess(t, finalListBody))
+	finalProviders := requireThirdPartyLoginProviders(t, requireSuccess(t, finalListBody))
 	if len(finalProviders) != 0 {
 		t.Fatalf("final provider count = %d, want 0", len(finalProviders))
 	}
 }
 
-func TestAdminCreatesDistinctOIDCProviderKeysFromSameName(t *testing.T) {
+func TestAdminCreatesDistinctThirdPartyLoginProviderKeysFromSameName(t *testing.T) {
 	server, _ := newTestRouter(t)
 	defer server.Close()
 	adminCookie := loginAsAdmin(t, server)
 
-	firstResp, firstBody := postJSON(t, server, "/api/admin/oidc/providers", validOIDCProviderPayload("企业 SSO"), adminCookie)
+	firstResp, firstBody := postJSON(t, server, "/api/admin/third-party/providers", validThirdPartyLoginProviderPayload("企业 SSO"), adminCookie)
 	if firstResp.StatusCode != http.StatusCreated {
 		t.Fatalf("first create status = %d, want 201, body = %#v", firstResp.StatusCode, firstBody)
 	}
-	secondResp, secondBody := postJSON(t, server, "/api/admin/oidc/providers", validOIDCProviderPayload("企业 SSO"), adminCookie)
+	secondResp, secondBody := postJSON(t, server, "/api/admin/third-party/providers", validThirdPartyLoginProviderPayload("企业 SSO"), adminCookie)
 	if secondResp.StatusCode != http.StatusCreated {
 		t.Fatalf("second create status = %d, want 201, body = %#v", secondResp.StatusCode, secondBody)
 	}
@@ -2243,79 +2999,95 @@ func TestAdminCreatesDistinctOIDCProviderKeysFromSameName(t *testing.T) {
 	}
 }
 
-func validOIDCProviderPayload(name string) map[string]any {
+func validThirdPartyLoginProviderPayload(name string) map[string]any {
 	return map[string]any{
-		"name":           name,
-		"authorize_url":  "https://sso.example.com/oauth/authorize",
-		"token_url":      "https://sso.example.com/oauth/token",
-		"userinfo_url":   "https://sso.example.com/oauth/userinfo",
-		"client_id":      "client-id",
-		"client_secret":  "client-secret",
-		"scopes":         []any{"email", "profile"},
-		"email_field":    "email",
-		"phone_field":    "mobile",
-		"name_field":     "real_name",
-		"nickname_field": "nickname",
-		"avatar_field":   "avatar_url",
+		"name":          name,
+		"type":          "oidc",
+		"client_id":     "client-id",
+		"client_secret": "client-secret",
+		"scopes":        []any{"email", "profile"},
+		"config": map[string]any{
+			"authorize_url":     "https://sso.example.com/oauth/authorize",
+			"token_url":         "https://sso.example.com/oauth/token",
+			"userinfo_url":      "https://sso.example.com/oauth/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"phone_field":       "mobile",
+			"name_field":        "real_name",
+			"nickname_field":    "nickname",
+			"avatar_field":      "avatar_url",
+		},
 	}
 }
 
-func TestAdminMovesOIDCProvidersAndNormalizesSortOrder(t *testing.T) {
+func TestAdminMovesThirdPartyLoginProvidersAndNormalizesSortOrder(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
 	adminCookie := loginAsAdmin(t, server)
 
-	first := insertTestOIDCProvider(t, db, store.OIDCProvider{
+	first := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Alpha",
 		Key:          "alpha",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      true,
-		AuthorizeURL: "https://alpha.example.com/authorize",
-		TokenURL:     "https://alpha.example.com/token",
-		UserinfoURL:  "https://alpha.example.com/userinfo",
 		ClientID:     "alpha-client",
 		ClientSecret: "alpha-secret",
 		Scopes:       json.RawMessage(`["email"]`),
-		EmailField:   "email",
-		NameField:    "name",
-		SortOrder:    5,
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     "https://alpha.example.com/authorize",
+			"token_url":         "https://alpha.example.com/token",
+			"userinfo_url":      "https://alpha.example.com/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
+		SortOrder: 5,
 	})
-	second := insertTestOIDCProvider(t, db, store.OIDCProvider{
+	second := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Beta",
 		Key:          "beta",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      true,
-		AuthorizeURL: "https://beta.example.com/authorize",
-		TokenURL:     "https://beta.example.com/token",
-		UserinfoURL:  "https://beta.example.com/userinfo",
 		ClientID:     "beta-client",
 		ClientSecret: "beta-secret",
 		Scopes:       json.RawMessage(`["email"]`),
-		EmailField:   "email",
-		NameField:    "name",
-		SortOrder:    5,
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     "https://beta.example.com/authorize",
+			"token_url":         "https://beta.example.com/token",
+			"userinfo_url":      "https://beta.example.com/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
+		SortOrder: 5,
 	})
-	third := insertTestOIDCProvider(t, db, store.OIDCProvider{
+	third := insertTestThirdPartyLoginProvider(t, db, store.ThirdPartyLoginProvider{
 		Name:         "Gamma",
 		Key:          "gamma",
+		Type:         store.ThirdPartyLoginProviderTypeOIDC,
 		Enabled:      true,
-		AuthorizeURL: "https://gamma.example.com/authorize",
-		TokenURL:     "https://gamma.example.com/token",
-		UserinfoURL:  "https://gamma.example.com/userinfo",
 		ClientID:     "gamma-client",
 		ClientSecret: "gamma-secret",
 		Scopes:       json.RawMessage(`["email"]`),
-		EmailField:   "email",
-		NameField:    "name",
-		SortOrder:    5,
+		Config: thirdPartyProviderConfig(t, map[string]any{
+			"authorize_url":     "https://gamma.example.com/authorize",
+			"token_url":         "https://gamma.example.com/token",
+			"userinfo_url":      "https://gamma.example.com/userinfo",
+			"external_id_field": "sub",
+			"email_field":       "email",
+			"name_field":        "name",
+		}),
+		SortOrder: 5,
 	})
 
-	moveResp, moveBody := postJSON(t, server, "/api/admin/oidc/providers/"+third.ID+"/move", map[string]any{
+	moveResp, moveBody := postJSON(t, server, "/api/admin/third-party/providers/"+third.ID+"/move", map[string]any{
 		"direction": "up",
 	}, adminCookie)
 	if moveResp.StatusCode != http.StatusOK {
 		t.Fatalf("move status = %d, want 200, body = %#v", moveResp.StatusCode, moveBody)
 	}
 
-	providers := requireOIDCProviders(t, requireSuccess(t, moveBody))
+	providers := requireThirdPartyLoginProviders(t, requireSuccess(t, moveBody))
 	if got := []string{
 		providers[0].(map[string]any)["id"].(string),
 		providers[1].(map[string]any)["id"].(string),
@@ -2331,11 +3103,11 @@ func TestAdminMovesOIDCProvidersAndNormalizesSortOrder(t *testing.T) {
 	}
 }
 
-func TestOIDCProviderAdminAPIRequiresAdminSession(t *testing.T) {
+func TestThirdPartyLoginProviderAdminAPIRequiresAdminSession(t *testing.T) {
 	server, _ := newTestRouter(t)
 	defer server.Close()
 
-	resp, body := getJSON(t, server, "/api/admin/oidc/providers")
+	resp, body := getJSON(t, server, "/api/admin/third-party/providers")
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)
 	}

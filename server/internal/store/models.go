@@ -26,6 +26,13 @@ const (
 	MessageSenderTypeApp    = "app"
 	MessageSenderTypeSystem = "system"
 
+	ThirdPartyLoginProviderTypeDingTalk = "dingtalk"
+	ThirdPartyLoginProviderTypeWeCom    = "wecom"
+	ThirdPartyLoginProviderTypeFeishu   = "feishu"
+	ThirdPartyLoginProviderTypeGitHub   = "github"
+	ThirdPartyLoginProviderTypeGoogle   = "google"
+	ThirdPartyLoginProviderTypeOIDC     = "oidc"
+
 	ConversationMemberRoleOwner  = "owner"
 	ConversationMemberRoleAdmin  = "admin"
 	ConversationMemberRoleMember = "member"
@@ -135,43 +142,53 @@ type AppSettings struct {
 	UpdatedAt        time.Time `gorm:"not null"`
 }
 
-type OIDCProvider struct {
-	ID            string          `gorm:"type:uuid;primaryKey"`
-	Name          string          `gorm:"size:120;not null"`
-	Key           string          `gorm:"size:80;not null;uniqueIndex"`
-	Enabled       bool            `gorm:"not null;index"`
-	AuthorizeURL  string          `gorm:"size:2048;not null"`
-	TokenURL      string          `gorm:"size:2048;not null"`
-	UserinfoURL   string          `gorm:"size:2048;not null"`
-	ClientID      string          `gorm:"size:512;not null"`
-	ClientSecret  string          `gorm:"not null"`
-	Scopes        json.RawMessage `gorm:"type:jsonb;not null;serializer:json"`
-	EmailField    string          `gorm:"size:120;not null"`
-	PhoneField    string          `gorm:"size:120;not null;default:''"`
-	NameField     string          `gorm:"size:120;not null"`
-	NicknameField string          `gorm:"size:120;not null;default:''"`
-	AvatarField   string          `gorm:"size:120;not null;default:''"`
-	SortOrder     int             `gorm:"not null;default:0;index"`
-	CreatedAt     time.Time       `gorm:"not null"`
-	UpdatedAt     time.Time       `gorm:"not null"`
+type ThirdPartyLoginProvider struct {
+	ID           string          `gorm:"type:uuid;primaryKey"`
+	Name         string          `gorm:"size:120;not null"`
+	Key          string          `gorm:"size:80;not null;uniqueIndex"`
+	Type         string          `gorm:"size:32;not null;index"`
+	Enabled      bool            `gorm:"not null;index"`
+	ClientID     string          `gorm:"size:512;not null"`
+	ClientSecret string          `gorm:"not null"`
+	Scopes       json.RawMessage `gorm:"type:jsonb;not null;serializer:json"`
+	Config       json.RawMessage `gorm:"type:jsonb;not null;serializer:json"`
+	SortOrder    int             `gorm:"not null;default:0;index"`
+	CreatedAt    time.Time       `gorm:"not null"`
+	UpdatedAt    time.Time       `gorm:"not null"`
 }
 
-func (OIDCProvider) TableName() string {
-	return "oidc_providers"
+func (ThirdPartyLoginProvider) TableName() string {
+	return "third_party_login_providers"
 }
 
-type OIDCLoginState struct {
-	StateHash    string       `gorm:"primaryKey"`
-	ProviderID   string       `gorm:"type:uuid;not null;index"`
-	Provider     OIDCProvider `gorm:"constraint:OnDelete:CASCADE;"`
-	CodeVerifier string       `gorm:"not null"`
-	RedirectPath string       `gorm:"size:2048;not null"`
-	ExpiresAt    time.Time    `gorm:"not null;index"`
-	ConsumedAt   *time.Time   `gorm:"index"`
-	IP           string       `gorm:"size:64;not null;default:''"`
-	UserAgent    string       `gorm:"size:512;not null;default:''"`
+type ThirdPartyLoginState struct {
+	StateHash    string                  `gorm:"primaryKey"`
+	ProviderID   string                  `gorm:"type:uuid;not null;index"`
+	Provider     ThirdPartyLoginProvider `gorm:"constraint:OnDelete:CASCADE;"`
+	CodeVerifier string                  `gorm:"not null"`
+	RedirectPath string                  `gorm:"size:2048;not null"`
+	ExpiresAt    time.Time               `gorm:"not null;index"`
+	ConsumedAt   *time.Time              `gorm:"index"`
+	IP           string                  `gorm:"size:64;not null;default:''"`
+	UserAgent    string                  `gorm:"size:512;not null;default:''"`
 }
 
-func (OIDCLoginState) TableName() string {
-	return "oidc_login_states"
+func (ThirdPartyLoginState) TableName() string {
+	return "third_party_login_states"
+}
+
+type ThirdPartyAccount struct {
+	ID             string                  `gorm:"type:uuid;primaryKey"`
+	ProviderID     string                  `gorm:"type:uuid;not null;uniqueIndex:third_party_accounts_provider_external_unique,priority:1;index"`
+	Provider       ThirdPartyLoginProvider `gorm:"constraint:OnDelete:CASCADE;"`
+	ExternalUserID string                  `gorm:"size:256;not null;uniqueIndex:third_party_accounts_provider_external_unique,priority:2"`
+	UserID         string                  `gorm:"type:uuid;not null;index"`
+	User           User                    `gorm:"constraint:OnDelete:CASCADE;"`
+	Profile        json.RawMessage         `gorm:"type:jsonb;not null;serializer:json"`
+	CreatedAt      time.Time               `gorm:"not null"`
+	UpdatedAt      time.Time               `gorm:"not null"`
+}
+
+func (ThirdPartyAccount) TableName() string {
+	return "third_party_accounts"
 }

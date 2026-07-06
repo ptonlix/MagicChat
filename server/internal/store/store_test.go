@@ -247,5 +247,8 @@ func migrateTestSchema(db *gorm.DB) error {
 		&Message{},
 		&DirectConversation{},
 		&AppSettings{},
+		&ThirdPartyLoginProvider{},
+		&ThirdPartyLoginState{},
+		&ThirdPartyAccount{},
 	)
 }

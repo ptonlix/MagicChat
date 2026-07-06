@@ -2,16 +2,16 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   AdminSettingsRequestError,
-  createOIDCProvider,
-  deleteOIDCProvider,
-  disableOIDCProvider,
-  enableOIDCProvider,
+  createThirdPartyProvider,
+  deleteThirdPartyProvider,
+  disableThirdPartyProvider,
+  enableThirdPartyProvider,
   getInfoSettings,
-  listOIDCProviders,
-  moveOIDCProvider,
-  updateOIDCProvider,
+  listThirdPartyProviders,
+  moveThirdPartyProvider,
+  updateThirdPartyProvider,
   updateInfoSettings,
-  type OIDCProviderInput,
+  type ThirdPartyProviderInput,
 } from "@/lib/admin-settings"
 
 describe("admin settings", () => {
@@ -124,7 +124,7 @@ describe("admin settings", () => {
     } satisfies AdminSettingsRequestError)
   })
 
-  it("lists OIDC providers through the admin API", async () => {
+  it("lists ThirdParty providers through the admin API", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -136,18 +136,22 @@ describe("admin settings", () => {
                 name: "企业 SSO",
                 key: "company-sso",
                 enabled: true,
-                authorize_url: "https://sso.example.com/oauth/authorize",
-                token_url: "https://sso.example.com/oauth/token",
-                userinfo_url: "https://sso.example.com/oauth/userinfo",
                 client_id: "client-id",
                 client_secret: "client-secret",
+                config: {
+                  authorize_url: "https://sso.example.com/oauth/authorize",
+                  token_url: "https://sso.example.com/oauth/token",
+                  userinfo_url: "https://sso.example.com/oauth/userinfo",
+                  external_id_field: "sub",
+                  email_field: "mail",
+                  phone_field: "mobile",
+                  name_field: "real_name",
+                  nickname_field: "nick",
+                  avatar_field: "picture",
+                },
                 scopes: ["openid", "email", "profile"],
-                email_field: "mail",
-                phone_field: "mobile",
-                name_field: "real_name",
-                nickname_field: "nick",
-                avatar_field: "picture",
                 sort_order: 2,
+                type: "oidc",
               },
             ],
           },
@@ -161,7 +165,7 @@ describe("admin settings", () => {
       )
     )
 
-    const providers = await listOIDCProviders(fetcher)
+    const providers = await listThirdPartyProviders(fetcher)
 
     expect(providers).toEqual([
       {
@@ -169,44 +173,52 @@ describe("admin settings", () => {
         name: "企业 SSO",
         key: "company-sso",
         enabled: true,
-        authorizeUrl: "https://sso.example.com/oauth/authorize",
-        tokenUrl: "https://sso.example.com/oauth/token",
-        userinfoUrl: "https://sso.example.com/oauth/userinfo",
         clientId: "client-id",
         clientSecret: "client-secret",
+        config: {
+          authorize_url: "https://sso.example.com/oauth/authorize",
+          token_url: "https://sso.example.com/oauth/token",
+          userinfo_url: "https://sso.example.com/oauth/userinfo",
+          external_id_field: "sub",
+          email_field: "mail",
+          phone_field: "mobile",
+          name_field: "real_name",
+          nickname_field: "nick",
+          avatar_field: "picture",
+        },
         scopes: ["openid", "email", "profile"],
-        emailField: "mail",
-        phoneField: "mobile",
-        nameField: "real_name",
-        nicknameField: "nick",
-        avatarField: "picture",
         sortOrder: 2,
+        type: "oidc",
       },
     ])
-    expect(fetcher).toHaveBeenCalledWith("/api/admin/oidc/providers", {
+    expect(fetcher).toHaveBeenCalledWith("/api/admin/third-party/providers", {
       credentials: "include",
       method: "GET",
     })
   })
 
-  it("creates and updates OIDC providers with full client secret without hidden fields", async () => {
+  it("creates and updates ThirdParty providers with full client secret without hidden fields", async () => {
     const providerResponse = {
       id: "provider-1",
       name: "企业 SSO",
       key: "company-sso",
       enabled: true,
-      authorize_url: "https://sso.example.com/oauth/authorize",
-      token_url: "https://sso.example.com/oauth/token",
-      userinfo_url: "https://sso.example.com/oauth/userinfo",
       client_id: "client-id",
       client_secret: "client-secret",
+      config: {
+        authorize_url: "https://sso.example.com/oauth/authorize",
+        token_url: "https://sso.example.com/oauth/token",
+        userinfo_url: "https://sso.example.com/oauth/userinfo",
+        external_id_field: "sub",
+        email_field: "mail",
+        phone_field: "mobile",
+        name_field: "real_name",
+        nickname_field: "nick",
+        avatar_field: "picture",
+      },
       scopes: ["openid", "email", "profile"],
-      email_field: "mail",
-      phone_field: "mobile",
-      name_field: "real_name",
-      nickname_field: "nick",
-      avatar_field: "picture",
       sort_order: 2,
+      type: "oidc",
     }
     const fetcher = vi.fn().mockImplementation(() =>
       Promise.resolve(
@@ -227,38 +239,46 @@ describe("admin settings", () => {
       )
     )
     const input = {
-      name: " 企业 SSO ",
-      authorizeUrl: " https://sso.example.com/oauth/authorize ",
-      tokenUrl: " https://sso.example.com/oauth/token ",
-      userinfoUrl: " https://sso.example.com/oauth/userinfo ",
       clientId: " client-id ",
       clientSecret: " client-secret ",
+      config: {
+        authorize_url: " https://sso.example.com/oauth/authorize ",
+        avatar_field: " picture ",
+        email_field: " mail ",
+        external_id_field: " sub ",
+        name_field: " real_name ",
+        nickname_field: " nick ",
+        phone_field: " mobile ",
+        token_url: " https://sso.example.com/oauth/token ",
+        userinfo_url: " https://sso.example.com/oauth/userinfo ",
+      },
+      name: " 企业 SSO ",
       scopes: ["email", "profile"],
-      emailField: " mail ",
-      phoneField: " mobile ",
-      nameField: " real_name ",
-      nicknameField: " nick ",
-      avatarField: " picture ",
-    } satisfies OIDCProviderInput
+      type: "oidc",
+    } satisfies ThirdPartyProviderInput
 
-    await createOIDCProvider(input, fetcher)
-    await updateOIDCProvider("provider-1", input, fetcher)
+    await createThirdPartyProvider(input, fetcher)
+    await updateThirdPartyProvider("provider-1", input, fetcher)
 
     const expectedBody = JSON.stringify({
-      name: "企业 SSO",
-      authorize_url: "https://sso.example.com/oauth/authorize",
-      token_url: "https://sso.example.com/oauth/token",
-      userinfo_url: "https://sso.example.com/oauth/userinfo",
       client_id: "client-id",
       client_secret: "client-secret",
+      config: {
+        authorize_url: "https://sso.example.com/oauth/authorize",
+        avatar_field: "picture",
+        email_field: "mail",
+        external_id_field: "sub",
+        name_field: "real_name",
+        nickname_field: "nick",
+        phone_field: "mobile",
+        token_url: "https://sso.example.com/oauth/token",
+        userinfo_url: "https://sso.example.com/oauth/userinfo",
+      },
+      name: "企业 SSO",
       scopes: ["email", "profile"],
-      email_field: "mail",
-      phone_field: "mobile",
-      name_field: "real_name",
-      nickname_field: "nick",
-      avatar_field: "picture",
+      type: "oidc",
     })
-    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/admin/oidc/providers", {
+    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/admin/third-party/providers", {
       body: expectedBody,
       credentials: "include",
       headers: {
@@ -268,7 +288,7 @@ describe("admin settings", () => {
     })
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
-      "/api/admin/oidc/providers/provider-1",
+      "/api/admin/third-party/providers/provider-1",
       {
         body: expectedBody,
         credentials: "include",
@@ -280,7 +300,7 @@ describe("admin settings", () => {
     )
   })
 
-  it("deletes OIDC providers through the admin API", async () => {
+  it("deletes ThirdParty providers through the admin API", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -296,10 +316,10 @@ describe("admin settings", () => {
       )
     )
 
-    await deleteOIDCProvider("provider-1", fetcher)
+    await deleteThirdPartyProvider("provider-1", fetcher)
 
     expect(fetcher).toHaveBeenCalledWith(
-      "/api/admin/oidc/providers/provider-1",
+      "/api/admin/third-party/providers/provider-1",
       {
         credentials: "include",
         method: "DELETE",
@@ -307,21 +327,24 @@ describe("admin settings", () => {
     )
   })
 
-  it("enables and disables OIDC providers through operation endpoints", async () => {
+  it("enables and disables ThirdParty providers through operation endpoints", async () => {
     const providerResponse = {
       id: "provider-1",
       name: "企业 SSO",
       key: "company-sso",
       enabled: true,
-      authorize_url: "https://sso.example.com/oauth/authorize",
-      token_url: "https://sso.example.com/oauth/token",
-      userinfo_url: "https://sso.example.com/oauth/userinfo",
       client_id: "client-id",
       client_secret: "client-secret",
+      config: {
+        authorize_url: "https://sso.example.com/oauth/authorize",
+        email_field: "mail",
+        name_field: "real_name",
+        token_url: "https://sso.example.com/oauth/token",
+        userinfo_url: "https://sso.example.com/oauth/userinfo",
+      },
       scopes: ["email", "profile"],
-      email_field: "mail",
-      name_field: "real_name",
       sort_order: 10,
+      type: "oidc",
     }
     const fetcher = vi.fn().mockImplementation(() =>
       Promise.resolve(
@@ -342,12 +365,12 @@ describe("admin settings", () => {
       )
     )
 
-    await enableOIDCProvider("provider-1", fetcher)
-    await disableOIDCProvider("provider-1", fetcher)
+    await enableThirdPartyProvider("provider-1", fetcher)
+    await disableThirdPartyProvider("provider-1", fetcher)
 
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
-      "/api/admin/oidc/providers/provider-1/enable",
+      "/api/admin/third-party/providers/provider-1/enable",
       {
         credentials: "include",
         method: "POST",
@@ -355,7 +378,7 @@ describe("admin settings", () => {
     )
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
-      "/api/admin/oidc/providers/provider-1/disable",
+      "/api/admin/third-party/providers/provider-1/disable",
       {
         credentials: "include",
         method: "POST",
@@ -363,7 +386,7 @@ describe("admin settings", () => {
     )
   })
 
-  it("moves OIDC providers and returns the reordered provider list", async () => {
+  it("moves ThirdParty providers and returns the reordered provider list", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -375,15 +398,18 @@ describe("admin settings", () => {
                 name: "Beta",
                 key: "beta",
                 enabled: true,
-                authorize_url: "https://beta.example.com/authorize",
-                token_url: "https://beta.example.com/token",
-                userinfo_url: "https://beta.example.com/userinfo",
                 client_id: "beta-client",
                 client_secret: "beta-secret",
+                config: {
+                  authorize_url: "https://beta.example.com/authorize",
+                  email_field: "email",
+                  name_field: "name",
+                  token_url: "https://beta.example.com/token",
+                  userinfo_url: "https://beta.example.com/userinfo",
+                },
                 scopes: ["email"],
-                email_field: "email",
-                name_field: "name",
                 sort_order: 10,
+                type: "oidc",
               },
             ],
           },
@@ -397,11 +423,11 @@ describe("admin settings", () => {
       )
     )
 
-    const providers = await moveOIDCProvider("provider-2", "up", fetcher)
+    const providers = await moveThirdPartyProvider("provider-2", "up", fetcher)
 
     expect(providers.map((provider) => provider.id)).toEqual(["provider-2"])
     expect(fetcher).toHaveBeenCalledWith(
-      "/api/admin/oidc/providers/provider-2/move",
+      "/api/admin/third-party/providers/provider-2/move",
       {
         body: JSON.stringify({
           direction: "up",

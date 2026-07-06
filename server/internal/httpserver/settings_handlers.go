@@ -12,12 +12,12 @@ import (
 )
 
 type infoSettingsResponse struct {
-	AppName          string                       `json:"app_name" example:"MyGod"`
-	OrganizationName string                       `json:"organization_name" example:"长亭科技"`
-	OIDCProviders    []publicOIDCProviderResponse `json:"oidc_providers"`
+	AppName             string                             `json:"app_name" example:"MyGod"`
+	OrganizationName    string                             `json:"organization_name" example:"长亭科技"`
+	ThirdPartyProviders []publicThirdPartyProviderResponse `json:"third_party_providers"`
 }
 
-type publicOIDCProviderResponse struct {
+type publicThirdPartyProviderResponse struct {
 	Key  string `json:"key" example:"company-sso"`
 	Name string `json:"name" example:"企业 SSO"`
 }
@@ -41,7 +41,7 @@ func (s *Server) clientInfo(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
-	providers, err := s.listPublicOIDCProviders()
+	providers, err := s.listPublicThirdPartyProviders()
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
@@ -144,8 +144,8 @@ func (s *Server) getOrCreateAppSettings() (store.AppSettings, error) {
 	return settings, nil
 }
 
-func (s *Server) listPublicOIDCProviders() ([]publicOIDCProviderResponse, error) {
-	var providers []store.OIDCProvider
+func (s *Server) listPublicThirdPartyProviders() ([]publicThirdPartyProviderResponse, error) {
+	var providers []store.ThirdPartyLoginProvider
 	if err := s.db.
 		Where("enabled = ?", true).
 		Order("sort_order ASC").
@@ -154,9 +154,9 @@ func (s *Server) listPublicOIDCProviders() ([]publicOIDCProviderResponse, error)
 		return nil, err
 	}
 
-	responses := make([]publicOIDCProviderResponse, 0, len(providers))
+	responses := make([]publicThirdPartyProviderResponse, 0, len(providers))
 	for _, provider := range providers {
-		responses = append(responses, publicOIDCProviderResponse{
+		responses = append(responses, publicThirdPartyProviderResponse{
 			Key:  provider.Key,
 			Name: provider.Name,
 		})
@@ -165,14 +165,14 @@ func (s *Server) listPublicOIDCProviders() ([]publicOIDCProviderResponse, error)
 	return responses, nil
 }
 
-func newInfoSettingsResponse(settings store.AppSettings, providers []publicOIDCProviderResponse) infoSettingsResponse {
+func newInfoSettingsResponse(settings store.AppSettings, providers []publicThirdPartyProviderResponse) infoSettingsResponse {
 	if providers == nil {
-		providers = []publicOIDCProviderResponse{}
+		providers = []publicThirdPartyProviderResponse{}
 	}
 
 	return infoSettingsResponse{
-		AppName:          settings.AppName,
-		OrganizationName: settings.OrganizationName,
-		OIDCProviders:    providers,
+		AppName:             settings.AppName,
+		OrganizationName:    settings.OrganizationName,
+		ThirdPartyProviders: providers,
 	}
 }

@@ -23,23 +23,17 @@ type InfoSettingsResponse = {
   organization_name?: string
 }
 
-type OIDCProviderResponse = {
-  avatar_field?: string
-  authorize_url?: string
+type ThirdPartyLoginProviderResponse = {
   client_id?: string
   client_secret?: string
-  email_field?: string
+  config?: Record<string, unknown>
   enabled?: boolean
   id?: string
   key?: string
   name?: string
-  name_field?: string
-  nickname_field?: string
-  phone_field?: string
   scopes?: string[]
   sort_order?: number
-  token_url?: string
-  userinfo_url?: string
+  type?: ThirdPartyLoginProviderType
 }
 
 export type InfoSettings = {
@@ -47,23 +41,25 @@ export type InfoSettings = {
   organizationName: string
 }
 
-export type OIDCProvider = {
-  avatarField: string
-  authorizeUrl: string
+export type ThirdPartyLoginProviderType =
+  | "dingtalk"
+  | "feishu"
+  | "github"
+  | "google"
+  | "oidc"
+  | "wecom"
+
+export type ThirdPartyLoginProvider = {
   clientId: string
   clientSecret: string
-  emailField: string
+  config: Record<string, string>
   enabled: boolean
   id: string
   key: string
   name: string
-  nameField: string
-  nicknameField: string
-  phoneField: string
   scopes: string[]
   sortOrder: number
-  tokenUrl: string
-  userinfoUrl: string
+  type: ThirdPartyLoginProviderType
 }
 
 export type UpdateInfoSettingsInput = {
@@ -71,11 +67,11 @@ export type UpdateInfoSettingsInput = {
   organizationName: string
 }
 
-export type OIDCProviderInput = Omit<
-  OIDCProvider,
+export type ThirdPartyLoginProviderInput = Omit<
+  ThirdPartyLoginProvider,
   "enabled" | "id" | "key" | "sortOrder"
 >
-export type OIDCProviderMoveDirection = "down" | "up"
+export type ThirdPartyLoginProviderMoveDirection = "down" | "up"
 
 export class AdminSettingsRequestError extends Error {
   code?: string
@@ -141,57 +137,66 @@ export async function updateInfoSettings(
   return normalizeInfoSettings(data)
 }
 
-export async function listOIDCProviders(
+export async function listThirdPartyLoginProviders(
   fetcher: AdminSettingsFetch = adminFetch
 ) {
-  const response = await fetcher("/api/admin/oidc/providers", {
+  const response = await fetcher("/api/admin/third-party/providers", {
     credentials: "include",
     method: "GET",
   })
   const payload = await readJson<
     | AdminSettingsErrorEnvelope
-    | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+    | AdminSettingsSuccessEnvelope<{
+        providers?: ThirdPartyLoginProviderResponse[]
+      }>
   >(response)
 
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(payload, response, "加载 OIDC 登录方式失败")
+    throw createRequestError(payload, response, "加载第三方登录方式失败")
   }
 
   const providers = (
     payload as
-      | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+      | AdminSettingsSuccessEnvelope<{
+          providers?: ThirdPartyLoginProviderResponse[]
+        }>
       | undefined
   )?.data?.providers
 
-  return normalizeOIDCProviderList(providers)
+  return normalizeThirdPartyLoginProviderList(providers)
 }
 
-export async function createOIDCProvider(
-  input: OIDCProviderInput,
+export async function createThirdPartyLoginProvider(
+  input: ThirdPartyLoginProviderInput,
   fetcher: AdminSettingsFetch = adminFetch
 ) {
-  return saveOIDCProvider("/api/admin/oidc/providers", "POST", input, fetcher)
+  return saveThirdPartyLoginProvider(
+    "/api/admin/third-party/providers",
+    "POST",
+    input,
+    fetcher
+  )
 }
 
-export async function updateOIDCProvider(
+export async function updateThirdPartyLoginProvider(
   id: string,
-  input: OIDCProviderInput,
+  input: ThirdPartyLoginProviderInput,
   fetcher: AdminSettingsFetch = adminFetch
 ) {
-  return saveOIDCProvider(
-    `/api/admin/oidc/providers/${encodeURIComponent(id)}`,
+  return saveThirdPartyLoginProvider(
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}`,
     "PUT",
     input,
     fetcher
   )
 }
 
-export async function deleteOIDCProvider(
+export async function deleteThirdPartyLoginProvider(
   id: string,
   fetcher: AdminSettingsFetch = adminFetch
 ) {
   const response = await fetcher(
-    `/api/admin/oidc/providers/${encodeURIComponent(id)}`,
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}`,
     {
       credentials: "include",
       method: "DELETE",
@@ -203,31 +208,31 @@ export async function deleteOIDCProvider(
   >(response)
 
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(payload, response, "删除 OIDC 登录方式失败")
+    throw createRequestError(payload, response, "删除第三方登录方式失败")
   }
 }
 
-export async function enableOIDCProvider(
+export async function enableThirdPartyLoginProvider(
   id: string,
   fetcher: AdminSettingsFetch = adminFetch
 ) {
-  return updateOIDCProviderStatus(id, "enable", fetcher)
+  return updateThirdPartyLoginProviderStatus(id, "enable", fetcher)
 }
 
-export async function disableOIDCProvider(
+export async function disableThirdPartyLoginProvider(
   id: string,
   fetcher: AdminSettingsFetch = adminFetch
 ) {
-  return updateOIDCProviderStatus(id, "disable", fetcher)
+  return updateThirdPartyLoginProviderStatus(id, "disable", fetcher)
 }
 
-export async function moveOIDCProvider(
+export async function moveThirdPartyLoginProvider(
   id: string,
-  direction: OIDCProviderMoveDirection,
+  direction: ThirdPartyLoginProviderMoveDirection,
   fetcher: AdminSettingsFetch = adminFetch
 ) {
   const response = await fetcher(
-    `/api/admin/oidc/providers/${encodeURIComponent(id)}/move`,
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}/move`,
     {
       body: JSON.stringify({
         direction,
@@ -241,30 +246,34 @@ export async function moveOIDCProvider(
   )
   const payload = await readJson<
     | AdminSettingsErrorEnvelope
-    | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+    | AdminSettingsSuccessEnvelope<{
+        providers?: ThirdPartyLoginProviderResponse[]
+      }>
   >(response)
 
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(payload, response, "移动 OIDC 登录方式失败")
+    throw createRequestError(payload, response, "移动第三方登录方式失败")
   }
 
   const providers = (
     payload as
-      | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+      | AdminSettingsSuccessEnvelope<{
+          providers?: ThirdPartyLoginProviderResponse[]
+        }>
       | undefined
   )?.data?.providers
 
-  return normalizeOIDCProviderList(providers)
+  return normalizeThirdPartyLoginProviderList(providers)
 }
 
-async function saveOIDCProvider(
+async function saveThirdPartyLoginProvider(
   path: string,
   method: "POST" | "PUT",
-  input: OIDCProviderInput,
+  input: ThirdPartyLoginProviderInput,
   fetcher: AdminSettingsFetch
 ) {
   const response = await fetcher(path, {
-    body: JSON.stringify(toOIDCProviderRequest(input)),
+    body: JSON.stringify(toThirdPartyLoginProviderRequest(input)),
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -273,29 +282,33 @@ async function saveOIDCProvider(
   })
   const payload = await readJson<
     | AdminSettingsErrorEnvelope
-    | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+    | AdminSettingsSuccessEnvelope<{
+        provider?: ThirdPartyLoginProviderResponse
+      }>
   >(response)
 
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(payload, response, "保存 OIDC 登录方式失败")
+    throw createRequestError(payload, response, "保存第三方登录方式失败")
   }
 
   const provider = (
     payload as
-      | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+      | AdminSettingsSuccessEnvelope<{
+          provider?: ThirdPartyLoginProviderResponse
+        }>
       | undefined
   )?.data?.provider
 
-  return normalizeOIDCProvider(provider)
+  return normalizeThirdPartyLoginProvider(provider)
 }
 
-async function updateOIDCProviderStatus(
+async function updateThirdPartyLoginProviderStatus(
   id: string,
   action: "disable" | "enable",
   fetcher: AdminSettingsFetch
 ) {
   const response = await fetcher(
-    `/api/admin/oidc/providers/${encodeURIComponent(id)}/${action}`,
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}/${action}`,
     {
       credentials: "include",
       method: "POST",
@@ -303,20 +316,24 @@ async function updateOIDCProviderStatus(
   )
   const payload = await readJson<
     | AdminSettingsErrorEnvelope
-    | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+    | AdminSettingsSuccessEnvelope<{
+        provider?: ThirdPartyLoginProviderResponse
+      }>
   >(response)
 
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(payload, response, "更新 OIDC 登录方式状态失败")
+    throw createRequestError(payload, response, "更新第三方登录方式状态失败")
   }
 
   const provider = (
     payload as
-      | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+      | AdminSettingsSuccessEnvelope<{
+          provider?: ThirdPartyLoginProviderResponse
+        }>
       | undefined
   )?.data?.provider
 
-  return normalizeOIDCProvider(provider)
+  return normalizeThirdPartyLoginProvider(provider)
 }
 
 function createRequestError(
@@ -350,71 +367,68 @@ function normalizeInfoSettings(
   }
 }
 
-function normalizeOIDCProviderList(
-  providers: OIDCProviderResponse[] | undefined
+function normalizeThirdPartyLoginProviderList(
+  providers: ThirdPartyLoginProviderResponse[] | undefined
 ) {
   if (!Array.isArray(providers)) {
-    throw new AdminSettingsRequestError("OIDC 登录方式响应格式不正确")
+    throw new AdminSettingsRequestError("第三方登录方式响应格式不正确")
   }
 
-  return providers.map(normalizeOIDCProvider)
+  return providers.map(normalizeThirdPartyLoginProvider)
 }
 
-function normalizeOIDCProvider(
-  provider: OIDCProviderResponse | undefined
-): OIDCProvider {
+function normalizeThirdPartyLoginProvider(
+  provider: ThirdPartyLoginProviderResponse | undefined
+): ThirdPartyLoginProvider {
   if (
     !provider?.id ||
     !provider.name ||
     !provider.key ||
+    !provider.type ||
     typeof provider.enabled !== "boolean" ||
-    !provider.authorize_url ||
-    !provider.token_url ||
-    !provider.userinfo_url ||
     !provider.client_id ||
     !provider.client_secret ||
     !Array.isArray(provider.scopes) ||
-    !provider.email_field ||
-    !provider.name_field ||
     typeof provider.sort_order !== "number"
   ) {
-    throw new AdminSettingsRequestError("OIDC 登录方式响应格式不正确")
+    throw new AdminSettingsRequestError("第三方登录方式响应格式不正确")
   }
 
   return {
-    avatarField: provider.avatar_field ?? "",
-    authorizeUrl: provider.authorize_url,
     clientId: provider.client_id,
     clientSecret: provider.client_secret,
-    emailField: provider.email_field,
+    config: normalizeStringRecord(provider.config ?? {}),
     enabled: provider.enabled,
     id: provider.id,
     key: provider.key,
     name: provider.name,
-    nameField: provider.name_field,
-    nicknameField: provider.nickname_field ?? "",
-    phoneField: provider.phone_field ?? "",
     scopes: provider.scopes,
     sortOrder: provider.sort_order,
-    tokenUrl: provider.token_url,
-    userinfoUrl: provider.userinfo_url,
+    type: provider.type,
   }
 }
 
-function toOIDCProviderRequest(input: OIDCProviderInput) {
+function normalizeStringRecord(record: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : String(value ?? ""),
+    ])
+  )
+}
+
+function toThirdPartyLoginProviderRequest(input: ThirdPartyLoginProviderInput) {
   return {
-    name: input.name.trim(),
-    authorize_url: input.authorizeUrl.trim(),
-    token_url: input.tokenUrl.trim(),
-    userinfo_url: input.userinfoUrl.trim(),
     client_id: input.clientId.trim(),
     client_secret: input.clientSecret.trim(),
+    config: Object.fromEntries(
+      Object.entries(input.config)
+        .map(([key, value]) => [key, value.trim()])
+        .filter(([, value]) => value !== "")
+    ),
+    name: input.name.trim(),
     scopes: input.scopes.map((scope) => scope.trim()).filter(Boolean),
-    email_field: input.emailField.trim(),
-    phone_field: input.phoneField.trim(),
-    name_field: input.nameField.trim(),
-    nickname_field: input.nicknameField.trim(),
-    avatar_field: input.avatarField.trim(),
+    type: input.type,
   }
 }
 
@@ -427,3 +441,25 @@ async function readJson<T>(response: Response): Promise<T | undefined> {
 
   return response.json() as Promise<T>
 }
+
+export type OIDCProvider = ThirdPartyLoginProvider
+export type OIDCProviderInput = ThirdPartyLoginProviderInput
+export type OIDCProviderMoveDirection = ThirdPartyLoginProviderMoveDirection
+export const createOIDCProvider = createThirdPartyLoginProvider
+export const deleteOIDCProvider = deleteThirdPartyLoginProvider
+export const disableOIDCProvider = disableThirdPartyLoginProvider
+export const enableOIDCProvider = enableThirdPartyLoginProvider
+export const listOIDCProviders = listThirdPartyLoginProviders
+export const moveOIDCProvider = moveThirdPartyLoginProvider
+export const updateOIDCProvider = updateThirdPartyLoginProvider
+export type ThirdPartyProvider = ThirdPartyLoginProvider
+export type ThirdPartyProviderInput = ThirdPartyLoginProviderInput
+export type ThirdPartyProviderMoveDirection =
+  ThirdPartyLoginProviderMoveDirection
+export const createThirdPartyProvider = createThirdPartyLoginProvider
+export const deleteThirdPartyProvider = deleteThirdPartyLoginProvider
+export const disableThirdPartyProvider = disableThirdPartyLoginProvider
+export const enableThirdPartyProvider = enableThirdPartyLoginProvider
+export const listThirdPartyProviders = listThirdPartyLoginProviders
+export const moveThirdPartyProvider = moveThirdPartyLoginProvider
+export const updateThirdPartyProvider = updateThirdPartyLoginProvider

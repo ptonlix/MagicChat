@@ -275,7 +275,7 @@ function createClientFetchMock({
   directConversationResponse,
   groupConversationResponse,
   logoutResponse,
-  oidcProviders = [],
+  thirdPartyProviders = [],
   loginStatus = 200,
   logoutStatus = 200,
   sendMessageResponse,
@@ -286,7 +286,7 @@ function createClientFetchMock({
   directConversationResponse?: Promise<Response>
   groupConversationResponse?: Promise<Response>
   logoutResponse?: Promise<Response>
-  oidcProviders?: Array<{ key: string; name: string }>
+  thirdPartyProviders?: Array<{ key: string; name: string }>
   loginStatus?: 200 | 401
   logoutStatus?: 200 | 500
   sendMessageResponse?: Promise<Response>
@@ -303,7 +303,7 @@ function createClientFetchMock({
           success: true,
           data: {
             app_name: "星环协作",
-            oidc_providers: oidcProviders,
+            third_party_providers: thirdPartyProviders,
             organization_name: "长亭科技",
           },
         }),
@@ -800,33 +800,33 @@ describe("App", () => {
     await waitFor(() => expect(document.title).toBe("登录 - 星环协作"))
   })
 
-  it("在登录页展示 OIDC 登录方式并跳转到统一初始化入口", async () => {
+  it("在登录页展示第三方登录方式并跳转到统一初始化入口", async () => {
     vi.stubGlobal(
       "fetch",
       createClientFetchMock({
-        oidcProviders: [{ key: "company-sso", name: "企业 SSO" }],
+        thirdPartyProviders: [{ key: "company-sso", name: "企业 SSO" }],
       })
     )
 
     renderApp("/login")
 
-    const oidcLink = await screen.findByRole("link", {
+    const thirdPartyLink = await screen.findByRole("link", {
       name: "使用 企业 SSO 登录",
     })
     const loginCard = screen
       .getByPlaceholderText("输入账号")
       .closest("[data-slot='card']")
 
-    expect(loginCard).toContainElement(oidcLink)
+    expect(loginCard).toContainElement(thirdPartyLink)
     expect(loginCard).toHaveTextContent("其他登录方式")
     expect(screen.getByRole("button", { name: "登录" })).toHaveAttribute(
       "data-variant",
       "outline"
     )
-    expect(oidcLink).toHaveAttribute("data-variant", "default")
-    expect(oidcLink).toHaveAttribute(
+    expect(thirdPartyLink).toHaveAttribute("data-variant", "default")
+    expect(thirdPartyLink).toHaveAttribute(
       "href",
-      "/api/client/auth/oidc/company-sso/start?redirect=/init"
+      "/api/client/auth/third-party/company-sso/start?redirect=/init"
     )
   })
 

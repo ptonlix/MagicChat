@@ -11,20 +11,23 @@ import {
   sortOIDCProvidersForDisplay,
 } from "@/pages/settings-page"
 
-describe("settings page OIDC provider form", () => {
+describe("settings page third-party provider form", () => {
   it("uses sensible defaults for new providers", () => {
     expect(createDefaultOIDCProviderForm()).toEqual({
+      agentId: "",
       avatarField: "picture",
       authorizeUrl: "",
       clientId: "",
       clientSecret: "",
       emailField: "email",
-      name: "",
+      externalIdField: "sub",
+      name: "通用 OIDC",
       nameField: "name",
       nicknameField: "nickname",
       phoneField: "phone",
-      scopesText: "email,profile",
+      scopesText: "openid,email,profile",
       tokenUrl: "",
+      type: "oidc",
       userinfoUrl: "",
     })
   })
@@ -32,35 +35,42 @@ describe("settings page OIDC provider form", () => {
   it("converts providers to editable form state", () => {
     expect(
       oidcProviderToForm({
-        avatarField: "avatar_url",
-        authorizeUrl: "https://sso.example.com/authorize",
         clientId: "client-id",
         clientSecret: "client-secret",
-        emailField: "mail",
+        config: {
+          avatar_field: "avatar_url",
+          authorize_url: "https://sso.example.com/authorize",
+          email_field: "mail",
+          external_id_field: "sub",
+          name_field: "real_name",
+          nickname_field: "nick",
+          phone_field: "mobile",
+          token_url: "https://sso.example.com/token",
+          userinfo_url: "https://sso.example.com/userinfo",
+        },
         enabled: false,
         id: "provider-1",
         key: "company-sso",
         name: "企业 SSO",
-        nameField: "real_name",
-        nicknameField: "nick",
-        phoneField: "mobile",
         scopes: ["openid", "email"],
         sortOrder: 3,
-        tokenUrl: "https://sso.example.com/token",
-        userinfoUrl: "https://sso.example.com/userinfo",
+        type: "oidc",
       })
     ).toEqual({
+      agentId: "",
       avatarField: "avatar_url",
       authorizeUrl: "https://sso.example.com/authorize",
       clientId: "client-id",
       clientSecret: "client-secret",
       emailField: "mail",
+      externalIdField: "sub",
       name: "企业 SSO",
       nameField: "real_name",
       nicknameField: "nick",
       phoneField: "mobile",
       scopesText: "openid,email",
       tokenUrl: "https://sso.example.com/token",
+      type: "oidc",
       userinfoUrl: "https://sso.example.com/userinfo",
     })
   })
@@ -68,32 +78,39 @@ describe("settings page OIDC provider form", () => {
   it("converts form state to a trimmed API input", () => {
     expect(
       oidcProviderFormToInput({
+        agentId: "",
         avatarField: " picture ",
         authorizeUrl: " https://sso.example.com/authorize ",
         clientId: " client-id ",
         clientSecret: " client-secret ",
         emailField: " mail ",
+        externalIdField: " sub ",
         name: " 企业 SSO ",
         nameField: " real_name ",
         nicknameField: " nick ",
         phoneField: " mobile ",
         scopesText: "email, profile,,custom",
         tokenUrl: " https://sso.example.com/token ",
+        type: "oidc",
         userinfoUrl: " https://sso.example.com/userinfo ",
       })
     ).toEqual({
-      avatarField: "picture",
-      authorizeUrl: "https://sso.example.com/authorize",
       clientId: "client-id",
       clientSecret: "client-secret",
-      emailField: "mail",
+      config: {
+        avatar_field: "picture",
+        authorize_url: "https://sso.example.com/authorize",
+        email_field: "mail",
+        external_id_field: "sub",
+        name_field: "real_name",
+        nickname_field: "nick",
+        phone_field: "mobile",
+        token_url: "https://sso.example.com/token",
+        userinfo_url: "https://sso.example.com/userinfo",
+      },
       name: "企业 SSO",
-      nameField: "real_name",
-      nicknameField: "nick",
-      phoneField: "mobile",
       scopes: ["email", "profile", "custom"],
-      tokenUrl: "https://sso.example.com/token",
-      userinfoUrl: "https://sso.example.com/userinfo",
+      type: "oidc",
     })
   })
 
@@ -125,39 +142,38 @@ describe("settings page OIDC provider form", () => {
 })
 
 describe("settings page layout", () => {
-  it("places basic info and OIDC login in two columns on wide screens", () => {
+  it("places basic info and third-party login in two columns on wide screens", () => {
     expect(getSettingsPageLayoutClassName()).toContain("lg:grid-cols-2")
     expect(getSettingsCardClassName()).toBe("w-full")
   })
 
-  it("uses a dialog for the OIDC provider form", () => {
+  it("uses a dialog for the third-party provider form", () => {
     const settingsPageSource = getSourceBetween(
       settingsPageSourceText,
       "export default function SettingsPage()",
-      "function OIDCProviderDialog("
+      "function ThirdPartyProviderAddMenu("
     )
 
-    expect(settingsPageSource).toContain("OIDCProviderDialog")
+    expect(settingsPageSource).toContain("ThirdPartyProviderDialog")
     expect(settingsPageSource).not.toContain("onSubmit={handleOIDCSubmit}")
-    expect(settingsPageSource).not.toContain('id="oidc-client-secret"')
   })
 
-  it("uses short add copy for the dialog trigger", () => {
+  it("uses a provider menu for adding login methods", () => {
     const triggerSource = getSourceBetween(
       settingsPageSourceText,
-      "<DialogTrigger",
-      "</DialogTrigger>"
+      "function ThirdPartyProviderAddMenu(",
+      "function ThirdPartyProviderActions("
     )
 
     expect(triggerSource).toContain("添加")
-    expect(triggerSource).not.toContain("添加登录方式")
-    expect(triggerSource).not.toContain("新增")
+    expect(settingsPageSourceText).toContain("企业微信")
+    expect(settingsPageSourceText).toContain("通用 OIDC")
   })
 
   it("keeps generated fields and enable state out of the provider dialog", () => {
     const dialogSource = getSourceBetween(
       settingsPageSourceText,
-      "function OIDCProviderDialog(",
+      "function ThirdPartyProviderDialog(",
       "export function getSettingsPageLayoutClassName()"
     )
 
@@ -166,7 +182,7 @@ describe("settings page layout", () => {
     expect(dialogSource).not.toContain(">Key<")
     expect(dialogSource).not.toContain(">排序<")
     expect(dialogSource).not.toContain("Textarea")
-    expect(dialogSource).toContain("htmlFor={oidcScopesId}>Scope")
+    expect(dialogSource).toContain("htmlFor={scopesId}>Scope")
     expect(dialogSource).toContain("<Input")
   })
 
@@ -202,21 +218,21 @@ function createProvider({
   sortOrder: number
 }) {
   return {
-    avatarField: "picture",
-    authorizeUrl: "https://sso.example.com/authorize",
     clientId: "client-id",
     clientSecret: "client-secret",
-    emailField: "email",
+    config: {
+      authorize_url: "https://sso.example.com/authorize",
+      email_field: "email",
+      name_field: "name",
+      token_url: "https://sso.example.com/token",
+      userinfo_url: "https://sso.example.com/userinfo",
+    },
     enabled: true,
     id,
     key: id,
     name,
-    nameField: "name",
-    nicknameField: "nickname",
-    phoneField: "phone",
     scopes: ["email"],
     sortOrder,
-    tokenUrl: "https://sso.example.com/token",
-    userinfoUrl: "https://sso.example.com/userinfo",
+    type: "oidc" as const,
   }
 }

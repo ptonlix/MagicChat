@@ -8,9 +8,9 @@ import { useAppInfo } from "@/lib/app-info-context"
 import { clientLogin } from "@/lib/client-auth"
 
 export function LoginPage() {
-  const { appName, oidcProviders, organizationName } = useAppInfo()
+  const { appName, organizationName, thirdPartyProviders } = useAppInfo()
   const navigate = useNavigate()
-  const hasOIDCProviders = oidcProviders.length > 0
+  const hasThirdPartyProviders = thirdPartyProviders.length > 0
 
   async function handleLogin(credentials: {
     account: string
@@ -36,9 +36,9 @@ export function LoginPage() {
           <LoginForm
             className="w-full"
             onLogin={handleLogin}
-            submitVariant={hasOIDCProviders ? "outline" : "default"}
+            submitVariant={hasThirdPartyProviders ? "outline" : "default"}
           >
-            {hasOIDCProviders && (
+            {hasThirdPartyProviders && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <Separator className="flex-1" />
@@ -46,14 +46,14 @@ export function LoginPage() {
                   <Separator className="flex-1" />
                 </div>
                 <div className="flex flex-col gap-2">
-                  {oidcProviders.map((provider, index) => (
+                  {thirdPartyProviders.map((provider, index) => (
                     <Button
                       asChild
                       key={provider.key}
                       variant={index === 0 ? "default" : "outline"}
                     >
                       <a
-                        href={`/api/client/auth/oidc/${encodeURIComponent(
+                        href={`/api/client/auth/third-party/${encodeURIComponent(
                           provider.key
                         )}/start?redirect=/init`}
                       >

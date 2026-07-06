@@ -13,8 +13,9 @@ func TestModelTableNamesMatchInitialSchema(t *testing.T) {
 		model any
 		table string
 	}{
-		{name: "oidc provider", model: OIDCProvider{}, table: "oidc_providers"},
-		{name: "oidc login state", model: OIDCLoginState{}, table: "oidc_login_states"},
+		{name: "third-party provider", model: ThirdPartyLoginProvider{}, table: "third_party_login_providers"},
+		{name: "third-party login state", model: ThirdPartyLoginState{}, table: "third_party_login_states"},
+		{name: "third-party account", model: ThirdPartyAccount{}, table: "third_party_accounts"},
 	}
 
 	for _, test := range tests {
