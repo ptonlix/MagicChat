@@ -590,7 +590,7 @@ func defaultThirdPartyProviderConfig(providerType string) map[string]any {
 	switch providerType {
 	case store.ThirdPartyLoginProviderTypeDingTalk:
 		return map[string]any{
-			"authorize_url":     "https://login.dingtalk.com/oauth2/auth",
+			"authorize_url":     "https://login.dingtalk.com/oauth2/auth?prompt=consent",
 			"token_url":         "https://api.dingtalk.com/v1.0/oauth2/userAccessToken",
 			"userinfo_url":      "https://api.dingtalk.com/v1.0/contact/users/me",
 			"external_id_field": "unionId",

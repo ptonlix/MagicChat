@@ -2979,6 +2979,41 @@ func TestAdminCanManageThirdPartyLoginProviders(t *testing.T) {
 	}
 }
 
+func TestDingTalkProviderStartsWithConsentPromptByDefault(t *testing.T) {
+	server, _ := newTestRouter(t)
+	defer server.Close()
+	adminCookie := loginAsAdmin(t, server)
+
+	createResp, createBody := postJSON(t, server, "/api/admin/third-party/providers", map[string]any{
+		"name":          "DingTalk",
+		"type":          "dingtalk",
+		"client_id":     "ding-client-id",
+		"client_secret": "ding-client-secret",
+	}, adminCookie)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201, body = %#v", createResp.StatusCode, createBody)
+	}
+	createdProvider := requireSuccess(t, createBody)["provider"].(map[string]any)
+	providerKey := createdProvider["key"].(string)
+
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/third-party/"+providerKey+"/start?redirect=/init")
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+	}
+	authorizeLocation := startResp.Header.Get("Location")
+	parsedAuthorizeURL, err := url.Parse(authorizeLocation)
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	if prompt := parsedAuthorizeURL.Query().Get("prompt"); prompt != "consent" {
+		t.Fatalf("prompt = %q, want consent", prompt)
+	}
+}
+
 func TestAdminCreatesDistinctThirdPartyLoginProviderKeysFromSameName(t *testing.T) {
 	server, _ := newTestRouter(t)
 	defer server.Close()
