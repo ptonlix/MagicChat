@@ -1,5 +1,5 @@
 type ClientMessageIdCrypto = {
-  getRandomValues?: (array: Uint8Array) => Uint8Array
+  getRandomValues?: (array: Uint8Array<ArrayBuffer>) => void
   randomUUID?: () => string
 }
 
@@ -25,7 +25,23 @@ function getGlobalCrypto(): ClientMessageIdCrypto | undefined {
     return undefined
   }
 
-  return globalThis.crypto
+  const crypto = globalThis.crypto
+  if (!crypto) {
+    return undefined
+  }
+
+  return {
+    getRandomValues:
+      typeof crypto.getRandomValues === "function"
+        ? (array) => {
+            crypto.getRandomValues(array)
+          }
+        : undefined,
+    randomUUID:
+      typeof crypto.randomUUID === "function"
+        ? () => crypto.randomUUID()
+        : undefined,
+  }
 }
 
 function createMathRandomBytes() {

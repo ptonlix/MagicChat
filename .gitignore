@@ -33,6 +33,7 @@ coverage.out
 /bin/
 /tmp/
 tmp/
+data/
 
 # Local worktrees
 .worktrees/

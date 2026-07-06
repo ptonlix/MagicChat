@@ -1,0 +1,8 @@
+server:
+  addr: ":20080"
+
+database:
+  dsn: "postgres://app:app@postgres:5432/app?sslmode=disable"
+
+admin:
+  password: "change-me"

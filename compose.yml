@@ -1,0 +1,57 @@
+name: dianbao
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+    volumes:
+      - ./data/postgres/data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  server:
+    image: ${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/server:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CONFIG: /app/config/config.yaml
+    volumes:
+      - ./data/server/config:/app/config:ro
+      - ./data/server/log:/app/log
+    expose:
+      - "20080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:20080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  nginx:
+    image: ${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/nginx:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "443:443"
+      - "8443:8443"
+    volumes:
+      - ./data/nginx/certs:/etc/nginx/certs:ro
+      - ./data/nginx/log:/var/log/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1/nginx-healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
