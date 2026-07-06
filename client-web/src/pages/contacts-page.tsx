@@ -85,7 +85,7 @@ export function ContactsPage() {
 
   return (
     <>
-      <aside className="flex w-80 shrink-0 flex-col border-r bg-background">
+      <aside className="flex w-72 shrink-0 flex-col border-r bg-background">
         <div className="flex h-14 items-center justify-between px-4">
           <h1 className="text-base font-medium">联系人</h1>
           <Button

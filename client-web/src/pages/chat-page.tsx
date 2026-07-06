@@ -404,7 +404,7 @@ export function ChatPage() {
 
   return (
     <>
-      <aside className="flex w-80 shrink-0 flex-col border-r bg-background">
+      <aside className="flex w-72 shrink-0 flex-col border-r bg-background">
         <div className="flex h-14 items-center justify-between px-4">
           <h1 className="text-base font-medium">消息</h1>
           <DropdownMenu>
@@ -869,16 +869,21 @@ function getNewestMessageSeq(state: ConversationMessageState) {
 function toConversationPanelMessage(
   message: ClientMessage,
   conversation: ClientConversation,
-  currentUser: Pick<ClientUser, "avatar" | "id">,
+  currentUser: Pick<ClientUser, "avatar" | "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>
 ): ConversationPanelMessage {
   const fromMe =
     message.sender.type === "user" && message.sender.id === currentUser.id
 
   return {
-    author: getMessageAuthor(message, conversation, currentUser.id),
+    author: getMessageAuthor(
+      message,
+      conversation,
+      currentUser,
+      contactsById
+    ),
     avatar: getMessageAvatar(message, conversation, currentUser, contactsById),
-    content: message.body.content,
+    body: message.body,
     id: message.id,
     role: fromMe ? "me" : "other",
     time: getMessageTime(message.createdAt),
@@ -888,12 +893,9 @@ function toConversationPanelMessage(
 function getMessageAuthor(
   message: ClientMessage,
   conversation: ClientConversation,
-  currentUserId: string
+  currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
+  contactsById: ReadonlyMap<string, ContactUser>
 ) {
-  if (message.sender.type === "user" && message.sender.id === currentUserId) {
-    return "我"
-  }
-
   if (message.sender.type === "system") {
     return "系统"
   }
@@ -902,11 +904,33 @@ function getMessageAuthor(
     return conversation.name
   }
 
-  if (conversation.type === "direct") {
+  if (message.sender.type === "user" && message.sender.id === currentUser.id) {
+    return formatMessageUserName(currentUser)
+  }
+
+  if (message.sender.type === "user") {
+    const contact = contactsById.get(message.sender.id)
+    if (contact) {
+      return formatMessageUserName(contact)
+    }
+  }
+
+  if (message.sender.type === "user" && conversation.type === "direct") {
     return conversation.name
   }
 
   return "成员"
+}
+
+function formatMessageUserName(user: { name: string; nickname: string }) {
+  const name = user.name.trim()
+  const nickname = user.nickname.trim()
+
+  if (!nickname || nickname === name) {
+    return name
+  }
+
+  return `${nickname} | ${name}`
 }
 
 function getMessageAvatar(

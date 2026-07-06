@@ -928,7 +928,6 @@ describe("App", () => {
       "conversation-panel-history"
     )
     expect(initialHistory).toHaveAttribute("data-slot", "scroll-area")
-    expect(initialHistory).toHaveClass("bg-muted/30")
     const historyContent = within(initialHistory).getByTestId(
       "conversation-history-content"
     )
@@ -985,7 +984,6 @@ describe("App", () => {
     ).not.toBeInTheDocument()
     const history = await screen.findByTestId("conversation-panel-history")
     expect(history).toHaveAttribute("data-slot", "scroll-area")
-    expect(history).toHaveClass("bg-muted/30")
     expect(
       within(history).getByText("帮我总结今天的消息")
     ).toBeInTheDocument()

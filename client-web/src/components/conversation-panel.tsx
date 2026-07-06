@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { ClientConversation } from "@/lib/client-data-api"
+import type { ClientConversation, ClientMessage } from "@/lib/client-data-api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,7 +27,7 @@ export type ConversationPanelMessage = {
   role: "me" | "other"
   author: string
   avatar: string
-  content: string
+  body: ClientMessage["body"]
   time: string
 }
 
@@ -192,7 +192,7 @@ function ConversationPanelHistory({
   if (loading) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center gap-2 bg-muted/30 text-sm text-muted-foreground"
+        className="flex min-h-0 flex-1 items-center justify-center gap-2 bg-muted/10 text-sm text-muted-foreground"
         data-testid="conversation-history-loading"
       >
         <LoaderCircle className="size-4 animate-spin" />
@@ -204,7 +204,7 @@ function ConversationPanelHistory({
   if (error && messages.length === 0) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground"
+        className="flex min-h-0 flex-1 items-center justify-center bg-muted/10 px-6 text-center text-sm text-muted-foreground"
         data-testid="conversation-history-error"
       >
         {error}
@@ -215,7 +215,7 @@ function ConversationPanelHistory({
   if (messages.length === 0) {
     return (
       <Empty
-        className="h-full min-h-0 flex-1 rounded-none bg-muted/30"
+        className="h-full min-h-0 flex-1 rounded-none bg-muted/10"
         data-testid="conversation-history-empty"
       >
         <EmptyMedia>
@@ -231,7 +231,7 @@ function ConversationPanelHistory({
 
   return (
     <ScrollArea
-      className="min-h-0 flex-1 bg-muted/30"
+      className="min-h-0 flex-1 bg-muted/10"
       data-testid="conversation-panel-history"
       viewportProps={{
         onScroll: handleViewportScroll,
@@ -432,13 +432,13 @@ function MessageBubble({
         </div>
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-sm leading-relaxed shadow-xs",
+            "rounded-lg px-4 py-3 text-sm leading-relaxed shadow-xs",
             fromMe
-              ? "bg-primary text-primary-foreground"
+              ? "bg-teal-100 text-foreground dark:bg-teal-950"
               : "bg-muted text-foreground"
           )}
         >
-          {message.content}
+          <MessageBodyRenderer body={message.body} />
         </div>
       </div>
       {fromMe && (
@@ -457,6 +457,21 @@ function MessageBubble({
       )}
     </div>
   )
+}
+
+function MessageBodyRenderer({
+  body,
+}: {
+  body: ConversationPanelMessage["body"]
+}) {
+  switch (body.type) {
+    case "text":
+      return <TextMessageBody content={body.content} />
+  }
+}
+
+function TextMessageBody({ content }: { content: string }) {
+  return <span className="whitespace-pre-wrap break-words">{content}</span>
 }
 
 function getConversationHeaderDescription(conversation: ClientConversation) {
