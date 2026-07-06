@@ -57,16 +57,17 @@ type createDirectConversationResponse struct {
 }
 
 type conversationListItemResponse struct {
-	Avatar             string     `json:"avatar" example:"/assets/avatars/builtin/07.webp"`
-	CreatedAt          time.Time  `json:"created_at" format:"date-time"`
-	ID                 string     `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
-	LastMessageAt      *time.Time `json:"last_message_at" format:"date-time"`
-	LastMessageID      *string    `json:"last_message_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
-	LastMessageSeq     int64      `json:"last_message_seq" example:"12"`
-	LastMessageSummary string     `json:"last_message_summary" example:"好的，我看一下"`
-	MemberCount        int        `json:"member_count" example:"2"`
-	Name               string     `json:"name" example:"张三"`
-	Type               string     `json:"type" example:"direct"`
+	Avatar             string                       `json:"avatar" example:"/assets/avatars/builtin/07.webp"`
+	CreatedAt          time.Time                    `json:"created_at" format:"date-time"`
+	ID                 string                       `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	LastMessageAt      *time.Time                   `json:"last_message_at" format:"date-time"`
+	LastMessageID      *string                      `json:"last_message_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	LastMessageSeq     int64                        `json:"last_message_seq" example:"12"`
+	LastMessageSummary string                       `json:"last_message_summary" example:"好的，我看一下"`
+	MemberCount        int                          `json:"member_count" example:"2"`
+	Members            []conversationMemberResponse `json:"members"`
+	Name               string                       `json:"name" example:"张三"`
+	Type               string                       `json:"type" example:"direct"`
 }
 
 type listClientConversationsResponse struct {
@@ -565,9 +566,42 @@ func newConversationListItemResponse(
 		LastMessageSeq:     conversation.LastMessageSeq,
 		LastMessageSummary: conversation.LastMessageSummary,
 		MemberCount:        len(members),
+		Members:            newConversationMemberResponses(members, usersByID),
 		Name:               name,
 		Type:               conversation.Kind,
 	}
+}
+
+func newConversationMemberResponses(
+	members []store.ConversationMember,
+	usersByID map[string]store.User,
+) []conversationMemberResponse {
+	responses := make([]conversationMemberResponse, 0, len(members))
+	for _, member := range members {
+		user, ok := usersByID[member.MemberID]
+		if !ok {
+			continue
+		}
+		phone := ""
+		if user.Phone != nil {
+			phone = *user.Phone
+		}
+		avatar := user.Avatar
+		if avatar == "" {
+			avatar = store.DefaultUserAvatar
+		}
+		responses = append(responses, conversationMemberResponse{
+			Avatar:   avatar,
+			Email:    user.Email,
+			ID:       user.ID,
+			Name:     user.Name,
+			Nickname: user.Nickname,
+			Phone:    phone,
+			Role:     member.Role,
+		})
+	}
+
+	return responses
 }
 
 func userDisplayName(user store.User) string {

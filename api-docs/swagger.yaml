@@ -67,6 +67,10 @@ definitions:
       member_count:
         example: 2
         type: integer
+      members:
+        items:
+          $ref: '#/definitions/httpserver.conversationMemberResponse'
+        type: array
       name:
         example: 张三
         type: string
@@ -218,6 +222,10 @@ definitions:
       app_name:
         example: MyGod
         type: string
+      oidc_providers:
+        items:
+          $ref: '#/definitions/httpserver.publicOIDCProviderResponse'
+        type: array
       organization_name:
         example: 长亭科技
         type: string
@@ -262,6 +270,13 @@ definitions:
       oldest_seq:
         example: 101
         type: integer
+    type: object
+  httpserver.listOIDCProvidersResponse:
+    properties:
+      providers:
+        items:
+          $ref: '#/definitions/httpserver.oidcProviderResponse'
+        type: array
     type: object
   httpserver.listUsersResponse:
     properties:
@@ -323,6 +338,91 @@ definitions:
         type: string
       type:
         example: user
+        type: string
+    type: object
+  httpserver.oidcProviderEnvelope:
+    properties:
+      provider:
+        $ref: '#/definitions/httpserver.oidcProviderResponse'
+    type: object
+  httpserver.oidcProviderMoveRequest:
+    properties:
+      direction:
+        type: string
+    type: object
+  httpserver.oidcProviderRequest:
+    properties:
+      authorize_url:
+        type: string
+      avatar_field:
+        type: string
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      email_field:
+        type: string
+      name:
+        type: string
+      name_field:
+        type: string
+      nickname_field:
+        type: string
+      phone_field:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      token_url:
+        type: string
+      userinfo_url:
+        type: string
+    type: object
+  httpserver.oidcProviderResponse:
+    properties:
+      authorize_url:
+        type: string
+      avatar_field:
+        type: string
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      email_field:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      key:
+        type: string
+      name:
+        type: string
+      name_field:
+        type: string
+      nickname_field:
+        type: string
+      phone_field:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      sort_order:
+        type: integer
+      token_url:
+        type: string
+      userinfo_url:
+        type: string
+    type: object
+  httpserver.publicOIDCProviderResponse:
+    properties:
+      key:
+        example: company-sso
+        type: string
+      name:
+        example: 企业 SSO
         type: string
     type: object
   httpserver.resetUserPasswordResponse:
@@ -446,6 +546,288 @@ paths:
       summary: 管理员登录
       tags:
       - 管理员认证
+  /api/admin/oidc/providers:
+    get:
+      description: 管理员读取已配置的 OIDC 登录方式，包含 Client Secret。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listOIDCProvidersResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 列出 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建一个普通用户可用的 OIDC 登录方式。
+      parameters:
+      - description: OIDC 登录方式
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.oidcProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 创建 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
+  /api/admin/oidc/providers/{id}:
+    delete:
+      description: 管理员删除一个 OIDC 登录方式。
+      parameters:
+      - description: OIDC 登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpserver.successEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 删除 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
+    put:
+      consumes:
+      - application/json
+      description: 管理员更新一个 OIDC 登录方式。Client Secret 每次更新都需要提交完整值。
+      parameters:
+      - description: OIDC 登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: OIDC 登录方式
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.oidcProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 更新 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
+  /api/admin/oidc/providers/{id}/disable:
+    post:
+      description: 管理员禁用一个 OIDC 登录方式。
+      parameters:
+      - description: OIDC 登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 禁用 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
+  /api/admin/oidc/providers/{id}/enable:
+    post:
+      description: 管理员启用一个 OIDC 登录方式。
+      parameters:
+      - description: OIDC 登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.oidcProviderEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 启用 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
+  /api/admin/oidc/providers/{id}/move:
+    post:
+      consumes:
+      - application/json
+      description: 管理员将一个 OIDC 登录方式上移或下移，服务端会重新归一化所有登录方式的排序值。
+      parameters:
+      - description: OIDC 登录方式 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 移动方向
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.oidcProviderMoveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.listOIDCProvidersResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 移动 OIDC 登录方式
+      tags:
+      - 管理员 OIDC
   /api/admin/settings/info:
     get:
       description: 管理员读取 App 名称和组织名称。
@@ -778,6 +1160,86 @@ paths:
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
       summary: 普通用户退出登录
+      tags:
+      - 客户端认证
+  /api/client/auth/oidc/{key}/callback:
+    get:
+      description: 处理第三方 OIDC 回调，创建或关联普通用户并写入用户登录 Session。
+      parameters:
+      - description: OIDC 登录方式 Key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: OIDC 授权码
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: OIDC 登录状态
+        in: query
+        name: state
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Found
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 完成 OIDC 登录
+      tags:
+      - 客户端认证
+  /api/client/auth/oidc/{key}/start:
+    get:
+      description: 根据登录方式 Key 创建 OIDC 登录状态，并重定向到第三方授权地址。
+      parameters:
+      - description: OIDC 登录方式 Key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 登录成功后的站内跳转路径
+        in: query
+        name: redirect
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Found
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 发起 OIDC 登录
       tags:
       - 客户端认证
   /api/client/contacts/users:

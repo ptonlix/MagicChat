@@ -134,3 +134,44 @@ type AppSettings struct {
 	CreatedAt        time.Time `gorm:"not null"`
 	UpdatedAt        time.Time `gorm:"not null"`
 }
+
+type OIDCProvider struct {
+	ID            string          `gorm:"type:uuid;primaryKey"`
+	Name          string          `gorm:"size:120;not null"`
+	Key           string          `gorm:"size:80;not null;uniqueIndex"`
+	Enabled       bool            `gorm:"not null;index"`
+	AuthorizeURL  string          `gorm:"size:2048;not null"`
+	TokenURL      string          `gorm:"size:2048;not null"`
+	UserinfoURL   string          `gorm:"size:2048;not null"`
+	ClientID      string          `gorm:"size:512;not null"`
+	ClientSecret  string          `gorm:"not null"`
+	Scopes        json.RawMessage `gorm:"type:jsonb;not null;serializer:json"`
+	EmailField    string          `gorm:"size:120;not null"`
+	PhoneField    string          `gorm:"size:120;not null;default:''"`
+	NameField     string          `gorm:"size:120;not null"`
+	NicknameField string          `gorm:"size:120;not null;default:''"`
+	AvatarField   string          `gorm:"size:120;not null;default:''"`
+	SortOrder     int             `gorm:"not null;default:0;index"`
+	CreatedAt     time.Time       `gorm:"not null"`
+	UpdatedAt     time.Time       `gorm:"not null"`
+}
+
+func (OIDCProvider) TableName() string {
+	return "oidc_providers"
+}
+
+type OIDCLoginState struct {
+	StateHash    string       `gorm:"primaryKey"`
+	ProviderID   string       `gorm:"type:uuid;not null;index"`
+	Provider     OIDCProvider `gorm:"constraint:OnDelete:CASCADE;"`
+	CodeVerifier string       `gorm:"not null"`
+	RedirectPath string       `gorm:"size:2048;not null"`
+	ExpiresAt    time.Time    `gorm:"not null;index"`
+	ConsumedAt   *time.Time   `gorm:"index"`
+	IP           string       `gorm:"size:64;not null;default:''"`
+	UserAgent    string       `gorm:"size:512;not null;default:''"`
+}
+
+func (OIDCLoginState) TableName() string {
+	return "oidc_login_states"
+}

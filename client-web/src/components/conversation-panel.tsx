@@ -5,13 +5,17 @@ import {
   MessageCircle,
   Paperclip,
   Send,
+  Settings,
   Smile,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { ClientConversation, ClientMessage } from "@/lib/client-data-api"
+import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { MessageActionMenu } from "@/components/message-action-menu"
+import { UserProfilePopover } from "@/components/user-profile-popover"
 import {
   Empty,
   EmptyDescription,
@@ -29,6 +33,7 @@ export type ConversationPanelMessage = {
   avatar: string
   body: ClientMessage["body"]
   time: string
+  senderUserId: string | null
 }
 
 type ConversationPanelProps = {
@@ -105,6 +110,17 @@ function ConversationPanelHeader({
           {getConversationHeaderDescription(conversation)}
         </p>
       </div>
+      <ConversationInfoDrawer conversationId={conversation.id}>
+        <Button
+          aria-label="会话设置"
+          size="icon-sm"
+          title="会话设置"
+          type="button"
+          variant="ghost"
+        >
+          <Settings className="size-4" />
+        </Button>
+      </ConversationInfoDrawer>
     </header>
   )
 }
@@ -189,6 +205,17 @@ function ConversationPanelHistory({
     onLoadBeforeMessages()
   }
 
+  function handleHistoryContextMenu(event: React.MouseEvent<HTMLDivElement>) {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-message-action-trigger]")
+    ) {
+      return
+    }
+
+    event.preventDefault()
+  }
+
   if (loading) {
     return (
       <div
@@ -234,6 +261,7 @@ function ConversationPanelHistory({
       className="min-h-0 flex-1 bg-muted/10"
       data-testid="conversation-panel-history"
       viewportProps={{
+        onContextMenu: handleHistoryContextMenu,
         onScroll: handleViewportScroll,
       }}
       viewportRef={viewportRef}
@@ -408,18 +436,7 @@ function MessageBubble({
 
   return (
     <div className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}>
-      {!fromMe && (
-        <Avatar className="mt-1 size-8 rounded-sm bg-muted after:rounded-sm">
-          {message.avatar && (
-            <AvatarImage
-              alt={message.author}
-              className="rounded-sm"
-              src={message.avatar}
-            />
-          )}
-          <AvatarFallback className="rounded-sm">{fallback}</AvatarFallback>
-        </Avatar>
-      )}
+      {!fromMe && <MessageAvatar fallback={fallback} message={message} />}
       <div
         className={cn(
           "flex max-w-[min(70%,42rem)] flex-col gap-1",
@@ -430,32 +447,59 @@ function MessageBubble({
           <span>{message.author}</span>
           <span>{message.time}</span>
         </div>
-        <div
-          className={cn(
-            "rounded-lg px-4 py-3 text-sm leading-relaxed shadow-xs",
-            fromMe
-              ? "bg-teal-100 text-foreground dark:bg-teal-950"
-              : "bg-muted text-foreground"
-          )}
-        >
-          <MessageBodyRenderer body={message.body} />
-        </div>
+        <MessageActionMenu>
+          <div
+            className={cn(
+              "rounded-md px-4 py-3 text-sm leading-relaxed shadow-xs",
+              fromMe
+                ? "bg-teal-100 text-foreground hover:bg-teal-200 data-[state=open]:bg-teal-200 dark:bg-teal-950 hover:dark:bg-teal-900 dark:data-[state=open]:bg-teal-900"
+                : "bg-neutral-200 text-foreground hover:bg-neutral-300 data-[state=open]:bg-neutral-300 dark:bg-neutral-800 hover:dark:bg-neutral-700 dark:data-[state=open]:bg-neutral-700"
+            )}
+            data-message-action-trigger
+          >
+            <MessageBodyRenderer body={message.body} />
+          </div>
+        </MessageActionMenu>
       </div>
       {fromMe && (
-        <Avatar className="mt-1 size-8 rounded-sm bg-muted after:rounded-sm">
-          {message.avatar && (
-            <AvatarImage
-              alt={message.author}
-              className="rounded-sm"
-              src={message.avatar}
-            />
-          )}
-          <AvatarFallback className="rounded-sm bg-primary text-primary-foreground">
-            我
-          </AvatarFallback>
-        </Avatar>
+        <MessageAvatar
+          fallback="我"
+          fallbackClassName="bg-primary text-primary-foreground"
+          message={message}
+        />
       )}
     </div>
+  )
+}
+
+function MessageAvatar({
+  fallback,
+  fallbackClassName,
+  message,
+}: {
+  fallback: string
+  fallbackClassName?: string
+  message: ConversationPanelMessage
+}) {
+  const avatar = (
+    <Avatar className="mt-1 size-8 rounded-sm bg-muted after:rounded-sm">
+      {message.avatar && (
+        <AvatarImage
+          alt={message.author}
+          className="rounded-sm"
+          src={message.avatar}
+        />
+      )}
+      <AvatarFallback className={cn("rounded-sm", fallbackClassName)}>
+        {fallback}
+      </AvatarFallback>
+    </Avatar>
+  )
+
+  return (
+    <UserProfilePopover userId={message.senderUserId}>
+      {avatar}
+    </UserProfilePopover>
   )
 }
 
@@ -471,7 +515,7 @@ function MessageBodyRenderer({
 }
 
 function TextMessageBody({ content }: { content: string }) {
-  return <span className="whitespace-pre-wrap break-words">{content}</span>
+  return <span className="break-words whitespace-pre-wrap">{content}</span>
 }
 
 function getConversationHeaderDescription(conversation: ClientConversation) {

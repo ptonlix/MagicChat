@@ -23,15 +23,59 @@ type InfoSettingsResponse = {
   organization_name?: string
 }
 
+type OIDCProviderResponse = {
+  avatar_field?: string
+  authorize_url?: string
+  client_id?: string
+  client_secret?: string
+  email_field?: string
+  enabled?: boolean
+  id?: string
+  key?: string
+  name?: string
+  name_field?: string
+  nickname_field?: string
+  phone_field?: string
+  scopes?: string[]
+  sort_order?: number
+  token_url?: string
+  userinfo_url?: string
+}
+
 export type InfoSettings = {
   appName: string
   organizationName: string
+}
+
+export type OIDCProvider = {
+  avatarField: string
+  authorizeUrl: string
+  clientId: string
+  clientSecret: string
+  emailField: string
+  enabled: boolean
+  id: string
+  key: string
+  name: string
+  nameField: string
+  nicknameField: string
+  phoneField: string
+  scopes: string[]
+  sortOrder: number
+  tokenUrl: string
+  userinfoUrl: string
 }
 
 export type UpdateInfoSettingsInput = {
   appName: string
   organizationName: string
 }
+
+export type OIDCProviderInput = Omit<
+  OIDCProvider,
+  "enabled" | "id" | "key" | "sortOrder"
+>
+export type OIDCProviderMoveDirection = "down" | "up"
 
 export class AdminSettingsRequestError extends Error {
   code?: string
@@ -97,6 +141,184 @@ export async function updateInfoSettings(
   return normalizeInfoSettings(data)
 }
 
+export async function listOIDCProviders(
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher("/api/admin/oidc/providers", {
+    credentials: "include",
+    method: "GET",
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "加载 OIDC 登录方式失败")
+  }
+
+  const providers = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+      | undefined
+  )?.data?.providers
+
+  return normalizeOIDCProviderList(providers)
+}
+
+export async function createOIDCProvider(
+  input: OIDCProviderInput,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return saveOIDCProvider("/api/admin/oidc/providers", "POST", input, fetcher)
+}
+
+export async function updateOIDCProvider(
+  id: string,
+  input: OIDCProviderInput,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return saveOIDCProvider(
+    `/api/admin/oidc/providers/${encodeURIComponent(id)}`,
+    "PUT",
+    input,
+    fetcher
+  )
+}
+
+export async function deleteOIDCProvider(
+  id: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher(
+    `/api/admin/oidc/providers/${encodeURIComponent(id)}`,
+    {
+      credentials: "include",
+      method: "DELETE",
+    }
+  )
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<Record<string, never>>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "删除 OIDC 登录方式失败")
+  }
+}
+
+export async function enableOIDCProvider(
+  id: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return updateOIDCProviderStatus(id, "enable", fetcher)
+}
+
+export async function disableOIDCProvider(
+  id: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return updateOIDCProviderStatus(id, "disable", fetcher)
+}
+
+export async function moveOIDCProvider(
+  id: string,
+  direction: OIDCProviderMoveDirection,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher(
+    `/api/admin/oidc/providers/${encodeURIComponent(id)}/move`,
+    {
+      body: JSON.stringify({
+        direction,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "移动 OIDC 登录方式失败")
+  }
+
+  const providers = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{ providers?: OIDCProviderResponse[] }>
+      | undefined
+  )?.data?.providers
+
+  return normalizeOIDCProviderList(providers)
+}
+
+async function saveOIDCProvider(
+  path: string,
+  method: "POST" | "PUT",
+  input: OIDCProviderInput,
+  fetcher: AdminSettingsFetch
+) {
+  const response = await fetcher(path, {
+    body: JSON.stringify(toOIDCProviderRequest(input)),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method,
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "保存 OIDC 登录方式失败")
+  }
+
+  const provider = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+      | undefined
+  )?.data?.provider
+
+  return normalizeOIDCProvider(provider)
+}
+
+async function updateOIDCProviderStatus(
+  id: string,
+  action: "disable" | "enable",
+  fetcher: AdminSettingsFetch
+) {
+  const response = await fetcher(
+    `/api/admin/oidc/providers/${encodeURIComponent(id)}/${action}`,
+    {
+      credentials: "include",
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "更新 OIDC 登录方式状态失败")
+  }
+
+  const provider = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{ provider?: OIDCProviderResponse }>
+      | undefined
+  )?.data?.provider
+
+  return normalizeOIDCProvider(provider)
+}
+
 function createRequestError(
   payload:
     | AdminSettingsErrorEnvelope
@@ -125,6 +347,74 @@ function normalizeInfoSettings(
   return {
     appName: settings.app_name,
     organizationName: settings.organization_name,
+  }
+}
+
+function normalizeOIDCProviderList(
+  providers: OIDCProviderResponse[] | undefined
+) {
+  if (!Array.isArray(providers)) {
+    throw new AdminSettingsRequestError("OIDC 登录方式响应格式不正确")
+  }
+
+  return providers.map(normalizeOIDCProvider)
+}
+
+function normalizeOIDCProvider(
+  provider: OIDCProviderResponse | undefined
+): OIDCProvider {
+  if (
+    !provider?.id ||
+    !provider.name ||
+    !provider.key ||
+    typeof provider.enabled !== "boolean" ||
+    !provider.authorize_url ||
+    !provider.token_url ||
+    !provider.userinfo_url ||
+    !provider.client_id ||
+    !provider.client_secret ||
+    !Array.isArray(provider.scopes) ||
+    !provider.email_field ||
+    !provider.name_field ||
+    typeof provider.sort_order !== "number"
+  ) {
+    throw new AdminSettingsRequestError("OIDC 登录方式响应格式不正确")
+  }
+
+  return {
+    avatarField: provider.avatar_field ?? "",
+    authorizeUrl: provider.authorize_url,
+    clientId: provider.client_id,
+    clientSecret: provider.client_secret,
+    emailField: provider.email_field,
+    enabled: provider.enabled,
+    id: provider.id,
+    key: provider.key,
+    name: provider.name,
+    nameField: provider.name_field,
+    nicknameField: provider.nickname_field ?? "",
+    phoneField: provider.phone_field ?? "",
+    scopes: provider.scopes,
+    sortOrder: provider.sort_order,
+    tokenUrl: provider.token_url,
+    userinfoUrl: provider.userinfo_url,
+  }
+}
+
+function toOIDCProviderRequest(input: OIDCProviderInput) {
+  return {
+    name: input.name.trim(),
+    authorize_url: input.authorizeUrl.trim(),
+    token_url: input.tokenUrl.trim(),
+    userinfo_url: input.userinfoUrl.trim(),
+    client_id: input.clientId.trim(),
+    client_secret: input.clientSecret.trim(),
+    scopes: input.scopes.map((scope) => scope.trim()).filter(Boolean),
+    email_field: input.emailField.trim(),
+    phone_field: input.phoneField.trim(),
+    name_field: input.nameField.trim(),
+    nickname_field: input.nicknameField.trim(),
+    avatar_field: input.avatarField.trim(),
   }
 }
 

@@ -275,6 +275,28 @@ describe("client data API", () => {
       lastMessageSeq: 0,
       lastMessageSummary: "",
       memberCount: 2,
+      members: [
+        {
+          avatar: "/assets/avatars/builtin/17.webp",
+          email: "alice@example.com",
+          id: "user-1",
+          name: "Alice",
+          nickname: "Al",
+          phone: "+8613912345678",
+          role: "owner",
+          type: "user",
+        },
+        {
+          avatar: "/assets/avatars/builtin/03.webp",
+          email: "bob@example.com",
+          id: "user-2",
+          name: "Bob Li",
+          nickname: "",
+          phone: "+8613912345679",
+          role: "member",
+          type: "user",
+        },
+      ],
       name: "新品讨论组",
       type: "group",
     })

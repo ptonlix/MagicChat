@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -269,6 +275,7 @@ function createClientFetchMock({
   directConversationResponse,
   groupConversationResponse,
   logoutResponse,
+  oidcProviders = [],
   loginStatus = 200,
   logoutStatus = 200,
   sendMessageResponse,
@@ -279,6 +286,7 @@ function createClientFetchMock({
   directConversationResponse?: Promise<Response>
   groupConversationResponse?: Promise<Response>
   logoutResponse?: Promise<Response>
+  oidcProviders?: Array<{ key: string; name: string }>
   loginStatus?: 200 | 401
   logoutStatus?: 200 | 500
   sendMessageResponse?: Promise<Response>
@@ -295,6 +303,7 @@ function createClientFetchMock({
           success: true,
           data: {
             app_name: "星环协作",
+            oidc_providers: oidcProviders,
             organization_name: "长亭科技",
           },
         }),
@@ -776,6 +785,10 @@ describe("App", () => {
     expect(loginCard).toBeInTheDocument()
     expect(loginCard?.querySelector("[data-slot='card-title']")).toBeNull()
     expect(loginCard).not.toHaveTextContent("登录到长亭科技的工作空间")
+    expect(screen.getByRole("button", { name: "登录" })).toHaveAttribute(
+      "data-variant",
+      "default"
+    )
     expect(
       screen.queryByText("使用管理员分配的企业账号登录。")
     ).not.toBeInTheDocument()
@@ -785,6 +798,36 @@ describe("App", () => {
     ).not.toBeInTheDocument()
     expect(screen.getByTestId("location")).toHaveTextContent("/login")
     await waitFor(() => expect(document.title).toBe("登录 - 星环协作"))
+  })
+
+  it("在登录页展示 OIDC 登录方式并跳转到统一初始化入口", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createClientFetchMock({
+        oidcProviders: [{ key: "company-sso", name: "企业 SSO" }],
+      })
+    )
+
+    renderApp("/login")
+
+    const oidcLink = await screen.findByRole("link", {
+      name: "使用 企业 SSO 登录",
+    })
+    const loginCard = screen
+      .getByPlaceholderText("输入账号")
+      .closest("[data-slot='card']")
+
+    expect(loginCard).toContainElement(oidcLink)
+    expect(loginCard).toHaveTextContent("其他登录方式")
+    expect(screen.getByRole("button", { name: "登录" })).toHaveAttribute(
+      "data-variant",
+      "outline"
+    )
+    expect(oidcLink).toHaveAttribute("data-variant", "default")
+    expect(oidcLink).toHaveAttribute(
+      "href",
+      "/api/client/auth/oidc/company-sso/start?redirect=/init"
+    )
   })
 
   it("登录后进入聊天页时不默认选中会话，点击后再显示聊天区", async () => {
@@ -799,9 +842,12 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "登录" }))
 
     await waitFor(() =>
-      expect(screen.getByTestId("location")).toHaveTextContent("/chat")
+      expect(screen.getByTestId("location")).toHaveTextContent("/init")
     )
     await openLatestAppWebSocket()
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat")
+    )
     expect(fetch).toHaveBeenCalledWith("/api/client/auth/login", {
       body: JSON.stringify({
         email: "alice@example.com",
@@ -867,9 +913,11 @@ describe("App", () => {
     const createGroupDialog = await screen.findByRole("dialog", {
       name: "发起群聊",
     })
-    await user.click(within(createGroupDialog).getByRole("button", {
-      name: "Close",
-    }))
+    await user.click(
+      within(createGroupDialog).getByRole("button", {
+        name: "Close",
+      })
+    )
     const bobConversationItem = screen.getByRole("button", {
       name: /Bob Li/,
     })
@@ -886,12 +934,10 @@ describe("App", () => {
       within(bobConversationItem).getByText("好的，我看一下")
     ).toBeInTheDocument()
     const teamConversationItem = screen.getByRole("button", {
-        name: /产品讨论组/,
-      })
+      name: /产品讨论组/,
+    })
     expect(teamConversationItem).toBeInTheDocument()
-    expect(
-      within(teamConversationItem).getByText("07-02")
-    ).toBeInTheDocument()
+    expect(within(teamConversationItem).getByText("07-02")).toBeInTheDocument()
     expect(
       screen.queryByRole("heading", { name: "Bob Li" })
     ).not.toBeInTheDocument()
@@ -984,9 +1030,7 @@ describe("App", () => {
     ).not.toBeInTheDocument()
     const history = await screen.findByTestId("conversation-panel-history")
     expect(history).toHaveAttribute("data-slot", "scroll-area")
-    expect(
-      within(history).getByText("帮我总结今天的消息")
-    ).toBeInTheDocument()
+    expect(within(history).getByText("帮我总结今天的消息")).toBeInTheDocument()
     expect(within(history).getByAltText("Al | Alice")).toHaveAttribute(
       "src",
       "/assets/avatars/builtin/17.webp"
@@ -1378,7 +1422,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "登录" }))
 
     await waitFor(() =>
-      expect(screen.getByTestId("location")).toHaveTextContent("/chat")
+      expect(screen.getByTestId("location")).toHaveTextContent("/init")
     )
     expect(window.localStorage.getItem(rememberedCredentialsKey)).toBe(
       JSON.stringify({
@@ -1865,9 +1909,7 @@ describe("App", () => {
       name: "新建 Agent",
     })
     await user.click(createAgentButton)
-    await user.click(
-      await screen.findByRole("menuitem", { name: "发起群聊" })
-    )
+    await user.click(await screen.findByRole("menuitem", { name: "发起群聊" }))
 
     const dialog = await screen.findByRole("dialog", { name: "发起群聊" })
     const createButton = within(dialog).getByRole("button", { name: "创建" })
@@ -1966,11 +2008,7 @@ describe("App", () => {
 
     await openLatestAppWebSocket()
     expect(
-      await screen.findByRole(
-        "heading",
-        { name: "Bob Li" },
-        { timeout: 4_000 }
-      )
+      await screen.findByRole("heading", { name: "Bob Li" }, { timeout: 4_000 })
     ).toBeInTheDocument()
     const loading = await screen.findByTestId("conversation-history-loading")
 
@@ -2015,7 +2053,9 @@ describe("App", () => {
 
     await openLatestAppWebSocket()
     await screen.findByText("好的，我看一下", undefined, { timeout: 4_000 })
-    const editor = screen.getByPlaceholderText("输入消息") as HTMLTextAreaElement
+    const editor = screen.getByPlaceholderText(
+      "输入消息"
+    ) as HTMLTextAreaElement
     const sendButton = screen.getByRole("button", { name: "发送消息" })
 
     await user.type(editor, "帮我总结今天的消息")
@@ -2059,9 +2099,7 @@ describe("App", () => {
       })
     )
 
-    expect(
-      await screen.findByText("帮我总结今天的消息")
-    ).toBeInTheDocument()
+    expect(await screen.findByText("帮我总结今天的消息")).toBeInTheDocument()
     expect(editor).toHaveValue("")
     await waitFor(() => expect(sendButton).not.toBeDisabled())
   }, 10_000)
@@ -2079,7 +2117,9 @@ describe("App", () => {
 
     await openLatestAppWebSocket()
     await screen.findByText("好的，我看一下", undefined, { timeout: 4_000 })
-    const editor = screen.getByPlaceholderText("输入消息") as HTMLTextAreaElement
+    const editor = screen.getByPlaceholderText(
+      "输入消息"
+    ) as HTMLTextAreaElement
 
     await user.type(editor, "回车发送这条消息")
     await user.keyboard("{Enter}")
@@ -2113,9 +2153,7 @@ describe("App", () => {
       })
     )
 
-    expect(
-      await screen.findByText("回车发送这条消息")
-    ).toBeInTheDocument()
+    expect(await screen.findByText("回车发送这条消息")).toBeInTheDocument()
     expect(editor).toHaveValue("")
   }, 10_000)
 
@@ -2128,7 +2166,9 @@ describe("App", () => {
 
     await openLatestAppWebSocket()
     await screen.findByText("好的，我看一下", undefined, { timeout: 4_000 })
-    const editor = screen.getByPlaceholderText("输入消息") as HTMLTextAreaElement
+    const editor = screen.getByPlaceholderText(
+      "输入消息"
+    ) as HTMLTextAreaElement
 
     await user.type(editor, "第一行")
     await user.keyboard("{Shift>}{Enter}{/Shift}")
@@ -2184,9 +2224,9 @@ describe("App", () => {
     })
 
     await waitFor(() =>
-      expect(
-        within(history).getAllByText("这是一条实时推送消息")
-      ).toHaveLength(1)
+      expect(within(history).getAllByText("这是一条实时推送消息")).toHaveLength(
+        1
+      )
     )
     expect(
       screen.getByRole("button", { name: /这是一条实时推送消息/ })

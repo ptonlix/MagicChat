@@ -5,26 +5,19 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { useClientData } from "@/lib/client-data-context"
-import { useRealtime } from "@/lib/realtime-context"
 import {
-  ClientDataRequestError,
-  listConversationMessages,
-  normalizeMessageCreatedEventPayload,
-  sendConversationTextMessage,
   type ClientConversation,
   type ClientMessage,
-  type ClientMessagePage,
   type ClientUser,
   type ContactUser,
 } from "@/lib/client-data-api"
 import { formatConversationLastMessageTime } from "@/lib/conversation-format"
-import { createClientMessageId } from "@/lib/message-id"
+import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
 import {
   ConversationPanel,
   type ConversationPanelMessage,
 } from "@/components/conversation-panel"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -47,7 +40,6 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
@@ -55,16 +47,6 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-type ConversationMessageState = {
-  error: string | null
-  loaded: boolean
-  loadingBefore: boolean
-  messages: ClientMessage[]
-  page: ClientMessagePage | null
-  sending: boolean
-}
-
-const messagePageLimit = 20
 const emptyClientMessages: ClientMessage[] = []
 
 function getMessageTime(createdAt: string) {
@@ -86,18 +68,14 @@ export function ChatPage() {
     contacts,
     conversations,
     createGroupConversation,
+    ensureConversationMessages,
+    getConversation,
+    getConversationMessageState,
+    loadBeforeConversationMessages,
     me,
-    refreshConversations,
-    updateConversationLastMessage,
+    sendConversationText,
   } = useClientData()
-  const { ready: realtimeReady, subscribeRealtimeEvent } = useRealtime()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [messageStates, setMessageStates] = React.useState<
-    Record<string, ConversationMessageState>
-  >({})
-  const loadingConversationIdsRef = React.useRef<Set<string>>(new Set())
-  const previousRealtimeReadyRef = React.useRef(realtimeReady)
-  const syncingAfterConversationIdsRef = React.useRef<Set<string>>(new Set())
   const [draft, setDraft] = React.useState("")
   const [createGroupDialogOpen, setCreateGroupDialogOpen] =
     React.useState(false)
@@ -105,17 +83,13 @@ export function ChatPage() {
 
   const activeConversation = React.useMemo(
     () =>
-      requestedConversationId
-        ? (conversations.find(
-            (conversation) => conversation.id === requestedConversationId
-          ) ?? null)
-        : null,
-    [conversations, requestedConversationId]
+      requestedConversationId ? getConversation(requestedConversationId) : null,
+    [getConversation, requestedConversationId]
   )
 
   const activeConversationId = activeConversation?.id ?? ""
   const activeMessageState = activeConversationId
-    ? messageStates[activeConversationId]
+    ? getConversationMessageState(activeConversationId)
     : undefined
   const activeLoaded = Boolean(activeMessageState?.loaded)
   const activeClientMessages =
@@ -139,228 +113,21 @@ export function ChatPage() {
     [activeClientMessages, activeConversation, contactsById, me]
   )
 
-  const updateConversationMessageState = React.useCallback(
-    (
-      conversationId: string,
-      updater: (
-        state: ConversationMessageState
-      ) => ConversationMessageState
-    ) => {
-      setMessageStates((currentStates) => {
-        const previousState =
-          currentStates[conversationId] ?? createConversationMessageState()
-
-        return {
-          ...currentStates,
-          [conversationId]: updater(previousState),
-        }
-      })
-    },
-    []
-  )
-
-  const rememberConversationMessage = React.useCallback(
-    (message: ClientMessage) => {
-      updateConversationLastMessage(message)
-      if (
-        !conversations.some(
-          (conversation) => conversation.id === message.conversationId
-        )
-      ) {
-        void refreshConversations().catch(() => undefined)
-      }
-    },
-    [conversations, refreshConversations, updateConversationLastMessage]
-  )
-
-  const mergeIncomingMessage = React.useCallback(
-    (message: ClientMessage, options: { markLoaded?: boolean } = {}) => {
-      updateConversationMessageState(message.conversationId, (state) => {
-        const messages = mergeConversationMessages(state.messages, [message])
-
-        return {
-          ...state,
-          error: null,
-          loaded: options.markLoaded ? true : state.loaded,
-          messages,
-          page: updatePageWithMessage(state.page, messages),
-        }
-      })
-      rememberConversationMessage(message)
-    },
-    [rememberConversationMessage, updateConversationMessageState]
-  )
-
   React.useEffect(() => {
-    if (
-      !activeConversationId ||
-      activeLoaded ||
-      loadingConversationIdsRef.current.has(activeConversationId)
-    ) {
+    if (!activeConversationId) {
       return
     }
 
-    loadingConversationIdsRef.current.add(activeConversationId)
-
-    void listConversationMessages(activeConversationId, {
-      limit: messagePageLimit,
-    })
-      .then((result) => {
-        updateConversationMessageState(activeConversationId, (state) => ({
-          ...state,
-          error: null,
-          loaded: true,
-          messages: mergeConversationMessages(state.messages, result.messages),
-          page: result.page,
-        }))
-      })
-      .catch((error: unknown) => {
-        const message = getClientDataErrorMessage(error, "加载消息失败")
-        updateConversationMessageState(activeConversationId, (state) => ({
-          ...state,
-          error: message,
-          loaded: true,
-        }))
-        toast.error(message)
-      })
-      .finally(() => {
-        loadingConversationIdsRef.current.delete(activeConversationId)
-      })
-  }, [
-    activeConversationId,
-    activeLoaded,
-    updateConversationMessageState,
-  ])
-
-  React.useEffect(() => {
-    return subscribeRealtimeEvent("message.created", (payload) => {
-      try {
-        mergeIncomingMessage(normalizeMessageCreatedEventPayload(payload))
-      } catch {
-        // Ignore malformed realtime events. The websocket remains usable.
-      }
-    })
-  }, [mergeIncomingMessage, subscribeRealtimeEvent])
+    ensureConversationMessages(activeConversationId)
+  }, [activeConversationId, ensureConversationMessages])
 
   const loadBeforeMessages = React.useCallback(() => {
     if (!activeConversationId) {
       return
     }
 
-    const state = messageStates[activeConversationId]
-    if (
-      !state?.page?.hasMoreBefore ||
-      !state.loaded ||
-      state.loadingBefore
-    ) {
-      return
-    }
-
-    const beforeSeq = state.page.oldestSeq
-    updateConversationMessageState(activeConversationId, (currentState) => ({
-      ...currentState,
-      error: null,
-      loadingBefore: true,
-    }))
-
-    void listConversationMessages(activeConversationId, {
-      beforeSeq,
-      limit: messagePageLimit,
-    })
-      .then((result) => {
-        updateConversationMessageState(activeConversationId, (currentState) => ({
-          ...currentState,
-          error: null,
-          loaded: true,
-          loadingBefore: false,
-          messages: mergeConversationMessages(
-            currentState.messages,
-            result.messages
-          ),
-          page: mergePageWithBeforeResult(
-            currentState.page,
-            result.page,
-            mergeConversationMessages(currentState.messages, result.messages)
-          ),
-        }))
-      })
-      .catch((error: unknown) => {
-        const message = getClientDataErrorMessage(error, "加载更早消息失败")
-        updateConversationMessageState(activeConversationId, (currentState) => ({
-          ...currentState,
-          error: message,
-          loadingBefore: false,
-        }))
-        toast.error(message)
-      })
-  }, [activeConversationId, messageStates, updateConversationMessageState])
-
-  const syncAfterMessages = React.useCallback(
-    (conversationId: string, afterSeq: number) => {
-      if (syncingAfterConversationIdsRef.current.has(conversationId)) {
-        return
-      }
-
-      syncingAfterConversationIdsRef.current.add(conversationId)
-
-      void listConversationMessages(conversationId, {
-        afterSeq,
-        limit: messagePageLimit,
-      })
-        .then((result) => {
-          const lastReceivedMessage =
-            result.messages[result.messages.length - 1]
-          updateConversationMessageState(conversationId, (currentState) => {
-            const messages = mergeConversationMessages(
-              currentState.messages,
-              result.messages
-            )
-
-            return {
-              ...currentState,
-              error: null,
-              messages,
-              page: mergePageWithAfterResult(
-                currentState.page,
-                result.page,
-                messages
-              ),
-            }
-          })
-
-          if (lastReceivedMessage) {
-            rememberConversationMessage(lastReceivedMessage)
-          }
-        })
-        .catch((error: unknown) => {
-          toast.error(getClientDataErrorMessage(error, "同步新消息失败"))
-        })
-        .finally(() => {
-          syncingAfterConversationIdsRef.current.delete(conversationId)
-        })
-    },
-    [rememberConversationMessage, updateConversationMessageState]
-  )
-
-  React.useEffect(() => {
-    const wasReady = previousRealtimeReadyRef.current
-    previousRealtimeReadyRef.current = realtimeReady
-
-    if (!realtimeReady || wasReady) {
-      return
-    }
-
-    for (const [conversationId, state] of Object.entries(messageStates)) {
-      if (!state.loaded) {
-        continue
-      }
-
-      const newestSeq = getNewestMessageSeq(state)
-      if (newestSeq > 0) {
-        syncAfterMessages(conversationId, newestSeq)
-      }
-    }
-  }, [messageStates, realtimeReady, syncAfterMessages])
+    loadBeforeConversationMessages(activeConversationId)
+  }, [activeConversationId, loadBeforeConversationMessages])
 
   function sendMessage() {
     const content = draft.trim()
@@ -368,29 +135,11 @@ export function ChatPage() {
       return
     }
 
-    const clientMessageId = createClientMessageId()
-    updateConversationMessageState(activeConversationId, (state) => ({
-      ...state,
-      sending: true,
-    }))
-
-    void sendConversationTextMessage(activeConversationId, {
-      clientMessageId,
-      content,
-    })
-      .then((message) => {
-        mergeIncomingMessage(message, { markLoaded: true })
+    void sendConversationText(activeConversationId, content).then((message) => {
+      if (message) {
         setDraft("")
-      })
-      .catch((error: unknown) => {
-        toast.error(getClientDataErrorMessage(error, "发送消息失败"))
-      })
-      .finally(() => {
-        updateConversationMessageState(activeConversationId, (state) => ({
-          ...state,
-          sending: false,
-        }))
-      })
+      }
+    })
   }
 
   function selectConversation(conversationId: string) {
@@ -400,6 +149,21 @@ export function ChatPage() {
   async function startGroupConversation(name: string, memberIds: string[]) {
     const conversation = await createGroupConversation(name, memberIds)
     setSearchParams({ conversation_id: conversation.id })
+  }
+
+  function handleConversationListContextMenu(
+    event: React.MouseEvent<HTMLDivElement>
+  ) {
+    const target = event.target
+
+    if (
+      target instanceof Element &&
+      target.closest("[data-conversation-list-item-trigger]")
+    ) {
+      return
+    }
+
+    event.preventDefault()
   }
 
   return (
@@ -432,7 +196,14 @@ export function ChatPage() {
             <Input className="pl-8" placeholder="搜索" type="search" />
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea
+          className="min-h-0 flex-1 overflow-hidden"
+          viewportProps={{
+            className:
+              "[&>div]:!block [&>div]:!min-w-0 [&>div]:!w-full [&>div]:!max-w-full",
+            onContextMenu: handleConversationListContextMenu,
+          }}
+        >
           <ItemGroup className="gap-1 px-2 pb-3 has-data-[size=sm]:gap-1">
             {conversations.length === 0 && (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -442,63 +213,68 @@ export function ChatPage() {
             {conversations.map((conversation) => {
               const selected = conversation.id === activeConversation?.id
               const lastMessageTime = formatConversationLastMessageTime(
-                conversation.lastMessageAt
+                conversation.lastMessageAt ?? conversation.createdAt
               )
 
               return (
-                <Item
-                  asChild
-                  key={conversation.id}
-                  size="sm"
-                  className={cn(
-                    "min-h-16 flex-nowrap px-2 py-2",
-                    selected
-                      ? "bg-primary/10 text-foreground"
-                      : "hover:bg-muted"
-                  )}
-                >
-                  <Button
-                    className="h-auto justify-start whitespace-normal"
-                    type="button"
-                    onClick={() => selectConversation(conversation.id)}
-                    variant="ghost"
+                <ConversationListItemMenu key={conversation.id}>
+                  <Item
+                    asChild
+                    data-conversation-list-item-trigger
+                    size="sm"
+                    className={cn(
+                      "min-h-16 w-full max-w-full flex-nowrap overflow-hidden px-2 py-2",
+                      selected
+                        ? "bg-primary/10 text-foreground"
+                        : "hover:bg-muted"
+                    )}
                   >
-                    <ItemMedia>
-                      <Avatar className="size-10 rounded-sm bg-muted after:rounded-sm">
-                        {conversation.avatar && (
-                          <AvatarImage
-                            alt={conversation.name}
-                            className="rounded-sm"
-                            src={conversation.avatar}
-                          />
-                        )}
-                        <AvatarFallback className="rounded-sm">
-                          {getConversationInitial(conversation.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                    </ItemMedia>
-                    <ItemContent className="min-w-0">
-                      <ItemTitle className="w-full min-w-0 justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate">{conversation.name}</span>
-                          {conversation.type === "group" && (
-                            <Badge variant="secondary" className="px-1.5">
-                              群
-                            </Badge>
+                    <Button
+                      className="h-auto w-full max-w-full min-w-0 shrink justify-start overflow-hidden text-left whitespace-normal"
+                      type="button"
+                      onClick={() => selectConversation(conversation.id)}
+                      variant="ghost"
+                    >
+                      <ItemMedia>
+                        <Avatar className="size-10 rounded-sm bg-muted after:rounded-sm">
+                          {conversation.avatar && (
+                            <AvatarImage
+                              alt={conversation.name}
+                              className="rounded-sm"
+                              src={conversation.avatar}
+                            />
                           )}
-                        </span>
-                        {lastMessageTime && (
-                          <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
-                            {lastMessageTime}
+                          <AvatarFallback className="rounded-sm">
+                            {getConversationInitial(conversation.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </ItemMedia>
+                      <ItemContent className="min-w-0 flex-1 overflow-hidden">
+                        <div
+                          data-slot="item-title"
+                          className="flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-sm leading-snug font-medium underline-offset-4"
+                        >
+                          <span className="flex min-w-0 flex-1 items-center overflow-hidden">
+                            <span className="block min-w-0 flex-1 truncate">
+                              {conversation.name}
+                            </span>
                           </span>
-                        )}
-                      </ItemTitle>
-                      <ItemDescription className="truncate text-xs">
-                        {getConversationListDescription(conversation)}
-                      </ItemDescription>
-                    </ItemContent>
-                  </Button>
-                </Item>
+                          {lastMessageTime && (
+                            <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
+                              {lastMessageTime}
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          data-slot="item-description"
+                          className="w-full min-w-0 truncate text-left text-xs leading-normal font-normal text-muted-foreground"
+                        >
+                          {getConversationListDescription(conversation)}
+                        </p>
+                      </ItemContent>
+                    </Button>
+                  </Item>
+                </ConversationListItemMenu>
               )
             })}
           </ItemGroup>
@@ -733,7 +509,10 @@ function CreateGroupMemberItem({
     >
       <Label htmlFor={checkboxId}>
         <ItemMedia>
-          <Avatar className="rounded-sm bg-muted after:rounded-sm" data-size="sm">
+          <Avatar
+            className="rounded-sm bg-muted after:rounded-sm"
+            data-size="sm"
+          >
             {contact.avatar && (
               <AvatarImage
                 alt={displayName}
@@ -777,95 +556,6 @@ function getContactDisplayName(contact: { name: string; nickname: string }) {
   return nickname || contact.name.trim()
 }
 
-function createConversationMessageState(): ConversationMessageState {
-  return {
-    error: null,
-    loaded: false,
-    loadingBefore: false,
-    messages: [],
-    page: null,
-    sending: false,
-  }
-}
-
-function mergeConversationMessages(
-  currentMessages: ClientMessage[],
-  nextMessages: ClientMessage[]
-) {
-  const messagesById = new Map<string, ClientMessage>()
-
-  for (const message of currentMessages) {
-    messagesById.set(message.id, message)
-  }
-  for (const message of nextMessages) {
-    messagesById.set(message.id, message)
-  }
-
-  return Array.from(messagesById.values()).sort((messageA, messageB) => {
-    if (messageA.seq !== messageB.seq) {
-      return messageA.seq - messageB.seq
-    }
-
-    return messageA.createdAt.localeCompare(messageB.createdAt)
-  })
-}
-
-function updatePageWithMessage(
-  page: ClientMessagePage | null,
-  messages: ClientMessage[]
-): ClientMessagePage {
-  const firstMessage = messages[0]
-  const lastMessage = messages[messages.length - 1]
-
-  return {
-    hasMoreAfter: false,
-    hasMoreBefore: page?.hasMoreBefore ?? false,
-    limit: page?.limit ?? messagePageLimit,
-    newestSeq: lastMessage?.seq ?? 0,
-    oldestSeq: firstMessage?.seq ?? 0,
-  }
-}
-
-function mergePageWithBeforeResult(
-  currentPage: ClientMessagePage | null,
-  resultPage: ClientMessagePage,
-  messages: ClientMessage[]
-): ClientMessagePage {
-  const firstMessage = messages[0]
-  const lastMessage = messages[messages.length - 1]
-
-  return {
-    hasMoreAfter: currentPage?.hasMoreAfter ?? resultPage.hasMoreAfter,
-    hasMoreBefore: resultPage.hasMoreBefore,
-    limit: resultPage.limit,
-    newestSeq: lastMessage?.seq ?? currentPage?.newestSeq ?? 0,
-    oldestSeq: firstMessage?.seq ?? resultPage.oldestSeq,
-  }
-}
-
-function mergePageWithAfterResult(
-  currentPage: ClientMessagePage | null,
-  resultPage: ClientMessagePage,
-  messages: ClientMessage[]
-): ClientMessagePage {
-  const firstMessage = messages[0]
-  const lastMessage = messages[messages.length - 1]
-
-  return {
-    hasMoreAfter: resultPage.hasMoreAfter,
-    hasMoreBefore: currentPage?.hasMoreBefore ?? resultPage.hasMoreBefore,
-    limit: resultPage.limit,
-    newestSeq: lastMessage?.seq ?? resultPage.newestSeq,
-    oldestSeq: firstMessage?.seq ?? currentPage?.oldestSeq ?? 0,
-  }
-}
-
-function getNewestMessageSeq(state: ConversationMessageState) {
-  const lastMessage = state.messages[state.messages.length - 1]
-
-  return Math.max(state.page?.newestSeq ?? 0, lastMessage?.seq ?? 0)
-}
-
 function toConversationPanelMessage(
   message: ClientMessage,
   conversation: ClientConversation,
@@ -876,16 +566,12 @@ function toConversationPanelMessage(
     message.sender.type === "user" && message.sender.id === currentUser.id
 
   return {
-    author: getMessageAuthor(
-      message,
-      conversation,
-      currentUser,
-      contactsById
-    ),
+    author: getMessageAuthor(message, conversation, currentUser, contactsById),
     avatar: getMessageAvatar(message, conversation, currentUser, contactsById),
     body: message.body,
     id: message.id,
     role: fromMe ? "me" : "other",
+    senderUserId: message.sender.type === "user" ? message.sender.id : null,
     time: getMessageTime(message.createdAt),
   }
 }
@@ -955,12 +641,4 @@ function getMessageAvatar(
   }
 
   return ""
-}
-
-function getClientDataErrorMessage(error: unknown, fallbackMessage: string) {
-  if (error instanceof ClientDataRequestError) {
-    return error.message
-  }
-
-  return fallbackMessage
 }

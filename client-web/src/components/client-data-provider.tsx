@@ -1,11 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useNavigate } from "react-router"
+import { toast } from "sonner"
 
 import {
   ClientDataRequestError,
@@ -14,22 +9,37 @@ import {
   getCurrentClientUser,
   listClientContacts,
   listClientConversations,
+  listConversationMessages,
+  sendConversationTextMessage,
   type ClientConversation,
   type ClientMessage,
+  type ClientMessagePage,
   type ClientUser,
   type ContactUser,
 } from "@/lib/client-data-api"
 import {
   ClientDataContext,
+  type ClientConversationMessageState,
   type ClientDataContextValue,
 } from "@/lib/client-data-context"
+import { createClientMessageId } from "@/lib/message-id"
 import { Button } from "@/components/ui/button"
 import { ClientLoadingPage } from "@/components/client-loading-page"
 
 type BootstrapState = "loading" | "ready" | "error"
 
 const minimumBootstrapLoadingMs = 2_000
+const messagePageLimit = 20
 const refreshIntervalMs = 60_000
+const emptyConversationMessageState: ClientConversationMessageState = {
+  error: null,
+  loaded: false,
+  loading: false,
+  loadingBefore: false,
+  messages: [],
+  page: null,
+  sending: false,
+}
 
 export function ClientDataProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -38,6 +48,9 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const [bootstrapState, setBootstrapState] =
     useState<BootstrapState>("loading")
   const [conversations, setConversations] = useState<ClientConversation[]>([])
+  const [conversationMessageStates, setConversationMessageStates] = useState<
+    Record<string, ClientConversationMessageState>
+  >({})
   const [contacts, setContacts] = useState<ContactUser[]>([])
   const [contactsError, setContactsError] =
     useState<ClientDataRequestError | null>(null)
@@ -47,6 +60,18 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const [meError, setMeError] = useState<ClientDataRequestError | null>(null)
   const [meLoading, setMeLoading] = useState(true)
   const [meRefreshing, setMeRefreshing] = useState(false)
+  const conversationMessageStatesRef = useRef(conversationMessageStates)
+  const conversationsRef = useRef(conversations)
+  const loadingConversationIdsRef = useRef<Set<string>>(new Set())
+  const syncingAfterConversationIdsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    conversationMessageStatesRef.current = conversationMessageStates
+  }, [conversationMessageStates])
+
+  useEffect(() => {
+    conversationsRef.current = conversations
+  }, [conversations])
 
   const handleError = useCallback(
     (error: unknown, fallbackMessage: string) => {
@@ -57,6 +82,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
       if (requestError.status === 401 || requestError.code === "unauthorized") {
         setConversations([])
+        setConversationMessageStates({})
         setContacts([])
         setMe(null)
         navigate("/login", { replace: true })
@@ -111,38 +137,318 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     }
   }, [handleError])
 
-  const updateConversationLastMessage = useCallback((message: ClientMessage) => {
-    setConversations((currentConversations) => {
-      const conversation = currentConversations.find(
-        (currentConversation) =>
-          currentConversation.id === message.conversationId
+  const updateConversationMessageState = useCallback(
+    (
+      conversationId: string,
+      updater: (
+        state: ClientConversationMessageState
+      ) => ClientConversationMessageState
+    ) => {
+      setConversationMessageStates((currentStates) => {
+        const previousState =
+          currentStates[conversationId] ?? createConversationMessageState()
+        const nextState = updater(previousState)
+
+        return {
+          ...currentStates,
+          [conversationId]: nextState,
+        }
+      })
+    },
+    []
+  )
+
+  const updateConversationLastMessage = useCallback(
+    (message: ClientMessage) => {
+      setConversations((currentConversations) => {
+        const conversation = currentConversations.find(
+          (currentConversation) =>
+            currentConversation.id === message.conversationId
+        )
+
+        if (!conversation) {
+          return currentConversations
+        }
+
+        if (message.seq < conversation.lastMessageSeq) {
+          return currentConversations
+        }
+
+        const updatedConversation: ClientConversation = {
+          ...conversation,
+          lastMessageAt: message.createdAt,
+          lastMessageId: message.id,
+          lastMessageSeq: message.seq,
+          lastMessageSummary: getMessageSummary(message),
+        }
+
+        return [
+          updatedConversation,
+          ...currentConversations.filter(
+            (currentConversation) =>
+              currentConversation.id !== message.conversationId
+          ),
+        ]
+      })
+    },
+    []
+  )
+
+  const rememberConversationMessage = useCallback(
+    (message: ClientMessage) => {
+      const conversationExists = conversationsRef.current.some(
+        (conversation) => conversation.id === message.conversationId
       )
 
-      if (!conversation) {
-        return currentConversations
+      updateConversationLastMessage(message)
+      if (!conversationExists) {
+        void refreshConversations().catch(() => undefined)
+      }
+    },
+    [refreshConversations, updateConversationLastMessage]
+  )
+
+  const mergeIncomingConversationMessage = useCallback(
+    (message: ClientMessage, options: { markLoaded?: boolean } = {}) => {
+      updateConversationMessageState(message.conversationId, (state) => {
+        const messages = mergeConversationMessages(state.messages, [message])
+
+        return {
+          ...state,
+          error: null,
+          loaded: options.markLoaded ? true : state.loaded,
+          messages,
+          page: updatePageWithMessage(state.page, messages),
+        }
+      })
+      rememberConversationMessage(message)
+    },
+    [rememberConversationMessage, updateConversationMessageState]
+  )
+
+  const ensureConversationMessages = useCallback(
+    (conversationId: string) => {
+      if (!conversationId) {
+        return
       }
 
-      if (message.seq < conversation.lastMessageSeq) {
-        return currentConversations
+      const state = conversationMessageStatesRef.current[conversationId]
+      if (
+        state?.loaded ||
+        state?.loading ||
+        loadingConversationIdsRef.current.has(conversationId)
+      ) {
+        return
       }
 
-      const updatedConversation: ClientConversation = {
-        ...conversation,
-        lastMessageAt: message.createdAt,
-        lastMessageId: message.id,
-        lastMessageSeq: message.seq,
-        lastMessageSummary: getMessageSummary(message),
+      loadingConversationIdsRef.current.add(conversationId)
+      updateConversationMessageState(conversationId, (currentState) => ({
+        ...currentState,
+        error: null,
+        loading: true,
+      }))
+
+      void listConversationMessages(conversationId, {
+        limit: messagePageLimit,
+      })
+        .then((result) => {
+          updateConversationMessageState(conversationId, (currentState) => ({
+            ...currentState,
+            error: null,
+            loaded: true,
+            loading: false,
+            messages: mergeConversationMessages(
+              currentState.messages,
+              result.messages
+            ),
+            page: result.page,
+          }))
+        })
+        .catch((error: unknown) => {
+          const message = getClientDataErrorMessage(error, "加载消息失败")
+          updateConversationMessageState(conversationId, (currentState) => ({
+            ...currentState,
+            error: message,
+            loaded: true,
+            loading: false,
+          }))
+          toast.error(message)
+        })
+        .finally(() => {
+          loadingConversationIdsRef.current.delete(conversationId)
+        })
+    },
+    [updateConversationMessageState]
+  )
+
+  const loadBeforeConversationMessages = useCallback(
+    (conversationId: string) => {
+      const state = conversationMessageStatesRef.current[conversationId]
+      if (!state?.page?.hasMoreBefore || !state.loaded || state.loadingBefore) {
+        return
       }
 
-      return [
-        updatedConversation,
-        ...currentConversations.filter(
-          (currentConversation) =>
-            currentConversation.id !== message.conversationId
-        ),
-      ]
-    })
-  }, [])
+      const beforeSeq = state.page.oldestSeq
+      updateConversationMessageState(conversationId, (currentState) => ({
+        ...currentState,
+        error: null,
+        loadingBefore: true,
+      }))
+
+      void listConversationMessages(conversationId, {
+        beforeSeq,
+        limit: messagePageLimit,
+      })
+        .then((result) => {
+          updateConversationMessageState(conversationId, (currentState) => {
+            const messages = mergeConversationMessages(
+              currentState.messages,
+              result.messages
+            )
+
+            return {
+              ...currentState,
+              error: null,
+              loaded: true,
+              loadingBefore: false,
+              messages,
+              page: mergePageWithBeforeResult(
+                currentState.page,
+                result.page,
+                messages
+              ),
+            }
+          })
+        })
+        .catch((error: unknown) => {
+          const message = getClientDataErrorMessage(error, "加载更早消息失败")
+          updateConversationMessageState(conversationId, (currentState) => ({
+            ...currentState,
+            error: message,
+            loadingBefore: false,
+          }))
+          toast.error(message)
+        })
+    },
+    [updateConversationMessageState]
+  )
+
+  const syncAfterConversationMessages = useCallback(
+    (conversationId: string, afterSeq: number) => {
+      if (syncingAfterConversationIdsRef.current.has(conversationId)) {
+        return
+      }
+
+      syncingAfterConversationIdsRef.current.add(conversationId)
+
+      void listConversationMessages(conversationId, {
+        afterSeq,
+        limit: messagePageLimit,
+      })
+        .then((result) => {
+          const lastReceivedMessage =
+            result.messages[result.messages.length - 1]
+          updateConversationMessageState(conversationId, (currentState) => {
+            const messages = mergeConversationMessages(
+              currentState.messages,
+              result.messages
+            )
+
+            return {
+              ...currentState,
+              error: null,
+              messages,
+              page: mergePageWithAfterResult(
+                currentState.page,
+                result.page,
+                messages
+              ),
+            }
+          })
+
+          if (lastReceivedMessage) {
+            rememberConversationMessage(lastReceivedMessage)
+          }
+        })
+        .catch((error: unknown) => {
+          toast.error(getClientDataErrorMessage(error, "同步新消息失败"))
+        })
+        .finally(() => {
+          syncingAfterConversationIdsRef.current.delete(conversationId)
+        })
+    },
+    [rememberConversationMessage, updateConversationMessageState]
+  )
+
+  const syncLoadedConversationMessages = useCallback(() => {
+    for (const [conversationId, state] of Object.entries(
+      conversationMessageStatesRef.current
+    )) {
+      if (!state.loaded) {
+        continue
+      }
+
+      const newestSeq = getNewestMessageSeq(state)
+      if (newestSeq > 0) {
+        syncAfterConversationMessages(conversationId, newestSeq)
+      }
+    }
+  }, [syncAfterConversationMessages])
+
+  const sendConversationText = useCallback(
+    async (conversationId: string, content: string) => {
+      const trimmedContent = content.trim()
+      const state = conversationMessageStatesRef.current[conversationId]
+      if (!conversationId || !trimmedContent || state?.sending) {
+        return null
+      }
+
+      const clientMessageId = createClientMessageId()
+      updateConversationMessageState(conversationId, (currentState) => ({
+        ...currentState,
+        sending: true,
+      }))
+
+      try {
+        const message = await sendConversationTextMessage(conversationId, {
+          clientMessageId,
+          content: trimmedContent,
+        })
+        mergeIncomingConversationMessage(message, { markLoaded: true })
+        return message
+      } catch (error: unknown) {
+        toast.error(getClientDataErrorMessage(error, "发送消息失败"))
+        return null
+      } finally {
+        updateConversationMessageState(conversationId, (currentState) => ({
+          ...currentState,
+          sending: false,
+        }))
+      }
+    },
+    [mergeIncomingConversationMessage, updateConversationMessageState]
+  )
+
+  const getConversationMessageState = useCallback(
+    (conversationId: string) => {
+      return (
+        conversationMessageStates[conversationId] ??
+        emptyConversationMessageState
+      )
+    },
+    [conversationMessageStates]
+  )
+
+  const getConversation = useCallback(
+    (conversationId: string) => {
+      return (
+        conversations.find(
+          (conversation) => conversation.id === conversationId
+        ) ?? null
+      )
+    },
+    [conversations]
+  )
 
   const upsertConversation = useCallback((conversation: ClientConversation) => {
     setConversations((currentConversations) => [
@@ -216,6 +522,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     setBootstrapError(null)
     setBootstrapState("loading")
     setConversations([])
+    setConversationMessageStates({})
     setContactsError(null)
     setContactsLoading(true)
     setContactsRefreshing(false)
@@ -268,46 +575,6 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     }
   }, [bootstrapState, refreshContacts, refreshMe])
 
-  const value = useMemo<ClientDataContextValue | null>(() => {
-    if (!me) {
-      return null
-    }
-
-    return {
-      conversations,
-      contacts,
-      contactsError,
-      contactsLoading,
-      contactsRefreshing,
-      createGroupConversation,
-      me,
-      meError,
-      meLoading,
-      meRefreshing,
-      openDirectConversation,
-      refreshConversations,
-      refreshContacts,
-      refreshMe,
-      updateConversationLastMessage,
-    }
-  }, [
-    conversations,
-    contacts,
-    contactsError,
-    contactsLoading,
-    contactsRefreshing,
-    createGroupConversation,
-    me,
-    meError,
-    meLoading,
-    meRefreshing,
-    openDirectConversation,
-    refreshConversations,
-    refreshContacts,
-    refreshMe,
-    updateConversationLastMessage,
-  ])
-
   if (bootstrapState === "loading") {
     return <ClientLoadingPage />
   }
@@ -321,8 +588,33 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!value) {
+  if (!me) {
     return <ClientLoadingPage />
+  }
+
+  const value: ClientDataContextValue = {
+    conversations,
+    contacts,
+    contactsError,
+    contactsLoading,
+    contactsRefreshing,
+    createGroupConversation,
+    ensureConversationMessages,
+    getConversation,
+    getConversationMessageState,
+    loadBeforeConversationMessages,
+    me,
+    meError,
+    meLoading,
+    meRefreshing,
+    mergeIncomingConversationMessage,
+    openDirectConversation,
+    refreshConversations,
+    refreshContacts,
+    refreshMe,
+    sendConversationText,
+    syncLoadedConversationMessages,
+    updateConversationLastMessage,
   }
 
   return (
@@ -344,6 +636,104 @@ function getMessageSummary(message: ClientMessage) {
   }
 
   return ""
+}
+
+function createConversationMessageState(): ClientConversationMessageState {
+  return {
+    error: null,
+    loaded: false,
+    loading: false,
+    loadingBefore: false,
+    messages: [],
+    page: null,
+    sending: false,
+  }
+}
+
+function mergeConversationMessages(
+  currentMessages: ClientMessage[],
+  nextMessages: ClientMessage[]
+) {
+  const messagesById = new Map<string, ClientMessage>()
+
+  for (const message of currentMessages) {
+    messagesById.set(message.id, message)
+  }
+  for (const message of nextMessages) {
+    messagesById.set(message.id, message)
+  }
+
+  return Array.from(messagesById.values()).sort((messageA, messageB) => {
+    if (messageA.seq !== messageB.seq) {
+      return messageA.seq - messageB.seq
+    }
+
+    return messageA.createdAt.localeCompare(messageB.createdAt)
+  })
+}
+
+function updatePageWithMessage(
+  page: ClientMessagePage | null,
+  messages: ClientMessage[]
+): ClientMessagePage {
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+
+  return {
+    hasMoreAfter: false,
+    hasMoreBefore: page?.hasMoreBefore ?? false,
+    limit: page?.limit ?? messagePageLimit,
+    newestSeq: lastMessage?.seq ?? 0,
+    oldestSeq: firstMessage?.seq ?? 0,
+  }
+}
+
+function mergePageWithBeforeResult(
+  currentPage: ClientMessagePage | null,
+  resultPage: ClientMessagePage,
+  messages: ClientMessage[]
+): ClientMessagePage {
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+
+  return {
+    hasMoreAfter: currentPage?.hasMoreAfter ?? resultPage.hasMoreAfter,
+    hasMoreBefore: resultPage.hasMoreBefore,
+    limit: resultPage.limit,
+    newestSeq: lastMessage?.seq ?? currentPage?.newestSeq ?? 0,
+    oldestSeq: firstMessage?.seq ?? resultPage.oldestSeq,
+  }
+}
+
+function mergePageWithAfterResult(
+  currentPage: ClientMessagePage | null,
+  resultPage: ClientMessagePage,
+  messages: ClientMessage[]
+): ClientMessagePage {
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+
+  return {
+    hasMoreAfter: resultPage.hasMoreAfter,
+    hasMoreBefore: currentPage?.hasMoreBefore ?? resultPage.hasMoreBefore,
+    limit: resultPage.limit,
+    newestSeq: lastMessage?.seq ?? resultPage.newestSeq,
+    oldestSeq: firstMessage?.seq ?? currentPage?.oldestSeq ?? 0,
+  }
+}
+
+function getNewestMessageSeq(state: ClientConversationMessageState) {
+  const lastMessage = state.messages[state.messages.length - 1]
+
+  return Math.max(state.page?.newestSeq ?? 0, lastMessage?.seq ?? 0)
+}
+
+function getClientDataErrorMessage(error: unknown, fallbackMessage: string) {
+  if (error instanceof ClientDataRequestError) {
+    return error.message
+  }
+
+  return fallbackMessage
 }
 
 function ClientDataErrorPage({

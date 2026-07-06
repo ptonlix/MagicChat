@@ -18,16 +18,29 @@ type ClientInfoErrorEnvelope = {
 
 type ClientInfoResponse = {
   app_name?: string
+  oidc_providers?: ClientInfoOIDCProviderResponse[]
   organization_name?: string
+}
+
+type ClientInfoOIDCProviderResponse = {
+  key?: string
+  name?: string
+}
+
+export type AppInfoOIDCProvider = {
+  key: string
+  name: string
 }
 
 export type AppInfo = {
   appName: string
+  oidcProviders: AppInfoOIDCProvider[]
   organizationName: string
 }
 
 export const defaultAppInfo: AppInfo = {
   appName: "MyGod",
+  oidcProviders: [],
   organizationName: "长亭科技",
 }
 
@@ -83,8 +96,32 @@ function normalizeClientInfo(info: ClientInfoResponse | undefined): AppInfo {
 
   return {
     appName: info.app_name,
+    oidcProviders: normalizeOIDCProviders(info.oidc_providers),
     organizationName: info.organization_name,
   }
+}
+
+function normalizeOIDCProviders(
+  providers: ClientInfoOIDCProviderResponse[] | undefined
+): AppInfoOIDCProvider[] {
+  if (!providers) {
+    return []
+  }
+
+  if (!Array.isArray(providers)) {
+    throw new ClientInfoRequestError("应用信息响应格式不正确")
+  }
+
+  return providers.map((provider) => {
+    if (!provider?.key || !provider.name) {
+      throw new ClientInfoRequestError("应用信息响应格式不正确")
+    }
+
+    return {
+      key: provider.key,
+      name: provider.name,
+    }
+  })
 }
 
 async function readJson<T>(response: Response): Promise<T | undefined> {

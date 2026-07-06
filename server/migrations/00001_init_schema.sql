@@ -69,6 +69,46 @@ INSERT INTO app_settings (
   now()
 );
 
+CREATE TABLE oidc_providers (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  key text NOT NULL,
+  enabled boolean NOT NULL DEFAULT true,
+  authorize_url text NOT NULL,
+  token_url text NOT NULL,
+  userinfo_url text NOT NULL,
+  client_id text NOT NULL,
+  client_secret text NOT NULL,
+  scopes jsonb NOT NULL DEFAULT '["openid","email","profile"]',
+  email_field text NOT NULL,
+  phone_field text NOT NULL DEFAULT '',
+  name_field text NOT NULL,
+  nickname_field text NOT NULL DEFAULT '',
+  avatar_field text NOT NULL DEFAULT '',
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  CONSTRAINT oidc_providers_scopes_array_check CHECK (jsonb_typeof(scopes) = 'array')
+);
+
+CREATE UNIQUE INDEX oidc_providers_key_unique ON oidc_providers (key);
+CREATE INDEX oidc_providers_enabled_sort_index ON oidc_providers (enabled, sort_order, name);
+
+CREATE TABLE oidc_login_states (
+  state_hash text PRIMARY KEY,
+  provider_id uuid NOT NULL REFERENCES oidc_providers(id) ON DELETE CASCADE,
+  code_verifier text NOT NULL,
+  redirect_path text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  consumed_at timestamptz,
+  ip text NOT NULL DEFAULT '',
+  user_agent text NOT NULL DEFAULT ''
+);
+
+CREATE INDEX oidc_login_states_provider_id_index ON oidc_login_states (provider_id);
+CREATE INDEX oidc_login_states_expires_at_index ON oidc_login_states (expires_at);
+CREATE INDEX oidc_login_states_consumed_at_index ON oidc_login_states (consumed_at);
+
 CREATE TABLE conversations (
   id uuid PRIMARY KEY,
   kind text NOT NULL,
@@ -156,6 +196,8 @@ DROP TABLE direct_conversations;
 DROP TABLE messages;
 DROP TABLE conversation_members;
 DROP TABLE conversations;
+DROP TABLE oidc_login_states;
+DROP TABLE oidc_providers;
 DROP TABLE app_settings;
 DROP TABLE user_sessions;
 DROP TABLE admin_sessions;

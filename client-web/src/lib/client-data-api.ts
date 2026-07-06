@@ -62,8 +62,19 @@ type ConversationResponse = {
   last_message_seq?: number
   last_message_summary?: string
   member_count?: number
+  members?: ConversationMemberResponse[]
   name?: string
   type?: string
+}
+
+type ConversationMemberResponse = {
+  avatar?: string
+  email?: string
+  id?: string
+  name?: string
+  nickname?: string
+  phone?: string
+  role?: string
 }
 
 type ListClientConversationsResponse = {
@@ -153,8 +164,20 @@ export type ClientConversation = {
   lastMessageSeq: number
   lastMessageSummary: string
   memberCount: number
+  members?: ClientConversationMember[]
   name: string
   type: "direct" | "group" | "app"
+}
+
+export type ClientConversationMember = {
+  avatar: string
+  email: string
+  id: string
+  name: string
+  nickname: string
+  phone: string
+  role: "owner" | "admin" | "member"
+  type: "user"
 }
 
 export type ClientMessageSender = {
@@ -417,8 +440,7 @@ export async function listConversationMessages(
 
   const data = (
     payload as
-      | ClientDataSuccessEnvelope<ListConversationMessagesResponse>
-      | undefined
+      ClientDataSuccessEnvelope<ListConversationMessagesResponse> | undefined
   )?.data
 
   if (!data?.messages || !data.page) {
@@ -525,7 +547,7 @@ function normalizeConversation(
     throw new ClientDataRequestError("会话列表响应格式不正确")
   }
 
-  return {
+  const normalizedConversation: ClientConversation = {
     avatar: conversation.avatar ?? "",
     createdAt: conversation.created_at,
     id: conversation.id,
@@ -537,6 +559,41 @@ function normalizeConversation(
     name: conversation.name,
     type: normalizeConversationType(conversation.type),
   }
+
+  if (conversation.members) {
+    normalizedConversation.members = conversation.members.map(
+      normalizeConversationMember
+    )
+  }
+
+  return normalizedConversation
+}
+
+function normalizeConversationMember(
+  member: ConversationMemberResponse | undefined
+): ClientConversationMember {
+  if (!member?.email || !member.id || !member.name) {
+    throw new ClientDataRequestError("会话成员响应格式不正确")
+  }
+
+  return {
+    avatar: member.avatar ?? "",
+    email: member.email,
+    id: member.id,
+    name: member.name,
+    nickname: member.nickname ?? "",
+    phone: member.phone ?? "",
+    role: normalizeConversationMemberRole(member.role),
+    type: "user",
+  }
+}
+
+function normalizeConversationMemberRole(role: string | undefined) {
+  if (role === "owner" || role === "admin") {
+    return role
+  }
+
+  return "member"
 }
 
 function normalizeConversationType(type: string | undefined) {

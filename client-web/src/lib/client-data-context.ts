@@ -4,9 +4,20 @@ import {
   type ClientConversation,
   type ClientDataRequestError,
   type ClientMessage,
+  type ClientMessagePage,
   type ClientUser,
   type ContactUser,
 } from "@/lib/client-data-api"
+
+export type ClientConversationMessageState = {
+  error: string | null
+  loaded: boolean
+  loading: boolean
+  loadingBefore: boolean
+  messages: ClientMessage[]
+  page: ClientMessagePage | null
+  sending: boolean
+}
 
 export type ClientDataContextValue = {
   conversations: ClientConversation[]
@@ -22,10 +33,25 @@ export type ClientDataContextValue = {
     name: string,
     memberIds: string[]
   ) => Promise<ClientConversation>
+  ensureConversationMessages: (conversationId: string) => void
+  getConversation: (conversationId: string) => ClientConversation | null
+  getConversationMessageState: (
+    conversationId: string
+  ) => ClientConversationMessageState
+  loadBeforeConversationMessages: (conversationId: string) => void
+  mergeIncomingConversationMessage: (
+    message: ClientMessage,
+    options?: { markLoaded?: boolean }
+  ) => void
   openDirectConversation: (userId: string) => Promise<ClientConversation>
   refreshConversations: () => Promise<void>
   refreshContacts: () => Promise<void>
   refreshMe: () => Promise<void>
+  sendConversationText: (
+    conversationId: string,
+    content: string
+  ) => Promise<ClientMessage | null>
+  syncLoadedConversationMessages: () => void
   updateConversationLastMessage: (message: ClientMessage) => void
 }
 

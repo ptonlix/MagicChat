@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react"
 import { Navigate, Route, Routes } from "react-router"
 
 import { AppLayout } from "@/components/app-layout"
+import { ClientConversationRealtimeSync } from "@/components/client-conversation-realtime-sync"
 import { ClientDataProvider } from "@/components/client-data-provider"
 import { ClientRealtimeProvider } from "@/components/client-realtime-provider"
 import { AppInfoProvider } from "@/components/app-info-provider"
@@ -28,11 +29,20 @@ export function App() {
           element={
             <ClientDataProvider>
               <ClientRealtimeProvider>
+                <ClientConversationRealtimeSync />
                 <AppLayout />
               </ClientRealtimeProvider>
             </ClientDataProvider>
           }
         >
+          <Route
+            path="/init"
+            element={
+              <PageTitle title="加载">
+                <InitPage />
+              </PageTitle>
+            }
+          />
           <Route
             path="/chat"
             element={
@@ -80,4 +90,8 @@ function PageTitle({
   }, [appName, title])
 
   return children
+}
+
+function InitPage() {
+  return <Navigate to="/chat" replace />
 }

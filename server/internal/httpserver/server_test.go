@@ -61,6 +61,8 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.Message{},
 		&store.DirectConversation{},
 		&store.AppSettings{},
+		&store.OIDCProvider{},
+		&store.OIDCLoginState{},
 	)
 }
 
@@ -154,6 +156,28 @@ func getJSONWithClient(t *testing.T, client *http.Client, server *httptest.Serve
 	return resp, decoded
 }
 
+func getResponseWithClient(t *testing.T, client *http.Client, server *httptest.Server, path string, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = resp.Body.Close()
+	})
+
+	return resp
+}
+
 func postJSONWithClient(t *testing.T, client *http.Client, server *httptest.Server, path string, body map[string]any, cookies ...*http.Cookie) (*http.Response, map[string]any) {
 	t.Helper()
 
@@ -213,6 +237,28 @@ func insertTestUser(t *testing.T, db *gorm.DB, email string, name string, status
 	}
 
 	return user
+}
+
+func insertTestOIDCProvider(t *testing.T, db *gorm.DB, input store.OIDCProvider) store.OIDCProvider {
+	t.Helper()
+
+	if input.ID == "" {
+		input.ID = uuid.NewString()
+	}
+	if len(input.Scopes) == 0 {
+		input.Scopes = json.RawMessage(`["openid","email","profile"]`)
+	}
+	if input.EmailField == "" {
+		input.EmailField = "email"
+	}
+	if input.NameField == "" {
+		input.NameField = "name"
+	}
+	if err := db.Create(&input).Error; err != nil {
+		t.Fatalf("create test oidc provider: %v", err)
+	}
+
+	return input
 }
 
 type testConversationInput struct {
@@ -337,6 +383,37 @@ func requireContacts(t *testing.T, data map[string]any) []any {
 	return contacts
 }
 
+func requireOIDCProviders(t *testing.T, data map[string]any) []any {
+	t.Helper()
+
+	providers, ok := data["providers"].([]any)
+	if !ok {
+		t.Fatalf("providers = %#v, want array", data["providers"])
+	}
+
+	return providers
+}
+
+func requireStringSliceField(t *testing.T, object map[string]any, field string, expected []string) {
+	t.Helper()
+
+	rawValues, ok := object[field].([]any)
+	if !ok {
+		t.Fatalf("%s = %#v, want array", field, object[field])
+	}
+	values := make([]string, 0, len(rawValues))
+	for _, rawValue := range rawValues {
+		value, ok := rawValue.(string)
+		if !ok {
+			t.Fatalf("%s value = %#v, want string", field, rawValue)
+		}
+		values = append(values, value)
+	}
+	if !slices.Equal(values, expected) {
+		t.Fatalf("%s = %#v, want %#v", field, values, expected)
+	}
+}
+
 func requireConversations(t *testing.T, data map[string]any) []any {
 	t.Helper()
 
@@ -398,6 +475,17 @@ func requireUserSessionCookie(t *testing.T, resp *http.Response) *http.Cookie {
 	t.Helper()
 
 	return requireCookieNamed(t, resp, "user_session")
+}
+
+func requireOIDCStateCookie(t *testing.T, resp *http.Response) *http.Cookie {
+	t.Helper()
+
+	cookie := requireCookieNamed(t, resp, "oidc_login_state")
+	if cookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("oidc_login_state SameSite = %v, want Lax", cookie.SameSite)
+	}
+
+	return cookie
 }
 
 func dialClientWebSocket(t *testing.T, server *httptest.Server, cookie *http.Cookie) *websocket.Conn {
@@ -1657,6 +1745,324 @@ func TestClientInfoIsPublicAndReturnsDefaultSettings(t *testing.T) {
 	}
 }
 
+func TestClientInfoReturnsEnabledOIDCProviders(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Disabled SSO",
+		Key:          "disabled-sso",
+		Enabled:      false,
+		AuthorizeURL: "https://disabled.example.com/authorize",
+		TokenURL:     "https://disabled.example.com/token",
+		UserinfoURL:  "https://disabled.example.com/userinfo",
+		ClientID:     "disabled-client",
+		ClientSecret: "disabled-secret",
+		Scopes:       json.RawMessage(`["openid","email"]`),
+		EmailField:   "email",
+		NameField:    "name",
+		SortOrder:    1,
+	})
+	insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Enterprise SSO",
+		Key:          "enterprise",
+		Enabled:      true,
+		AuthorizeURL: "https://sso.example.com/authorize",
+		TokenURL:     "https://sso.example.com/token",
+		UserinfoURL:  "https://sso.example.com/userinfo",
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		Scopes:       json.RawMessage(`["openid","email","profile"]`),
+		EmailField:   "email",
+		NameField:    "name",
+		SortOrder:    2,
+	})
+
+	resp, body := getJSON(t, server, "/api/client/info")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	data := requireSuccess(t, body)
+	providers, ok := data["oidc_providers"].([]any)
+	if !ok {
+		t.Fatalf("oidc_providers = %#v, want array", data["oidc_providers"])
+	}
+	if len(providers) != 1 {
+		t.Fatalf("oidc provider count = %d, want 1", len(providers))
+	}
+	provider := providers[0].(map[string]any)
+	if provider["key"] != "enterprise" {
+		t.Fatalf("provider key = %#v, want enterprise", provider["key"])
+	}
+	if provider["name"] != "Enterprise SSO" {
+		t.Fatalf("provider name = %#v, want Enterprise SSO", provider["name"])
+	}
+	if _, ok := provider["client_secret"]; ok {
+		t.Fatalf("public oidc provider leaks client_secret: %#v", provider)
+	}
+}
+
+func TestOIDCLoginCreatesUserSessionAndRedirectsToInit(t *testing.T) {
+	var tokenCalled bool
+	var userinfoCalled bool
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			tokenCalled = true
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse token form: %v", err)
+			}
+			if r.Form.Get("grant_type") != "authorization_code" {
+				t.Fatalf("grant_type = %q, want authorization_code", r.Form.Get("grant_type"))
+			}
+			if r.Form.Get("code") != "callback-code" {
+				t.Fatalf("code = %q, want callback-code", r.Form.Get("code"))
+			}
+			if r.Form.Get("client_id") != "client-id" {
+				t.Fatalf("client_id = %q, want client-id", r.Form.Get("client_id"))
+			}
+			if r.Form.Get("client_secret") != "client-secret" {
+				t.Fatalf("client_secret = %q, want client-secret", r.Form.Get("client_secret"))
+			}
+			if r.Form.Get("code_verifier") == "" {
+				t.Fatal("code_verifier is empty")
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"access-token","token_type":"Bearer"}`))
+		case "/userinfo":
+			userinfoCalled = true
+			if r.Header.Get("Authorization") != "Bearer access-token" {
+				t.Fatalf("Authorization = %q, want Bearer access-token", r.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"mail": "Alice.OIDC@example.com",
+				"mobile": "13812345678",
+				"real_name": "Alice OIDC",
+				"nick": "Ali",
+				"picture": "https://sso.example.com/alice.webp"
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer oidcServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:          "Enterprise SSO",
+		Key:           "enterprise",
+		Enabled:       true,
+		AuthorizeURL:  oidcServer.URL + "/authorize",
+		TokenURL:      oidcServer.URL + "/token",
+		UserinfoURL:   oidcServer.URL + "/userinfo",
+		ClientID:      "client-id",
+		ClientSecret:  "client-secret",
+		Scopes:        json.RawMessage(`["openid","email","profile"]`),
+		EmailField:    "mail",
+		PhoneField:    "mobile",
+		NameField:     "real_name",
+		NicknameField: "nick",
+		AvatarField:   "picture",
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/start?redirect=/init")
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", startResp.StatusCode)
+	}
+	authorizeLocation := startResp.Header.Get("Location")
+	parsedAuthorizeURL, err := url.Parse(authorizeLocation)
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	if parsedAuthorizeURL.Path != "/authorize" {
+		t.Fatalf("authorize path = %q, want /authorize", parsedAuthorizeURL.Path)
+	}
+	query := parsedAuthorizeURL.Query()
+	if query.Get("response_type") != "code" {
+		t.Fatalf("response_type = %q, want code", query.Get("response_type"))
+	}
+	if query.Get("client_id") != "client-id" {
+		t.Fatalf("client_id = %q, want client-id", query.Get("client_id"))
+	}
+	if query.Get("scope") != "openid email profile" {
+		t.Fatalf("scope = %q, want openid email profile", query.Get("scope"))
+	}
+	if query.Get("code_challenge_method") != "S256" {
+		t.Fatalf("code_challenge_method = %q, want S256", query.Get("code_challenge_method"))
+	}
+	state := query.Get("state")
+	if state == "" {
+		t.Fatal("state is empty")
+	}
+	if query.Get("code_challenge") == "" {
+		t.Fatal("code_challenge is empty")
+	}
+	stateCookie := requireOIDCStateCookie(t, startResp)
+
+	callbackResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/callback?code=callback-code&state="+url.QueryEscape(state), stateCookie)
+	if callbackResp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", callbackResp.StatusCode)
+	}
+	if callbackResp.Header.Get("Location") != "/init" {
+		t.Fatalf("callback location = %q, want /init", callbackResp.Header.Get("Location"))
+	}
+	requireUserSessionCookie(t, callbackResp)
+	if !tokenCalled {
+		t.Fatal("token endpoint was not called")
+	}
+	if !userinfoCalled {
+		t.Fatal("userinfo endpoint was not called")
+	}
+
+	var user store.User
+	if err := db.First(&user, "email = ?", "alice.oidc@example.com").Error; err != nil {
+		t.Fatalf("find oidc user: %v", err)
+	}
+	if user.Name != "Alice OIDC" {
+		t.Fatalf("user name = %q, want Alice OIDC", user.Name)
+	}
+	if user.Nickname != "Ali" {
+		t.Fatalf("user nickname = %q, want Ali", user.Nickname)
+	}
+	if user.Phone == nil || *user.Phone != "+8613812345678" {
+		t.Fatalf("user phone = %#v, want +8613812345678", user.Phone)
+	}
+	if user.Avatar != "https://sso.example.com/alice.webp" {
+		t.Fatalf("user avatar = %q, want oidc avatar", user.Avatar)
+	}
+
+	var userSessionCount int64
+	if err := db.Model(&store.UserSession{}).Where("user_id = ?", user.ID).Count(&userSessionCount).Error; err != nil {
+		t.Fatalf("count user sessions: %v", err)
+	}
+	if userSessionCount != 1 {
+		t.Fatalf("user session count = %d, want 1", userSessionCount)
+	}
+
+	var stateRecord store.OIDCLoginState
+	if err := db.First(&stateRecord).Error; err != nil {
+		t.Fatalf("find oidc state: %v", err)
+	}
+	if stateRecord.ConsumedAt == nil {
+		t.Fatal("state consumed_at = nil, want consumed timestamp")
+	}
+}
+
+func TestOIDCCallbackRequiresStateCookie(t *testing.T) {
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"access-token","token_type":"Bearer"}`))
+		case "/userinfo":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"email":"mallory@example.com","name":"Mallory"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer oidcServer.Close()
+
+	server, db := newTestRouter(t)
+	defer server.Close()
+	insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Enterprise SSO",
+		Key:          "enterprise",
+		Enabled:      true,
+		AuthorizeURL: oidcServer.URL + "/authorize",
+		TokenURL:     oidcServer.URL + "/token",
+		UserinfoURL:  oidcServer.URL + "/userinfo",
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		Scopes:       json.RawMessage(`["openid","email","profile"]`),
+		EmailField:   "email",
+		NameField:    "name",
+	})
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	startResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/start?redirect=/init")
+	authorizeLocation := startResp.Header.Get("Location")
+	parsedAuthorizeURL, err := url.Parse(authorizeLocation)
+	if err != nil {
+		t.Fatalf("parse authorize location: %v", err)
+	}
+	state := parsedAuthorizeURL.Query().Get("state")
+	if state == "" {
+		t.Fatal("state is empty")
+	}
+	requireOIDCStateCookie(t, startResp)
+
+	callbackResp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/callback?code=callback-code&state="+url.QueryEscape(state))
+	if callbackResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("callback status = %d, want 400", callbackResp.StatusCode)
+	}
+
+	var userCount int64
+	if err := db.Model(&store.User{}).Where("email = ?", "mallory@example.com").Count(&userCount).Error; err != nil {
+		t.Fatalf("count oidc user: %v", err)
+	}
+	if userCount != 0 {
+		t.Fatalf("oidc user count = %d, want 0", userCount)
+	}
+}
+
+func TestOIDCStartCleansExpiredLoginStates(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	provider := insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Enterprise SSO",
+		Key:          "enterprise",
+		Enabled:      true,
+		AuthorizeURL: "https://sso.example.com/authorize",
+		TokenURL:     "https://sso.example.com/token",
+		UserinfoURL:  "https://sso.example.com/userinfo",
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		Scopes:       json.RawMessage(`["openid","email","profile"]`),
+		EmailField:   "email",
+		NameField:    "name",
+	})
+	now := time.Now().UTC()
+	expiredState := store.OIDCLoginState{
+		StateHash:    auth.HashSessionToken("expired-state"),
+		ProviderID:   provider.ID,
+		CodeVerifier: "expired-verifier",
+		RedirectPath: "/init",
+		ExpiresAt:    now.Add(-time.Minute),
+		IP:           "127.0.0.1",
+		UserAgent:    "test",
+	}
+	if err := db.Create(&expiredState).Error; err != nil {
+		t.Fatalf("create expired oidc state: %v", err)
+	}
+	noRedirectClient := server.Client()
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	resp := getResponseWithClient(t, noRedirectClient, server, "/api/client/auth/oidc/enterprise/start?redirect=/init")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", resp.StatusCode)
+	}
+
+	var expiredCount int64
+	if err := db.Model(&store.OIDCLoginState{}).Where("state_hash = ?", expiredState.StateHash).Count(&expiredCount).Error; err != nil {
+		t.Fatalf("count expired oidc states: %v", err)
+	}
+	if expiredCount != 0 {
+		t.Fatalf("expired oidc state count = %d, want 0", expiredCount)
+	}
+}
+
 func TestAdminCanReadAndUpdateInfoSettings(t *testing.T) {
 	server, _ := newTestRouter(t)
 	defer server.Close()
@@ -1698,6 +2104,242 @@ func TestAdminCanReadAndUpdateInfoSettings(t *testing.T) {
 	if clientData["app_name"] != "星环协作" {
 		t.Fatalf("client app_name = %v, want 星环协作", clientData["app_name"])
 	}
+}
+
+func TestAdminCanManageOIDCProviders(t *testing.T) {
+	server, _ := newTestRouter(t)
+	defer server.Close()
+	adminCookie := loginAsAdmin(t, server)
+
+	createResp, createBody := postJSON(t, server, "/api/admin/oidc/providers", map[string]any{
+		"name":           "企业 SSO",
+		"authorize_url":  "https://sso.example.com/oauth/authorize",
+		"token_url":      "https://sso.example.com/oauth/token",
+		"userinfo_url":   "https://sso.example.com/oauth/userinfo",
+		"client_id":      "client-id",
+		"client_secret":  "client-secret",
+		"scopes":         []any{"email", "profile"},
+		"email_field":    "email",
+		"phone_field":    "mobile",
+		"name_field":     "real_name",
+		"nickname_field": "nickname",
+		"avatar_field":   "avatar_url",
+	}, adminCookie)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201, body = %#v", createResp.StatusCode, createBody)
+	}
+	createdProvider := requireSuccess(t, createBody)["provider"].(map[string]any)
+	providerID, ok := createdProvider["id"].(string)
+	if !ok || providerID == "" {
+		t.Fatalf("created provider id = %#v, want string", createdProvider["id"])
+	}
+	if createdProvider["client_secret"] != "client-secret" {
+		t.Fatalf("created client_secret = %#v, want client-secret", createdProvider["client_secret"])
+	}
+	if createdProvider["phone_field"] != "mobile" {
+		t.Fatalf("created phone_field = %#v, want mobile", createdProvider["phone_field"])
+	}
+	if createdProvider["key"] != "sso" {
+		t.Fatalf("created key = %#v, want generated sso", createdProvider["key"])
+	}
+	if createdProvider["enabled"] != true {
+		t.Fatalf("created enabled = %#v, want true", createdProvider["enabled"])
+	}
+	if createdProvider["sort_order"] != float64(10) {
+		t.Fatalf("created sort_order = %#v, want 10", createdProvider["sort_order"])
+	}
+	requireStringSliceField(t, createdProvider, "scopes", []string{"email", "profile"})
+
+	listResp, listBody := getJSON(t, server, "/api/admin/oidc/providers", adminCookie)
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("list status = %d, want 200", listResp.StatusCode)
+	}
+	providers := requireOIDCProviders(t, requireSuccess(t, listBody))
+	if len(providers) != 1 {
+		t.Fatalf("provider count = %d, want 1", len(providers))
+	}
+	listedProvider := providers[0].(map[string]any)
+	if listedProvider["client_secret"] != "client-secret" {
+		t.Fatalf("listed client_secret = %#v, want client-secret", listedProvider["client_secret"])
+	}
+
+	updateResp, updateBody := putJSON(t, server, "/api/admin/oidc/providers/"+providerID, map[string]any{
+		"name":           "企业统一身份",
+		"authorize_url":  "https://idp.example.com/oauth/authorize",
+		"token_url":      "https://idp.example.com/oauth/token",
+		"userinfo_url":   "https://idp.example.com/oauth/userinfo",
+		"client_id":      "updated-client-id",
+		"client_secret":  "updated-secret",
+		"scopes":         []any{"email"},
+		"email_field":    "mail",
+		"phone_field":    "phone",
+		"name_field":     "name",
+		"nickname_field": "nick",
+		"avatar_field":   "picture",
+	}, adminCookie)
+	if updateResp.StatusCode != http.StatusOK {
+		t.Fatalf("update status = %d, want 200, body = %#v", updateResp.StatusCode, updateBody)
+	}
+	updatedProvider := requireSuccess(t, updateBody)["provider"].(map[string]any)
+	if updatedProvider["key"] != createdProvider["key"] {
+		t.Fatalf("updated key = %#v, want preserved %v", updatedProvider["key"], createdProvider["key"])
+	}
+	if updatedProvider["client_secret"] != "updated-secret" {
+		t.Fatalf("updated client_secret = %#v, want updated-secret", updatedProvider["client_secret"])
+	}
+	if updatedProvider["enabled"] != true {
+		t.Fatalf("updated enabled = %#v, want preserved true", updatedProvider["enabled"])
+	}
+	if updatedProvider["sort_order"] != float64(10) {
+		t.Fatalf("updated sort_order = %#v, want preserved 10", updatedProvider["sort_order"])
+	}
+
+	disableResp, disableBody := postJSON(t, server, "/api/admin/oidc/providers/"+providerID+"/disable", map[string]any{}, adminCookie)
+	if disableResp.StatusCode != http.StatusOK {
+		t.Fatalf("disable status = %d, want 200, body = %#v", disableResp.StatusCode, disableBody)
+	}
+	disabledProvider := requireSuccess(t, disableBody)["provider"].(map[string]any)
+	if disabledProvider["enabled"] != false {
+		t.Fatalf("disabled enabled = %#v, want false", disabledProvider["enabled"])
+	}
+
+	deleteResp, deleteBody := requestJSON(t, server, http.MethodDelete, "/api/admin/oidc/providers/"+providerID, map[string]any{}, adminCookie)
+	if deleteResp.StatusCode != http.StatusOK {
+		t.Fatalf("delete status = %d, want 200, body = %#v", deleteResp.StatusCode, deleteBody)
+	}
+	requireSuccess(t, deleteBody)
+
+	finalListResp, finalListBody := getJSON(t, server, "/api/admin/oidc/providers", adminCookie)
+	if finalListResp.StatusCode != http.StatusOK {
+		t.Fatalf("final list status = %d, want 200", finalListResp.StatusCode)
+	}
+	finalProviders := requireOIDCProviders(t, requireSuccess(t, finalListBody))
+	if len(finalProviders) != 0 {
+		t.Fatalf("final provider count = %d, want 0", len(finalProviders))
+	}
+}
+
+func TestAdminCreatesDistinctOIDCProviderKeysFromSameName(t *testing.T) {
+	server, _ := newTestRouter(t)
+	defer server.Close()
+	adminCookie := loginAsAdmin(t, server)
+
+	firstResp, firstBody := postJSON(t, server, "/api/admin/oidc/providers", validOIDCProviderPayload("企业 SSO"), adminCookie)
+	if firstResp.StatusCode != http.StatusCreated {
+		t.Fatalf("first create status = %d, want 201, body = %#v", firstResp.StatusCode, firstBody)
+	}
+	secondResp, secondBody := postJSON(t, server, "/api/admin/oidc/providers", validOIDCProviderPayload("企业 SSO"), adminCookie)
+	if secondResp.StatusCode != http.StatusCreated {
+		t.Fatalf("second create status = %d, want 201, body = %#v", secondResp.StatusCode, secondBody)
+	}
+
+	firstProvider := requireSuccess(t, firstBody)["provider"].(map[string]any)
+	secondProvider := requireSuccess(t, secondBody)["provider"].(map[string]any)
+	if firstProvider["key"] == secondProvider["key"] {
+		t.Fatalf("generated keys should be distinct, got %q", firstProvider["key"])
+	}
+	if secondProvider["sort_order"] != float64(20) {
+		t.Fatalf("second sort_order = %#v, want 20", secondProvider["sort_order"])
+	}
+}
+
+func validOIDCProviderPayload(name string) map[string]any {
+	return map[string]any{
+		"name":           name,
+		"authorize_url":  "https://sso.example.com/oauth/authorize",
+		"token_url":      "https://sso.example.com/oauth/token",
+		"userinfo_url":   "https://sso.example.com/oauth/userinfo",
+		"client_id":      "client-id",
+		"client_secret":  "client-secret",
+		"scopes":         []any{"email", "profile"},
+		"email_field":    "email",
+		"phone_field":    "mobile",
+		"name_field":     "real_name",
+		"nickname_field": "nickname",
+		"avatar_field":   "avatar_url",
+	}
+}
+
+func TestAdminMovesOIDCProvidersAndNormalizesSortOrder(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	adminCookie := loginAsAdmin(t, server)
+
+	first := insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Alpha",
+		Key:          "alpha",
+		Enabled:      true,
+		AuthorizeURL: "https://alpha.example.com/authorize",
+		TokenURL:     "https://alpha.example.com/token",
+		UserinfoURL:  "https://alpha.example.com/userinfo",
+		ClientID:     "alpha-client",
+		ClientSecret: "alpha-secret",
+		Scopes:       json.RawMessage(`["email"]`),
+		EmailField:   "email",
+		NameField:    "name",
+		SortOrder:    5,
+	})
+	second := insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Beta",
+		Key:          "beta",
+		Enabled:      true,
+		AuthorizeURL: "https://beta.example.com/authorize",
+		TokenURL:     "https://beta.example.com/token",
+		UserinfoURL:  "https://beta.example.com/userinfo",
+		ClientID:     "beta-client",
+		ClientSecret: "beta-secret",
+		Scopes:       json.RawMessage(`["email"]`),
+		EmailField:   "email",
+		NameField:    "name",
+		SortOrder:    5,
+	})
+	third := insertTestOIDCProvider(t, db, store.OIDCProvider{
+		Name:         "Gamma",
+		Key:          "gamma",
+		Enabled:      true,
+		AuthorizeURL: "https://gamma.example.com/authorize",
+		TokenURL:     "https://gamma.example.com/token",
+		UserinfoURL:  "https://gamma.example.com/userinfo",
+		ClientID:     "gamma-client",
+		ClientSecret: "gamma-secret",
+		Scopes:       json.RawMessage(`["email"]`),
+		EmailField:   "email",
+		NameField:    "name",
+		SortOrder:    5,
+	})
+
+	moveResp, moveBody := postJSON(t, server, "/api/admin/oidc/providers/"+third.ID+"/move", map[string]any{
+		"direction": "up",
+	}, adminCookie)
+	if moveResp.StatusCode != http.StatusOK {
+		t.Fatalf("move status = %d, want 200, body = %#v", moveResp.StatusCode, moveBody)
+	}
+
+	providers := requireOIDCProviders(t, requireSuccess(t, moveBody))
+	if got := []string{
+		providers[0].(map[string]any)["id"].(string),
+		providers[1].(map[string]any)["id"].(string),
+		providers[2].(map[string]any)["id"].(string),
+	}; got[0] != first.ID || got[1] != third.ID || got[2] != second.ID {
+		t.Fatalf("provider order = %#v, want first, third, second", got)
+	}
+	for index, provider := range providers {
+		wantSortOrder := float64((index + 1) * 10)
+		if provider.(map[string]any)["sort_order"] != wantSortOrder {
+			t.Fatalf("provider %d sort_order = %#v, want %v", index, provider.(map[string]any)["sort_order"], wantSortOrder)
+		}
+	}
+}
+
+func TestOIDCProviderAdminAPIRequiresAdminSession(t *testing.T) {
+	server, _ := newTestRouter(t)
+	defer server.Close()
+
+	resp, body := getJSON(t, server, "/api/admin/oidc/providers")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	requireError(t, body, "unauthorized")
 }
 
 func TestUpdateInfoSettingsRequiresAdminSession(t *testing.T) {
