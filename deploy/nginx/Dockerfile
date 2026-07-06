@@ -8,6 +8,7 @@ COPY client-web/package.json client-web/pnpm-lock.yaml client-web/pnpm-workspace
 RUN pnpm install --frozen-lockfile
 
 COPY client-web/ ./
+COPY admin-web/public/assets/avatars/builtin /src/admin-web/public/assets/avatars/builtin
 RUN pnpm build
 
 FROM node:24-bookworm-slim AS admin-build
