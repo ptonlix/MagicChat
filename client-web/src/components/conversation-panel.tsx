@@ -11,7 +11,11 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { ClientConversation, ClientMessage } from "@/lib/client-data-api"
+import {
+  formatClientMessageBodySummary,
+  type ClientConversation,
+  type ClientMessage,
+} from "@/lib/client-data-api"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import {
@@ -19,6 +23,7 @@ import {
   type ExpressionItem,
 } from "@/components/expression-picker"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MessageActionMenu } from "@/components/message-action-menu"
 import { UserProfilePopover } from "@/components/user-profile-popover"
@@ -39,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 export type ConversationPanelMessage = {
   id: string
-  role: "me" | "other"
+  role: "me" | "other" | "system"
   author: string
   avatar: string
   body: ClientMessage["body"]
@@ -305,13 +310,17 @@ function ConversationPanelHistory({
             <span>正在加载更早消息</span>
           </div>
         )}
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            conversation={conversation}
-          />
-        ))}
+        {messages.map((message) =>
+          message.role === "system" ? (
+            <SystemMessageBadge key={message.id} message={message} />
+          ) : (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              conversation={conversation}
+            />
+          )
+        )}
       </div>
     </ScrollArea>
   )
@@ -479,6 +488,23 @@ function ConversationPanelEmptyState() {
   )
 }
 
+function SystemMessageBadge({
+  message,
+}: {
+  message: ConversationPanelMessage
+}) {
+  return (
+    <div className="flex justify-center">
+      <Badge
+        className="h-auto max-w-[min(80%,36rem)] text-center leading-relaxed whitespace-normal"
+        variant="secondary"
+      >
+        <MessageBodyRenderer body={message.body} />
+      </Badge>
+    </div>
+  )
+}
+
 function MessageBubble({
   message,
   conversation,
@@ -566,6 +592,8 @@ function MessageBodyRenderer({
   switch (body.type) {
     case "text":
       return <TextMessageBody content={body.content} />
+    case "system_event":
+      return <span>{formatClientMessageBodySummary(body)}</span>
   }
 }
 

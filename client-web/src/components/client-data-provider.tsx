@@ -3,10 +3,13 @@ import { useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import {
+  addGroupConversationMembers as addGroupConversationMembersRequest,
   ClientDataRequestError,
   createDirectConversation,
   createGroupConversation as createGroupConversationRequest,
+  formatClientMessageBodySummary,
   getCurrentClientUser,
+  isClientMessageInitiatedByUser,
   listClientContacts,
   listClientConversations,
   listConversationMessages,
@@ -248,13 +251,15 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [rememberConversationMessage, updateConversationMessageState]
   )
 
+  const currentUserId = me?.id ?? ""
   const handleIncomingConversationMessage = useCallback(
     (
       message: ClientMessage,
       options: { activeConversationId?: string; visible?: boolean } = {}
     ) => {
       const fromCurrentUser =
-        message.sender.type === "user" && message.sender.id === me?.id
+        currentUserId !== "" &&
+        isClientMessageInitiatedByUser(message, currentUserId)
       const visibleInActiveConversation =
         Boolean(options.visible) &&
         options.activeConversationId === message.conversationId
@@ -264,7 +269,11 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         countUnread: !fromCurrentUser && !visibleInActiveConversation,
       })
     },
-    [applyConversationMessageToList, me?.id, mergeIncomingConversationMessage]
+    [
+      applyConversationMessageToList,
+      currentUserId,
+      mergeIncomingConversationMessage,
+    ]
   )
 
   const markConversationRead = useCallback(
@@ -277,7 +286,10 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const result = await markConversationReadRequest(conversationId, options)
+        const result = await markConversationReadRequest(
+          conversationId,
+          options
+        )
         setConversations((currentConversations) =>
           currentConversations.map((conversation) =>
             conversation.id === result.conversationId
@@ -558,6 +570,27 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, upsertConversation]
   )
 
+  const addGroupConversationMembers = useCallback(
+    async (conversationId: string, memberIds: string[]) => {
+      try {
+        const result = await addGroupConversationMembersRequest(
+          conversationId,
+          {
+            memberIds,
+          }
+        )
+        upsertConversation(result.conversation)
+        if (result.message) {
+          mergeIncomingConversationMessage(result.message, { markLoaded: true })
+        }
+        return result.conversation
+      } catch (error) {
+        throw handleError(error, "添加群聊成员失败")
+      }
+    },
+    [handleError, mergeIncomingConversationMessage, upsertConversation]
+  )
+
   const bootstrap = useCallback(async () => {
     const minimumLoading = wait(minimumBootstrapLoadingMs)
 
@@ -663,6 +696,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   }
 
   const value: ClientDataContextValue = {
+    addGroupConversationMembers,
     conversations,
     contacts,
     contactsError,
@@ -703,11 +737,7 @@ function wait(ms: number) {
 }
 
 function getMessageSummary(message: ClientMessage) {
-  if (message.body.type === "text") {
-    return message.body.content
-  }
-
-  return ""
+  return formatClientMessageBodySummary(message.body)
 }
 
 function createConversationMessageState(): ClientConversationMessageState {

@@ -1,5 +1,21 @@
 basePath: /
 definitions:
+  httpserver.addGroupConversationMembersRequest:
+    properties:
+      member_ids:
+        example:
+        - 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        items:
+          type: string
+        type: array
+    type: object
+  httpserver.addGroupConversationMembersResponse:
+    properties:
+      conversation:
+        $ref: '#/definitions/httpserver.conversationListItemResponse'
+      message:
+        $ref: '#/definitions/httpserver.messageResponse'
+    type: object
   httpserver.adminLoginResponse:
     properties:
       admin:
@@ -240,6 +256,21 @@ definitions:
       id:
         example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
         type: string
+      last_message_at:
+        format: date-time
+        type: string
+      last_message_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      last_message_seq:
+        example: 12
+        type: integer
+      last_message_summary:
+        example: 张三 邀请 李四 加入群聊
+        type: string
+      last_read_seq:
+        example: 12
+        type: integer
       member_count:
         example: 3
         type: integer
@@ -259,6 +290,9 @@ definitions:
       type:
         example: group
         type: string
+      unread_count:
+        example: 0
+        type: integer
     type: object
   httpserver.infoSettingsResponse:
     properties:
@@ -1820,6 +1854,58 @@ paths:
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
       summary: 列出当前用户会话
+      tags:
+      - 客户端会话
+  /api/client/conversations/{conversation_id}/members:
+    post:
+      consumes:
+      - application/json
+      description: 普通用户向自己参与的 active 群聊添加成员，并生成一条系统邀请消息。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      - description: 成员信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.addGroupConversationMembersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.addGroupConversationMembersResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 添加群聊成员
       tags:
       - 客户端会话
   /api/client/conversations/{conversation_id}/messages:

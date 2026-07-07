@@ -484,6 +484,50 @@ func requireMessages(t *testing.T, data map[string]any) []any {
 	return messages
 }
 
+func requireGroupMembersInvitedBody(t *testing.T, rawBody json.RawMessage, inviterID string, inviterDisplayName string, inviteeIDs []string, inviteeDisplayNames []string) {
+	t.Helper()
+
+	var body map[string]any
+	if err := json.Unmarshal(rawBody, &body); err != nil {
+		t.Fatalf("unmarshal system body: %v", err)
+	}
+	if body["type"] != "system_event" {
+		t.Fatalf("body.type = %v, want system_event", body["type"])
+	}
+	if body["event"] != "group_members_invited" {
+		t.Fatalf("body.event = %v, want group_members_invited", body["event"])
+	}
+	inviter, ok := body["inviter"].(map[string]any)
+	if !ok {
+		t.Fatalf("body.inviter = %#v, want object", body["inviter"])
+	}
+	if inviter["id"] != inviterID {
+		t.Fatalf("inviter.id = %v, want %s", inviter["id"], inviterID)
+	}
+	if inviter["display_name"] != inviterDisplayName {
+		t.Fatalf("inviter.display_name = %v, want %s", inviter["display_name"], inviterDisplayName)
+	}
+	invitees, ok := body["invitees"].([]any)
+	if !ok {
+		t.Fatalf("body.invitees = %#v, want array", body["invitees"])
+	}
+	if len(invitees) != len(inviteeIDs) {
+		t.Fatalf("invitee count = %d, want %d", len(invitees), len(inviteeIDs))
+	}
+	for i, rawInvitee := range invitees {
+		invitee, ok := rawInvitee.(map[string]any)
+		if !ok {
+			t.Fatalf("invitees[%d] = %#v, want object", i, rawInvitee)
+		}
+		if invitee["id"] != inviteeIDs[i] {
+			t.Fatalf("invitees[%d].id = %v, want %s", i, invitee["id"], inviteeIDs[i])
+		}
+		if invitee["display_name"] != inviteeDisplayNames[i] {
+			t.Fatalf("invitees[%d].display_name = %v, want %s", i, invitee["display_name"], inviteeDisplayNames[i])
+		}
+	}
+}
+
 func requireSuccess(t *testing.T, response map[string]any) map[string]any {
 	t.Helper()
 
@@ -3702,6 +3746,82 @@ func TestCreateGroupConversationCreatesConversationAndMembers(t *testing.T) {
 	}
 }
 
+func TestCreateGroupConversationCreatesSystemInviteMessage(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	creator := insertTestUser(t, db, "creator@example.com", "Creator", store.UserStatusActive, now)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	userCookie := loginAsUser(t, server, creator.Email)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/groups", map[string]any{
+		"name":       "产品讨论组",
+		"member_ids": []string{alice.ID, bob.ID},
+	}, userCookie)
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201, body = %#v", resp.StatusCode, body)
+	}
+	conversation := requireSuccess(t, body)["conversation"].(map[string]any)
+	conversationID := conversation["id"].(string)
+	summary := "Creator 邀请 Alice,Bob 加入群聊"
+	if conversation["last_message_seq"] != float64(1) {
+		t.Fatalf("conversation.last_message_seq = %v, want 1", conversation["last_message_seq"])
+	}
+	if conversation["last_message_summary"] != summary {
+		t.Fatalf("conversation.last_message_summary = %v, want %s", conversation["last_message_summary"], summary)
+	}
+	if conversation["last_read_seq"] != float64(1) {
+		t.Fatalf("conversation.last_read_seq = %v, want 1", conversation["last_read_seq"])
+	}
+	if conversation["unread_count"] != float64(0) {
+		t.Fatalf("conversation.unread_count = %v, want 0", conversation["unread_count"])
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "conversation_id = ? AND seq = ?", conversationID, int64(1)).Error; err != nil {
+		t.Fatalf("find stored system message: %v", err)
+	}
+	if storedMessage.SenderType != store.MessageSenderTypeSystem {
+		t.Fatalf("stored sender_type = %v, want system", storedMessage.SenderType)
+	}
+	if storedMessage.SenderID != nil {
+		t.Fatalf("stored sender_id = %v, want nil", storedMessage.SenderID)
+	}
+	if storedMessage.ClientMessageID != nil {
+		t.Fatalf("stored client_message_id = %v, want nil", storedMessage.ClientMessageID)
+	}
+	if storedMessage.Summary != summary {
+		t.Fatalf("stored summary = %v, want %s", storedMessage.Summary, summary)
+	}
+	requireGroupMembersInvitedBody(t, storedMessage.Body, creator.ID, "Creator", []string{alice.ID, bob.ID}, []string{"Alice", "Bob"})
+
+	var storedConversation store.Conversation
+	if err := db.First(&storedConversation, "id = ?", conversationID).Error; err != nil {
+		t.Fatalf("find stored conversation: %v", err)
+	}
+	if storedConversation.LastMessageID == nil || *storedConversation.LastMessageID != storedMessage.ID {
+		t.Fatalf("last_message_id = %v, want %s", storedConversation.LastMessageID, storedMessage.ID)
+	}
+	if storedConversation.LastMessageSeq != 1 {
+		t.Fatalf("last_message_seq = %d, want 1", storedConversation.LastMessageSeq)
+	}
+	if storedConversation.LastMessageSummary != summary {
+		t.Fatalf("last_message_summary = %v, want %s", storedConversation.LastMessageSummary, summary)
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversationID, creator.ID); got != 1 {
+		t.Fatalf("creator last_read_seq = %d, want 1", got)
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversationID, alice.ID); got != 0 {
+		t.Fatalf("alice last_read_seq = %d, want 0", got)
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversationID, bob.ID); got != 0 {
+		t.Fatalf("bob last_read_seq = %d, want 0", got)
+	}
+}
+
 func TestCreateGroupConversationIgnoresCreatorIDCaseInsensitively(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -3751,6 +3871,253 @@ func TestCreateGroupConversationRejectsDisabledMembers(t *testing.T) {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
 	requireError(t, body, "invalid_request")
+}
+
+func TestAddGroupConversationMembersCreatesMembersAndSystemMessage(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	carol := insertTestUser(t, db, "carol@example.com", "Carol", store.UserStatusActive, now)
+	dave := insertTestUser(t, db, "dave@example.com", "Dave", store.UserStatusActive, now)
+	lastMessageAt := now.Add(-time.Hour)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID:    alice.ID,
+		kind:               store.ConversationKindGroup,
+		lastMessageAt:      &lastMessageAt,
+		lastMessageSeq:     2,
+		lastMessageSummary: "旧消息",
+		memberIDs:          []string{alice.ID, bob.ID},
+		name:               "产品讨论组",
+		now:                now.Add(-2 * time.Hour),
+	})
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID, 2)
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, bob.ID, 1)
+	userCookie := loginAsUser(t, server, alice.Email)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/members", map[string]any{
+		"member_ids": []string{carol.ID, dave.ID, carol.ID},
+	}, userCookie)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	updatedConversation := data["conversation"].(map[string]any)
+	createdMessage := data["message"].(map[string]any)
+	summary := "Alice 邀请 Carol,Dave 加入群聊"
+	if updatedConversation["id"] != conversation.ID {
+		t.Fatalf("conversation.id = %v, want %s", updatedConversation["id"], conversation.ID)
+	}
+	if updatedConversation["member_count"] != float64(4) {
+		t.Fatalf("conversation.member_count = %v, want 4", updatedConversation["member_count"])
+	}
+	if updatedConversation["last_message_seq"] != float64(3) {
+		t.Fatalf("conversation.last_message_seq = %v, want 3", updatedConversation["last_message_seq"])
+	}
+	if updatedConversation["last_message_summary"] != summary {
+		t.Fatalf("conversation.last_message_summary = %v, want %s", updatedConversation["last_message_summary"], summary)
+	}
+	if updatedConversation["last_read_seq"] != float64(3) {
+		t.Fatalf("conversation.last_read_seq = %v, want 3", updatedConversation["last_read_seq"])
+	}
+	if updatedConversation["unread_count"] != float64(0) {
+		t.Fatalf("conversation.unread_count = %v, want 0", updatedConversation["unread_count"])
+	}
+	if createdMessage["conversation_id"] != conversation.ID {
+		t.Fatalf("message.conversation_id = %v, want %s", createdMessage["conversation_id"], conversation.ID)
+	}
+	if createdMessage["seq"] != float64(3) {
+		t.Fatalf("message.seq = %v, want 3", createdMessage["seq"])
+	}
+	sender := createdMessage["sender"].(map[string]any)
+	if sender["type"] != store.MessageSenderTypeSystem {
+		t.Fatalf("message.sender.type = %v, want system", sender["type"])
+	}
+	if _, ok := sender["id"]; ok {
+		t.Fatalf("message.sender.id = %v, want omitted", sender["id"])
+	}
+	messageBody := createdMessage["body"].(map[string]any)
+	if messageBody["type"] != "system_event" {
+		t.Fatalf("message.body.type = %v, want system_event", messageBody["type"])
+	}
+	if messageBody["event"] != "group_members_invited" {
+		t.Fatalf("message.body.event = %v, want group_members_invited", messageBody["event"])
+	}
+
+	var storedMembers []store.ConversationMember
+	if err := db.Where("conversation_id = ?", conversation.ID).Find(&storedMembers).Error; err != nil {
+		t.Fatalf("find stored members: %v", err)
+	}
+	if len(storedMembers) != 4 {
+		t.Fatalf("stored member count = %d, want 4", len(storedMembers))
+	}
+	membersByID := map[string]store.ConversationMember{}
+	for _, member := range storedMembers {
+		membersByID[member.MemberID] = member
+	}
+	for _, memberID := range []string{carol.ID, dave.ID} {
+		member, ok := membersByID[memberID]
+		if !ok {
+			t.Fatalf("missing stored member %s", memberID)
+		}
+		if member.Role != store.ConversationMemberRoleMember {
+			t.Fatalf("member %s role = %v, want member", memberID, member.Role)
+		}
+		if member.HistoryVisibleFromSeq != 3 {
+			t.Fatalf("member %s history_visible_from_seq = %d, want 3", memberID, member.HistoryVisibleFromSeq)
+		}
+		if member.LastReadSeq != 2 {
+			t.Fatalf("member %s last_read_seq = %d, want 2", memberID, member.LastReadSeq)
+		}
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID); got != 3 {
+		t.Fatalf("alice last_read_seq = %d, want 3", got)
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, bob.ID); got != 1 {
+		t.Fatalf("bob last_read_seq = %d, want 1", got)
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "id = ?", createdMessage["id"]).Error; err != nil {
+		t.Fatalf("find stored system message: %v", err)
+	}
+	if storedMessage.Summary != summary {
+		t.Fatalf("stored summary = %v, want %s", storedMessage.Summary, summary)
+	}
+	requireGroupMembersInvitedBody(t, storedMessage.Body, alice.ID, "Alice", []string{carol.ID, dave.ID}, []string{"Carol", "Dave"})
+}
+
+func TestAddGroupConversationMembersNoopsWhenMembersAlreadyExist(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID:    alice.ID,
+		kind:               store.ConversationKindGroup,
+		lastMessageSeq:     4,
+		lastMessageSummary: "旧消息",
+		memberIDs:          []string{alice.ID, bob.ID},
+		name:               "产品讨论组",
+		now:                now,
+	})
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID, 4)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/members", map[string]any{
+		"member_ids": []string{bob.ID},
+	}, loginAsUser(t, server, alice.Email))
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	if data["message"] != nil {
+		t.Fatalf("message = %#v, want nil", data["message"])
+	}
+	updatedConversation := data["conversation"].(map[string]any)
+	if updatedConversation["last_message_seq"] != float64(4) {
+		t.Fatalf("last_message_seq = %v, want 4", updatedConversation["last_message_seq"])
+	}
+
+	var messageCount int64
+	if err := db.Model(&store.Message{}).Where("conversation_id = ?", conversation.ID).Count(&messageCount).Error; err != nil {
+		t.Fatalf("count messages: %v", err)
+	}
+	if messageCount != 0 {
+		t.Fatalf("message count = %d, want 0", messageCount)
+	}
+}
+
+func TestAddGroupConversationMembersReactivatesLeftMember(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	carol := insertTestUser(t, db, "carol@example.com", "Carol", store.UserStatusActive, now)
+	leftAt := now.Add(-30 * time.Minute)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID:    alice.ID,
+		kind:               store.ConversationKindGroup,
+		lastMessageSeq:     5,
+		lastMessageSummary: "旧消息",
+		memberIDs:          []string{alice.ID, bob.ID, carol.ID},
+		memberLeftAtByID:   map[string]*time.Time{carol.ID: &leftAt},
+		name:               "产品讨论组",
+		now:                now.Add(-2 * time.Hour),
+	})
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID, 5)
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, carol.ID, 2)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/members", map[string]any{
+		"member_ids": []string{carol.ID},
+	}, loginAsUser(t, server, alice.Email))
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	updatedConversation := data["conversation"].(map[string]any)
+	createdMessage := data["message"].(map[string]any)
+	summary := "Alice 邀请 Carol 加入群聊"
+	if updatedConversation["member_count"] != float64(3) {
+		t.Fatalf("conversation.member_count = %v, want 3", updatedConversation["member_count"])
+	}
+	if updatedConversation["last_message_seq"] != float64(6) {
+		t.Fatalf("conversation.last_message_seq = %v, want 6", updatedConversation["last_message_seq"])
+	}
+	if updatedConversation["last_message_summary"] != summary {
+		t.Fatalf("conversation.last_message_summary = %v, want %s", updatedConversation["last_message_summary"], summary)
+	}
+	if createdMessage["seq"] != float64(6) {
+		t.Fatalf("message.seq = %v, want 6", createdMessage["seq"])
+	}
+
+	var reactivatedMember store.ConversationMember
+	if err := db.First(
+		&reactivatedMember,
+		"conversation_id = ? AND member_type = ? AND member_id = ?",
+		conversation.ID,
+		store.ConversationMemberTypeUser,
+		carol.ID,
+	).Error; err != nil {
+		t.Fatalf("find reactivated member: %v", err)
+	}
+	if reactivatedMember.LeftAt != nil {
+		t.Fatalf("left_at = %v, want nil", reactivatedMember.LeftAt)
+	}
+	if reactivatedMember.HistoryVisibleFromSeq != 6 {
+		t.Fatalf("history_visible_from_seq = %d, want 6", reactivatedMember.HistoryVisibleFromSeq)
+	}
+	if reactivatedMember.LastReadSeq != 5 {
+		t.Fatalf("last_read_seq = %d, want 5", reactivatedMember.LastReadSeq)
+	}
+	if reactivatedMember.Role != store.ConversationMemberRoleMember {
+		t.Fatalf("role = %v, want member", reactivatedMember.Role)
+	}
+
+	var memberCount int64
+	if err := db.Model(&store.ConversationMember{}).Where("conversation_id = ?", conversation.ID).Count(&memberCount).Error; err != nil {
+		t.Fatalf("count members: %v", err)
+	}
+	if memberCount != 3 {
+		t.Fatalf("stored member row count = %d, want 3", memberCount)
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "id = ?", createdMessage["id"]).Error; err != nil {
+		t.Fatalf("find stored system message: %v", err)
+	}
+	if storedMessage.Summary != summary {
+		t.Fatalf("stored summary = %v, want %s", storedMessage.Summary, summary)
+	}
+	requireGroupMembersInvitedBody(t, storedMessage.Body, alice.ID, "Alice", []string{carol.ID}, []string{"Carol"})
 }
 
 func TestCreateUserRequiresAdminSession(t *testing.T) {

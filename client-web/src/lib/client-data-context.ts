@@ -30,6 +30,10 @@ export type ClientDataContextValue = {
   meError: ClientDataRequestError | null
   meLoading: boolean
   meRefreshing: boolean
+  addGroupConversationMembers: (
+    conversationId: string,
+    memberIds: string[]
+  ) => Promise<ClientConversation>
   createGroupConversation: (
     name: string,
     memberIds: string[]

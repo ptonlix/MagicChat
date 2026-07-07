@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Search, UserPlus } from "lucide-react"
+import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { useClientData } from "@/lib/client-data-context"
@@ -45,9 +46,10 @@ type AddGroupMemberCandidate = Pick<
 export function AddGroupMembersDialog({
   conversation,
 }: AddGroupMembersDialogProps) {
-  const { contacts, me } = useClientData()
+  const { addGroupConversationMembers, contacts, me } = useClientData()
   const [keyword, setKeyword] = React.useState("")
   const [open, setOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
   const existingMemberIds = React.useMemo(
     () => new Set((conversation.members ?? []).map((member) => member.id)),
     [conversation.members]
@@ -75,11 +77,20 @@ export function AddGroupMembersDialog({
       ].some((value) => value.toLowerCase().includes(normalizedKeyword))
     )
   }, [candidates, keyword])
-  const newMemberCount = Array.from(selectedMemberIds).filter(
-    (memberId) => !existingMemberIds.has(memberId)
-  ).length
+  const newMemberIds = React.useMemo(
+    () =>
+      Array.from(selectedMemberIds).filter(
+        (memberId) => !existingMemberIds.has(memberId)
+      ),
+    [existingMemberIds, selectedMemberIds]
+  )
+  const newMemberCount = newMemberIds.length
 
   function handleOpenChange(nextOpen: boolean) {
+    if (submitting) {
+      return
+    }
+
     if (nextOpen) {
       setKeyword("")
       setSelectedMemberIds(new Set(existingMemberIds))
@@ -89,7 +100,7 @@ export function AddGroupMembersDialog({
   }
 
   function toggleMember(candidateId: string, checked: boolean | string) {
-    if (existingMemberIds.has(candidateId)) {
+    if (existingMemberIds.has(candidateId) || submitting) {
       return
     }
 
@@ -113,14 +124,22 @@ export function AddGroupMembersDialog({
     })
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (newMemberCount === 0) {
+    if (newMemberCount === 0 || submitting) {
       return
     }
 
-    setOpen(false)
+    setSubmitting(true)
+    try {
+      await addGroupConversationMembers(conversation.id, newMemberIds)
+      setOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "添加成员失败")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -150,6 +169,7 @@ export function AddGroupMembersDialog({
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="pl-8"
+                disabled={submitting}
                 id="add-group-member-search"
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder="搜索联系人"
@@ -171,7 +191,7 @@ export function AddGroupMembersDialog({
                   <AddGroupMemberItem
                     candidate={candidate}
                     checked={selectedMemberIds.has(candidate.id)}
-                    disabled={existing}
+                    disabled={existing || submitting}
                     key={candidate.id}
                     onCheckedChange={(checked) =>
                       toggleMember(candidate.id, checked)
@@ -188,12 +208,12 @@ export function AddGroupMembersDialog({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button disabled={submitting} type="button" variant="outline">
                 取消
               </Button>
             </DialogClose>
-            <Button disabled={newMemberCount === 0} type="submit">
-              添加
+            <Button disabled={newMemberCount === 0 || submitting} type="submit">
+              {submitting ? "添加中" : "添加"}
             </Button>
           </DialogFooter>
         </form>

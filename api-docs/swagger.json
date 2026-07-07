@@ -2048,6 +2048,89 @@
                 }
             }
         },
+        "/api/client/conversations/{conversation_id}/members": {
+            "post": {
+                "description": "普通用户向自己参与的 active 群聊添加成员，并生成一条系统邀请消息。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "添加群聊成员",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "成员信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.addGroupConversationMembersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.addGroupConversationMembersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/conversations/{conversation_id}/messages": {
             "get": {
                 "description": "普通用户拉取自己参与的 active 会话消息。默认返回最近 20 条，支持 before_seq/after_seq 游标。",
@@ -2602,6 +2685,31 @@
         }
     },
     "definitions": {
+        "httpserver.addGroupConversationMembersRequest": {
+            "type": "object",
+            "properties": {
+                "member_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                    ]
+                }
+            }
+        },
+        "httpserver.addGroupConversationMembersResponse": {
+            "type": "object",
+            "properties": {
+                "conversation": {
+                    "$ref": "#/definitions/httpserver.conversationListItemResponse"
+                },
+                "message": {
+                    "$ref": "#/definitions/httpserver.messageResponse"
+                }
+            }
+        },
         "httpserver.adminLoginResponse": {
             "type": "object",
             "properties": {
@@ -2952,6 +3060,26 @@
                     "type": "string",
                     "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
                 },
+                "last_message_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "last_message_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "last_message_seq": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "last_message_summary": {
+                    "type": "string",
+                    "example": "张三 邀请 李四 加入群聊"
+                },
+                "last_read_seq": {
+                    "type": "integer",
+                    "example": 12
+                },
                 "member_count": {
                     "type": "integer",
                     "example": 3
@@ -2977,6 +3105,10 @@
                 "type": {
                     "type": "string",
                     "example": "group"
+                },
+                "unread_count": {
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },

@@ -95,8 +95,8 @@ export function ChatPage() {
     : undefined
   const activeConversationHasUnreadProgress = Boolean(
     activeConversation &&
-      (activeConversation.unreadCount > 0 ||
-        activeConversation.lastReadSeq < activeConversation.lastMessageSeq)
+    (activeConversation.unreadCount > 0 ||
+      activeConversation.lastReadSeq < activeConversation.lastMessageSeq)
   )
   const historyLoading = Boolean(
     activeConversation &&
@@ -629,13 +629,15 @@ function toConversationPanelMessage(
 ): ConversationPanelMessage {
   const fromMe =
     message.sender.type === "user" && message.sender.id === currentUser.id
+  const role =
+    message.sender.type === "system" ? "system" : fromMe ? "me" : "other"
 
   return {
     author: getMessageAuthor(message, conversation, currentUser, contactsById),
     avatar: getMessageAvatar(message, conversation, currentUser, contactsById),
     body: message.body,
     id: message.id,
-    role: fromMe ? "me" : "other",
+    role,
     senderUserId: message.sender.type === "user" ? message.sender.id : null,
     time: getMessageTime(message.createdAt),
   }

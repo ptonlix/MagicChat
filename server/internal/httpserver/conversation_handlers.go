@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -18,9 +19,25 @@ import (
 const maxGroupConversationMembers = 200
 const maxClientConversationListItems = 100
 
+const (
+	messageTypeSystemEvent              = "system_event"
+	systemEventGroupMembersInvited      = "group_members_invited"
+	groupMembersInvitedSummarySeparator = ","
+)
+
+var (
+	errConversationNotGroup        = errors.New("conversation is not group")
+	errGroupConversationMemberCap  = errors.New("group conversation member cap exceeded")
+	errGroupConversationMemberMiss = errors.New("group conversation member missing")
+)
+
 type createGroupConversationRequest struct {
 	MemberIDs []string `json:"member_ids" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 	Name      string   `json:"name" example:"产品讨论组"`
+}
+
+type addGroupConversationMembersRequest struct {
+	MemberIDs []string `json:"member_ids" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 }
 
 type createDirectConversationRequest struct {
@@ -38,19 +55,30 @@ type conversationMemberResponse struct {
 }
 
 type groupConversationResponse struct {
-	CreatedAt       time.Time                    `json:"created_at" format:"date-time"`
-	CreatedByUserID string                       `json:"created_by_user_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
-	ID              string                       `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
-	MemberCount     int                          `json:"member_count" example:"3"`
-	Members         []conversationMemberResponse `json:"members"`
-	Name            string                       `json:"name" example:"产品讨论组"`
-	PostingPolicy   string                       `json:"posting_policy" example:"open"`
-	Status          string                       `json:"status" example:"active"`
-	Type            string                       `json:"type" example:"group"`
+	CreatedAt          time.Time                    `json:"created_at" format:"date-time"`
+	CreatedByUserID    string                       `json:"created_by_user_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	ID                 string                       `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	LastMessageAt      *time.Time                   `json:"last_message_at" format:"date-time"`
+	LastMessageID      *string                      `json:"last_message_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	LastMessageSeq     int64                        `json:"last_message_seq" example:"12"`
+	LastMessageSummary string                       `json:"last_message_summary" example:"张三 邀请 李四 加入群聊"`
+	LastReadSeq        int64                        `json:"last_read_seq" example:"12"`
+	MemberCount        int                          `json:"member_count" example:"3"`
+	Members            []conversationMemberResponse `json:"members"`
+	Name               string                       `json:"name" example:"产品讨论组"`
+	PostingPolicy      string                       `json:"posting_policy" example:"open"`
+	Status             string                       `json:"status" example:"active"`
+	Type               string                       `json:"type" example:"group"`
+	UnreadCount        int64                        `json:"unread_count" example:"0"`
 }
 
 type createGroupConversationResponse struct {
 	Conversation groupConversationResponse `json:"conversation"`
+}
+
+type addGroupConversationMembersResponse struct {
+	Conversation conversationListItemResponse `json:"conversation"`
+	Message      *messageResponse             `json:"message"`
 }
 
 type createDirectConversationResponse struct {
@@ -91,6 +119,18 @@ type markConversationReadResponse struct {
 type conversationMemberCandidate struct {
 	role string
 	user store.User
+}
+
+type systemEventUserRef struct {
+	DisplayName string `json:"display_name"`
+	ID          string `json:"id"`
+}
+
+type groupMembersInvitedSystemEventBody struct {
+	Event    string               `json:"event"`
+	Invitees []systemEventUserRef `json:"invitees"`
+	Inviter  systemEventUserRef   `json:"inviter"`
+	Type     string               `json:"type"`
 }
 
 // listClientConversations godoc
@@ -336,13 +376,20 @@ func (s *Server) createGroupConversation(c echo.Context) error {
 		})
 	}
 
+	var createdMessage store.Message
+	memberUserIDs := make([]string, 0, len(candidates))
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&conversation).Error; err != nil {
 			return err
 		}
 
+		systemMessageSeq := conversation.LastMessageSeq + 1
 		conversationMembers := make([]store.ConversationMember, 0, len(candidates))
 		for _, candidate := range candidates {
+			lastReadSeq := int64(0)
+			if candidate.user.ID == user.ID {
+				lastReadSeq = systemMessageSeq
+			}
 			conversationMembers = append(conversationMembers, store.ConversationMember{
 				ConversationID:        conversation.ID,
 				MemberType:            store.ConversationMemberTypeUser,
@@ -350,16 +397,113 @@ func (s *Server) createGroupConversation(c echo.Context) error {
 				Role:                  candidate.role,
 				JoinedAt:              now,
 				HistoryVisibleFromSeq: 1,
+				LastReadSeq:           lastReadSeq,
 			})
+			memberUserIDs = append(memberUserIDs, candidate.user.ID)
 		}
 
-		return tx.Create(&conversationMembers).Error
+		if err := tx.Create(&conversationMembers).Error; err != nil {
+			return err
+		}
+
+		message, err := createGroupMembersInvitedSystemMessage(tx, &conversation, user, members, now)
+		if err != nil {
+			return err
+		}
+		createdMessage = message
+		return nil
 	}); err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 
+	s.realtime.SendToUsers(memberUserIDs, realtimeMessageCreatedEvent(newMessageResponse(createdMessage)))
+
 	return success(c, http.StatusCreated, createGroupConversationResponse{
-		Conversation: newGroupConversationResponse(conversation, candidates),
+		Conversation: newGroupConversationResponse(conversation, candidates, user.ID),
+	})
+}
+
+// addGroupConversationMembers godoc
+//
+// @Summary 添加群聊成员
+// @Description 普通用户向自己参与的 active 群聊添加成员，并生成一条系统邀请消息。
+// @Tags 客户端会话
+// @Accept json
+// @Produce json
+// @Param conversation_id path string true "会话 ID"
+// @Param body body addGroupConversationMembersRequest true "成员信息"
+// @Success 200 {object} successEnvelope{data=addGroupConversationMembersResponse}
+// @Failure 400 {object} errorEnvelope
+// @Failure 401 {object} errorEnvelope
+// @Failure 403 {object} errorEnvelope
+// @Failure 404 {object} errorEnvelope
+// @Failure 500 {object} errorEnvelope
+// @Router /api/client/conversations/{conversation_id}/members [post]
+func (s *Server) addGroupConversationMembers(c echo.Context) error {
+	user, ok := currentUser(c)
+	if !ok {
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	conversationID, err := normalizeMessageConversationID(c.Param("conversation_id"))
+	if err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
+	}
+
+	var req addGroupConversationMembersRequest
+	if err := c.Bind(&req); err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", "请求格式错误")
+	}
+
+	memberIDs, err := normalizeGroupMemberIDs(req.MemberIDs, user.ID)
+	if err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
+	}
+	if len(memberIDs) == 0 {
+		return failure(c, http.StatusBadRequest, "invalid_request", "至少选择一名成员")
+	}
+
+	conversation, message, memberUserIDs, err := s.addUserGroupConversationMembers(user, conversationID, memberIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return failure(c, http.StatusNotFound, "not_found", "会话不存在")
+		}
+		if errors.Is(err, errConversationAccessDenied) {
+			return failure(c, http.StatusForbidden, "forbidden", "无权访问会话")
+		}
+		if errors.Is(err, errConversationNotGroup) {
+			return failure(c, http.StatusBadRequest, "invalid_request", "只能向群聊添加成员")
+		}
+		if errors.Is(err, errGroupConversationMemberCap) {
+			return failure(c, http.StatusBadRequest, "invalid_request", "群聊成员不能超过 200 人")
+		}
+		if errors.Is(err, errGroupConversationMemberMiss) {
+			return failure(c, http.StatusBadRequest, "invalid_request", "成员不存在或已禁用")
+		}
+
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	membersByConversationID, usersByID, err := s.loadConversationListMembers([]string{conversation.ID})
+	if err != nil {
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	var messageResponse *messageResponse
+	if message != nil {
+		response := newMessageResponse(*message)
+		messageResponse = &response
+		s.realtime.SendToUsers(memberUserIDs, realtimeMessageCreatedEvent(response))
+	}
+
+	return success(c, http.StatusOK, addGroupConversationMembersResponse{
+		Conversation: newConversationListItemResponse(
+			conversation,
+			user.ID,
+			membersByConversationID[conversation.ID],
+			usersByID,
+		),
+		Message: messageResponse,
 	})
 }
 
@@ -536,6 +680,217 @@ func (s *Server) markUserConversationRead(userID string, conversationID string, 
 	return response, nil
 }
 
+func (s *Server) addUserGroupConversationMembers(currentUser store.User, conversationID string, memberIDs []string) (store.Conversation, *store.Message, []string, error) {
+	var conversation store.Conversation
+	var message *store.Message
+	memberUserIDs := []string{}
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+			return err
+		}
+		if conversation.Status != store.ConversationStatusActive {
+			return errConversationAccessDenied
+		}
+		if conversation.Kind != store.ConversationKindGroup {
+			return errConversationNotGroup
+		}
+
+		var currentMember store.ConversationMember
+		if err := tx.First(
+			&currentMember,
+			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
+			conversationID,
+			store.ConversationMemberTypeUser,
+			currentUser.ID,
+		).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errConversationAccessDenied
+			}
+			return err
+		}
+
+		var existingMembers []store.ConversationMember
+		if err := tx.
+			Where("conversation_id = ? AND member_type = ?", conversationID, store.ConversationMemberTypeUser).
+			Find(&existingMembers).Error; err != nil {
+			return err
+		}
+
+		activeMemberCount := 0
+		membersByID := make(map[string]store.ConversationMember, len(existingMembers))
+		for _, member := range existingMembers {
+			membersByID[member.MemberID] = member
+			if member.LeftAt == nil {
+				activeMemberCount++
+			}
+		}
+
+		newMemberIDs := make([]string, 0, len(memberIDs))
+		reactivatedMemberIDs := make([]string, 0, len(memberIDs))
+		addedMemberIDs := make([]string, 0, len(memberIDs))
+		for _, memberID := range memberIDs {
+			existingMember, ok := membersByID[memberID]
+			if ok && existingMember.LeftAt == nil {
+				continue
+			}
+			addedMemberIDs = append(addedMemberIDs, memberID)
+			if ok {
+				reactivatedMemberIDs = append(reactivatedMemberIDs, memberID)
+				continue
+			}
+			newMemberIDs = append(newMemberIDs, memberID)
+		}
+		if len(addedMemberIDs) == 0 {
+			return nil
+		}
+		if activeMemberCount+len(newMemberIDs)+len(reactivatedMemberIDs) > maxGroupConversationMembers {
+			return errGroupConversationMemberCap
+		}
+
+		addedUsers, err := loadActiveGroupMembers(tx, addedMemberIDs)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errGroupConversationMemberMiss
+			}
+			return err
+		}
+
+		now := time.Now().UTC()
+		systemMessageSeq := conversation.LastMessageSeq + 1
+		if len(reactivatedMemberIDs) > 0 {
+			if err := tx.Model(&store.ConversationMember{}).
+				Where("conversation_id = ? AND member_type = ? AND member_id IN ?", conversationID, store.ConversationMemberTypeUser, reactivatedMemberIDs).
+				Updates(map[string]any{
+					"role":                     store.ConversationMemberRoleMember,
+					"joined_at":                now,
+					"history_visible_from_seq": systemMessageSeq,
+					"left_at":                  nil,
+					"last_read_seq":            conversation.LastMessageSeq,
+				}).Error; err != nil {
+				return err
+			}
+		}
+
+		newUsersByID := make(map[string]store.User, len(addedUsers))
+		for _, addedUser := range addedUsers {
+			newUsersByID[addedUser.ID] = addedUser
+		}
+		conversationMembers := make([]store.ConversationMember, 0, len(newMemberIDs))
+		for _, newMemberID := range newMemberIDs {
+			newUser := newUsersByID[newMemberID]
+			conversationMembers = append(conversationMembers, store.ConversationMember{
+				ConversationID:        conversationID,
+				MemberType:            store.ConversationMemberTypeUser,
+				MemberID:              newUser.ID,
+				Role:                  store.ConversationMemberRoleMember,
+				JoinedAt:              now,
+				HistoryVisibleFromSeq: systemMessageSeq,
+				LastReadSeq:           conversation.LastMessageSeq,
+			})
+		}
+		if len(conversationMembers) > 0 {
+			if err := tx.Create(&conversationMembers).Error; err != nil {
+				return err
+			}
+		}
+
+		createdMessage, err := createGroupMembersInvitedSystemMessage(tx, &conversation, currentUser, addedUsers, now)
+		if err != nil {
+			return err
+		}
+		message = &createdMessage
+
+		if err := advanceConversationMemberReadSeq(tx, conversationID, currentUser.ID, createdMessage.Seq); err != nil {
+			return err
+		}
+
+		ids, err := loadActiveConversationUserIDs(tx, conversationID)
+		if err != nil {
+			return err
+		}
+		memberUserIDs = ids
+		return nil
+	})
+	if err != nil {
+		return store.Conversation{}, nil, nil, err
+	}
+
+	return conversation, message, memberUserIDs, nil
+}
+
+func createGroupMembersInvitedSystemMessage(db *gorm.DB, conversation *store.Conversation, inviter store.User, invitees []store.User, now time.Time) (store.Message, error) {
+	body, summary, err := newGroupMembersInvitedSystemEventBody(inviter, invitees)
+	if err != nil {
+		return store.Message{}, err
+	}
+
+	message := store.Message{
+		ID:             uuid.NewString(),
+		ConversationID: conversation.ID,
+		Seq:            conversation.LastMessageSeq + 1,
+		SenderType:     store.MessageSenderTypeSystem,
+		Body:           body,
+		Summary:        summary,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := db.Create(&message).Error; err != nil {
+		return store.Message{}, err
+	}
+
+	if err := db.Model(&store.Conversation{}).
+		Where("id = ?", conversation.ID).
+		Updates(map[string]any{
+			"last_message_at":      message.CreatedAt,
+			"last_message_id":      message.ID,
+			"last_message_seq":     message.Seq,
+			"last_message_summary": message.Summary,
+			"updated_at":           now,
+		}).Error; err != nil {
+		return store.Message{}, err
+	}
+
+	lastMessageAt := message.CreatedAt
+	conversation.LastMessageAt = &lastMessageAt
+	conversation.LastMessageID = &message.ID
+	conversation.LastMessageSeq = message.Seq
+	conversation.LastMessageSummary = message.Summary
+	conversation.UpdatedAt = now
+
+	return message, nil
+}
+
+func newGroupMembersInvitedSystemEventBody(inviter store.User, invitees []store.User) (json.RawMessage, string, error) {
+	inviteeRefs := make([]systemEventUserRef, 0, len(invitees))
+	inviteeNames := make([]string, 0, len(invitees))
+	for _, invitee := range invitees {
+		displayName := userDisplayName(invitee)
+		inviteeRefs = append(inviteeRefs, systemEventUserRef{
+			DisplayName: displayName,
+			ID:          invitee.ID,
+		})
+		inviteeNames = append(inviteeNames, displayName)
+	}
+
+	inviterDisplayName := userDisplayName(inviter)
+	summary := inviterDisplayName + " 邀请 " + strings.Join(inviteeNames, groupMembersInvitedSummarySeparator) + " 加入群聊"
+	body, err := json.Marshal(groupMembersInvitedSystemEventBody{
+		Event:    systemEventGroupMembersInvited,
+		Invitees: inviteeRefs,
+		Inviter: systemEventUserRef{
+			DisplayName: inviterDisplayName,
+			ID:          inviter.ID,
+		},
+		Type: messageTypeSystemEvent,
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	return body, summary, nil
+}
+
 func orderDirectConversationUserIDs(first string, second string) (string, string) {
 	if first < second {
 		return first, second
@@ -575,8 +930,12 @@ func normalizeGroupMemberIDs(rawIDs []string, creatorID string) ([]string, error
 }
 
 func (s *Server) loadActiveGroupMembers(memberIDs []string) ([]store.User, error) {
+	return loadActiveGroupMembers(s.db, memberIDs)
+}
+
+func loadActiveGroupMembers(db *gorm.DB, memberIDs []string) ([]store.User, error) {
 	var users []store.User
-	if err := s.db.Where("id IN ? AND status = ?", memberIDs, store.UserStatusActive).Find(&users).Error; err != nil {
+	if err := db.Where("id IN ? AND status = ?", memberIDs, store.UserStatusActive).Find(&users).Error; err != nil {
 		return nil, err
 	}
 	if len(users) != len(memberIDs) {
@@ -751,6 +1110,7 @@ func userDisplayName(user store.User) string {
 func newGroupConversationResponse(
 	conversation store.Conversation,
 	members []conversationMemberCandidate,
+	currentUserID string,
 ) groupConversationResponse {
 	responses := make([]conversationMemberResponse, 0, len(members))
 	for _, member := range members {
@@ -773,15 +1133,26 @@ func newGroupConversationResponse(
 		})
 	}
 
+	lastReadSeq := int64(0)
+	if currentUserID == conversation.CreatedByUserID {
+		lastReadSeq = conversation.LastMessageSeq
+	}
+
 	return groupConversationResponse{
-		CreatedAt:       conversation.CreatedAt,
-		CreatedByUserID: conversation.CreatedByUserID,
-		ID:              conversation.ID,
-		MemberCount:     len(responses),
-		Members:         responses,
-		Name:            conversation.Name,
-		PostingPolicy:   conversation.PostingPolicy,
-		Status:          conversation.Status,
-		Type:            conversation.Kind,
+		CreatedAt:          conversation.CreatedAt,
+		CreatedByUserID:    conversation.CreatedByUserID,
+		ID:                 conversation.ID,
+		LastMessageAt:      conversation.LastMessageAt,
+		LastMessageID:      conversation.LastMessageID,
+		LastMessageSeq:     conversation.LastMessageSeq,
+		LastMessageSummary: conversation.LastMessageSummary,
+		LastReadSeq:        lastReadSeq,
+		MemberCount:        len(responses),
+		Members:            responses,
+		Name:               conversation.Name,
+		PostingPolicy:      conversation.PostingPolicy,
+		Status:             conversation.Status,
+		Type:               conversation.Kind,
+		UnreadCount:        unreadCount(conversation.LastMessageSeq, lastReadSeq),
 	}
 }

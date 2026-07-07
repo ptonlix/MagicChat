@@ -92,6 +92,11 @@ type CreateGroupConversationResponse = {
   conversation?: ConversationResponse
 }
 
+type AddGroupConversationMembersResponse = {
+  conversation?: ConversationResponse
+  message?: MessageResponse | null
+}
+
 type MessageSenderResponse = {
   id?: string
   type?: string
@@ -99,11 +104,26 @@ type MessageSenderResponse = {
 
 type TextMessageBodyResponse = {
   content?: string
-  type?: string
+  type?: "text"
 }
 
+type SystemEventUserRefResponse = {
+  display_name?: string
+  id?: string
+}
+
+type GroupMembersInvitedSystemEventBodyResponse = {
+  event?: string
+  invitees?: SystemEventUserRefResponse[]
+  inviter?: SystemEventUserRefResponse
+  type?: "system_event"
+}
+
+type MessageBodyResponse =
+  TextMessageBodyResponse | GroupMembersInvitedSystemEventBodyResponse
+
 type MessageResponse = {
-  body?: TextMessageBodyResponse
+  body?: MessageBodyResponse
   client_message_id?: string
   conversation_id?: string
   created_at?: string
@@ -200,8 +220,23 @@ export type ClientTextMessageBody = {
   type: "text"
 }
 
+export type ClientSystemEventUserRef = {
+  displayName: string
+  id: string
+}
+
+export type ClientGroupMembersInvitedSystemEventBody = {
+  event: "group_members_invited"
+  invitees: ClientSystemEventUserRef[]
+  inviter: ClientSystemEventUserRef
+  type: "system_event"
+}
+
+export type ClientMessageBody =
+  ClientTextMessageBody | ClientGroupMembersInvitedSystemEventBody
+
 export type ClientMessage = {
-  body: ClientTextMessageBody
+  body: ClientMessageBody
   clientMessageId: string
   conversationId: string
   createdAt: string
@@ -247,6 +282,15 @@ export type MarkConversationReadResult = {
 export type CreateGroupConversationInput = {
   memberIds: string[]
   name: string
+}
+
+export type AddGroupConversationMembersInput = {
+  memberIds: string[]
+}
+
+export type AddGroupConversationMembersResult = {
+  conversation: ClientConversation
+  message: ClientMessage | null
 }
 
 export class ClientDataRequestError extends Error {
@@ -426,6 +470,48 @@ export async function createGroupConversation(
   return normalizeConversation(conversation)
 }
 
+export async function addGroupConversationMembers(
+  conversationId: string,
+  input: AddGroupConversationMembersInput,
+  fetcher: ClientDataFetch = fetch
+): Promise<AddGroupConversationMembersResult> {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/members`,
+    {
+      body: JSON.stringify({
+        member_ids: input.memberIds,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<AddGroupConversationMembersResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "添加群聊成员失败")
+  }
+
+  const data = (
+    payload as
+      ClientDataSuccessEnvelope<AddGroupConversationMembersResponse> | undefined
+  )?.data
+
+  if (!data?.conversation) {
+    throw new ClientDataRequestError("添加群聊成员响应格式不正确")
+  }
+
+  return {
+    conversation: normalizeConversation(data.conversation),
+    message: data.message ? normalizeMessage(data.message) : null,
+  }
+}
+
 export async function listConversationMessages(
   conversationId: string,
   options: ListConversationMessagesOptions = {},
@@ -542,9 +628,10 @@ export async function markConversationRead(
   }
 
   return normalizeMarkConversationReadResult(
-    (payload as
-      | ClientDataSuccessEnvelope<MarkConversationReadResponse>
-      | undefined)?.data
+    (
+      payload as
+        ClientDataSuccessEnvelope<MarkConversationReadResponse> | undefined
+    )?.data
   )
 }
 
@@ -557,6 +644,29 @@ export function normalizeMessageCreatedEventPayload(
 
   return normalizeMessage(
     (payload as MessageCreatedEventPayloadResponse).message
+  )
+}
+
+export function formatClientMessageBodySummary(body: ClientMessageBody) {
+  if (body.type === "text") {
+    return body.content
+  }
+
+  return `${body.inviter.displayName} 邀请 ${body.invitees
+    .map((invitee) => invitee.displayName)
+    .join(",")} 加入群聊`
+}
+
+export function isClientMessageInitiatedByUser(
+  message: ClientMessage,
+  userId: string
+) {
+  if (message.sender.type === "user") {
+    return message.sender.id === userId
+  }
+
+  return (
+    message.body.type === "system_event" && message.body.inviter.id === userId
   )
 }
 
@@ -683,11 +793,14 @@ function normalizeConversationType(type: string | undefined) {
 }
 
 function normalizeMessage(message: MessageResponse | undefined): ClientMessage {
+  const senderType = normalizeMessageSenderType(message?.sender?.type)
+  const senderId = message?.sender?.id ?? ""
   if (
     !message?.conversation_id ||
     !message.created_at ||
     !message.id ||
-    !message.sender?.id ||
+    !message.sender ||
+    (senderType !== "system" && !senderId) ||
     typeof message.seq !== "number"
   ) {
     throw new ClientDataRequestError("消息响应格式不正确")
@@ -700,24 +813,66 @@ function normalizeMessage(message: MessageResponse | undefined): ClientMessage {
     createdAt: message.created_at,
     id: message.id,
     sender: {
-      id: message.sender.id,
-      type: normalizeMessageSenderType(message.sender.type),
+      id: senderId,
+      type: senderType,
     },
     seq: message.seq,
   }
 }
 
 function normalizeMessageBody(
-  body: TextMessageBodyResponse | undefined
-): ClientTextMessageBody {
-  if (body?.type !== "text" || typeof body.content !== "string") {
+  body: MessageBodyResponse | undefined
+): ClientMessageBody {
+  if (body?.type === "text" && typeof body.content === "string") {
+    return {
+      content: body.content,
+      type: "text",
+    }
+  }
+
+  if (body?.type === "system_event") {
+    return normalizeSystemEventMessageBody(body)
+  }
+
+  throw new ClientDataRequestError("消息响应格式不正确")
+}
+
+function normalizeSystemEventMessageBody(
+  body: GroupMembersInvitedSystemEventBodyResponse
+): ClientGroupMembersInvitedSystemEventBody {
+  if (
+    body.event !== "group_members_invited" ||
+    !isSystemEventUserRefResponse(body.inviter) ||
+    !Array.isArray(body.invitees)
+  ) {
     throw new ClientDataRequestError("消息响应格式不正确")
   }
 
   return {
-    content: body.content,
-    type: "text",
+    event: "group_members_invited",
+    invitees: body.invitees.map(normalizeSystemEventUserRef),
+    inviter: normalizeSystemEventUserRef(body.inviter),
+    type: "system_event",
   }
+}
+
+function normalizeSystemEventUserRef(
+  userRef: SystemEventUserRefResponse
+): ClientSystemEventUserRef {
+  if (!isSystemEventUserRefResponse(userRef)) {
+    throw new ClientDataRequestError("消息响应格式不正确")
+  }
+
+  return {
+    displayName: userRef.display_name,
+    id: userRef.id,
+  }
+}
+
+function isSystemEventUserRefResponse(
+  userRef: SystemEventUserRefResponse | undefined
+): userRef is Required<SystemEventUserRefResponse> {
+  return Boolean(userRef?.id && userRef.display_name)
 }
 
 function normalizeMessageSenderType(type: string | undefined) {

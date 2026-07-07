@@ -7,6 +7,8 @@ import {
   showBrowserMessageNotification,
 } from "@/lib/browser-notifications"
 import {
+  formatClientMessageBodySummary,
+  isClientMessageInitiatedByUser,
   type ClientConversation,
   type ClientMessage,
   type ClientMessageSender,
@@ -33,7 +35,7 @@ export function ClientMessageNotificationSync() {
     return subscribeRealtimeEvent("message.created", (payload) => {
       try {
         const message = normalizeMessageCreatedEventPayload(payload)
-        if (message.sender.type === "user" && message.sender.id === me.id) {
+        if (isClientMessageInitiatedByUser(message, me.id)) {
           return
         }
         if (
@@ -139,11 +141,9 @@ function getMessageNotificationSenderName({
 }
 
 function getMessageNotificationSummary(message: ClientMessage) {
-  if (message.body.type !== "text") {
-    return "收到一条新消息"
-  }
-
-  const summary = message.body.content.trim().replace(/\s+/g, " ")
+  const summary = formatClientMessageBodySummary(message.body)
+    .trim()
+    .replace(/\s+/g, " ")
 
   return summary || "收到一条新消息"
 }
