@@ -12,6 +12,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	Admin    AdminConfig    `yaml:"admin"`
+	Storage  StorageConfig  `yaml:"storage"`
 }
 
 type ServerConfig struct {
@@ -24,6 +25,28 @@ type DatabaseConfig struct {
 
 type AdminConfig struct {
 	Password string `yaml:"password"`
+}
+
+type StorageConfig struct {
+	Provider        string                 `yaml:"provider"`
+	Endpoint        string                 `yaml:"endpoint"`
+	Region          string                 `yaml:"region"`
+	AccessKeyID     string                 `yaml:"access_key_id"`
+	SecretAccessKey string                 `yaml:"secret_access_key"`
+	ForcePathStyle  bool                   `yaml:"force_path_style"`
+	Buckets         StorageBucketsConfig   `yaml:"buckets"`
+	Lifecycle       StorageLifecycleConfig `yaml:"lifecycle"`
+}
+
+type StorageBucketsConfig struct {
+	Public    string `yaml:"public"`
+	Private   string `yaml:"private"`
+	Temporary string `yaml:"temporary"`
+}
+
+type StorageLifecycleConfig struct {
+	TemporaryExpireDays int32 `yaml:"temporary_expire_days"`
+	AbortMultipartDays  int32 `yaml:"abort_multipart_days"`
 }
 
 func Load() (Config, error) {
@@ -53,6 +76,70 @@ func Load() (Config, error) {
 	if strings.TrimSpace(cfg.Admin.Password) == "" {
 		return Config{}, fmt.Errorf("admin.password is required")
 	}
+	if err := normalizeStorageConfig(&cfg.Storage); err != nil {
+		return Config{}, err
+	}
 
 	return cfg, nil
+}
+
+func normalizeStorageConfig(cfg *StorageConfig) error {
+	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if cfg.Provider == "" {
+		return nil
+	}
+	if cfg.Provider != "s3" {
+		return fmt.Errorf("storage.provider must be s3")
+	}
+
+	cfg.Endpoint = strings.TrimSpace(cfg.Endpoint)
+	cfg.Region = strings.TrimSpace(cfg.Region)
+	cfg.AccessKeyID = strings.TrimSpace(cfg.AccessKeyID)
+	cfg.SecretAccessKey = strings.TrimSpace(cfg.SecretAccessKey)
+	cfg.Buckets.Public = strings.TrimSpace(cfg.Buckets.Public)
+	cfg.Buckets.Private = strings.TrimSpace(cfg.Buckets.Private)
+	cfg.Buckets.Temporary = strings.TrimSpace(cfg.Buckets.Temporary)
+
+	if cfg.Region == "" {
+		cfg.Region = "us-east-1"
+	}
+	if cfg.AccessKeyID == "" {
+		cfg.AccessKeyID = firstNonEmptyEnv("RUSTFS_ACCESS_KEY", "AWS_ACCESS_KEY_ID")
+	}
+	if cfg.SecretAccessKey == "" {
+		cfg.SecretAccessKey = firstNonEmptyEnv("RUSTFS_SECRET_KEY", "AWS_SECRET_ACCESS_KEY")
+	}
+	if cfg.AccessKeyID == "" {
+		return fmt.Errorf("storage.access_key_id is required")
+	}
+	if cfg.SecretAccessKey == "" {
+		return fmt.Errorf("storage.secret_access_key is required")
+	}
+	if cfg.Buckets.Public == "" {
+		return fmt.Errorf("storage.buckets.public is required")
+	}
+	if cfg.Buckets.Private == "" {
+		return fmt.Errorf("storage.buckets.private is required")
+	}
+	if cfg.Buckets.Temporary == "" {
+		return fmt.Errorf("storage.buckets.temporary is required")
+	}
+	if cfg.Lifecycle.TemporaryExpireDays <= 0 {
+		cfg.Lifecycle.TemporaryExpireDays = 180
+	}
+	if cfg.Lifecycle.AbortMultipartDays <= 0 {
+		cfg.Lifecycle.AbortMultipartDays = 7
+	}
+
+	return nil
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }

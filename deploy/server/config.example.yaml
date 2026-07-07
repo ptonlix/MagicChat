@@ -6,3 +6,18 @@ database:
 
 admin:
   password: "change-me"
+
+storage:
+  provider: "s3"
+  endpoint: "http://rustfs:9000"
+  region: "us-east-1"
+  access_key_id: ""
+  secret_access_key: ""
+  force_path_style: true
+  buckets:
+    public: "mygod-public"
+    private: "mygod-private"
+    temporary: "mygod-temporary"
+  lifecycle:
+    temporary_expire_days: 180
+    abort_multipart_days: 7

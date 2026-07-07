@@ -18,14 +18,30 @@ services:
       retries: 10
       start_period: 10s
 
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    command: ["/data"]
+    environment:
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-mygod}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - ./data/rustfs/data:/data
+
   server:
     image: ${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/server:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      rustfs:
+        condition: service_started
     environment:
       CONFIG: /app/config/config.yaml
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-mygod}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me}
     volumes:
       - ./data/server/config:/app/config:ro
       - ./data/server/log:/app/log

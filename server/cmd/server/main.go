@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"app/internal/bootstrap"
 	"app/internal/config"
 	"app/internal/httpserver"
 	"app/internal/store"
@@ -34,13 +35,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	migrationsDir, err := store.FindMigrationsDir()
-	if err != nil {
-		logger.Error("find migrations", "error", err)
-		os.Exit(1)
-	}
-	if err := store.RunPostgresMigrations(db, migrationsDir); err != nil {
-		logger.Error("migrate database", "error", err)
+	if err := bootstrap.Run(context.Background(), db, cfg); err != nil {
+		logger.Error("bootstrap server", "error", err)
 		os.Exit(1)
 	}
 

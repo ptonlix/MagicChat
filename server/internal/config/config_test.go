@@ -37,6 +37,101 @@ admin:
 	if cfg.Admin.Password != "secret-admin-password" {
 		t.Fatalf("Admin.Password = %q", cfg.Admin.Password)
 	}
+	if cfg.Storage.Provider != "" {
+		t.Fatalf("Storage.Provider = %q, want empty", cfg.Storage.Provider)
+	}
+}
+
+func TestLoadReadsStorageConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+database:
+  dsn: "postgres://app:app@localhost:5432/app?sslmode=disable"
+admin:
+  password: "secret-admin-password"
+storage:
+  provider: "s3"
+  endpoint: "http://rustfs:9000"
+  access_key_id: "mygod"
+  secret_access_key: "storage-secret"
+  force_path_style: true
+  buckets:
+    public: "mygod-public"
+    private: "mygod-private"
+    temporary: "mygod-temporary"
+`)
+
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CONFIG", path)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Storage.Provider != "s3" {
+		t.Fatalf("Storage.Provider = %q, want s3", cfg.Storage.Provider)
+	}
+	if cfg.Storage.Endpoint != "http://rustfs:9000" {
+		t.Fatalf("Storage.Endpoint = %q", cfg.Storage.Endpoint)
+	}
+	if cfg.Storage.Region != "us-east-1" {
+		t.Fatalf("Storage.Region = %q, want us-east-1 default", cfg.Storage.Region)
+	}
+	if !cfg.Storage.ForcePathStyle {
+		t.Fatal("Storage.ForcePathStyle = false, want true")
+	}
+	if cfg.Storage.Buckets.Public != "mygod-public" {
+		t.Fatalf("Storage.Buckets.Public = %q", cfg.Storage.Buckets.Public)
+	}
+	if cfg.Storage.Lifecycle.TemporaryExpireDays != 180 {
+		t.Fatalf("Storage.Lifecycle.TemporaryExpireDays = %d, want 180 default", cfg.Storage.Lifecycle.TemporaryExpireDays)
+	}
+	if cfg.Storage.Lifecycle.AbortMultipartDays != 7 {
+		t.Fatalf("Storage.Lifecycle.AbortMultipartDays = %d, want 7 default", cfg.Storage.Lifecycle.AbortMultipartDays)
+	}
+}
+
+func TestLoadReadsStorageCredentialsFromEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+database:
+  dsn: "postgres://app:app@localhost:5432/app?sslmode=disable"
+admin:
+  password: "secret-admin-password"
+storage:
+  provider: "s3"
+  endpoint: "http://rustfs:9000"
+  buckets:
+    public: "mygod-public"
+    private: "mygod-private"
+    temporary: "mygod-temporary"
+`)
+
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CONFIG", path)
+	t.Setenv("RUSTFS_ACCESS_KEY", "env-access-key")
+	t.Setenv("RUSTFS_SECRET_KEY", "env-secret-key")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Storage.AccessKeyID != "env-access-key" {
+		t.Fatalf("Storage.AccessKeyID = %q, want env-access-key", cfg.Storage.AccessKeyID)
+	}
+	if cfg.Storage.SecretAccessKey != "env-secret-key" {
+		t.Fatalf("Storage.SecretAccessKey = %q, want env-secret-key", cfg.Storage.SecretAccessKey)
+	}
 }
 
 func TestLoadRejectsMissingAdminPassword(t *testing.T) {
@@ -86,5 +181,72 @@ admin:
 	}
 	if !strings.Contains(err.Error(), "database.dsn") {
 		t.Fatalf("Load() error = %q, want database.dsn", err.Error())
+	}
+}
+
+func TestLoadRejectsIncompleteStorageConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+database:
+  dsn: "postgres://app:app@localhost:5432/app?sslmode=disable"
+admin:
+  password: "secret-admin-password"
+storage:
+  provider: "s3"
+  access_key_id: "mygod"
+  secret_access_key: "storage-secret"
+  buckets:
+    public: "mygod-public"
+    private: "mygod-private"
+`)
+
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CONFIG", path)
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load() error = nil, want missing temporary bucket error")
+	}
+	if !strings.Contains(err.Error(), "storage.buckets.temporary") {
+		t.Fatalf("Load() error = %q, want storage.buckets.temporary", err.Error())
+	}
+}
+
+func TestLoadRejectsMissingStorageCredentials(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+database:
+  dsn: "postgres://app:app@localhost:5432/app?sslmode=disable"
+admin:
+  password: "secret-admin-password"
+storage:
+  provider: "s3"
+  buckets:
+    public: "mygod-public"
+    private: "mygod-private"
+    temporary: "mygod-temporary"
+`)
+
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CONFIG", path)
+	t.Setenv("RUSTFS_ACCESS_KEY", "")
+	t.Setenv("RUSTFS_SECRET_KEY", "")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load() error = nil, want missing storage access key error")
+	}
+	if !strings.Contains(err.Error(), "storage.access_key_id") {
+		t.Fatalf("Load() error = %q, want storage.access_key_id", err.Error())
 	}
 }
