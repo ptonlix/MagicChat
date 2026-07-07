@@ -10,19 +10,26 @@ import {
   formatClientMessageBodySummary,
   getCurrentClientUser,
   isClientMessageInitiatedByUser,
+  joinGroupConversation as joinGroupConversationRequest,
   listClientContacts,
   listClientConversations,
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
+  openAppConversation as openAppConversationRequest,
   sendConversationFileMessage,
   sendConversationImageMessage,
   sendConversationTextMessage,
+  setGroupConversationPrivate as setGroupConversationPrivateRequest,
+  setGroupConversationPublic as setGroupConversationPublicRequest,
   uploadGroupConversationAvatar as uploadGroupConversationAvatarRequest,
   type ClientConversation,
   type ClientMessage,
   type ClientMessagePage,
   type ClientUser,
+  type ContactApp,
+  type ContactGroup,
   type ContactUser,
+  type GroupConversationActionResult,
   type MarkConversationReadOptions,
 } from "@/lib/client-data-api"
 import {
@@ -59,6 +66,8 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const [conversationMessageStates, setConversationMessageStates] = useState<
     Record<string, ClientConversationMessageState>
   >({})
+  const [contactApps, setContactApps] = useState<ContactApp[]>([])
+  const [contactGroups, setContactGroups] = useState<ContactGroup[]>([])
   const [contacts, setContacts] = useState<ContactUser[]>([])
   const [contactsError, setContactsError] =
     useState<ClientDataRequestError | null>(null)
@@ -91,6 +100,8 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       if (requestError.status === 401 || requestError.code === "unauthorized") {
         setConversations([])
         setConversationMessageStates({})
+        setContactApps([])
+        setContactGroups([])
         setContacts([])
         setMe(null)
         navigate("/login", { replace: true })
@@ -120,13 +131,19 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   }, [handleError, me])
 
   const refreshContacts = useCallback(async () => {
-    const isInitialLoad = contacts.length === 0
+    const isInitialLoad =
+      contacts.length === 0 &&
+      contactApps.length === 0 &&
+      contactGroups.length === 0
     setContactsError(null)
     setContactsLoading(isInitialLoad)
     setContactsRefreshing(!isInitialLoad)
 
     try {
-      setContacts(await listClientContacts())
+      const nextContacts = await listClientContacts()
+      setContactApps(nextContacts.apps)
+      setContactGroups(nextContacts.groups)
+      setContacts(nextContacts.users)
     } catch (error) {
       const requestError = handleError(error, "加载通讯录失败")
       setContactsError(requestError)
@@ -135,7 +152,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       setContactsLoading(false)
       setContactsRefreshing(false)
     }
-  }, [contacts.length, handleError])
+  }, [contactApps.length, contactGroups.length, contacts.length, handleError])
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -625,6 +642,19 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, upsertConversation]
   )
 
+  const openAppConversation = useCallback(
+    async (appId: string) => {
+      try {
+        const conversation = await openAppConversationRequest(appId)
+        upsertConversation(conversation)
+        return conversation
+      } catch (error) {
+        throw handleError(error, "创建应用会话失败")
+      }
+    },
+    [handleError, upsertConversation]
+  )
+
   const createGroupConversation = useCallback(
     async (name: string, memberIds: string[]) => {
       try {
@@ -662,6 +692,61 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, mergeIncomingConversationMessage, upsertConversation]
   )
 
+  const applyGroupConversationAction = useCallback(
+    async (
+      action: () => Promise<GroupConversationActionResult>,
+      fallbackMessage: string
+    ) => {
+      try {
+        const result = await action()
+        upsertConversation(result.conversation)
+        if (result.message) {
+          mergeIncomingConversationMessage(result.message, {
+            markLoaded: true,
+            updateList: false,
+          })
+        }
+        await refreshContacts()
+        return result.conversation
+      } catch (error) {
+        throw handleError(error, fallbackMessage)
+      }
+    },
+    [
+      handleError,
+      mergeIncomingConversationMessage,
+      refreshContacts,
+      upsertConversation,
+    ]
+  )
+
+  const joinGroupConversation = useCallback(
+    async (conversationId: string) =>
+      applyGroupConversationAction(
+        () => joinGroupConversationRequest(conversationId),
+        "加入群聊失败"
+      ),
+    [applyGroupConversationAction]
+  )
+
+  const setGroupConversationPublic = useCallback(
+    async (conversationId: string) =>
+      applyGroupConversationAction(
+        () => setGroupConversationPublicRequest(conversationId),
+        "设置公开群失败"
+      ),
+    [applyGroupConversationAction]
+  )
+
+  const setGroupConversationPrivate = useCallback(
+    async (conversationId: string) =>
+      applyGroupConversationAction(
+        () => setGroupConversationPrivateRequest(conversationId),
+        "取消公开群失败"
+      ),
+    [applyGroupConversationAction]
+  )
+
   const updateGroupConversationAvatar = useCallback(
     async (conversationId: string, file: File) => {
       try {
@@ -691,7 +776,9 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
       await minimumLoading
       setMe(nextMe)
-      setContacts(nextContacts)
+      setContactApps(nextContacts.apps)
+      setContactGroups(nextContacts.groups)
+      setContacts(nextContacts.users)
       setConversations(pinAppConversations(nextConversations))
       setBootstrapState("ready")
     } catch (error) {
@@ -714,6 +801,8 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     setBootstrapState("loading")
     setConversations([])
     setConversationMessageStates({})
+    setContactApps([])
+    setContactGroups([])
     setContactsError(null)
     setContactsLoading(true)
     setContactsRefreshing(false)
@@ -785,6 +874,8 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
   const value: ClientDataContextValue = {
     addGroupConversationMembers,
+    contactApps,
+    contactGroups,
     conversations,
     contacts,
     contactsError,
@@ -794,6 +885,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     ensureConversationMessages,
     getConversation,
     getConversationMessageState,
+    joinGroupConversation,
     loadBeforeConversationMessages,
     markConversationRead,
     handleIncomingConversationMessage,
@@ -802,6 +894,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     meLoading,
     meRefreshing,
     mergeIncomingConversationMessage,
+    openAppConversation,
     openDirectConversation,
     refreshConversations,
     refreshContacts,
@@ -809,6 +902,8 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationFile,
     sendConversationImage,
     sendConversationText,
+    setGroupConversationPrivate,
+    setGroupConversationPublic,
     syncLoadedConversationMessages,
     updateConversationLastMessage,
     updateGroupConversationAvatar,

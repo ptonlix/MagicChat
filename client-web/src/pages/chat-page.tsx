@@ -9,6 +9,7 @@ import {
   type ClientConversation,
   type ClientMessage,
   type ClientUser,
+  type ContactApp,
   type ContactUser,
 } from "@/lib/client-data-api"
 import { formatConversationLastMessageTime } from "@/lib/conversation-format"
@@ -67,6 +68,7 @@ function getMessageTime(createdAt: string) {
 
 export function ChatPage() {
   const {
+    contactApps,
     contacts,
     conversations,
     createGroupConversation,
@@ -113,6 +115,24 @@ export function ChatPage() {
     () => new Map(contacts.map((contact) => [contact.id, contact])),
     [contacts]
   )
+  const contactAppsByLookup = React.useMemo(() => {
+    const appsByLookup = new Map<string, ContactApp>()
+
+    for (const app of contactApps) {
+      appsByLookup.set(app.id, app)
+      appsByLookup.set(app.name, app)
+    }
+
+    return appsByLookup
+  }, [contactApps])
+  const activeConversationOnline = activeConversation
+    ? getConversationOnlineStatus(
+        activeConversation,
+        me.id,
+        contactsById,
+        contactAppsByLookup
+      )
+    : undefined
   const activeMessages = React.useMemo(
     () =>
       activeConversation
@@ -335,6 +355,7 @@ export function ChatPage() {
 
       <ConversationPanel
         conversation={activeConversation}
+        conversationOnline={activeConversationOnline}
         draft={draft}
         historyError={activeMessageState?.error ?? null}
         historyLoading={historyLoading}
@@ -719,6 +740,30 @@ function getMessageAuthor(
   }
 
   return "成员"
+}
+
+function getConversationOnlineStatus(
+  conversation: ClientConversation,
+  currentUserId: string,
+  contactsById: ReadonlyMap<string, ContactUser>,
+  contactAppsByLookup: ReadonlyMap<string, ContactApp>
+) {
+  if (conversation.type === "direct") {
+    const otherMember = conversation.members?.find(
+      (member) => member.id !== currentUserId
+    )
+
+    return otherMember ? contactsById.get(otherMember.id)?.online ?? false : false
+  }
+
+  if (conversation.type === "app") {
+    return (
+      contactAppsByLookup.get(conversation.id)?.online ??
+      contactAppsByLookup.get(conversation.name)?.online
+    )
+  }
+
+  return undefined
 }
 
 function formatMessageUserName(user: { name: string; nickname: string }) {

@@ -27,9 +27,15 @@ import {
   ExpressionPicker,
   type ExpressionItem,
 } from "@/components/expression-picker"
+import { GroupAvatar } from "@/components/group-avatar"
 import { MessageAttachment } from "@/components/message-attachment"
 import { MessageImage } from "@/components/message-image"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MessageActionMenu } from "@/components/message-action-menu"
@@ -65,6 +71,7 @@ const maxFileMessageUploadBytes = 20 * 1024 * 1024
 
 type ConversationPanelProps = {
   conversation: ClientConversation | null
+  conversationOnline?: boolean
   draft: string
   historyError: string | null
   historyLoading: boolean
@@ -80,6 +87,7 @@ type ConversationPanelProps = {
 
 export function ConversationPanel({
   conversation,
+  conversationOnline,
   draft,
   historyError,
   historyLoading,
@@ -102,7 +110,10 @@ export function ConversationPanel({
     >
       {conversation ? (
         <>
-          <ConversationPanelHeader conversation={conversation} />
+          <ConversationPanelHeader
+            conversation={conversation}
+            online={conversationOnline}
+          />
           <ConversationPanelHistory
             conversation={conversation}
             error={historyError}
@@ -130,19 +141,24 @@ export function ConversationPanel({
 
 function ConversationPanelHeader({
   conversation,
+  online,
 }: {
   conversation: ClientConversation
+  online?: boolean
 }) {
   return (
     <header
       className="flex h-14 shrink-0 items-center justify-between border-b px-5"
       data-testid="conversation-panel-header"
     >
-      <div className="min-w-0 pr-3">
-        <h2 className="truncate text-base font-medium">{conversation.name}</h2>
-        <p className="truncate text-xs text-muted-foreground">
-          {getConversationHeaderDescription(conversation)}
-        </p>
+      <div className="flex min-w-0 items-center gap-3 pr-3">
+        <ConversationPanelHeaderAvatar
+          conversation={conversation}
+          online={online}
+        />
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-medium">{conversation.name}</h2>
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {conversation.type === "group" && (
@@ -171,6 +187,50 @@ function ConversationPanelHeader({
         </ConversationInfoDrawer>
       </div>
     </header>
+  )
+}
+
+function ConversationPanelHeaderAvatar({
+  conversation,
+  online,
+}: {
+  conversation: ClientConversation
+  online?: boolean
+}) {
+  if (conversation.type === "group") {
+    return (
+      <GroupAvatar
+        avatar={conversation.avatar}
+        className="size-8"
+        members={conversation.members}
+        name={conversation.name}
+      />
+    )
+  }
+
+  return (
+    <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
+      {conversation.avatar && (
+        <AvatarImage
+          alt={conversation.name}
+          className="rounded-sm"
+          src={conversation.avatar}
+        />
+      )}
+      <AvatarFallback className="rounded-sm">
+        {getConversationInitial(conversation.name)}
+      </AvatarFallback>
+      {online !== undefined && <ConversationAvatarBadge online={online} />}
+    </Avatar>
+  )
+}
+
+function ConversationAvatarBadge({ online }: { online: boolean }) {
+  return (
+    <AvatarBadge
+      aria-label={online ? "在线" : "离线"}
+      className={online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"}
+    />
   )
 }
 
@@ -815,17 +875,6 @@ function MessageBodyRenderer({
 
 function TextMessageBody({ content }: { content: string }) {
   return <span className="break-words whitespace-pre-wrap">{content}</span>
-}
-
-function getConversationHeaderDescription(conversation: ClientConversation) {
-  if (conversation.type === "direct") {
-    return "私聊"
-  }
-  if (conversation.type === "app") {
-    return "应用"
-  }
-
-  return `${conversation.memberCount} 人群聊`
 }
 
 function getConversationInitial(name: string) {

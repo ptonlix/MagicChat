@@ -54,7 +54,28 @@ type ContactUserResponse = {
 }
 
 type ListClientContactsResponse = {
-  contacts?: ContactUserResponse[]
+  apps?: ContactAppResponse[]
+  groups?: ContactGroupResponse[]
+  users?: ContactUserResponse[]
+}
+
+type ContactAppResponse = {
+  avatar?: string
+  description?: string
+  id?: string
+  name?: string
+  online?: boolean
+  type?: string
+}
+
+type ContactGroupResponse = {
+  avatar?: string
+  id?: string
+  joined?: boolean
+  member_count?: number
+  name?: string
+  type?: string
+  visibility?: string
 }
 
 type ConversationResponse = {
@@ -71,6 +92,7 @@ type ConversationResponse = {
   name?: string
   type?: string
   unread_count?: number
+  visibility?: string
 }
 
 type ConversationMemberResponse = {
@@ -92,11 +114,21 @@ type CreateDirectConversationResponse = {
   created?: boolean
 }
 
+type CreateAppConversationResponse = {
+  conversation?: ConversationResponse
+  created?: boolean
+}
+
 type CreateGroupConversationResponse = {
   conversation?: ConversationResponse
 }
 
 type AddGroupConversationMembersResponse = {
+  conversation?: ConversationResponse
+  message?: MessageResponse | null
+}
+
+type GroupConversationActionResponse = {
   conversation?: ConversationResponse
   message?: MessageResponse | null
 }
@@ -134,7 +166,7 @@ type SystemEventUserRefResponse = {
 }
 
 type GroupMembersInvitedSystemEventBodyResponse = {
-  event?: string
+  event?: "group_members_invited"
   invitees?: SystemEventUserRefResponse[]
   inviter?: SystemEventUserRefResponse
   type?: "system_event"
@@ -142,7 +174,20 @@ type GroupMembersInvitedSystemEventBodyResponse = {
 
 type GroupAvatarUpdatedSystemEventBodyResponse = {
   actor?: SystemEventUserRefResponse
-  event?: string
+  event?: "group_avatar_updated"
+  type?: "system_event"
+}
+
+type GroupVisibilityChangedSystemEventBodyResponse = {
+  actor?: SystemEventUserRefResponse
+  event?: "group_visibility_changed"
+  type?: "system_event"
+  visibility?: string
+}
+
+type GroupMemberJoinedSystemEventBodyResponse = {
+  actor?: SystemEventUserRefResponse
+  event?: "group_member_joined"
   type?: "system_event"
 }
 
@@ -152,6 +197,8 @@ type MessageBodyResponse =
   | ImageMessageBodyResponse
   | GroupMembersInvitedSystemEventBodyResponse
   | GroupAvatarUpdatedSystemEventBodyResponse
+  | GroupVisibilityChangedSystemEventBodyResponse
+  | GroupMemberJoinedSystemEventBodyResponse
 
 type MessageResponse = {
   body?: MessageBodyResponse
@@ -224,6 +271,31 @@ export type ContactUser = {
   type: "user"
 }
 
+export type ContactApp = {
+  avatar: string
+  description: string
+  id: string
+  name: string
+  online: boolean
+  type: "app"
+}
+
+export type ContactGroup = {
+  avatar: string
+  id: string
+  joined: boolean
+  memberCount: number
+  name: string
+  type: "group"
+  visibility: "private" | "public"
+}
+
+export type ClientContacts = {
+  apps: ContactApp[]
+  groups: ContactGroup[]
+  users: ContactUser[]
+}
+
 export type ClientConversation = {
   avatar: string
   createdAt: string
@@ -238,6 +310,7 @@ export type ClientConversation = {
   name: string
   type: "direct" | "group" | "app"
   unreadCount: number
+  visibility: "private" | "public"
 }
 
 export type ClientConversationMember = {
@@ -291,12 +364,27 @@ export type ClientGroupAvatarUpdatedSystemEventBody = {
   type: "system_event"
 }
 
+export type ClientGroupVisibilityChangedSystemEventBody = {
+  actor: ClientSystemEventUserRef
+  event: "group_visibility_changed"
+  type: "system_event"
+  visibility: "private" | "public"
+}
+
+export type ClientGroupMemberJoinedSystemEventBody = {
+  actor: ClientSystemEventUserRef
+  event: "group_member_joined"
+  type: "system_event"
+}
+
 export type ClientMessageBody =
   | ClientTextMessageBody
   | ClientFileMessageBody
   | ClientImageMessageBody
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
+  | ClientGroupVisibilityChangedSystemEventBody
+  | ClientGroupMemberJoinedSystemEventBody
 
 export type ClientMessage = {
   body: ClientMessageBody
@@ -371,6 +459,11 @@ export type AddGroupConversationMembersInput = {
 }
 
 export type AddGroupConversationMembersResult = {
+  conversation: ClientConversation
+  message: ClientMessage | null
+}
+
+export type GroupConversationActionResult = {
   conversation: ClientConversation
   message: ClientMessage | null
 }
@@ -471,7 +564,7 @@ export async function uploadCurrentClientAvatar(
 }
 
 export async function listClientContacts(fetcher: ClientDataFetch = fetch) {
-  const response = await fetcher("/api/client/contacts/users", {
+  const response = await fetcher("/api/client/contacts", {
     credentials: "include",
     method: "GET",
   })
@@ -484,15 +577,19 @@ export async function listClientContacts(fetcher: ClientDataFetch = fetch) {
     throw createRequestError(payload, response, "加载通讯录失败")
   }
 
-  const contacts = (
+  const data = (
     payload as ClientDataSuccessEnvelope<ListClientContactsResponse> | undefined
-  )?.data?.contacts
+  )?.data
 
-  if (!contacts) {
+  if (!data || !Array.isArray(data.apps) || !Array.isArray(data.groups) || !Array.isArray(data.users)) {
     throw new ClientDataRequestError("通讯录响应格式不正确")
   }
 
-  return contacts.map(normalizeContactUser)
+  return {
+    apps: data.apps.map(normalizeContactApp),
+    groups: data.groups.map(normalizeContactGroup),
+    users: data.users.map(normalizeContactUser),
+  }
 }
 
 export async function listClientConversations(
@@ -554,6 +651,36 @@ export async function createDirectConversation(
   return normalizeConversation(conversation)
 }
 
+export async function openAppConversation(
+  appId: string,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher("/api/client/conversations/apps", {
+    body: JSON.stringify({
+      app_id: appId,
+    }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  })
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<CreateAppConversationResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "创建应用会话失败")
+  }
+
+  const conversation = (
+    payload as ClientDataSuccessEnvelope<CreateAppConversationResponse> | undefined
+  )?.data?.conversation
+
+  return normalizeConversation(conversation)
+}
+
 export async function createGroupConversation(
   input: CreateGroupConversationInput,
   fetcher: ClientDataFetch = fetch
@@ -584,6 +711,71 @@ export async function createGroupConversation(
   )?.data?.conversation
 
   return normalizeConversation(conversation)
+}
+
+export async function joinGroupConversation(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch
+): Promise<GroupConversationActionResult> {
+  return postGroupConversationAction(
+    `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/join`,
+    "加入群聊失败",
+    fetcher
+  )
+}
+
+export async function setGroupConversationPublic(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch
+): Promise<GroupConversationActionResult> {
+  return postGroupConversationAction(
+    `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/public`,
+    "设置公开群失败",
+    fetcher
+  )
+}
+
+export async function setGroupConversationPrivate(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch
+): Promise<GroupConversationActionResult> {
+  return postGroupConversationAction(
+    `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/private`,
+    "取消公开群失败",
+    fetcher
+  )
+}
+
+async function postGroupConversationAction(
+  url: string,
+  fallbackMessage: string,
+  fetcher: ClientDataFetch
+): Promise<GroupConversationActionResult> {
+  const response = await fetcher(url, {
+    credentials: "include",
+    method: "POST",
+  })
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<GroupConversationActionResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, fallbackMessage)
+  }
+
+  const data = (
+    payload as ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined
+  )?.data
+
+  if (!data?.conversation) {
+    throw new ClientDataRequestError("群聊操作响应格式不正确")
+  }
+
+  return {
+    conversation: normalizeConversation(data.conversation),
+    message: data.message ? normalizeMessage(data.message) : null,
+  }
 }
 
 export async function addGroupConversationMembers(
@@ -954,6 +1146,18 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
     return `${body.actor.displayName} 修改了群头像`
   }
 
+  if (body.event === "group_visibility_changed") {
+    if (body.visibility === "public") {
+      return `${body.actor.displayName} 将当前群设置为公开群`
+    }
+
+    return `${body.actor.displayName} 将当前群设为私有群`
+  }
+
+  if (body.event === "group_member_joined") {
+    return `${body.actor.displayName} 加入群聊`
+  }
+
   return `${body.inviter.displayName} 邀请 ${body.invitees
     .map((invitee) => invitee.displayName)
     .join(",")} 加入群聊`
@@ -972,6 +1176,13 @@ export function isClientMessageInitiatedByUser(
   }
 
   if (message.body.event === "group_avatar_updated") {
+    return message.body.actor.id === userId
+  }
+
+  if (
+    message.body.event === "group_visibility_changed" ||
+    message.body.event === "group_member_joined"
+  ) {
     return message.body.actor.id === userId
   }
 
@@ -1016,6 +1227,41 @@ function normalizeContactUser(
   }
 }
 
+function normalizeContactApp(
+  app: ContactAppResponse | undefined
+): ContactApp {
+  if (!app?.id || !app.name) {
+    throw new ClientDataRequestError("通讯录响应格式不正确")
+  }
+
+  return {
+    avatar: app.avatar ?? "",
+    description: app.description ?? "",
+    id: app.id,
+    name: app.name,
+    online: Boolean(app.online),
+    type: "app",
+  }
+}
+
+function normalizeContactGroup(
+  group: ContactGroupResponse | undefined
+): ContactGroup {
+  if (!group?.id || !group.name) {
+    throw new ClientDataRequestError("通讯录响应格式不正确")
+  }
+
+  return {
+    avatar: group.avatar ?? "",
+    id: group.id,
+    joined: Boolean(group.joined),
+    memberCount: group.member_count ?? 0,
+    name: group.name,
+    type: "group",
+    visibility: normalizeVisibility(group.visibility),
+  }
+}
+
 function normalizeConversation(
   conversation: ConversationResponse | undefined
 ): ClientConversation {
@@ -1036,6 +1282,7 @@ function normalizeConversation(
     name: conversation.name,
     type: normalizeConversationType(conversation.type),
     unreadCount: conversation.unread_count ?? 0,
+    visibility: normalizeVisibility(conversation.visibility),
   }
 
   if (conversation.members) {
@@ -1171,9 +1418,13 @@ function normalizeSystemEventMessageBody(
   body:
     | GroupMembersInvitedSystemEventBodyResponse
     | GroupAvatarUpdatedSystemEventBodyResponse
+    | GroupVisibilityChangedSystemEventBodyResponse
+    | GroupMemberJoinedSystemEventBodyResponse
 ):
   | ClientGroupMembersInvitedSystemEventBody
-  | ClientGroupAvatarUpdatedSystemEventBody {
+  | ClientGroupAvatarUpdatedSystemEventBody
+  | ClientGroupVisibilityChangedSystemEventBody
+  | ClientGroupMemberJoinedSystemEventBody {
   if (body.event === "group_avatar_updated") {
     if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
       throw new ClientDataRequestError("消息响应格式不正确")
@@ -1182,6 +1433,31 @@ function normalizeSystemEventMessageBody(
     return {
       actor: normalizeSystemEventUserRef(body.actor),
       event: "group_avatar_updated",
+      type: "system_event",
+    }
+  }
+
+  if (body.event === "group_visibility_changed") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_visibility_changed",
+      type: "system_event",
+      visibility: normalizeVisibility(body.visibility),
+    }
+  }
+
+  if (body.event === "group_member_joined") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_member_joined",
       type: "system_event",
     }
   }
@@ -1202,6 +1478,14 @@ function normalizeSystemEventMessageBody(
     inviter: normalizeSystemEventUserRef(body.inviter),
     type: "system_event",
   }
+}
+
+function normalizeVisibility(value: string | undefined) {
+  if (value === "public") {
+    return "public"
+  }
+
+  return "private"
 }
 
 function normalizeSystemEventUserRef(

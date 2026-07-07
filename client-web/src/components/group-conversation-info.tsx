@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import { Camera, LogOut, X } from "lucide-react"
+import { Camera, Globe2, Lock, LogOut, X } from "lucide-react"
 import { toast } from "sonner"
 
 import type { ClientConversationMember } from "@/lib/client-data-api"
@@ -11,6 +11,16 @@ import {
 } from "@/components/custom-avatar-picker"
 import { GroupAvatar } from "@/components/group-avatar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -34,10 +44,20 @@ type GroupConversationInfoProps = {
 export function GroupConversationInfo({
   conversationId,
 }: GroupConversationInfoProps) {
-  const { getConversation, me, updateGroupConversationAvatar } = useClientData()
+  const {
+    getConversation,
+    me,
+    setGroupConversationPrivate,
+    setGroupConversationPublic,
+    updateGroupConversationAvatar,
+  } = useClientData()
   const conversation = getConversation(conversationId)
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
+  const [visibilitySaving, setVisibilitySaving] = useState(false)
+  const [visibilityTarget, setVisibilityTarget] = useState<
+    "private" | "public" | null
+  >(null)
   const [draftAvatarOverride, setDraftAvatarOverride] = useState<{
     avatar: string
     baseAvatar: string
@@ -64,6 +84,8 @@ export function GroupConversationInfo({
   )
   const currentMember = members.find((member) => member.id === me.id)
   const canChangeAvatar = canManageGroupAvatar(currentMember?.role)
+  const canChangeVisibility = currentMember?.role === "owner"
+  const isPublicGroup = activeConversation.visibility === "public"
   const conversationAvatar = activeConversation.avatar
   const draftAvatar =
     draftAvatarOverride?.conversationId === activeConversation.id &&
@@ -93,6 +115,28 @@ export function GroupConversationInfo({
       toast.error(getErrorMessage(error, "上传群头像失败"))
     } finally {
       setAvatarSaving(false)
+    }
+  }
+
+  async function handleVisibilityChange(target: "private" | "public") {
+    if (!canChangeVisibility || visibilitySaving) {
+      return
+    }
+
+    setVisibilitySaving(true)
+    try {
+      if (target === "public") {
+        await setGroupConversationPublic(activeConversation.id)
+        toast.success("已设置为公开群")
+      } else {
+        await setGroupConversationPrivate(activeConversation.id)
+        toast.success("已取消公开群")
+      }
+      setVisibilityTarget(null)
+    } catch (error) {
+      toast.error(getErrorMessage(error, "更新群公开状态失败"))
+    } finally {
+      setVisibilitySaving(false)
     }
   }
 
@@ -170,11 +214,70 @@ export function GroupConversationInfo({
         </DialogContent>
       </Dialog>
       <SheetFooter className="border-t">
+        {canChangeVisibility && (
+          <Button
+            disabled={visibilitySaving}
+            onClick={() =>
+              setVisibilityTarget(isPublicGroup ? "private" : "public")
+            }
+            type="button"
+            variant="outline"
+          >
+            {isPublicGroup ? (
+              <Lock aria-hidden="true" className="size-4" />
+            ) : (
+              <Globe2 aria-hidden="true" className="size-4" />
+            )}
+            {isPublicGroup ? "取消公开群" : "设置为公开群"}
+          </Button>
+        )}
         <Button type="button" variant="destructive">
           <LogOut aria-hidden="true" className="size-4" />
           退出群聊
         </Button>
       </SheetFooter>
+      <AlertDialog
+        open={visibilityTarget !== null}
+        onOpenChange={(open) => {
+          if (!visibilitySaving && !open) {
+            setVisibilityTarget(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {visibilityTarget === "private" ? "取消公开群" : "设置为公开群"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {visibilityTarget === "private"
+                ? "取消公开后，未加入的用户将不能再从通讯录加入这个群。"
+                : "公开以后任何用户都可以加入这个群。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={visibilitySaving}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={visibilitySaving}
+              onClick={(event) => {
+                event.preventDefault()
+                if (visibilityTarget) {
+                  void handleVisibilityChange(visibilityTarget)
+                }
+              }}
+            >
+              {visibilitySaving && (
+                <span className="mr-1 inline-flex">
+                  <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                </span>
+              )}
+              确定
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

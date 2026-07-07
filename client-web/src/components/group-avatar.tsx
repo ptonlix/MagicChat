@@ -1,3 +1,5 @@
+import { UsersRound } from "lucide-react"
+
 import type { ClientConversationMember } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -26,7 +28,7 @@ export function GroupAvatar({
   members = [],
   name,
 }: GroupAvatarProps) {
-  const entries = buildGroupAvatarEntries(members, name)
+  const entries = buildGroupAvatarEntries(members)
 
   return (
     <Avatar
@@ -37,16 +39,22 @@ export function GroupAvatar({
         aria-label={name}
         className="overflow-hidden rounded-sm bg-muted p-0"
       >
-        <div className="relative size-full p-0.5">
-          {entries.map((entry, index) => (
-            <GroupAvatarTile
-              key={`${entry.displayName}-${index}`}
-              avatar={entry.avatar}
-              displayName={entry.displayName}
-              placement={getTilePlacement(index, entries.length)}
-            />
-          ))}
-        </div>
+        {entries.length > 0 ? (
+          <div className="relative size-full p-0.5">
+            {entries.map((entry, index) => (
+              <GroupAvatarTile
+                key={`${entry.displayName}-${index}`}
+                avatar={entry.avatar}
+                displayName={entry.displayName}
+                placement={getTilePlacement(index, entries.length)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <UsersRound className="size-1/2 text-muted-foreground" />
+          </div>
+        )}
       </AvatarFallback>
     </Avatar>
   )
@@ -82,10 +90,7 @@ function GroupAvatarTile({
   )
 }
 
-function buildGroupAvatarEntries(
-  members: GroupAvatarMember[],
-  groupName: string
-) {
+function buildGroupAvatarEntries(members: GroupAvatarMember[]) {
   const entries = members
     .map((member, index) => ({ index, member }))
     .sort((left, right) => {
@@ -103,13 +108,6 @@ function buildGroupAvatarEntries(
       displayName: getMemberDisplayName(member),
     }))
     .slice(0, 4)
-
-  if (entries.length === 0) {
-    entries.push({
-      avatar: "",
-      displayName: groupName,
-    })
-  }
 
   return entries
 }

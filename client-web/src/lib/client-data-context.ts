@@ -7,6 +7,8 @@ import {
   type ClientMessage,
   type ClientMessagePage,
   type ClientUser,
+  type ContactApp,
+  type ContactGroup,
   type ContactUser,
 } from "@/lib/client-data-api"
 
@@ -21,6 +23,8 @@ export type ClientConversationMessageState = {
 }
 
 export type ClientDataContextValue = {
+  contactApps: ContactApp[]
+  contactGroups: ContactGroup[]
   conversations: ClientConversation[]
   contacts: ContactUser[]
   contactsError: ClientDataRequestError | null
@@ -57,6 +61,16 @@ export type ClientDataContextValue = {
     options?: { markLoaded?: boolean; updateList?: boolean }
   ) => void
   openDirectConversation: (userId: string) => Promise<ClientConversation>
+  openAppConversation: (appId: string) => Promise<ClientConversation>
+  joinGroupConversation: (
+    conversationId: string
+  ) => Promise<ClientConversation>
+  setGroupConversationPublic: (
+    conversationId: string
+  ) => Promise<ClientConversation>
+  setGroupConversationPrivate: (
+    conversationId: string
+  ) => Promise<ClientConversation>
   refreshConversations: () => Promise<void>
   refreshContacts: () => Promise<void>
   refreshMe: () => Promise<void>
