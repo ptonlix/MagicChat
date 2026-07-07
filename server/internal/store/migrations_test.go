@@ -7,16 +7,22 @@ import (
 	"testing"
 )
 
-func TestMigrationDirectoryContainsOnlyInitialSchema(t *testing.T) {
+func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	matches, err := filepath.Glob("../../migrations/*.sql")
 	if err != nil {
 		t.Fatalf("glob migrations: %v", err)
 	}
-	if len(matches) != 1 {
-		t.Fatalf("migration file count = %d, want 1: %v", len(matches), matches)
+	want := []string{
+		"00001_init_schema.sql",
+		"00002_add_conversation_member_last_read_seq.sql",
 	}
-	if got := filepath.Base(matches[0]); got != "00001_init_schema.sql" {
-		t.Fatalf("migration file = %q, want 00001_init_schema.sql", got)
+	if len(matches) != len(want) {
+		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
+	}
+	for index, match := range matches {
+		if got := filepath.Base(match); got != want[index] {
+			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
 	}
 }
 

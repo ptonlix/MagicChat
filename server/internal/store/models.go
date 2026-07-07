@@ -113,6 +113,7 @@ type ConversationMember struct {
 	HistoryVisibleFromSeq int64        `gorm:"not null;default:1"`
 	LeftAt                *time.Time   `gorm:"index"`
 	LastReadMessageID     *string      `gorm:"type:uuid"`
+	LastReadSeq           int64        `gorm:"not null;default:0"`
 }
 
 type Message struct {
