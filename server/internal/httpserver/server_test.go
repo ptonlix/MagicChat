@@ -3341,6 +3341,9 @@ func TestAdminCanManageApps(t *testing.T) {
 	if goddessApp["connection_status"] != "offline" {
 		t.Fatalf("goddess connection_status = %v, want offline", goddessApp["connection_status"])
 	}
+	if goddessApp["websocket_url"] != config.DefaultGoddessWebSocketURL {
+		t.Fatalf("goddess websocket_url = %v, want %s", goddessApp["websocket_url"], config.DefaultGoddessWebSocketURL)
+	}
 	if goddessApp["system"] != true {
 		t.Fatalf("goddess system = %v, want true", goddessApp["system"])
 	}

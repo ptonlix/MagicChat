@@ -7,6 +7,10 @@ database:
 admin:
   password: "change-me"
 
+apps:
+  goddess_secret: "change-me"
+  goddess_websocket_url: "ws://goddess-server:20090/ws"
+
 storage:
   provider: "s3"
   endpoint: "http://rustfs:9000"

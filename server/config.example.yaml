@@ -4,6 +4,10 @@ database:
 admin:
   password: "change-me"
 
+apps:
+  goddess_secret: "change-me"
+  goddess_websocket_url: "ws://localhost:20090/ws"
+
 storage:
   provider: "s3"
   endpoint: "http://localhost:9000"

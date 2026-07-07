@@ -30,6 +30,19 @@ services:
     volumes:
       - ./data/rustfs/data:/data
 
+  goddess-server:
+    image: ${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/goddess-server:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      ADDR: :20090
+      APP_SECRET: ${GODDESS_APP_SECRET:-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:20090/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   server:
     image: ${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/server:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -38,12 +51,15 @@ services:
         condition: service_healthy
       rustfs:
         condition: service_started
+      goddess-server:
+        condition: service_healthy
     environment:
       CONFIG: /app/config/config.yaml
       CLIENT_HOSTNAME: ${CLIENT_HOSTNAME:-client.localhost}
       ADMIN_HOSTNAME: ${ADMIN_HOSTNAME:-admin.localhost}
       ASSETS_HOSTNAME: ${ASSETS_HOSTNAME:-assets.localhost}
       GODDESS_APP_SECRET: ${GODDESS_APP_SECRET:-change-me}
+      GODDESS_APP_WEBSOCKET_URL: ${GODDESS_APP_WEBSOCKET_URL:-ws://goddess-server:20090/ws}
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-mygod}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me}
     volumes:

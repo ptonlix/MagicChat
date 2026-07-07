@@ -27,10 +27,16 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
+          cache-dependency-path: |
+            server/go.sum
+            goddess-server/go.sum
 
       - name: Test server
         working-directory: server
+        run: go test ./...
+
+      - name: Test goddess server
+        working-directory: goddess-server
         run: go test ./...
 
       - name: Set up pnpm
@@ -78,6 +84,8 @@ jobs:
         include:
           - image: server
             dockerfile: server/Dockerfile
+          - image: goddess-server
+            dockerfile: goddess-server/Dockerfile
           - image: nginx
             dockerfile: deploy/nginx/Dockerfile
     steps:

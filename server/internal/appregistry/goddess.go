@@ -25,13 +25,17 @@ func EnsureGoddessApp(db *gorm.DB, cfg config.AppsConfig) (store.App, error) {
 	if secret == "" {
 		return store.App{}, fmt.Errorf("apps.goddess_secret is required")
 	}
+	webSocketURL := strings.TrimSpace(cfg.GoddessWebSocketURL)
+	if webSocketURL == "" {
+		webSocketURL = config.DefaultGoddessWebSocketURL
+	}
 
 	now := time.Now().UTC()
 	app := store.App{}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&app, "id = ?", GoddessAppID).Error
 		if err == nil {
-			return ensureGoddessAppFields(tx, &app, secret, now)
+			return ensureGoddessAppFields(tx, &app, secret, webSocketURL, now)
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -44,6 +48,7 @@ func EnsureGoddessApp(db *gorm.DB, cfg config.AppsConfig) (store.App, error) {
 			Description:      GoddessDefaultSummary,
 			Enabled:          true,
 			Visibility:       store.AppVisibilityPublic,
+			WebSocketURL:     webSocketURL,
 			ConnectionSecret: secret,
 			CreatedAt:        now,
 			UpdatedAt:        now,
@@ -66,7 +71,7 @@ func IsGoddessAppID(id string) bool {
 	return strings.EqualFold(strings.TrimSpace(id), GoddessAppID)
 }
 
-func ensureGoddessAppFields(db *gorm.DB, app *store.App, secret string, now time.Time) error {
+func ensureGoddessAppFields(db *gorm.DB, app *store.App, secret string, webSocketURL string, now time.Time) error {
 	updates := map[string]any{}
 	if strings.TrimSpace(app.Name) == "" {
 		updates["name"] = GoddessDefaultName
@@ -82,6 +87,9 @@ func ensureGoddessAppFields(db *gorm.DB, app *store.App, secret string, now time
 	}
 	if app.Visibility != store.AppVisibilityPublic {
 		updates["visibility"] = store.AppVisibilityPublic
+	}
+	if strings.TrimSpace(app.WebSocketURL) == "" && webSocketURL != "" {
+		updates["websocket_url"] = webSocketURL
 	}
 	if app.ConnectionSecret != secret {
 		updates["connection_secret"] = secret
