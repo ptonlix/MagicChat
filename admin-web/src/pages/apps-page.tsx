@@ -2,6 +2,7 @@ import {
   BanIcon,
   CheckIcon,
   CopyIcon,
+  LinkIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
@@ -20,7 +21,6 @@ import {
   disableAdminApp,
   enableAdminApp,
   type AdminApp,
-  type AdminAppConnectionStatus,
   type AdminAppInput,
   type AdminAppVisibility,
   listAdminApps,
@@ -44,6 +44,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -75,13 +76,13 @@ type AdminAppForm = {
   description: string
   name: string
   visibility: AdminAppVisibility
-  websocketUrl: string
 }
 
 export default function AppsPage() {
   const [apps, setApps] = useState<AdminApp[]>([])
   const [deleteConfirmationApp, setDeleteConfirmationApp] =
     useState<AdminApp | null>(null)
+  const [connectionApp, setConnectionApp] = useState<AdminApp | null>(null)
   const [editingApp, setEditingApp] = useState<AdminApp | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -265,19 +266,9 @@ export default function AppsPage() {
                       状态
                     </TableHead>
                     <TableHead
-                      className={getAdminAppColumnClassName("connection")}
-                    >
-                      在线状态
-                    </TableHead>
-                    <TableHead
                       className={getAdminAppColumnClassName("visibility")}
                     >
                       可见范围
-                    </TableHead>
-                    <TableHead
-                      className={getAdminAppColumnClassName("websocket")}
-                    >
-                      WebSocket 地址
                     </TableHead>
                     <TableHead
                       className={getAdminAppColumnClassName("actions")}
@@ -289,7 +280,7 @@ export default function AppsPage() {
                 <TableBody>
                   {apps.length === 0 ? (
                     <TableRow>
-                      <TableCell className="h-24 text-center" colSpan={6}>
+                      <TableCell className="h-24 text-center" colSpan={4}>
                         {isLoading ? "加载中" : "暂无应用"}
                       </TableCell>
                     </TableRow>
@@ -323,31 +314,16 @@ export default function AppsPage() {
                           className={getAdminAppColumnClassName("status")}
                         >
                           <Badge
-                            variant={app.enabled ? "default" : "secondary"}
+                            className={getAdminAppStatusBadgeClassName(app)}
+                            variant={getAdminAppStatusBadgeVariant(app)}
                           >
-                            {app.enabled ? "已启用" : "已禁用"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell
-                          className={getAdminAppColumnClassName("connection")}
-                        >
-                          <Badge variant="outline">
-                            {getAdminAppConnectionStatusLabel(
-                              app.connectionStatus
-                            )}
+                            {getAdminAppStatusLabel(app)}
                           </Badge>
                         </TableCell>
                         <TableCell
                           className={getAdminAppColumnClassName("visibility")}
                         >
                           {getAdminAppVisibilityLabel(app.visibility)}
-                        </TableCell>
-                        <TableCell
-                          className={getAdminAppColumnClassName("websocket")}
-                        >
-                          <div className="truncate">
-                            {app.websocketUrl || "未配置"}
-                          </div>
                         </TableCell>
                         <TableCell
                           className={getAdminAppColumnClassName("actions")}
@@ -359,6 +335,7 @@ export default function AppsPage() {
                             onDelete={openDeleteConfirmation}
                             onEdit={openEditForm}
                             onSecretRegenerate={handleAppSecretRegenerate}
+                            onShowConnection={setConnectionApp}
                             onStatusChange={handleAppStatusChange}
                           />
                         </TableCell>
@@ -403,6 +380,14 @@ export default function AppsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AdminAppConnectionDialog
+        app={connectionApp}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConnectionApp(null)
+          }
+        }}
+      />
     </>
   )
 }
@@ -414,6 +399,7 @@ function AdminAppActions({
   onDelete,
   onEdit,
   onSecretRegenerate,
+  onShowConnection,
   onStatusChange,
 }: {
   app: AdminApp
@@ -422,6 +408,7 @@ function AdminAppActions({
   onDelete: (app: AdminApp) => void
   onEdit: (app: AdminApp) => void
   onSecretRegenerate: (app: AdminApp) => void
+  onShowConnection: (app: AdminApp) => void
   onStatusChange: (app: AdminApp, enabled: boolean) => void
 }) {
   return (
@@ -444,6 +431,13 @@ function AdminAppActions({
           <DropdownMenuItem disabled={isUpdating} onClick={() => onEdit(app)}>
             <PencilIcon />
             编辑
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={isUpdating}
+            onClick={() => onShowConnection(app)}
+          >
+            <LinkIcon />
+            查看连接地址
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={isUpdating}
@@ -500,6 +494,85 @@ function AdminAppActions({
   )
 }
 
+function AdminAppConnectionDialog({
+  app,
+  onOpenChange,
+}: {
+  app: AdminApp | null
+  onOpenChange: (open: boolean) => void
+}) {
+  const urlId = useId()
+  const appIdId = useId()
+  const authorizationId = useId()
+
+  if (app === null) {
+    return null
+  }
+
+  const connectionURL = getAdminAppConnectionURL()
+  const authorization = `Bearer ${app.connectionSecret}`
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>连接地址</DialogTitle>
+          <DialogDescription>
+            应用启动后使用这个地址和请求头连接 MyGod。
+          </DialogDescription>
+        </DialogHeader>
+        <FieldGroup className="gap-4">
+          <Field>
+            <FieldLabel htmlFor={urlId}>URL</FieldLabel>
+            <div className="flex gap-2">
+              <Input id={urlId} readOnly value={connectionURL} />
+              <Button
+                onClick={() => copyAppField(connectionURL, "连接地址")}
+                size="icon"
+                title="复制连接地址"
+                type="button"
+                variant="outline"
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={appIdId}>X-MyGod-App-ID</FieldLabel>
+            <div className="flex gap-2">
+              <Input id={appIdId} readOnly value={app.id} />
+              <Button
+                onClick={() => copyAppField(app.id, "App ID")}
+                size="icon"
+                title="复制 App ID"
+                type="button"
+                variant="outline"
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={authorizationId}>Authorization</FieldLabel>
+            <div className="flex gap-2">
+              <Input id={authorizationId} readOnly value={authorization} />
+              <Button
+                onClick={() => copyAppField(authorization, "Authorization")}
+                size="icon"
+                title="复制 Authorization"
+                type="button"
+                variant="outline"
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+          </Field>
+        </FieldGroup>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function AdminAppDialog({
   disabled,
   editingApp,
@@ -519,7 +592,6 @@ function AdminAppDialog({
   const avatarId = useId()
   const descriptionId = useId()
   const visibilityId = useId()
-  const websocketUrlId = useId()
   const [form, setForm] = useState<AdminAppForm>(createDefaultAdminAppForm)
   const [isSaving, setIsSaving] = useState(false)
   const isEditing = editingApp !== null
@@ -685,21 +757,6 @@ function AdminAppDialog({
                 value={getAdminAppVisibilityLabel(form.visibility)}
               />
             </Field>
-            <Field>
-              <FieldLabel htmlFor={websocketUrlId}>WebSocket 地址</FieldLabel>
-              <Input
-                disabled={isSaving}
-                id={websocketUrlId}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    websocketUrl: event.target.value,
-                  }))
-                }
-                placeholder="wss://example.com/ws"
-                value={form.websocketUrl}
-              />
-            </Field>
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -745,7 +802,6 @@ function createDefaultAdminAppForm(): AdminAppForm {
     description: "",
     name: "",
     visibility: "public",
-    websocketUrl: "",
   }
 }
 
@@ -755,7 +811,6 @@ function adminAppToForm(app: AdminApp): AdminAppForm {
     description: app.description,
     name: app.name,
     visibility: app.visibility,
-    websocketUrl: app.websocketUrl,
   }
 }
 
@@ -765,7 +820,6 @@ function adminAppFormToInput(form: AdminAppForm): AdminAppInput {
     description: form.description,
     name: form.name,
     visibility: form.visibility,
-    websocketUrl: form.websocketUrl,
   }
 }
 
@@ -790,11 +844,28 @@ function getAdminAppVisibilityLabel(visibility: AdminAppVisibility) {
   }
 }
 
-function getAdminAppConnectionStatusLabel(status: AdminAppConnectionStatus) {
-  switch (status) {
-    case "offline":
-      return "离线"
+function getAdminAppStatusLabel(app: AdminApp) {
+  if (!app.enabled) {
+    return "已禁用"
   }
+
+  return app.connectionStatus === "online" ? "在线" : "离线"
+}
+
+function getAdminAppStatusBadgeVariant(app: AdminApp) {
+  if (!app.enabled) {
+    return "secondary"
+  }
+
+  return app.connectionStatus === "online" ? "default" : "outline"
+}
+
+function getAdminAppStatusBadgeClassName(app: AdminApp) {
+  if (!app.enabled || app.connectionStatus !== "online") {
+    return undefined
+  }
+
+  return "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
 }
 
 function getAdminAppInitial(name: string) {
@@ -819,28 +890,25 @@ export function getAdminAppsTableClassName() {
 }
 
 export function getAdminAppColumnClassName(
-  column:
-    | "actions"
-    | "connection"
-    | "name"
-    | "status"
-    | "visibility"
-    | "websocket"
+  column: "actions" | "name" | "status" | "visibility"
 ) {
   switch (column) {
     case "name":
       return "w-[30%] min-w-0"
     case "status":
       return "w-24"
-    case "connection":
-      return "w-24"
     case "visibility":
       return "w-28"
-    case "websocket":
-      return "min-w-0"
     case "actions":
       return "w-16 text-right"
   }
+}
+
+function getAdminAppConnectionURL() {
+  const url = new URL("/api/app/ws", window.location.origin)
+  url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+
+  return url.toString()
 }
 
 function copyAppField(value: string, label: string) {

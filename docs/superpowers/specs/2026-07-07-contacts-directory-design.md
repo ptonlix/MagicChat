@@ -82,8 +82,8 @@ GET /api/client/contacts
       {
         "id": "app-id",
         "type": "app",
-        "name": "女菩萨",
-        "avatar": "/assets/apps/goddess.webp",
+        "name": "AI 女菩萨",
+        "avatar": "/assets/apps/assistant.webp",
         "description": "",
         "online": false
       }

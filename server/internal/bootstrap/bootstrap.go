@@ -42,8 +42,8 @@ func runMigrations(db *gorm.DB) error {
 }
 
 func bootstrapApps(db *gorm.DB, cfg config.Config) error {
-	if _, err := appregistry.EnsureGoddessApp(db, cfg.Apps); err != nil {
-		return fmt.Errorf("bootstrap goddess app: %w", err)
+	if _, err := appregistry.EnsureAIAssistantApp(db, cfg.Apps); err != nil {
+		return fmt.Errorf("bootstrap AI assistant app: %w", err)
 	}
 
 	return nil

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -19,19 +18,19 @@ import (
 )
 
 const (
-	appConnectionStatusOffline = "offline"
-	appSecretBytes             = 32
-	maxAppNameLength           = 120
-	maxAppAvatarLength         = 512
-	maxAppWebSocketURLLength   = 2048
+	appConnectionStatusDisabled = "disabled"
+	appConnectionStatusOffline  = "offline"
+	appConnectionStatusOnline   = "online"
+	appSecretBytes              = 32
+	maxAppNameLength            = 120
+	maxAppAvatarLength          = 512
 )
 
 type adminAppRequest struct {
-	Avatar       string `json:"avatar"`
-	Description  string `json:"description"`
-	Name         string `json:"name"`
-	Visibility   string `json:"visibility"`
-	WebSocketURL string `json:"websocket_url"`
+	Avatar      string `json:"avatar"`
+	Description string `json:"description"`
+	Name        string `json:"name"`
+	Visibility  string `json:"visibility"`
 }
 
 type adminAppResponse struct {
@@ -47,7 +46,6 @@ type adminAppResponse struct {
 	System           bool      `json:"system"`
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 	Visibility       string    `json:"visibility"`
-	WebSocketURL     string    `json:"websocket_url"`
 }
 
 type listAdminAppsResponse struct {
@@ -61,7 +59,7 @@ type adminAppEnvelope struct {
 // listAdminApps godoc
 //
 // @Summary 列出应用
-// @Description 管理员读取应用配置，包含 WebSocket 地址、连接密钥和连接状态。
+// @Description 管理员读取应用配置，包含连接密钥和连接状态。
 // @Tags 管理员应用
 // @Produce json
 // @Success 200 {object} successEnvelope{data=listAdminAppsResponse}
@@ -69,7 +67,7 @@ type adminAppEnvelope struct {
 // @Failure 500 {object} errorEnvelope
 // @Router /api/admin/apps [get]
 func (s *Server) listAdminApps(c echo.Context) error {
-	if _, err := appregistry.EnsureGoddessApp(s.db, s.cfg.Apps); err != nil {
+	if _, err := appregistry.EnsureAIAssistantApp(s.db, s.cfg.Apps); err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 
@@ -81,7 +79,7 @@ func (s *Server) listAdminApps(c echo.Context) error {
 
 	responses := make([]adminAppResponse, 0, len(apps))
 	for _, app := range apps {
-		responses = append(responses, newAdminAppResponse(app))
+		responses = append(responses, s.newAdminAppResponse(app))
 	}
 
 	return success(c, http.StatusOK, listAdminAppsResponse{Apps: responses})
@@ -122,13 +120,13 @@ func (s *Server) createAdminApp(c echo.Context) error {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 
-	return success(c, http.StatusCreated, adminAppEnvelope{App: newAdminAppResponse(app)})
+	return success(c, http.StatusCreated, adminAppEnvelope{App: s.newAdminAppResponse(app)})
 }
 
 // updateAdminApp godoc
 //
 // @Summary 更新应用
-// @Description 管理员更新一个应用配置。女菩萨的可见范围固定为所有人。
+// @Description 管理员更新一个应用配置。AI 女菩萨的可见范围固定为所有人。
 // @Tags 管理员应用
 // @Accept json
 // @Produce json
@@ -154,17 +152,16 @@ func (s *Server) updateAdminApp(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
-	if appregistry.IsGoddessAppID(app.ID) {
+	if appregistry.IsAIAssistantAppID(app.ID) {
 		updatedApp.Visibility = store.AppVisibilityPublic
 	}
 
 	updates := map[string]any{
-		"avatar":        updatedApp.Avatar,
-		"description":   updatedApp.Description,
-		"name":          updatedApp.Name,
-		"visibility":    updatedApp.Visibility,
-		"websocket_url": updatedApp.WebSocketURL,
-		"updated_at":    time.Now().UTC(),
+		"avatar":      updatedApp.Avatar,
+		"description": updatedApp.Description,
+		"name":        updatedApp.Name,
+		"visibility":  updatedApp.Visibility,
+		"updated_at":  time.Now().UTC(),
 	}
 	if err := s.db.Model(&app).Updates(updates).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
@@ -173,7 +170,7 @@ func (s *Server) updateAdminApp(c echo.Context) error {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 
-	return success(c, http.StatusOK, adminAppEnvelope{App: newAdminAppResponse(app)})
+	return success(c, http.StatusOK, adminAppEnvelope{App: s.newAdminAppResponse(app)})
 }
 
 // enableAdminApp godoc
@@ -209,7 +206,7 @@ func (s *Server) disableAdminApp(c echo.Context) error {
 // regenerateAdminAppSecret godoc
 //
 // @Summary 生成应用连接密钥
-// @Description 普通应用可以生成新密钥。女菩萨密钥由配置管理，不能在后台生成。
+// @Description 普通应用可以生成新密钥。AI 女菩萨密钥由配置管理，不能在后台生成。
 // @Tags 管理员应用
 // @Produce json
 // @Param id path string true "应用 ID"
@@ -224,8 +221,8 @@ func (s *Server) regenerateAdminAppSecret(c echo.Context) error {
 	if err != nil || !ok {
 		return err
 	}
-	if appregistry.IsGoddessAppID(app.ID) {
-		return failure(c, http.StatusForbidden, "forbidden", "女菩萨密钥由配置管理")
+	if appregistry.IsAIAssistantAppID(app.ID) {
+		return failure(c, http.StatusForbidden, "forbidden", "AI 女菩萨密钥由配置管理")
 	}
 
 	secret, err := generateUniqueAppSecret(s.db)
@@ -241,14 +238,15 @@ func (s *Server) regenerateAdminAppSecret(c echo.Context) error {
 	if err := s.db.First(&app, "id = ?", app.ID).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
+	s.appConnections.CloseApp(app.ID)
 
-	return success(c, http.StatusOK, adminAppEnvelope{App: newAdminAppResponse(app)})
+	return success(c, http.StatusOK, adminAppEnvelope{App: s.newAdminAppResponse(app)})
 }
 
 // deleteAdminApp godoc
 //
 // @Summary 删除应用
-// @Description 管理员删除普通应用。女菩萨不能删除。
+// @Description 管理员删除普通应用。AI 女菩萨不能删除。
 // @Tags 管理员应用
 // @Produce json
 // @Param id path string true "应用 ID"
@@ -263,13 +261,14 @@ func (s *Server) deleteAdminApp(c echo.Context) error {
 	if err != nil || !ok {
 		return err
 	}
-	if appregistry.IsGoddessAppID(app.ID) {
-		return failure(c, http.StatusForbidden, "forbidden", "女菩萨不能删除")
+	if appregistry.IsAIAssistantAppID(app.ID) {
+		return failure(c, http.StatusForbidden, "forbidden", "AI 女菩萨不能删除")
 	}
 
 	if err := s.db.Delete(&store.App{}, "id = ?", app.ID).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
+	s.appConnections.CloseApp(app.ID)
 
 	return success(c, http.StatusOK, map[string]any{})
 }
@@ -280,7 +279,7 @@ func (s *Server) updateAdminAppEnabled(c echo.Context, enabled bool) error {
 		return err
 	}
 	if app.Enabled == enabled {
-		return success(c, http.StatusOK, adminAppEnvelope{App: newAdminAppResponse(app)})
+		return success(c, http.StatusOK, adminAppEnvelope{App: s.newAdminAppResponse(app)})
 	}
 
 	if err := s.db.Model(&app).Updates(map[string]any{
@@ -292,8 +291,11 @@ func (s *Server) updateAdminAppEnabled(c echo.Context, enabled bool) error {
 	if err := s.db.First(&app, "id = ?", app.ID).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
+	if !enabled {
+		s.appConnections.CloseApp(app.ID)
+	}
 
-	return success(c, http.StatusOK, adminAppEnvelope{App: newAdminAppResponse(app)})
+	return success(c, http.StatusOK, adminAppEnvelope{App: s.newAdminAppResponse(app)})
 }
 
 func (s *Server) findAdminApp(c echo.Context) (store.App, bool, error) {
@@ -305,8 +307,8 @@ func (s *Server) findAdminApp(c echo.Context) (store.App, bool, error) {
 	var app store.App
 	err = s.db.First(&app, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		if appregistry.IsGoddessAppID(id) {
-			app, err = appregistry.EnsureGoddessApp(s.db, s.cfg.Apps)
+		if appregistry.IsAIAssistantAppID(id) {
+			app, err = appregistry.EnsureAIAssistantApp(s.db, s.cfg.Apps)
 			if err == nil {
 				return app, true, nil
 			}
@@ -338,20 +340,15 @@ func newAdminAppFromRequest(req adminAppRequest) (store.App, error) {
 	if err != nil {
 		return store.App{}, err
 	}
-	webSocketURL, err := normalizeOptionalAppWebSocketURL(req.WebSocketURL)
-	if err != nil {
-		return store.App{}, err
-	}
 
 	now := time.Now().UTC()
 	return store.App{
-		Name:         name,
-		Avatar:       avatar,
-		Description:  description,
-		Visibility:   visibility,
-		WebSocketURL: webSocketURL,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Name:        name,
+		Avatar:      avatar,
+		Description: description,
+		Visibility:  visibility,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}, nil
 }
 
@@ -366,50 +363,40 @@ func normalizeAdminAppVisibility(value string) (string, error) {
 	}
 }
 
-func normalizeOptionalAppWebSocketURL(value string) (string, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "", nil
-	}
-	if len(trimmed) > maxAppWebSocketURLLength {
-		return "", errors.New("WebSocket 地址不能超过 2048 个字符")
-	}
-
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", errors.New("WebSocket 地址格式错误")
-	}
-	if parsed.Scheme != "ws" && parsed.Scheme != "wss" {
-		return "", errors.New("WebSocket 地址格式错误")
-	}
-
-	return trimmed, nil
-}
-
-func newAdminAppResponse(app store.App) adminAppResponse {
+func (s *Server) newAdminAppResponse(app store.App) adminAppResponse {
 	return adminAppResponse{
 		Avatar:           app.Avatar,
 		ConnectionSecret: app.ConnectionSecret,
-		ConnectionStatus: appConnectionStatusOffline,
+		ConnectionStatus: s.adminAppConnectionStatus(app),
 		CreatedAt:        app.CreatedAt,
 		CreatorUserID:    app.CreatorUserID,
 		Description:      app.Description,
 		Enabled:          app.Enabled,
 		ID:               app.ID,
 		Name:             app.Name,
-		System:           appregistry.IsGoddessAppID(app.ID),
+		System:           appregistry.IsAIAssistantAppID(app.ID),
 		UpdatedAt:        app.UpdatedAt,
 		Visibility:       app.Visibility,
-		WebSocketURL:     app.WebSocketURL,
 	}
+}
+
+func (s *Server) adminAppConnectionStatus(app store.App) string {
+	if !app.Enabled {
+		return appConnectionStatusDisabled
+	}
+	if s.appConnections != nil && s.appConnections.IsOnline(app.ID) {
+		return appConnectionStatusOnline
+	}
+
+	return appConnectionStatusOffline
 }
 
 func sortAppsForAdmin(apps []store.App) {
 	slices.SortFunc(apps, func(left store.App, right store.App) int {
-		if appregistry.IsGoddessAppID(left.ID) && !appregistry.IsGoddessAppID(right.ID) {
+		if appregistry.IsAIAssistantAppID(left.ID) && !appregistry.IsAIAssistantAppID(right.ID) {
 			return -1
 		}
-		if !appregistry.IsGoddessAppID(left.ID) && appregistry.IsGoddessAppID(right.ID) {
+		if !appregistry.IsAIAssistantAppID(left.ID) && appregistry.IsAIAssistantAppID(right.ID) {
 			return 1
 		}
 		if strings.EqualFold(left.Name, right.Name) {

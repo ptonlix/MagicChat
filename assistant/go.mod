@@ -1,4 +1,4 @@
-module goddess-server
+module assistant
 
 go 1.25.7
 

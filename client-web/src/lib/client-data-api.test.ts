@@ -5,10 +5,14 @@ import {
   createDirectConversation,
   createGroupConversation,
   getCurrentClientUser,
+  joinGroupConversation,
   listClientContacts,
   listClientConversations,
   listConversationMessages,
+  openAppConversation,
   sendConversationTextMessage,
+  setGroupConversationPrivate,
+  setGroupConversationPublic,
   updateCurrentClientUser,
 } from "@/lib/client-data-api"
 
@@ -57,13 +61,34 @@ describe("client data API", () => {
     })
   })
 
-  it("loads all client contacts with credentials", async () => {
+  it("loads unified client contacts with credentials", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
           success: true,
           data: {
-            contacts: [
+            apps: [
+              {
+                avatar: "/assets/apps/assistant.webp",
+                description: "专属 AI 助理",
+                id: "app-1",
+                name: "AI 女菩萨",
+                online: false,
+                type: "app",
+              },
+            ],
+            groups: [
+              {
+                avatar: "",
+                id: "group-1",
+                joined: false,
+                member_count: 8,
+                name: "公开群",
+                type: "group",
+                visibility: "public",
+              },
+            ],
+            users: [
               {
                 avatar: "/assets/avatars/builtin/03.webp",
                 email: "bob@example.com",
@@ -87,20 +112,43 @@ describe("client data API", () => {
       )
     )
 
-    await expect(listClientContacts(fetcher)).resolves.toEqual([
-      {
-        avatar: "/assets/avatars/builtin/03.webp",
-        email: "bob@example.com",
-        id: "user-2",
-        lastOnlineAt: "2026-07-03T01:00:00Z",
-        name: "Bob Li",
-        nickname: "",
-        online: true,
-        phone: "+8613912345679",
-        type: "user",
-      },
-    ])
-    expect(fetcher).toHaveBeenCalledWith("/api/client/contacts/users", {
+    await expect(listClientContacts(fetcher)).resolves.toEqual({
+      apps: [
+        {
+          avatar: "/assets/apps/assistant.webp",
+          description: "专属 AI 助理",
+          id: "app-1",
+          name: "AI 女菩萨",
+          online: false,
+          type: "app",
+        },
+      ],
+      groups: [
+        {
+          avatar: "",
+          id: "group-1",
+          joined: false,
+          memberCount: 8,
+          name: "公开群",
+          type: "group",
+          visibility: "public",
+        },
+      ],
+      users: [
+        {
+          avatar: "/assets/avatars/builtin/03.webp",
+          email: "bob@example.com",
+          id: "user-2",
+          lastOnlineAt: "2026-07-03T01:00:00Z",
+          name: "Bob Li",
+          nickname: "",
+          online: true,
+          phone: "+8613912345679",
+          type: "user",
+        },
+      ],
+    })
+    expect(fetcher).toHaveBeenCalledWith("/api/client/contacts", {
       credentials: "include",
       method: "GET",
     })
@@ -151,6 +199,7 @@ describe("client data API", () => {
         name: "Bob Li",
         type: "direct",
         unreadCount: 0,
+        visibility: "private",
       },
     ])
     expect(fetcher).toHaveBeenCalledWith("/api/client/conversations", {
@@ -202,6 +251,7 @@ describe("client data API", () => {
       name: "Bob Li",
       type: "direct",
       unreadCount: 0,
+      visibility: "private",
     })
     expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/direct", {
       body: JSON.stringify({
@@ -215,8 +265,65 @@ describe("client data API", () => {
     })
   })
 
-  it("creates a group conversation with credentials", async () => {
+  it("creates or opens an app conversation with credentials", async () => {
     const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              avatar: "/assets/apps/assistant.webp",
+              created_at: "2026-07-03T07:00:00Z",
+              id: "conversation-app-1",
+              last_message_at: null,
+              last_message_id: null,
+              last_message_seq: 0,
+              last_message_summary: "",
+              member_count: 2,
+              name: "AI 女菩萨",
+              type: "app",
+            },
+            created: true,
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 201,
+        }
+      )
+    )
+
+    await expect(openAppConversation("app-1", fetcher)).resolves.toEqual({
+      avatar: "/assets/apps/assistant.webp",
+      createdAt: "2026-07-03T07:00:00Z",
+      id: "conversation-app-1",
+      lastMessageAt: null,
+      lastMessageId: null,
+      lastMessageSeq: 0,
+      lastMessageSummary: "",
+      lastReadSeq: 0,
+      memberCount: 2,
+      name: "AI 女菩萨",
+      type: "app",
+      unreadCount: 0,
+      visibility: "private",
+    })
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/apps", {
+      body: JSON.stringify({
+        app_id: "app-1",
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    })
+  })
+
+  it("creates a group conversation with credentials", async () => {
+    const fetcher = vi.fn().mockImplementation(() =>
       new Response(
         JSON.stringify({
           success: true,
@@ -305,6 +412,7 @@ describe("client data API", () => {
       name: "新品讨论组",
       type: "group",
       unreadCount: 0,
+      visibility: "private",
     })
     expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/groups", {
       body: JSON.stringify({
@@ -317,6 +425,153 @@ describe("client data API", () => {
       },
       method: "POST",
     })
+  })
+
+  it("joins a public group conversation with credentials", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              avatar: "",
+              created_at: "2026-07-03T09:30:00Z",
+              id: "conversation-group-1",
+              member_count: 3,
+              name: "公开群",
+              type: "group",
+              visibility: "public",
+            },
+            message: {
+              body: {
+                actor: {
+                  display_name: "Alice",
+                  id: "user-1",
+                },
+                event: "group_member_joined",
+                type: "system_event",
+              },
+              client_message_id: "",
+              conversation_id: "conversation-group-1",
+              created_at: "2026-07-03T09:31:00Z",
+              id: "message-join-1",
+              sender: {
+                type: "system",
+              },
+              seq: 1,
+            },
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      joinGroupConversation("conversation-group-1", fetcher)
+    ).resolves.toEqual({
+      conversation: {
+        avatar: "",
+        createdAt: "2026-07-03T09:30:00Z",
+        id: "conversation-group-1",
+        lastMessageAt: null,
+        lastMessageId: null,
+        lastMessageSeq: 0,
+        lastMessageSummary: "",
+        lastReadSeq: 0,
+        memberCount: 3,
+        name: "公开群",
+        type: "group",
+        unreadCount: 0,
+        visibility: "public",
+      },
+      message: {
+        body: {
+          actor: {
+            displayName: "Alice",
+            id: "user-1",
+          },
+          event: "group_member_joined",
+          type: "system_event",
+        },
+        clientMessageId: "",
+        conversationId: "conversation-group-1",
+        createdAt: "2026-07-03T09:31:00Z",
+        id: "message-join-1",
+        sender: {
+          id: "",
+          type: "system",
+        },
+        seq: 1,
+      },
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-group-1/join",
+      {
+        credentials: "include",
+        method: "POST",
+      }
+    )
+  })
+
+  it("sets group conversation visibility with credentials", async () => {
+    const fetcher = vi.fn().mockImplementation(() =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              avatar: "",
+              created_at: "2026-07-03T09:30:00Z",
+              id: "conversation-group-1",
+              member_count: 2,
+              name: "新品讨论组",
+              type: "group",
+              visibility: "public",
+            },
+            message: null,
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      setGroupConversationPublic("conversation-group-1", fetcher)
+    ).resolves.toMatchObject({
+      conversation: {
+        id: "conversation-group-1",
+        type: "group",
+        visibility: "public",
+      },
+      message: null,
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-group-1/public",
+      {
+        credentials: "include",
+        method: "POST",
+      }
+    )
+
+    fetcher.mockClear()
+    await setGroupConversationPrivate("conversation-group-1", fetcher)
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-group-1/private",
+      {
+        credentials: "include",
+        method: "POST",
+      }
+    )
   })
 
   it("loads conversation messages with pagination params", async () => {

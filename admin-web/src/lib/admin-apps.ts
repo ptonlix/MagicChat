@@ -31,10 +31,9 @@ type AdminAppResponse = {
   system?: boolean
   updated_at?: string
   visibility?: string
-  websocket_url?: string
 }
 
-export type AdminAppConnectionStatus = "offline"
+export type AdminAppConnectionStatus = "disabled" | "offline" | "online"
 export type AdminAppVisibility = "creator" | "public"
 
 export type AdminApp = {
@@ -50,12 +49,11 @@ export type AdminApp = {
   system: boolean
   updatedAt: string
   visibility: AdminAppVisibility
-  websocketUrl: string
 }
 
 export type AdminAppInput = Pick<
   AdminApp,
-  "avatar" | "description" | "name" | "visibility" | "websocketUrl"
+  "avatar" | "description" | "name" | "visibility"
 >
 
 export class AdminAppsRequestError extends Error {
@@ -233,7 +231,6 @@ function toAdminAppRequest(input: AdminAppInput) {
     description: input.description.trim(),
     name: input.name.trim(),
     visibility: input.visibility,
-    websocket_url: input.websocketUrl.trim(),
   }
 }
 
@@ -260,8 +257,7 @@ function normalizeAdminApp(app: AdminAppResponse | undefined): AdminApp {
     typeof app.name !== "string" ||
     typeof app.system !== "boolean" ||
     typeof app.updated_at !== "string" ||
-    typeof app.visibility !== "string" ||
-    typeof app.websocket_url !== "string"
+    typeof app.visibility !== "string"
   ) {
     throw new AdminAppsRequestError("应用响应格式不正确")
   }
@@ -292,14 +288,13 @@ function normalizeAdminApp(app: AdminAppResponse | undefined): AdminApp {
     system: app.system,
     updatedAt: app.updated_at,
     visibility: app.visibility,
-    websocketUrl: app.websocket_url,
   }
 }
 
 function isAdminAppConnectionStatus(
   value: string
 ): value is AdminAppConnectionStatus {
-  return value === "offline"
+  return value === "disabled" || value === "offline" || value === "online"
 }
 
 function isAdminAppVisibility(value: string): value is AdminAppVisibility {

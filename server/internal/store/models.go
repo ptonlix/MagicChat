@@ -19,6 +19,9 @@ const (
 	ConversationPostingPolicyOpen  = "open"
 	ConversationPostingPolicyMuted = "muted"
 
+	ConversationVisibilityPrivate = "private"
+	ConversationVisibilityPublic  = "public"
+
 	ConversationMemberTypeUser = "user"
 	ConversationMemberTypeApp  = "app"
 
@@ -97,6 +100,7 @@ type Conversation struct {
 	CreatedByUser      User      `gorm:"foreignKey:CreatedByUserID;constraint:OnDelete:RESTRICT;"`
 	Status             string    `gorm:"size:32;not null;index"`
 	PostingPolicy      string    `gorm:"size:32;not null"`
+	Visibility         string    `gorm:"size:32;not null;default:private;index"`
 	CreatedAt          time.Time `gorm:"not null"`
 	UpdatedAt          time.Time `gorm:"not null"`
 	DissolvedAt        *time.Time
@@ -165,7 +169,6 @@ type App struct {
 	CreatorUser      *User     `gorm:"foreignKey:CreatorUserID;constraint:OnDelete:SET NULL;"`
 	Enabled          bool      `gorm:"not null;default:true;index"`
 	Visibility       string    `gorm:"size:32;not null;index"`
-	WebSocketURL     string    `gorm:"column:websocket_url;size:2048;not null;default:''"`
 	ConnectionSecret string    `gorm:"not null;uniqueIndex"`
 	CreatedAt        time.Time `gorm:"not null"`
 	UpdatedAt        time.Time `gorm:"not null"`

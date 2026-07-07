@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"app/internal/appconnection"
 	"app/internal/config"
 	"app/internal/realtime"
 
@@ -23,6 +24,7 @@ const (
 type Server struct {
 	db               *gorm.DB
 	cfg              config.Config
+	appConnections   *appconnection.Manager
 	realtime         *realtime.ConnectionPool
 	llmHealthChecker *LLMHealthChecker
 }
@@ -45,6 +47,9 @@ func NewRouterWithRealtimeAndLLMHealthChecker(db *gorm.DB, cfg config.Config, re
 		cfg:              cfg,
 		llmHealthChecker: llmHealthChecker,
 	}
+	server.appConnections = appconnection.NewManager(appconnection.Options{
+		RequestHandler: server.handleAppRequest,
+	})
 	realtimeOptions.RecordUserPong = server.recordUserPong
 	server.realtime = realtime.NewConnectionPool(realtimeOptions)
 
@@ -65,6 +70,7 @@ func NewRouterWithRealtimeAndLLMHealthChecker(db *gorm.DB, cfg config.Config, re
 	router.GET("/api/client/auth/third-party/:key/start", server.startThirdPartyLogin)
 	router.GET("/api/client/auth/third-party/:key/callback", server.finishThirdPartyLogin)
 	router.GET("/api/client/info", server.clientInfo)
+	router.GET("/api/app/ws", server.appWebSocket)
 
 	client := router.Group("/api/client", server.requireUserSession)
 	client.GET("/me", server.getCurrentUser)
@@ -72,11 +78,16 @@ func NewRouterWithRealtimeAndLLMHealthChecker(db *gorm.DB, cfg config.Config, re
 	client.POST("/me/avatar", server.uploadCurrentUserAvatar)
 	client.POST("/temporary-files", server.createTemporaryFile)
 	client.POST("/temporary-files/read-urls", server.readTemporaryFileURLs)
+	client.GET("/contacts", server.listClientContacts)
 	client.GET("/contacts/users", server.listContactUsers)
 	client.GET("/assistant/models", server.listClientLLMModels)
 	client.GET("/conversations", server.listClientConversations)
+	client.POST("/conversations/apps", server.createAppConversation)
 	client.POST("/conversations/direct", server.createDirectConversation)
 	client.POST("/conversations/groups", server.createGroupConversation)
+	client.POST("/conversations/groups/:conversation_id/public", server.setGroupConversationPublic)
+	client.POST("/conversations/groups/:conversation_id/private", server.setGroupConversationPrivate)
+	client.POST("/conversations/groups/:conversation_id/join", server.joinPublicGroupConversation)
 	client.POST("/conversations/:conversation_id/avatar", server.uploadGroupConversationAvatar)
 	client.POST("/conversations/:conversation_id/members", server.addGroupConversationMembers)
 	client.POST("/conversations/:conversation_id/read", server.markConversationRead)

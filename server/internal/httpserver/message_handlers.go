@@ -207,6 +207,9 @@ func (s *Server) createConversationMessage(c echo.Context) error {
 	messageResponse := newMessageResponse(message)
 	if created {
 		s.realtime.SendToUsers(memberUserIDs, realtimeMessageCreatedEvent(messageResponse))
+		if err := s.dispatchAppTextMessageCreatedEvent(user, message); err != nil {
+			c.Logger().Warnf("dispatch app text message event failed: %v", err)
+		}
 	}
 
 	status := http.StatusOK

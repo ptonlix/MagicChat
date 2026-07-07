@@ -156,6 +156,7 @@ CREATE TABLE conversations (
   created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   status text NOT NULL DEFAULT 'active',
   posting_policy text NOT NULL DEFAULT 'open',
+  visibility text NOT NULL DEFAULT 'private',
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   dissolved_at timestamptz,
@@ -165,12 +166,14 @@ CREATE TABLE conversations (
   last_message_at timestamptz,
   CONSTRAINT conversations_kind_check CHECK (kind IN ('direct', 'group', 'app')),
   CONSTRAINT conversations_status_check CHECK (status IN ('active', 'dissolved')),
-  CONSTRAINT conversations_posting_policy_check CHECK (posting_policy IN ('open', 'muted'))
+  CONSTRAINT conversations_posting_policy_check CHECK (posting_policy IN ('open', 'muted')),
+  CONSTRAINT conversations_visibility_check CHECK (visibility IN ('private', 'public'))
 );
 
 CREATE INDEX conversations_kind_updated_index ON conversations (kind, updated_at DESC);
 CREATE INDEX conversations_created_by_user_id_index ON conversations (created_by_user_id);
 CREATE INDEX conversations_last_message_at_index ON conversations (last_message_at);
+CREATE INDEX conversations_visibility_index ON conversations (visibility);
 
 CREATE TABLE conversation_members (
   conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -249,7 +252,6 @@ CREATE TABLE apps (
   creator_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   enabled boolean NOT NULL DEFAULT true,
   visibility text NOT NULL,
-  websocket_url text NOT NULL DEFAULT '',
   connection_secret text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),

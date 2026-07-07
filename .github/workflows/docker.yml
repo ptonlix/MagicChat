@@ -29,14 +29,14 @@ jobs:
           go-version-file: server/go.mod
           cache-dependency-path: |
             server/go.sum
-            goddess-server/go.sum
+            assistant/go.sum
 
       - name: Test server
         working-directory: server
         run: go test ./...
 
-      - name: Test goddess server
-        working-directory: goddess-server
+      - name: Test MyGod AI assistant
+        working-directory: assistant
         run: go test ./...
 
       - name: Set up pnpm
@@ -84,8 +84,8 @@ jobs:
         include:
           - image: server
             dockerfile: server/Dockerfile
-          - image: goddess-server
-            dockerfile: goddess-server/Dockerfile
+          - image: assistant
+            dockerfile: assistant/Dockerfile
           - image: nginx
             dockerfile: deploy/nginx/Dockerfile
     steps:

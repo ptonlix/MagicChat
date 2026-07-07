@@ -51,7 +51,7 @@ func newTestRouterWithRealtimeOptions(t *testing.T, options realtime.Options) (*
 		},
 		Database: config.DatabaseConfig{DSN: "sqlite-test"},
 		Admin:    config.AdminConfig{Password: "admin-secret"},
-		Apps:     config.AppsConfig{GoddessSecret: "test-goddess-secret"},
+		Apps:     config.AppsConfig{AIAssistantSecret: "test-ai-assistant-secret"},
 	}, options)
 
 	return httptest.NewServer(router), db
@@ -279,6 +279,32 @@ func insertTestThirdPartyLoginProvider(t *testing.T, db *gorm.DB, input store.Th
 	return input
 }
 
+func insertTestApp(t *testing.T, db *gorm.DB, input store.App) store.App {
+	t.Helper()
+
+	if input.ID == "" {
+		input.ID = uuid.NewString()
+	}
+	if input.Visibility == "" {
+		input.Visibility = store.AppVisibilityPublic
+	}
+	if input.ConnectionSecret == "" {
+		input.ConnectionSecret = uuid.NewString()
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = input.CreatedAt
+	}
+
+	if err := db.Select("*").Create(&input).Error; err != nil {
+		t.Fatalf("create test app: %v", err)
+	}
+
+	return input
+}
+
 func thirdPartyProviderConfig(t *testing.T, value map[string]any) json.RawMessage {
 	t.Helper()
 
@@ -300,6 +326,7 @@ type testConversationInput struct {
 	memberLeftAtByID   map[string]*time.Time
 	name               string
 	now                time.Time
+	visibility         string
 }
 
 func insertTestConversation(t *testing.T, db *gorm.DB, input testConversationInput) store.Conversation {
@@ -312,6 +339,7 @@ func insertTestConversation(t *testing.T, db *gorm.DB, input testConversationInp
 		CreatedByUserID:    input.createdByUserID,
 		Status:             store.ConversationStatusActive,
 		PostingPolicy:      store.ConversationPostingPolicyOpen,
+		Visibility:         firstNonEmptyString(input.visibility, store.ConversationVisibilityPrivate),
 		CreatedAt:          input.now,
 		UpdatedAt:          input.now,
 		LastMessageSeq:     input.lastMessageSeq,
@@ -536,6 +564,31 @@ func requireGroupMembersInvitedBody(t *testing.T, rawBody json.RawMessage, invit
 	}
 }
 
+func requireSystemEventActorBody(t *testing.T, rawBody json.RawMessage, event string, actorID string, actorDisplayName string) {
+	t.Helper()
+
+	var body map[string]any
+	if err := json.Unmarshal(rawBody, &body); err != nil {
+		t.Fatalf("unmarshal system body: %v", err)
+	}
+	if body["type"] != "system_event" {
+		t.Fatalf("body.type = %v, want system_event", body["type"])
+	}
+	if body["event"] != event {
+		t.Fatalf("body.event = %v, want %s", body["event"], event)
+	}
+	actor, ok := body["actor"].(map[string]any)
+	if !ok {
+		t.Fatalf("body.actor = %#v, want object", body["actor"])
+	}
+	if actor["id"] != actorID {
+		t.Fatalf("actor.id = %v, want %s", actor["id"], actorID)
+	}
+	if actor["display_name"] != actorDisplayName {
+		t.Fatalf("actor.display_name = %v, want %s", actor["display_name"], actorDisplayName)
+	}
+}
+
 func requireSuccess(t *testing.T, response map[string]any) map[string]any {
 	t.Helper()
 
@@ -614,6 +667,31 @@ func clientWebSocketURL(server *httptest.Server) string {
 	return "ws" + strings.TrimPrefix(server.URL, "http") + "/api/client/ws"
 }
 
+func appWebSocketURL(server *httptest.Server) string {
+	return "ws" + strings.TrimPrefix(server.URL, "http") + "/api/app/ws"
+}
+
+func dialAppWebSocket(t *testing.T, server *httptest.Server, appID string, secret string) *websocket.Conn {
+	t.Helper()
+
+	header := http.Header{}
+	header.Set(appIDHeader, appID)
+	header.Set("Authorization", "Bearer "+secret)
+	conn, resp, err := websocket.DefaultDialer.Dial(appWebSocketURL(server), header)
+	if err != nil {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		t.Fatalf("dial app websocket: %v, status = %d", err, status)
+	}
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	return conn
+}
+
 func readRealtimeEvent(t *testing.T, conn *websocket.Conn) realtime.Envelope {
 	t.Helper()
 
@@ -624,6 +702,58 @@ func readRealtimeEvent(t *testing.T, conn *websocket.Conn) realtime.Envelope {
 	}
 
 	return envelope
+}
+
+func sendAppRequest(t *testing.T, conn *websocket.Conn, request realtime.Envelope) realtime.Envelope {
+	t.Helper()
+
+	if err := conn.WriteJSON(request); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+
+	response := readRealtimeEvent(t, conn)
+	if response.Kind != realtime.KindResponse {
+		t.Fatalf("response kind = %v, want response: %#v", response.Kind, response)
+	}
+	if response.ReplyTo != request.ID {
+		t.Fatalf("response reply_to = %v, want %s", response.ReplyTo, request.ID)
+	}
+	if response.OK == nil || !*response.OK {
+		t.Fatalf("response ok = %#v, error = %#v", response.OK, response.Error)
+	}
+
+	return response
+}
+
+func requireAppSendMessageResponsePayload(t *testing.T, response realtime.Envelope) map[string]any {
+	t.Helper()
+
+	var payload map[string]any
+	if err := json.Unmarshal(response.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal app response payload: %v", err)
+	}
+	if payload["created"] != true {
+		t.Fatalf("created = %v, want true", payload["created"])
+	}
+	if _, ok := payload["conversation"].(map[string]any); !ok {
+		t.Fatalf("conversation = %#v, want object", payload["conversation"])
+	}
+	if _, ok := payload["message"].(map[string]any); !ok {
+		t.Fatalf("message = %#v, want object", payload["message"])
+	}
+
+	return payload
+}
+
+func mustMarshalPayloadForTest(t *testing.T, payload any) json.RawMessage {
+	t.Helper()
+
+	content, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	return content
 }
 
 func readMessageCreatedEvent(t *testing.T, conn *websocket.Conn) map[string]any {
@@ -688,6 +818,360 @@ func TestClientWebSocketRequiresUserSession(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("Dial() status = %d, want 401", resp.StatusCode)
+	}
+}
+
+func TestAppWebSocketRequiresValidCredentials(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	_, resp, err := websocket.DefaultDialer.Dial(appWebSocketURL(server), nil)
+	if err == nil {
+		t.Fatal("Dial() error = nil, want missing app id error")
+	}
+	if resp == nil || resp.StatusCode != http.StatusBadRequest {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		t.Fatalf("missing app id status = %d, want 400", status)
+	}
+
+	header := http.Header{}
+	header.Set(appIDHeader, appregistry.AIAssistantAppID)
+	header.Set("Authorization", "Bearer wrong-secret")
+	_, resp, err = websocket.DefaultDialer.Dial(appWebSocketURL(server), header)
+	if err == nil {
+		t.Fatal("Dial() error = nil, want unauthorized error")
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		t.Fatalf("invalid secret status = %d, want 401", status)
+	}
+
+	disabledApp := store.App{
+		ID:               uuid.NewString(),
+		Name:             "Disabled App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "disabled-secret",
+		CreatedAt:        time.Now().UTC(),
+		UpdatedAt:        time.Now().UTC(),
+	}
+	if err := db.Create(&disabledApp).Error; err != nil {
+		t.Fatalf("create disabled app: %v", err)
+	}
+	if err := db.Model(&disabledApp).Update("enabled", false).Error; err != nil {
+		t.Fatalf("disable app: %v", err)
+	}
+	header.Set(appIDHeader, disabledApp.ID)
+	header.Set("Authorization", "Bearer disabled-secret")
+	_, resp, err = websocket.DefaultDialer.Dial(appWebSocketURL(server), header)
+	if err == nil {
+		t.Fatal("Dial() error = nil, want forbidden error")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		t.Fatalf("disabled app status = %d, want 403", status)
+	}
+}
+
+func TestAppWebSocketTracksAdminConnectionStatus(t *testing.T) {
+	server, _ := newTestRouter(t)
+	defer server.Close()
+	adminCookie := loginAsAdmin(t, server)
+
+	if status := requireAdminAppConnectionStatus(t, server, adminCookie, appregistry.AIAssistantAppID); status != "offline" {
+		t.Fatalf("initial connection_status = %v, want offline", status)
+	}
+
+	header := http.Header{}
+	header.Set(appIDHeader, appregistry.AIAssistantAppID)
+	header.Set("Authorization", "Bearer test-ai-assistant-secret")
+	conn, resp, err := websocket.DefaultDialer.Dial(appWebSocketURL(server), header)
+	if err != nil {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		t.Fatalf("Dial() error = %v, status = %d", err, status)
+	}
+
+	if status := requireAdminAppConnectionStatus(t, server, adminCookie, appregistry.AIAssistantAppID); status != "online" {
+		t.Fatalf("connected connection_status = %v, want online", status)
+	}
+
+	_ = conn.Close()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if status := requireAdminAppConnectionStatus(t, server, adminCookie, appregistry.AIAssistantAppID); status == "offline" {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("connection_status did not become offline after websocket close")
+}
+
+func TestAppWebSocketReceivesTextMessageEvents(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	if err := db.Model(&alice).Update("nickname", "Al").Error; err != nil {
+		t.Fatalf("set alice nickname: %v", err)
+	}
+	alice.Nickname = "Al"
+	app := insertTestApp(t, db, store.App{
+		Name:             "Echo App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "echo-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	userCookie := loginAsUser(t, server, alice.Email)
+	appConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+
+	createConversationResp, createConversationBody := postJSON(t, server, "/api/client/conversations/apps", map[string]any{
+		"app_id": app.ID,
+	}, userCookie)
+	if createConversationResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create app conversation status = %d, want 201, body = %#v", createConversationResp.StatusCode, createConversationBody)
+	}
+	conversation := requireSuccess(t, createConversationBody)["conversation"].(map[string]any)
+	conversationID := conversation["id"].(string)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversationID+"/messages", map[string]any{
+		"client_message_id": "client-message-1",
+		"body": map[string]any{
+			"type":    "text",
+			"content": "  你好，应用  ",
+		},
+	}, userCookie)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("send text status = %d, want 201, body = %#v", resp.StatusCode, body)
+	}
+	createdMessage := requireSuccess(t, body)["message"].(map[string]any)
+
+	event := readRealtimeEvent(t, appConn)
+	if event.Kind != realtime.KindEvent || event.Event != realtime.EventMessageCreated {
+		t.Fatalf("app event = %#v, want message.created event", event)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal app event payload: %v", err)
+	}
+	eventConversation := payload["conversation"].(map[string]any)
+	if eventConversation["id"] != conversationID {
+		t.Fatalf("conversation.id = %v, want %s", eventConversation["id"], conversationID)
+	}
+	if eventConversation["name"] != app.Name {
+		t.Fatalf("conversation.name = %v, want %s", eventConversation["name"], app.Name)
+	}
+	if eventConversation["type"] != store.ConversationKindApp {
+		t.Fatalf("conversation.type = %v, want app", eventConversation["type"])
+	}
+
+	sender := payload["sender"].(map[string]any)
+	if _, ok := sender["avatar"]; ok {
+		t.Fatalf("sender.avatar = %v, want omitted", sender["avatar"])
+	}
+	if sender["type"] != store.MessageSenderTypeUser {
+		t.Fatalf("sender.type = %v, want user", sender["type"])
+	}
+	if sender["id"] != alice.ID {
+		t.Fatalf("sender.id = %v, want %s", sender["id"], alice.ID)
+	}
+	if sender["name"] != alice.Name {
+		t.Fatalf("sender.name = %v, want %s", sender["name"], alice.Name)
+	}
+	if sender["nickname"] != alice.Nickname {
+		t.Fatalf("sender.nickname = %v, want %s", sender["nickname"], alice.Nickname)
+	}
+
+	message := payload["message"].(map[string]any)
+	if message["id"] != createdMessage["id"] {
+		t.Fatalf("message.id = %v, want %v", message["id"], createdMessage["id"])
+	}
+	if _, ok := message["conversation_id"]; ok {
+		t.Fatalf("message.conversation_id = %v, want omitted", message["conversation_id"])
+	}
+	messageBody := message["body"].(map[string]any)
+	if messageBody["type"] != messageTypeText {
+		t.Fatalf("message.body.type = %v, want text", messageBody["type"])
+	}
+	if messageBody["content"] != "你好，应用" {
+		t.Fatalf("message.body.content = %v, want normalized text", messageBody["content"])
+	}
+	if message["summary"] != "你好，应用" {
+		t.Fatalf("message.summary = %v, want normalized summary", message["summary"])
+	}
+	if message["seq"] != float64(1) {
+		t.Fatalf("message.seq = %v, want 1", message["seq"])
+	}
+	if message["created_at"] == "" {
+		t.Fatalf("message.created_at = %#v, want non-empty", message["created_at"])
+	}
+}
+
+func TestAppWebSocketMessageSendSupportsUserGroupAndAppTargets(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:             "Echo App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "echo-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	userCookie := loginAsUser(t, server, alice.Email)
+	userConn := dialClientWebSocket(t, server, userCookie)
+	if ready := readRealtimeEvent(t, userConn); ready.Kind != realtime.KindEvent || ready.Event != realtime.EventSystemReady {
+		t.Fatalf("ready envelope = %#v, want system.ready", ready)
+	}
+	appConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+
+	userRequest := realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "app-request-user",
+		Method: appMethodMessageSend,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"target": map[string]any{
+				"type":    "user",
+				"user_id": alice.ID,
+			},
+			"message": map[string]any{
+				"type":    "text",
+				"content": "  给 Alice 的消息  ",
+			},
+		}),
+	}
+	userResponse := sendAppRequest(t, appConn, userRequest)
+	userPayload := requireAppSendMessageResponsePayload(t, userResponse)
+	userConversation := userPayload["conversation"].(map[string]any)
+	if userConversation["type"] != store.ConversationKindApp {
+		t.Fatalf("user target conversation.type = %v, want app", userConversation["type"])
+	}
+	userMessage := userPayload["message"].(map[string]any)
+	userBody := userMessage["body"].(map[string]any)
+	if userBody["content"] != "给 Alice 的消息" {
+		t.Fatalf("user target body.content = %v, want normalized text", userBody["content"])
+	}
+	if userMessage["summary"] != "给 Alice 的消息" {
+		t.Fatalf("user target summary = %v, want normalized text", userMessage["summary"])
+	}
+	pushedUserMessage := readMessageCreatedEvent(t, userConn)
+	if pushedUserMessage["id"] != userMessage["id"] {
+		t.Fatalf("user target pushed id = %v, want %v", pushedUserMessage["id"], userMessage["id"])
+	}
+	userSender := pushedUserMessage["sender"].(map[string]any)
+	if userSender["type"] != store.MessageSenderTypeApp || userSender["id"] != app.ID {
+		t.Fatalf("user target pushed sender = %#v, want app sender", userSender)
+	}
+
+	appConversationID := userConversation["id"].(string)
+	appRequest := realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "app-request-app-conversation",
+		Method: appMethodMessageSend,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"target": map[string]any{
+				"type":            "app",
+				"conversation_id": appConversationID,
+			},
+			"message": map[string]any{
+				"type":    "text",
+				"content": "应用会话里的第二条",
+			},
+		}),
+	}
+	appResponse := sendAppRequest(t, appConn, appRequest)
+	appPayload := requireAppSendMessageResponsePayload(t, appResponse)
+	appConversation := appPayload["conversation"].(map[string]any)
+	if appConversation["id"] != appConversationID {
+		t.Fatalf("app target conversation.id = %v, want %s", appConversation["id"], appConversationID)
+	}
+	if appConversation["type"] != store.ConversationKindApp {
+		t.Fatalf("app target conversation.type = %v, want app", appConversation["type"])
+	}
+	appMessage := appPayload["message"].(map[string]any)
+	if appMessage["seq"] != float64(2) {
+		t.Fatalf("app target message.seq = %v, want 2", appMessage["seq"])
+	}
+	pushedAppMessage := readMessageCreatedEvent(t, userConn)
+	if pushedAppMessage["id"] != appMessage["id"] {
+		t.Fatalf("app target pushed id = %v, want %v", pushedAppMessage["id"], appMessage["id"])
+	}
+
+	group := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+	if err := db.Create(&store.ConversationMember{
+		ConversationID:        group.ID,
+		MemberType:            store.ConversationMemberTypeApp,
+		MemberID:              app.ID,
+		Role:                  store.ConversationMemberRoleMember,
+		JoinedAt:              now,
+		HistoryVisibleFromSeq: 1,
+	}).Error; err != nil {
+		t.Fatalf("create app group member: %v", err)
+	}
+
+	groupRequest := realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "app-request-group",
+		Method: appMethodMessageSend,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"target": map[string]any{
+				"type":            "group",
+				"conversation_id": group.ID,
+			},
+			"message": map[string]any{
+				"type":    "text",
+				"content": "群消息",
+			},
+		}),
+	}
+	groupResponse := sendAppRequest(t, appConn, groupRequest)
+	groupPayload := requireAppSendMessageResponsePayload(t, groupResponse)
+	groupConversation := groupPayload["conversation"].(map[string]any)
+	if groupConversation["id"] != group.ID {
+		t.Fatalf("group target conversation.id = %v, want %s", groupConversation["id"], group.ID)
+	}
+	if groupConversation["type"] != store.ConversationKindGroup {
+		t.Fatalf("group target conversation.type = %v, want group", groupConversation["type"])
+	}
+	groupMessage := groupPayload["message"].(map[string]any)
+	pushedGroupMessage := readMessageCreatedEvent(t, userConn)
+	if pushedGroupMessage["id"] != groupMessage["id"] {
+		t.Fatalf("group target pushed id = %v, want %v", pushedGroupMessage["id"], groupMessage["id"])
+	}
+
+	var storedMessages []store.Message
+	if err := db.Order("created_at ASC").Find(&storedMessages, "sender_type = ? AND sender_id = ?", store.MessageSenderTypeApp, app.ID).Error; err != nil {
+		t.Fatalf("find app messages: %v", err)
+	}
+	if len(storedMessages) != 3 {
+		t.Fatalf("stored app message count = %d, want 3", len(storedMessages))
 	}
 }
 
@@ -962,12 +1446,12 @@ func TestListClientConversationsCreatesBuiltinAssistantConversationOnce(t *testi
 	).Error; err != nil {
 		t.Fatalf("find assistant app member: %v", err)
 	}
-	if appMember.MemberID != appregistry.GoddessAppID {
-		t.Fatalf("assistant app member id = %s, want goddess app id", appMember.MemberID)
+	if appMember.MemberID != appregistry.AIAssistantAppID {
+		t.Fatalf("assistant app member id = %s, want AI assistant app id", appMember.MemberID)
 	}
 
 	var appConversation store.AppConversation
-	if err := db.First(&appConversation, "app_id = ? AND user_id = ?", appregistry.GoddessAppID, alice.ID).Error; err != nil {
+	if err := db.First(&appConversation, "app_id = ? AND user_id = ?", appregistry.AIAssistantAppID, alice.ID).Error; err != nil {
 		t.Fatalf("find assistant app conversation: %v", err)
 	}
 	if appConversation.ConversationID != builtinAssistantConversationID(alice.ID) {
@@ -1156,6 +1640,118 @@ func TestCreateDirectConversationRejectsInvalidTargets(t *testing.T) {
 			}
 			requireError(t, body, "invalid_request")
 		})
+	}
+}
+
+func TestClientAppConversationCreatesAndReturnsExistingForVisibleApp(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	aliceCreatorID := alice.ID
+	visibleApp := insertTestApp(t, db, store.App{
+		Name:             "Alice Agent",
+		CreatorUserID:    &aliceCreatorID,
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		ConnectionSecret: "alice-agent-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	cookie := loginAsUser(t, server, alice.Email)
+
+	createResp, createBody := postJSON(t, server, "/api/client/conversations/apps", map[string]any{
+		"app_id": visibleApp.ID,
+	}, cookie)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201, body = %#v", createResp.StatusCode, createBody)
+	}
+	createdConversation := requireSuccess(t, createBody)["conversation"].(map[string]any)
+	conversationID := createdConversation["id"].(string)
+	if createdConversation["type"] != store.ConversationKindApp {
+		t.Fatalf("conversation.type = %v, want app", createdConversation["type"])
+	}
+	if createdConversation["name"] != visibleApp.Name {
+		t.Fatalf("conversation.name = %v, want %s", createdConversation["name"], visibleApp.Name)
+	}
+
+	var storedConversation store.Conversation
+	if err := db.First(&storedConversation, "id = ?", conversationID).Error; err != nil {
+		t.Fatalf("find app conversation: %v", err)
+	}
+	if storedConversation.Kind != store.ConversationKindApp {
+		t.Fatalf("stored kind = %v, want app", storedConversation.Kind)
+	}
+	if storedConversation.CreatedByUserID != alice.ID {
+		t.Fatalf("stored created_by_user_id = %v, want %s", storedConversation.CreatedByUserID, alice.ID)
+	}
+	var appConversation store.AppConversation
+	if err := db.First(&appConversation, "app_id = ? AND user_id = ?", visibleApp.ID, alice.ID).Error; err != nil {
+		t.Fatalf("find app_conversation: %v", err)
+	}
+	if appConversation.ConversationID != conversationID {
+		t.Fatalf("app conversation id = %s, want %s", appConversation.ConversationID, conversationID)
+	}
+
+	var members []store.ConversationMember
+	if err := db.Where("conversation_id = ?", conversationID).Find(&members).Error; err != nil {
+		t.Fatalf("find app conversation members: %v", err)
+	}
+	if len(members) != 2 {
+		t.Fatalf("member count = %d, want 2", len(members))
+	}
+
+	existingResp, existingBody := postJSON(t, server, "/api/client/conversations/apps", map[string]any{
+		"app_id": visibleApp.ID,
+	}, cookie)
+	if existingResp.StatusCode != http.StatusOK {
+		t.Fatalf("existing status = %d, want 200, body = %#v", existingResp.StatusCode, existingBody)
+	}
+	existingConversation := requireSuccess(t, existingBody)["conversation"].(map[string]any)
+	if existingConversation["id"] != conversationID {
+		t.Fatalf("existing conversation id = %v, want %s", existingConversation["id"], conversationID)
+	}
+}
+
+func TestClientAppConversationRejectsHiddenOrDisabledApp(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	bobCreatorID := bob.ID
+	hiddenApp := insertTestApp(t, db, store.App{
+		Name:             "Bob Agent",
+		CreatorUserID:    &bobCreatorID,
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		ConnectionSecret: "bob-agent-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	disabledApp := insertTestApp(t, db, store.App{
+		Name:             "Disabled Agent",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "disabled-agent-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err := db.Model(&store.App{}).Where("id = ?", disabledApp.ID).Update("enabled", false).Error; err != nil {
+		t.Fatalf("disable test app: %v", err)
+	}
+	cookie := loginAsUser(t, server, alice.Email)
+
+	for _, appID := range []string{hiddenApp.ID, disabledApp.ID} {
+		resp, body := postJSON(t, server, "/api/client/conversations/apps", map[string]any{
+			"app_id": appID,
+		}, cookie)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404, body = %#v", resp.StatusCode, body)
+		}
+		requireError(t, body, "not_found")
 	}
 }
 
@@ -3326,67 +3922,59 @@ func TestAdminCanManageApps(t *testing.T) {
 	}
 	apps := requireSuccess(t, listBody)["apps"].([]any)
 	if len(apps) != 1 {
-		t.Fatalf("app count = %d, want goddess app", len(apps))
+		t.Fatalf("app count = %d, want AI assistant app", len(apps))
 	}
-	goddessApp := apps[0].(map[string]any)
-	if goddessApp["id"] != appregistry.GoddessAppID {
-		t.Fatalf("goddess id = %v, want %s", goddessApp["id"], appregistry.GoddessAppID)
+	aiAssistantApp := apps[0].(map[string]any)
+	if aiAssistantApp["id"] != appregistry.AIAssistantAppID {
+		t.Fatalf("AI assistant id = %v, want %s", aiAssistantApp["id"], appregistry.AIAssistantAppID)
 	}
-	if goddessApp["name"] != appregistry.GoddessDefaultName {
-		t.Fatalf("goddess name = %v, want %s", goddessApp["name"], appregistry.GoddessDefaultName)
+	if aiAssistantApp["name"] != appregistry.AIAssistantDefaultName {
+		t.Fatalf("AI assistant name = %v, want %s", aiAssistantApp["name"], appregistry.AIAssistantDefaultName)
 	}
-	if goddessApp["connection_secret"] != "test-goddess-secret" {
-		t.Fatalf("goddess secret = %v, want configured secret", goddessApp["connection_secret"])
+	if aiAssistantApp["connection_secret"] != "test-ai-assistant-secret" {
+		t.Fatalf("AI assistant secret = %v, want configured secret", aiAssistantApp["connection_secret"])
 	}
-	if goddessApp["connection_status"] != "offline" {
-		t.Fatalf("goddess connection_status = %v, want offline", goddessApp["connection_status"])
+	if aiAssistantApp["connection_status"] != "offline" {
+		t.Fatalf("AI assistant connection_status = %v, want offline", aiAssistantApp["connection_status"])
 	}
-	if goddessApp["websocket_url"] != config.DefaultGoddessWebSocketURL {
-		t.Fatalf("goddess websocket_url = %v, want %s", goddessApp["websocket_url"], config.DefaultGoddessWebSocketURL)
+	if aiAssistantApp["system"] != true {
+		t.Fatalf("AI assistant system = %v, want true", aiAssistantApp["system"])
 	}
-	if goddessApp["system"] != true {
-		t.Fatalf("goddess system = %v, want true", goddessApp["system"])
-	}
-	if goddessApp["visibility"] != store.AppVisibilityPublic {
-		t.Fatalf("goddess visibility = %v, want public", goddessApp["visibility"])
+	if aiAssistantApp["visibility"] != store.AppVisibilityPublic {
+		t.Fatalf("AI assistant visibility = %v, want public", aiAssistantApp["visibility"])
 	}
 
-	updateGoddessResp, updateGoddessBody := putJSON(t, server, "/api/admin/apps/"+appregistry.GoddessAppID, map[string]any{
-		"name":          "女菩萨 Pro",
-		"avatar":        "/assets/apps/goddess.webp",
-		"description":   "AI Agent",
-		"websocket_url": "wss://agent.example.com/ws",
-		"visibility":    "public",
+	updateAIAssistantResp, updateAIAssistantBody := putJSON(t, server, "/api/admin/apps/"+appregistry.AIAssistantAppID, map[string]any{
+		"name":        "AI 女菩萨 Pro",
+		"avatar":      "/assets/apps/assistant.webp",
+		"description": "AI Agent",
+		"visibility":  "public",
 	}, adminCookie)
-	if updateGoddessResp.StatusCode != http.StatusOK {
-		t.Fatalf("update goddess status = %d, want 200, body = %#v", updateGoddessResp.StatusCode, updateGoddessBody)
+	if updateAIAssistantResp.StatusCode != http.StatusOK {
+		t.Fatalf("update AI assistant status = %d, want 200, body = %#v", updateAIAssistantResp.StatusCode, updateAIAssistantBody)
 	}
-	updatedGoddess := requireSuccess(t, updateGoddessBody)["app"].(map[string]any)
-	if updatedGoddess["name"] != "女菩萨 Pro" {
-		t.Fatalf("updated goddess name = %v", updatedGoddess["name"])
+	updatedAIAssistant := requireSuccess(t, updateAIAssistantBody)["app"].(map[string]any)
+	if updatedAIAssistant["name"] != "AI 女菩萨 Pro" {
+		t.Fatalf("updated AI assistant name = %v", updatedAIAssistant["name"])
 	}
-	if updatedGoddess["websocket_url"] != "wss://agent.example.com/ws" {
-		t.Fatalf("updated goddess websocket_url = %v", updatedGoddess["websocket_url"])
-	}
-	if updatedGoddess["connection_secret"] != "test-goddess-secret" {
-		t.Fatalf("updated goddess secret = %v, want configured secret", updatedGoddess["connection_secret"])
+	if updatedAIAssistant["connection_secret"] != "test-ai-assistant-secret" {
+		t.Fatalf("updated AI assistant secret = %v, want configured secret", updatedAIAssistant["connection_secret"])
 	}
 
-	regenerateGoddessResp, _ := postJSON(t, server, "/api/admin/apps/"+appregistry.GoddessAppID+"/secret/regenerate", map[string]any{}, adminCookie)
-	if regenerateGoddessResp.StatusCode != http.StatusForbidden {
-		t.Fatalf("regenerate goddess status = %d, want 403", regenerateGoddessResp.StatusCode)
+	regenerateAIAssistantResp, _ := postJSON(t, server, "/api/admin/apps/"+appregistry.AIAssistantAppID+"/secret/regenerate", map[string]any{}, adminCookie)
+	if regenerateAIAssistantResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("regenerate AI assistant status = %d, want 403", regenerateAIAssistantResp.StatusCode)
 	}
-	deleteGoddessResp, _ := requestJSON(t, server, http.MethodDelete, "/api/admin/apps/"+appregistry.GoddessAppID, map[string]any{}, adminCookie)
-	if deleteGoddessResp.StatusCode != http.StatusForbidden {
-		t.Fatalf("delete goddess status = %d, want 403", deleteGoddessResp.StatusCode)
+	deleteAIAssistantResp, _ := requestJSON(t, server, http.MethodDelete, "/api/admin/apps/"+appregistry.AIAssistantAppID, map[string]any{}, adminCookie)
+	if deleteAIAssistantResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("delete AI assistant status = %d, want 403", deleteAIAssistantResp.StatusCode)
 	}
 
 	createResp, createBody := postJSON(t, server, "/api/admin/apps", map[string]any{
-		"name":          "知识库助手",
-		"avatar":        "/assets/apps/kb.webp",
-		"description":   "回答知识库问题",
-		"visibility":    "public",
-		"websocket_url": "wss://kb.example.com/ws",
+		"name":        "知识库助手",
+		"avatar":      "/assets/apps/kb.webp",
+		"description": "回答知识库问题",
+		"visibility":  "public",
 	}, adminCookie)
 	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201, body = %#v", createResp.StatusCode, createBody)
@@ -3397,7 +3985,7 @@ func TestAdminCanManageApps(t *testing.T) {
 	if appID == "" {
 		t.Fatal("created app id is empty")
 	}
-	if firstSecret == "" || firstSecret == "test-goddess-secret" {
+	if firstSecret == "" || firstSecret == "test-ai-assistant-secret" {
 		t.Fatalf("created app secret = %q, want generated unique secret", firstSecret)
 	}
 	if createdApp["system"] != false {
@@ -3411,11 +3999,10 @@ func TestAdminCanManageApps(t *testing.T) {
 	}
 
 	updateResp, updateBody := putJSON(t, server, "/api/admin/apps/"+appID, map[string]any{
-		"name":          "知识库 Agent",
-		"avatar":        "",
-		"description":   "更新后的介绍",
-		"visibility":    "public",
-		"websocket_url": "",
+		"name":        "知识库 Agent",
+		"avatar":      "",
+		"description": "更新后的介绍",
+		"visibility":  "public",
 	}, adminCookie)
 	if updateResp.StatusCode != http.StatusOK {
 		t.Fatalf("update status = %d, want 200, body = %#v", updateResp.StatusCode, updateBody)
@@ -3423,9 +4010,6 @@ func TestAdminCanManageApps(t *testing.T) {
 	updatedApp := requireSuccess(t, updateBody)["app"].(map[string]any)
 	if updatedApp["name"] != "知识库 Agent" {
 		t.Fatalf("updated app name = %v", updatedApp["name"])
-	}
-	if updatedApp["websocket_url"] != "" {
-		t.Fatalf("updated websocket_url = %v, want empty", updatedApp["websocket_url"])
 	}
 
 	disableResp, disableBody := postJSON(t, server, "/api/admin/apps/"+appID+"/disable", map[string]any{}, adminCookie)
@@ -3435,6 +4019,9 @@ func TestAdminCanManageApps(t *testing.T) {
 	disabledApp := requireSuccess(t, disableBody)["app"].(map[string]any)
 	if disabledApp["enabled"] != false {
 		t.Fatalf("disabled enabled = %v, want false", disabledApp["enabled"])
+	}
+	if disabledApp["connection_status"] != "disabled" {
+		t.Fatalf("disabled connection_status = %v, want disabled", disabledApp["connection_status"])
 	}
 
 	enableResp, enableBody := postJSON(t, server, "/api/admin/apps/"+appID+"/enable", map[string]any{}, adminCookie)
@@ -3461,6 +4048,30 @@ func TestAdminCanManageApps(t *testing.T) {
 		t.Fatalf("delete status = %d, want 200, body = %#v", deleteResp.StatusCode, deleteBody)
 	}
 	requireSuccess(t, deleteBody)
+}
+
+func requireAdminAppConnectionStatus(t *testing.T, server *httptest.Server, adminCookie *http.Cookie, appID string) string {
+	t.Helper()
+
+	resp, body := getJSON(t, server, "/api/admin/apps", adminCookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	apps := requireSuccess(t, body)["apps"].([]any)
+	for _, rawApp := range apps {
+		app := rawApp.(map[string]any)
+		if app["id"] == appID {
+			status, ok := app["connection_status"].(string)
+			if !ok {
+				t.Fatalf("connection_status = %#v, want string", app["connection_status"])
+			}
+
+			return status
+		}
+	}
+
+	t.Fatalf("admin apps did not include app %s", appID)
+	return ""
 }
 
 func TestAdminCanManageThirdPartyLoginProviders(t *testing.T) {
@@ -4285,6 +4896,201 @@ func TestCreateGroupConversationRejectsDisabledMembers(t *testing.T) {
 	requireError(t, body, "invalid_request")
 }
 
+func TestClientGroupVisibilityCanBeChangedByOwner(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID, bob.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+	cookie := loginAsUser(t, server, alice.Email)
+
+	publicResp, publicBody := postJSON(t, server, "/api/client/conversations/groups/"+conversation.ID+"/public", map[string]any{}, cookie)
+	if publicResp.StatusCode != http.StatusOK {
+		t.Fatalf("public status = %d, want 200, body = %#v", publicResp.StatusCode, publicBody)
+	}
+	publicConversation := requireSuccess(t, publicBody)["conversation"].(map[string]any)
+	if publicConversation["visibility"] != store.ConversationVisibilityPublic {
+		t.Fatalf("public conversation visibility = %v, want public", publicConversation["visibility"])
+	}
+	if publicConversation["last_message_summary"] != "Alice 将当前群设置为公开群" {
+		t.Fatalf("public summary = %v", publicConversation["last_message_summary"])
+	}
+
+	var storedPublic store.Message
+	if err := db.First(&storedPublic, "conversation_id = ? AND seq = ?", conversation.ID, int64(1)).Error; err != nil {
+		t.Fatalf("find public system message: %v", err)
+	}
+	if storedPublic.Summary != "Alice 将当前群设置为公开群" {
+		t.Fatalf("stored public summary = %v", storedPublic.Summary)
+	}
+	requireSystemEventActorBody(t, storedPublic.Body, "group_visibility_changed", alice.ID, "Alice")
+
+	repeatResp, repeatBody := postJSON(t, server, "/api/client/conversations/groups/"+conversation.ID+"/public", map[string]any{}, cookie)
+	if repeatResp.StatusCode != http.StatusOK {
+		t.Fatalf("repeat public status = %d, want 200, body = %#v", repeatResp.StatusCode, repeatBody)
+	}
+	var messageCount int64
+	if err := db.Model(&store.Message{}).Where("conversation_id = ?", conversation.ID).Count(&messageCount).Error; err != nil {
+		t.Fatalf("count messages: %v", err)
+	}
+	if messageCount != 1 {
+		t.Fatalf("message count after idempotent public = %d, want 1", messageCount)
+	}
+
+	privateResp, privateBody := postJSON(t, server, "/api/client/conversations/groups/"+conversation.ID+"/private", map[string]any{}, cookie)
+	if privateResp.StatusCode != http.StatusOK {
+		t.Fatalf("private status = %d, want 200, body = %#v", privateResp.StatusCode, privateBody)
+	}
+	privateConversation := requireSuccess(t, privateBody)["conversation"].(map[string]any)
+	if privateConversation["visibility"] != store.ConversationVisibilityPrivate {
+		t.Fatalf("private conversation visibility = %v, want private", privateConversation["visibility"])
+	}
+	if privateConversation["last_message_summary"] != "Alice 将当前群设为私有群" {
+		t.Fatalf("private summary = %v", privateConversation["last_message_summary"])
+	}
+
+	var storedPrivate store.Message
+	if err := db.First(&storedPrivate, "conversation_id = ? AND seq = ?", conversation.ID, int64(2)).Error; err != nil {
+		t.Fatalf("find private system message: %v", err)
+	}
+	if storedPrivate.Summary != "Alice 将当前群设为私有群" {
+		t.Fatalf("stored private summary = %v", storedPrivate.Summary)
+	}
+	requireSystemEventActorBody(t, storedPrivate.Body, "group_visibility_changed", alice.ID, "Alice")
+}
+
+func TestClientGroupVisibilityRejectsNonOwner(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID, bob.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+	cookie := loginAsUser(t, server, bob.Email)
+
+	for _, suffix := range []string{"public", "private"} {
+		resp, body := postJSON(t, server, "/api/client/conversations/groups/"+conversation.ID+"/"+suffix, map[string]any{}, cookie)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s status = %d, want 403, body = %#v", suffix, resp.StatusCode, body)
+		}
+		requireError(t, body, "forbidden")
+	}
+}
+
+func TestClientJoinPublicGroupCreatesMemberAndSystemMessage(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "公开讨论组",
+		now:             now,
+		visibility:      store.ConversationVisibilityPublic,
+	})
+	cookie := loginAsUser(t, server, bob.Email)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/groups/"+conversation.ID+"/join", map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("join status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	joinedConversation := data["conversation"].(map[string]any)
+	if joinedConversation["id"] != conversation.ID {
+		t.Fatalf("conversation.id = %v, want %s", joinedConversation["id"], conversation.ID)
+	}
+	if joinedConversation["member_count"] != float64(2) {
+		t.Fatalf("member_count = %v, want 2", joinedConversation["member_count"])
+	}
+	if joinedConversation["last_message_summary"] != "Bob 加入群聊" {
+		t.Fatalf("last_message_summary = %v", joinedConversation["last_message_summary"])
+	}
+	if data["message"] == nil {
+		t.Fatal("message = nil, want join system message")
+	}
+
+	var member store.ConversationMember
+	if err := db.First(&member, "conversation_id = ? AND member_type = ? AND member_id = ?", conversation.ID, store.ConversationMemberTypeUser, bob.ID).Error; err != nil {
+		t.Fatalf("find joined member: %v", err)
+	}
+	if member.LeftAt != nil {
+		t.Fatalf("joined member left_at = %v, want nil", member.LeftAt)
+	}
+	if member.HistoryVisibleFromSeq != 1 {
+		t.Fatalf("history_visible_from_seq = %d, want 1", member.HistoryVisibleFromSeq)
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "conversation_id = ? AND seq = ?", conversation.ID, int64(1)).Error; err != nil {
+		t.Fatalf("find join system message: %v", err)
+	}
+	if storedMessage.Summary != "Bob 加入群聊" {
+		t.Fatalf("stored summary = %v", storedMessage.Summary)
+	}
+	requireSystemEventActorBody(t, storedMessage.Body, "group_member_joined", bob.ID, "Bob")
+}
+
+func TestClientJoinPublicGroupRejectsPrivateOrFullGroup(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "owner@example.com", "Owner", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	privateGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{owner.ID},
+		name:            "私有群",
+		now:             now,
+	})
+	cookie := loginAsUser(t, server, bob.Email)
+
+	privateResp, privateBody := postJSON(t, server, "/api/client/conversations/groups/"+privateGroup.ID+"/join", map[string]any{}, cookie)
+	if privateResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("private join status = %d, want 403, body = %#v", privateResp.StatusCode, privateBody)
+	}
+	requireError(t, privateBody, "forbidden")
+
+	memberIDs := []string{owner.ID}
+	for i := 0; i < 99; i++ {
+		member := insertTestUser(t, db, fmt.Sprintf("member-%02d@example.com", i), fmt.Sprintf("Member %02d", i), store.UserStatusActive, now)
+		memberIDs = append(memberIDs, member.ID)
+	}
+	fullGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       memberIDs,
+		name:            "满员群",
+		now:             now,
+		visibility:      store.ConversationVisibilityPublic,
+	})
+	fullResp, fullBody := postJSON(t, server, "/api/client/conversations/groups/"+fullGroup.ID+"/join", map[string]any{}, cookie)
+	if fullResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("full join status = %d, want 400, body = %#v", fullResp.StatusCode, fullBody)
+	}
+	requireError(t, fullBody, "invalid_request")
+}
+
 func TestAddGroupConversationMembersCreatesMembersAndSystemMessage(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -4823,6 +5629,157 @@ func TestListContactsReturnsActiveUsersIncludingSelf(t *testing.T) {
 	}
 	if ids[disabled.ID] {
 		t.Fatal("contacts included disabled user")
+	}
+}
+
+func TestClientContactsReturnsVisibleAppsUsersAndGroups(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice Zhang", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob Li", store.UserStatusActive, now)
+	disabledUser := insertTestUser(t, db, "disabled@example.com", "Disabled User", store.UserStatusDisabled, now)
+
+	aliceCreatorID := alice.ID
+	bobCreatorID := bob.ID
+	publicApp := insertTestApp(t, db, store.App{
+		Name:             "Public Agent",
+		Avatar:           "/assets/apps/public.webp",
+		Description:      "Public app",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "public-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	aliceCreatorApp := insertTestApp(t, db, store.App{
+		Name:             "Alice Agent",
+		Avatar:           "/assets/apps/alice.webp",
+		Description:      "Creator app",
+		CreatorUserID:    &aliceCreatorID,
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		ConnectionSecret: "alice-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	bobCreatorApp := insertTestApp(t, db, store.App{
+		Name:             "Bob Agent",
+		CreatorUserID:    &bobCreatorID,
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		ConnectionSecret: "bob-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	disabledApp := insertTestApp(t, db, store.App{
+		Name:             "Disabled Agent",
+		Enabled:          false,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "disabled-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err := db.Model(&store.App{}).Where("id = ?", disabledApp.ID).Update("enabled", false).Error; err != nil {
+		t.Fatalf("disable test app: %v", err)
+	}
+
+	joinedPrivateGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Joined Private",
+		now:             now,
+	})
+	publicGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: bob.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{bob.ID},
+		name:            "Open Group",
+		now:             now,
+	})
+	privateUnjoinedGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: bob.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{bob.ID},
+		name:            "Hidden Group",
+		now:             now,
+	})
+	if err := db.Model(&store.Conversation{}).Where("id = ?", publicGroup.ID).Update("visibility", "public").Error; err != nil {
+		t.Fatalf("set public group visibility: %v", err)
+	}
+
+	resp, body := getJSON(t, server, "/api/client/contacts", loginAsUser(t, server, alice.Email))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+
+	data := requireSuccess(t, body)
+	apps := data["apps"].([]any)
+	appIDs := map[string]bool{}
+	for _, rawApp := range apps {
+		app := rawApp.(map[string]any)
+		appIDs[app["id"].(string)] = true
+		if app["type"] != "app" {
+			t.Fatalf("app.type = %v, want app", app["type"])
+		}
+		if app["online"] != false {
+			t.Fatalf("app.online = %v, want false", app["online"])
+		}
+	}
+	if !appIDs[publicApp.ID] {
+		t.Fatal("contacts apps did not include public app")
+	}
+	if !appIDs[aliceCreatorApp.ID] {
+		t.Fatal("contacts apps did not include current user's creator app")
+	}
+	if appIDs[bobCreatorApp.ID] {
+		t.Fatal("contacts apps included another user's creator app")
+	}
+	if appIDs[disabledApp.ID] {
+		t.Fatal("contacts apps included disabled app")
+	}
+
+	users := data["users"].([]any)
+	userIDs := map[string]bool{}
+	for _, rawUser := range users {
+		user := rawUser.(map[string]any)
+		userIDs[user["id"].(string)] = true
+		if user["type"] != "user" {
+			t.Fatalf("user.type = %v, want user", user["type"])
+		}
+	}
+	if !userIDs[alice.ID] || !userIDs[bob.ID] {
+		t.Fatalf("users = %#v, want alice and bob", users)
+	}
+	if userIDs[disabledUser.ID] {
+		t.Fatal("contacts users included disabled user")
+	}
+
+	groups := data["groups"].([]any)
+	groupsByID := map[string]map[string]any{}
+	for _, rawGroup := range groups {
+		group := rawGroup.(map[string]any)
+		groupsByID[group["id"].(string)] = group
+		if group["type"] != "group" {
+			t.Fatalf("group.type = %v, want group", group["type"])
+		}
+	}
+	if groupsByID[joinedPrivateGroup.ID] != nil {
+		t.Fatal("contacts groups included joined private group")
+	}
+	if groupsByID[publicGroup.ID] == nil {
+		t.Fatal("contacts groups did not include public group")
+	}
+	if groupsByID[publicGroup.ID]["joined"] != false {
+		t.Fatalf("public group joined = %v, want false", groupsByID[publicGroup.ID]["joined"])
+	}
+	if groupsByID[publicGroup.ID]["visibility"] != "public" {
+		t.Fatalf("public group visibility = %v, want public", groupsByID[publicGroup.ID]["visibility"])
+	}
+	if groupsByID[privateUnjoinedGroup.ID] != nil {
+		t.Fatal("contacts groups included private unjoined group")
 	}
 }
 

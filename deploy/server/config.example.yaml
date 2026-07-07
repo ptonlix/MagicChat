@@ -8,8 +8,7 @@ admin:
   password: "change-me"
 
 apps:
-  goddess_secret: "change-me"
-  goddess_websocket_url: "ws://goddess-server:20090/ws"
+  ai_assistant_secret: "change-me"
 
 storage:
   provider: "s3"

@@ -38,7 +38,28 @@ function createMeResponse(name = "Alice Zhang") {
 
 function createContactsResponse(name = "Bob Li") {
   return createSuccessResponse({
-    contacts: [
+    apps: [
+      {
+        avatar: "/assets/apps/assistant.webp",
+        description: "专属 AI 助理",
+        id: "app-1",
+        name: "AI 女菩萨",
+        online: false,
+        type: "app",
+      },
+    ],
+    groups: [
+      {
+        avatar: "",
+        id: "conversation-public-1",
+        joined: false,
+        member_count: 8,
+        name: "公开群",
+        type: "group",
+        visibility: "public",
+      },
+    ],
+    users: [
       {
         avatar: "/assets/avatars/builtin/03.webp",
         email: "bob@example.com",
@@ -89,6 +110,24 @@ function createDirectConversationResponse() {
   })
 }
 
+function createAppConversationResponse() {
+  return createSuccessResponse({
+    conversation: {
+      avatar: "/assets/apps/assistant.webp",
+      created_at: "2026-07-03T09:10:00Z",
+      id: "conversation-app-1",
+      last_message_at: null,
+      last_message_id: null,
+      last_message_seq: 0,
+      last_message_summary: "",
+      member_count: 2,
+      name: "AI 女菩萨",
+      type: "app",
+    },
+    created: true,
+  })
+}
+
 function createGroupConversationResponse() {
   return createSuccessResponse({
     conversation: {
@@ -120,6 +159,54 @@ function createGroupConversationResponse() {
       posting_policy: "open",
       status: "active",
       type: "group",
+    },
+  })
+}
+
+function createGroupActionResponse({
+  conversationId = "conversation-public-1",
+  name = "公开群",
+  visibility = "public",
+}: {
+  conversationId?: string
+  name?: string
+  visibility?: "private" | "public"
+} = {}) {
+  return createSuccessResponse({
+    conversation: {
+      avatar: "",
+      created_at: "2026-07-03T09:30:00Z",
+      id: conversationId,
+      last_message_at: null,
+      last_message_id: null,
+      last_message_seq: 1,
+      last_message_summary: "",
+      member_count: 3,
+      name,
+      type: "group",
+      visibility,
+    },
+    message: {
+      body: {
+        actor: {
+          display_name: "Alice Zhang",
+          id: "user-1",
+        },
+        event:
+          visibility === "public"
+            ? "group_visibility_changed"
+            : "group_member_joined",
+        type: "system_event",
+        visibility,
+      },
+      client_message_id: "",
+      conversation_id: conversationId,
+      created_at: "2026-07-03T09:31:00Z",
+      id: `message-${conversationId}`,
+      sender: {
+        type: "system",
+      },
+      seq: 1,
     },
   })
 }
@@ -156,7 +243,7 @@ function createClientDataFetchMock() {
       return createMeResponse()
     }
 
-    if (path === "/api/client/contacts/users") {
+    if (path === "/api/client/contacts") {
       return createContactsResponse()
     }
 
@@ -171,11 +258,33 @@ function createClientDataFetchMock() {
       return createDirectConversationResponse()
     }
 
+    if (path === "/api/client/conversations/apps" && init?.method === "POST") {
+      return createAppConversationResponse()
+    }
+
     if (
       path === "/api/client/conversations/groups" &&
       init?.method === "POST"
     ) {
       return createGroupConversationResponse()
+    }
+
+    if (
+      path === "/api/client/conversations/groups/conversation-public-1/join" &&
+      init?.method === "POST"
+    ) {
+      return createGroupActionResponse()
+    }
+
+    if (
+      path === "/api/client/conversations/groups/conversation-1/public" &&
+      init?.method === "POST"
+    ) {
+      return createGroupActionResponse({
+        conversationId: "conversation-1",
+        name: "Bob Li",
+        visibility: "public",
+      })
     }
 
     return new Response(null, { status: 404 })
@@ -190,7 +299,7 @@ function createClientDataErrorFetchMock() {
       return createMeResponse()
     }
 
-    if (path === "/api/client/contacts/users") {
+    if (path === "/api/client/contacts") {
       return new Response(
         JSON.stringify({
           success: false,
@@ -218,21 +327,28 @@ function createClientDataErrorFetchMock() {
 
 function DataProbe() {
   const {
+    contactApps,
+    contactGroups,
     conversations,
     contacts,
     contactsRefreshing,
     createGroupConversation,
+    joinGroupConversation,
     me,
     meRefreshing,
+    openAppConversation,
     openDirectConversation,
     refreshContacts,
     refreshMe,
+    setGroupConversationPublic,
     updateConversationLastMessage,
   } = useClientData()
 
   return (
     <div>
       <span data-testid="me-name">{me.name}</span>
+      <span data-testid="contact-app-count">{contactApps.length}</span>
+      <span data-testid="contact-group-count">{contactGroups.length}</span>
       <span data-testid="contact-count">{contacts.length}</span>
       <span data-testid="conversation-count">{conversations.length}</span>
       <span data-testid="first-conversation-name">
@@ -260,6 +376,9 @@ function DataProbe() {
       >
         open direct
       </button>
+      <button type="button" onClick={() => void openAppConversation("app-1")}>
+        open app
+      </button>
       <button
         type="button"
         onClick={() =>
@@ -267,6 +386,18 @@ function DataProbe() {
         }
       >
         create group
+      </button>
+      <button
+        type="button"
+        onClick={() => void joinGroupConversation("conversation-public-1")}
+      >
+        join group
+      </button>
+      <button
+        type="button"
+        onClick={() => void setGroupConversationPublic("conversation-1")}
+      >
+        set public
       </button>
       <button
         type="button"
@@ -352,6 +483,8 @@ describe("ClientDataProvider", () => {
     })
 
     expect(screen.getByTestId("me-name")).toHaveTextContent("Alice Zhang")
+    expect(screen.getByTestId("contact-app-count")).toHaveTextContent("1")
+    expect(screen.getByTestId("contact-group-count")).toHaveTextContent("1")
     expect(screen.getByTestId("contact-count")).toHaveTextContent("1")
     expect(screen.getByTestId("conversation-count")).toHaveTextContent("1")
     expect(screen.queryByText("正在为你加载数据")).not.toBeInTheDocument()
@@ -380,7 +513,7 @@ describe("ClientDataProvider", () => {
       credentials: "include",
       method: "GET",
     })
-    expect(fetcher).toHaveBeenCalledWith("/api/client/contacts/users", {
+    expect(fetcher).toHaveBeenCalledWith("/api/client/contacts", {
       credentials: "include",
       method: "GET",
     })
@@ -388,6 +521,40 @@ describe("ClientDataProvider", () => {
       credentials: "include",
       method: "GET",
     })
+  })
+
+  it("opens an app conversation and prepends it to conversations", async () => {
+    vi.useFakeTimers()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+    renderProvider()
+
+    await act(async () => {
+      await flushBootstrapPromises()
+      vi.advanceTimersByTime(2_000)
+      await flushBootstrapPromises()
+    })
+
+    fetcher.mockClear()
+
+    await act(async () => {
+      screen.getByRole("button", { name: "open app" }).click()
+      await flushBootstrapPromises()
+    })
+
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/apps", {
+      body: JSON.stringify({
+        app_id: "app-1",
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    })
+    expect(screen.getByTestId("conversation-count")).toHaveTextContent("2")
+    expect(screen.getByTestId("first-conversation-name")).toHaveTextContent(
+      "AI 女菩萨"
+    )
   })
 
   it("opens a direct conversation and prepends it to conversations", async () => {
@@ -459,6 +626,72 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("first-conversation-name")).toHaveTextContent(
       "新品讨论组"
     )
+  })
+
+  it("joins a public group and refreshes contacts", async () => {
+    vi.useFakeTimers()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+    renderProvider()
+
+    await act(async () => {
+      await flushBootstrapPromises()
+      vi.advanceTimersByTime(2_000)
+      await flushBootstrapPromises()
+    })
+
+    fetcher.mockClear()
+
+    await act(async () => {
+      screen.getByRole("button", { name: "join group" }).click()
+      await flushBootstrapPromises()
+    })
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-public-1/join",
+      {
+        credentials: "include",
+        method: "POST",
+      }
+    )
+    expect(fetcher).toHaveBeenCalledWith("/api/client/contacts", {
+      credentials: "include",
+      method: "GET",
+    })
+    expect(screen.getByTestId("conversation-count")).toHaveTextContent("2")
+    expect(screen.getByTestId("first-conversation-name")).toHaveTextContent(
+      "公开群"
+    )
+  })
+
+  it("sets a group public and refreshes contacts", async () => {
+    vi.useFakeTimers()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+    renderProvider()
+
+    await act(async () => {
+      await flushBootstrapPromises()
+      vi.advanceTimersByTime(2_000)
+      await flushBootstrapPromises()
+    })
+
+    fetcher.mockClear()
+
+    await act(async () => {
+      screen.getByRole("button", { name: "set public" }).click()
+      await flushBootstrapPromises()
+    })
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-1/public",
+      {
+        credentials: "include",
+        method: "POST",
+      }
+    )
+    expect(fetcher).toHaveBeenCalledWith("/api/client/contacts", {
+      credentials: "include",
+      method: "GET",
+    })
   })
 
   it("does not let stale message pushes regress conversation summary", async () => {

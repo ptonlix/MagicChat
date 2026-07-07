@@ -69,6 +69,35 @@ function createDirectConversationResponse() {
   )
 }
 
+function createAppConversationResponse() {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      data: {
+        conversation: {
+          avatar: "/assets/apps/assistant.webp",
+          created_at: "2026-07-03T09:10:00Z",
+          id: "conversation-ai-assistant",
+          last_message_at: null,
+          last_message_id: null,
+          last_message_seq: 0,
+          last_message_summary: "",
+          member_count: 2,
+          name: "AI 女菩萨",
+          type: "app",
+        },
+        created: false,
+      },
+    }),
+    {
+      headers: {
+        "content-type": "application/json",
+      },
+      status: 200,
+    }
+  )
+}
+
 function createGroupConversationResponse({
   id = "conversation-new-group",
   name = "新品讨论组",
@@ -120,6 +149,119 @@ function createGroupConversationResponse({
     }
   )
 }
+
+function createJoinGroupConversationResponse() {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      data: {
+        conversation: {
+          avatar: "",
+          created_at: "2026-07-03T09:30:00Z",
+          id: "conversation-public",
+          last_message_at: "2026-07-03T09:31:00Z",
+          last_message_id: "message-public-join",
+          last_message_seq: 1,
+          last_message_summary: "Al 加入群聊",
+          member_count: 9,
+          name: "公开群",
+          type: "group",
+          visibility: "public",
+        },
+        message: {
+          body: {
+            actor: {
+              display_name: "Al",
+              id: "user-1",
+            },
+            event: "group_member_joined",
+            type: "system_event",
+          },
+          client_message_id: "",
+          conversation_id: "conversation-public",
+          created_at: "2026-07-03T09:31:00Z",
+          id: "message-public-join",
+          sender: {
+            type: "system",
+          },
+          seq: 1,
+        },
+      },
+    }),
+    {
+      headers: {
+        "content-type": "application/json",
+      },
+      status: 200,
+    }
+  )
+}
+
+function createGroupVisibilityResponse(visibility: "private" | "public") {
+  const summary =
+    visibility === "public"
+      ? "Al 将当前群设置为公开群"
+      : "Al 将当前群设为私有群"
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      data: {
+        conversation: {
+          avatar: "",
+          created_at: "2026-07-03T06:00:00Z",
+          created_by_user_id: "user-1",
+          id: "conversation-team",
+          last_message_at: "2026-07-03T09:31:00Z",
+          last_message_id: `message-visibility-${visibility}`,
+          last_message_seq: 4,
+          last_message_summary: summary,
+          member_count: 3,
+          members: [
+            {
+              avatar: "/assets/avatars/builtin/17.webp",
+              email: "alice@example.com",
+              id: "user-1",
+              name: "Alice",
+              nickname: "Al",
+              phone: "+8613912345678",
+              role: "owner",
+            },
+          ],
+          name: "产品讨论组",
+          type: "group",
+          visibility,
+        },
+        message: {
+          body: {
+            actor: {
+              display_name: "Al",
+              id: "user-1",
+            },
+            event: "group_visibility_changed",
+            type: "system_event",
+            visibility,
+          },
+          client_message_id: "",
+          conversation_id: "conversation-team",
+          created_at: "2026-07-03T09:31:00Z",
+          id: `message-visibility-${visibility}`,
+          sender: {
+            type: "system",
+          },
+          seq: 4,
+        },
+      },
+    }),
+    {
+      headers: {
+        "content-type": "application/json",
+      },
+      status: 200,
+    }
+  )
+}
+
 
 function createConversationMessage({
   clientMessageId,
@@ -263,13 +405,19 @@ function createSendMessageResponse({
 }
 
 function createClientConversationsResponse({
+  teamCreatedByUserId = "user-1",
+  teamCurrentUserRole = "owner",
   teamLastMessageSeq = 3,
   teamLastReadSeq = 3,
   teamUnreadCount = 0,
+  teamVisibility = "private",
 }: {
+  teamCreatedByUserId?: string
+  teamCurrentUserRole?: "admin" | "member" | "owner"
   teamLastMessageSeq?: number
   teamLastReadSeq?: number
   teamUnreadCount?: number
+  teamVisibility?: "private" | "public"
 } = {}) {
   return new Response(
     JSON.stringify({
@@ -293,6 +441,7 @@ function createClientConversationsResponse({
           {
             avatar: "",
             created_at: "2026-07-03T06:00:00Z",
+            created_by_user_id: teamCreatedByUserId,
             id: "conversation-team",
             last_message_at: "2026-07-02T07:30:00Z",
             last_message_id: "message-2",
@@ -300,9 +449,40 @@ function createClientConversationsResponse({
             last_message_summary: "今天下午同步",
             last_read_seq: teamLastReadSeq,
             member_count: 3,
+            members: [
+              {
+                avatar: "/assets/avatars/builtin/17.webp",
+                email: "alice@example.com",
+                id: "user-1",
+                name: "Alice",
+                nickname: "Al",
+                phone: "+8613912345678",
+                role: teamCurrentUserRole,
+              },
+              {
+                avatar: "/assets/avatars/builtin/03.webp",
+                email: "bob@example.com",
+                id: "user-2",
+                name: "Bob Li",
+                nickname: "",
+                phone: "+8613912345679",
+                role:
+                  teamCreatedByUserId === "user-2" ? "owner" : "member",
+              },
+              {
+                avatar: "/assets/avatars/builtin/05.webp",
+                email: "carol@example.com",
+                id: "user-3",
+                name: "Carol Wang",
+                nickname: "",
+                phone: "",
+                role: "member",
+              },
+            ],
             name: "产品讨论组",
             type: "group",
             unread_count: teamUnreadCount,
+            visibility: teamVisibility,
           },
         ],
       },
@@ -519,12 +699,42 @@ function createClientFetchMock({
       )
     }
 
-    if (path === "/api/client/contacts/users") {
+    if (path === "/api/client/contacts") {
       return new Response(
         JSON.stringify({
           success: true,
           data: {
-            contacts: [
+            apps: [
+              {
+                avatar: "/assets/apps/assistant.webp",
+                description: "专属 AI 助理",
+                id: "app-ai-assistant",
+                name: "AI 女菩萨",
+                online: false,
+                type: "app",
+              },
+            ],
+            groups: [
+              {
+                avatar: "",
+                id: "conversation-team",
+                joined: true,
+                member_count: 3,
+                name: "产品讨论组",
+                type: "group",
+                visibility: "private",
+              },
+              {
+                avatar: "",
+                id: "conversation-public",
+                joined: false,
+                member_count: 8,
+                name: "公开群",
+                type: "group",
+                visibility: "public",
+              },
+            ],
+            users: [
               {
                 avatar: "/assets/avatars/builtin/17.webp",
                 email: "alice@example.com",
@@ -659,6 +869,10 @@ function createClientFetchMock({
       )
     }
 
+    if (path === "/api/client/conversations/apps" && init?.method === "POST") {
+      return createAppConversationResponse()
+    }
+
     if (
       path === "/api/client/conversations/groups" &&
       init?.method === "POST"
@@ -668,6 +882,27 @@ function createClientFetchMock({
       }
 
       return createGroupConversationResponse()
+    }
+
+    if (
+      path === "/api/client/conversations/groups/conversation-public/join" &&
+      init?.method === "POST"
+    ) {
+      return createJoinGroupConversationResponse()
+    }
+
+    if (
+      path === "/api/client/conversations/groups/conversation-team/public" &&
+      init?.method === "POST"
+    ) {
+      return createGroupVisibilityResponse("public")
+    }
+
+    if (
+      path === "/api/client/conversations/groups/conversation-team/private" &&
+      init?.method === "POST"
+    ) {
+      return createGroupVisibilityResponse("private")
     }
 
     return new Response(
@@ -1559,7 +1794,7 @@ describe("App", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/contacts")
     expect(document.title).toBe("联系人 - 星环协作")
     expect(
-      screen.getByRole("heading", { level: 1, name: "联系人" })
+      screen.getByRole("heading", { level: 1, name: "通讯录" })
     ).toBeInTheDocument()
     expect(
       screen.queryByRole("heading", { level: 2, name: "联系人" })
@@ -1615,10 +1850,11 @@ describe("App", () => {
     ).not.toBeInTheDocument()
     expect(
       within(aliceContactItem).getByTestId("contact-avatar")
-    ).toHaveAttribute("data-size", "sm")
+    ).toHaveAttribute("data-size", "default")
     expect(within(aliceContactItem).getByTestId("contact-avatar")).toHaveClass(
       "bg-muted",
-      "rounded-sm"
+      "rounded-sm",
+      "size-8"
     )
     expect(within(aliceContactItem).getByTestId("contact-avatar")).toHaveClass(
       "after:rounded-sm"
@@ -1663,7 +1899,8 @@ describe("App", () => {
       within(bobContactItem).queryByText("bob@example.com")
     ).not.toBeInTheDocument()
     expect(within(bobContactItem).getByLabelText("离线")).toHaveClass(
-      "bg-muted-foreground/30"
+      "bg-neutral-400",
+      "dark:bg-neutral-500"
     )
     const bobConversationButton = within(bobContactItem).getByRole("button", {
       name: "与 Bob Li 对话",
@@ -1838,7 +2075,7 @@ describe("App", () => {
     renderApp("/contacts")
 
     await openLatestAppWebSocket()
-    await screen.findByRole("heading", { name: "联系人" }, { timeout: 4_000 })
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
     const bobContactItem = screen.getByRole("option", { name: "Bob Li" })
 
     await user.click(bobContactItem)
@@ -1869,6 +2106,128 @@ describe("App", () => {
     ).toBeInTheDocument()
   }, 10_000)
 
+  it("通讯录按应用、联系人、群组分组展示", async () => {
+    const user = userEvent.setup()
+
+    renderApp("/contacts")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
+
+    expect(screen.getByRole("tab", { name: "联系人" })).toHaveAttribute(
+      "data-state",
+      "active"
+    )
+    expect(screen.getByText("应用")).toBeInTheDocument()
+    expect(screen.getByText("群组")).toBeInTheDocument()
+
+    expect(screen.getByRole("option", { name: "Bob Li" })).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "AI 女菩萨" })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: "应用" }))
+    expect(
+      screen.getByRole("option", { name: "AI 女菩萨" })
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: "群组" }))
+    expect(screen.getByRole("option", { name: "公开群" })).toBeInTheDocument()
+  }, 10_000)
+
+  it("通讯录里的应用可以发起应用会话", async () => {
+    const user = userEvent.setup()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+
+    renderApp("/contacts")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
+    await user.click(screen.getByRole("tab", { name: "应用" }))
+    await user.click(screen.getByRole("option", { name: "AI 女菩萨" }))
+    await user.click(
+      within(screen.getByTestId("contact-detail-panel")).getByRole("button", {
+        name: "发消息",
+      })
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat")
+    )
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "?conversation_id=conversation-ai-assistant"
+    )
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/apps", {
+      body: JSON.stringify({
+        app_id: "app-ai-assistant",
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    })
+  }, 10_000)
+
+  it("通讯录里的公开群可以加入并跳到群聊", async () => {
+    const user = userEvent.setup()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+
+    renderApp("/contacts")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
+    await user.click(screen.getByRole("tab", { name: "群组" }))
+    await user.click(screen.getByRole("option", { name: "公开群" }))
+    await user.click(
+      within(screen.getByTestId("contact-detail-panel")).getByRole("button", {
+        name: "加入群聊",
+      })
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat")
+    )
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "?conversation_id=conversation-public"
+    )
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-public/join",
+      {
+        credentials: "include",
+        method: "POST",
+      }
+    )
+  }, 10_000)
+
+  it("通讯录里已加入的群组可以直接发消息", async () => {
+    const user = userEvent.setup()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+
+    renderApp("/contacts")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
+    await user.click(screen.getByRole("tab", { name: "群组" }))
+    await user.click(screen.getByRole("option", { name: "产品讨论组" }))
+    await user.click(
+      within(screen.getByTestId("contact-detail-panel")).getByRole("button", {
+        name: "发消息",
+      })
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/chat")
+    )
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "?conversation_id=conversation-team"
+    )
+    expect(fetcher).not.toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-team/join",
+      expect.anything()
+    )
+  }, 10_000)
+
   it("联系人详情里的发消息等待接口时显示 loading 图标", async () => {
     const user = userEvent.setup()
     let resolveDirectConversation!: (response: Response) => void
@@ -1883,7 +2242,7 @@ describe("App", () => {
     renderApp("/contacts")
 
     await openLatestAppWebSocket()
-    await screen.findByRole("heading", { name: "联系人" }, { timeout: 4_000 })
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
     await user.click(screen.getByRole("option", { name: "Bob Li" }))
     const sendMessageButton = within(
       screen.getByTestId("contact-detail-panel")
@@ -1906,7 +2265,7 @@ describe("App", () => {
     renderApp("/contacts")
 
     await openLatestAppWebSocket()
-    await screen.findByRole("heading", { name: "联系人" }, { timeout: 4_000 })
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
     const bobContactItem = screen.getByRole("option", { name: "Bob Li" })
 
     await user.click(
@@ -1935,7 +2294,7 @@ describe("App", () => {
     renderApp("/contacts")
 
     await openLatestAppWebSocket()
-    await screen.findByRole("heading", { name: "联系人" }, { timeout: 4_000 })
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
     const bobConversationButton = within(
       screen.getByRole("option", { name: "Bob Li" })
     ).getByRole("button", { name: "与 Bob Li 对话" })
@@ -1963,7 +2322,7 @@ describe("App", () => {
     renderApp("/contacts")
 
     await openLatestAppWebSocket()
-    await screen.findByRole("heading", { name: "联系人" }, { timeout: 4_000 })
+    await screen.findByRole("heading", { name: "通讯录" }, { timeout: 4_000 })
     const selfContactItem = screen.getByRole("option", { name: "Al" })
 
     expect(
@@ -2102,6 +2461,130 @@ describe("App", () => {
       within(groupInfoSheet).queryByText("产品讨论组")
     ).not.toBeInTheDocument()
     expect(within(groupInfoSheet).queryByText("群聊")).not.toBeInTheDocument()
+  }, 10_000)
+
+  it("群主可以将群聊设置为公开群", async () => {
+    const user = userEvent.setup()
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>
+
+    renderApp("/chat?conversation_id=conversation-team")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole(
+      "heading",
+      { name: "产品讨论组" },
+      { timeout: 4_000 }
+    )
+
+    await user.click(screen.getByRole("button", { name: "会话设置" }))
+    const groupInfoSheet = await screen.findByRole("dialog", {
+      name: "群聊信息",
+    })
+    await user.click(
+      within(groupInfoSheet).getByRole("button", { name: "设置为公开群" })
+    )
+
+    const confirmDialog = await screen.findByRole("alertdialog", {
+      name: "设置为公开群",
+    })
+    expect(confirmDialog).toHaveTextContent("公开以后任何用户都可以加入这个群")
+    await user.click(
+      within(confirmDialog).getByRole("button", { name: "确定" })
+    )
+
+    await waitFor(() =>
+      expect(fetcher).toHaveBeenCalledWith(
+        "/api/client/conversations/groups/conversation-team/public",
+        {
+          credentials: "include",
+          method: "POST",
+        }
+      )
+    )
+    expect(
+      within(groupInfoSheet).getByRole("button", { name: "取消公开群" })
+    ).toBeInTheDocument()
+  }, 10_000)
+
+  it("群主可以取消公开群", async () => {
+    const user = userEvent.setup()
+    const fetcher = createClientFetchMock({
+      conversationsHandler: () =>
+        createClientConversationsResponse({ teamVisibility: "public" }),
+    })
+    vi.stubGlobal("fetch", fetcher)
+
+    renderApp("/chat?conversation_id=conversation-team")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole(
+      "heading",
+      { name: "产品讨论组" },
+      { timeout: 4_000 }
+    )
+
+    await user.click(screen.getByRole("button", { name: "会话设置" }))
+    const groupInfoSheet = await screen.findByRole("dialog", {
+      name: "群聊信息",
+    })
+    await user.click(
+      within(groupInfoSheet).getByRole("button", { name: "取消公开群" })
+    )
+
+    const confirmDialog = await screen.findByRole("alertdialog", {
+      name: "取消公开群",
+    })
+    await user.click(
+      within(confirmDialog).getByRole("button", { name: "确定" })
+    )
+
+    await waitFor(() =>
+      expect(fetcher).toHaveBeenCalledWith(
+        "/api/client/conversations/groups/conversation-team/private",
+        {
+          credentials: "include",
+          method: "POST",
+        }
+      )
+    )
+    expect(
+      within(groupInfoSheet).getByRole("button", { name: "设置为公开群" })
+    ).toBeInTheDocument()
+  }, 10_000)
+
+  it("普通成员不能设置或取消公开群", async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      "fetch",
+      createClientFetchMock({
+        conversationsHandler: () =>
+          createClientConversationsResponse({
+            teamCreatedByUserId: "user-2",
+            teamCurrentUserRole: "member",
+          }),
+      })
+    )
+
+    renderApp("/chat?conversation_id=conversation-team")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole(
+      "heading",
+      { name: "产品讨论组" },
+      { timeout: 4_000 }
+    )
+
+    await user.click(screen.getByRole("button", { name: "会话设置" }))
+    const groupInfoSheet = await screen.findByRole("dialog", {
+      name: "群聊信息",
+    })
+
+    expect(
+      within(groupInfoSheet).queryByRole("button", { name: "设置为公开群" })
+    ).not.toBeInTheDocument()
+    expect(
+      within(groupInfoSheet).queryByRole("button", { name: "取消公开群" })
+    ).not.toBeInTheDocument()
   }, 10_000)
 
   it("打开会话时先显示消息加载状态，接口返回空列表后再显示空态", async () => {

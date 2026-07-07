@@ -23,7 +23,7 @@ assert_contains() {
 
 assert_file "compose.yml"
 assert_file "server/Dockerfile"
-assert_file "goddess-server/Dockerfile"
+assert_file "assistant/Dockerfile"
 assert_file "deploy/nginx/Dockerfile"
 assert_file "deploy/nginx/nginx.conf"
 assert_file "deploy/nginx/templates/default.conf.template"
@@ -34,15 +34,21 @@ assert_file ".dockerignore"
 assert_contains "compose.yml" "ghcr.1ms.run"
 assert_contains "compose.yml" "ghcr.1ms.run/chaitin/mygod"
 assert_contains "compose.yml" "rustfs/rustfs"
-assert_contains "compose.yml" "goddess-server:"
-assert_contains "compose.yml" '${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/goddess-server:${IMAGE_TAG:-latest}'
+assert_contains "compose.yml" "assistant:"
+assert_contains "compose.yml" "container_name: mygod-postgres"
+assert_contains "compose.yml" "container_name: mygod-rustfs"
+assert_contains "compose.yml" "container_name: assistant"
+assert_contains "compose.yml" "container_name: mygod-server"
+assert_contains "compose.yml" "container_name: mygod-nginx"
+assert_contains "compose.yml" '${IMAGE_REGISTRY:-ghcr.io/chaitin/mygod}/assistant:${IMAGE_TAG:-latest}'
 assert_contains "compose.yml" 'RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-mygod}'
 assert_contains "compose.yml" 'RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me}'
 assert_contains "compose.yml" 'CLIENT_HOSTNAME: ${CLIENT_HOSTNAME:-client.localhost}'
 assert_contains "compose.yml" 'ADMIN_HOSTNAME: ${ADMIN_HOSTNAME:-admin.localhost}'
 assert_contains "compose.yml" 'ASSETS_HOSTNAME: ${ASSETS_HOSTNAME:-assets.localhost}'
-assert_contains "compose.yml" 'GODDESS_APP_WEBSOCKET_URL: ${GODDESS_APP_WEBSOCKET_URL:-ws://goddess-server:20090/ws}'
-assert_contains "compose.yml" "http://127.0.0.1:20090/healthz"
+assert_contains "compose.yml" 'MYGOD_APP_ID: 00000000-0000-0000-0000-000000000001'
+assert_contains "compose.yml" 'MYGOD_APP_SECRET: ${MYGOD_AI_ASSISTANT_SECRET:-change-me}'
+assert_contains "compose.yml" 'MYGOD_WS_URL: ws://server:20080/api/app/ws'
 assert_contains "compose.yml" "80:80"
 assert_contains "compose.yml" "443:443"
 assert_contains "compose.yml" "./data/postgres/data:/var/lib/postgresql/data"
@@ -58,13 +64,17 @@ fi
 if grep -Fq -- "your-org" "${ROOT_DIR}/compose.yml"; then
   fail "compose.yml should not contain placeholder image namespace"
 fi
+old_ai_assistant_name="god""dess"
+if grep -Fqi -- "${old_ai_assistant_name}" "${ROOT_DIR}/compose.yml"; then
+  fail "compose.yml should not contain old AI assistant naming"
+fi
 
 assert_contains ".dockerignore" "data"
 assert_contains ".dockerignore" "**/node_modules"
 assert_contains ".dockerignore" "**/dist"
 
 assert_contains "deploy/server/config.example.yaml" "postgres://app:app@postgres:5432/app?sslmode=disable"
-assert_contains "deploy/server/config.example.yaml" 'goddess_websocket_url: "ws://goddess-server:20090/ws"'
+assert_contains "deploy/server/config.example.yaml" 'ai_assistant_secret: "change-me"'
 assert_contains "deploy/server/config.example.yaml" "endpoint: \"http://rustfs:9000\""
 assert_contains "deploy/server/config.example.yaml" "access_key_id: \"\""
 assert_contains "deploy/server/config.example.yaml" "secret_access_key: \"\""
@@ -95,6 +105,7 @@ assert_contains "deploy/nginx/templates/default.conf.template" "/etc/nginx/certs
 assert_contains "deploy/nginx/templates/default.conf.template" "root /usr/share/nginx/client"
 assert_contains "deploy/nginx/templates/default.conf.template" "root /usr/share/nginx/admin"
 assert_contains "deploy/nginx/templates/default.conf.template" "location /api/client/ws"
+assert_contains "deploy/nginx/templates/default.conf.template" "location /api/app/"
 assert_contains "deploy/nginx/templates/default.conf.template" "proxy_set_header Upgrade"
 assert_contains "deploy/nginx/templates/default.conf.template" "location /api/client/"
 assert_contains "deploy/nginx/templates/default.conf.template" "location /api/admin/"
@@ -103,8 +114,7 @@ assert_contains "deploy/nginx/templates/default.conf.template" "proxy_pass http:
 assert_contains "server/Dockerfile" "go build"
 assert_contains "server/Dockerfile" "COPY server/migrations"
 assert_contains "server/Dockerfile" "COPY api-docs"
-assert_contains "goddess-server/Dockerfile" "go build"
-assert_contains "goddess-server/Dockerfile" "EXPOSE 20090"
+assert_contains "assistant/Dockerfile" "go build"
 
 assert_contains "deploy/nginx/Dockerfile" "pnpm build"
 assert_contains "deploy/nginx/Dockerfile" "COPY --from=client-build /src/client-web/dist /usr/share/nginx/client"
@@ -112,7 +122,7 @@ assert_contains "deploy/nginx/Dockerfile" "COPY --from=admin-build /src/admin-we
 
 assert_contains ".github/workflows/docker.yml" "ghcr.io"
 assert_contains ".github/workflows/docker.yml" "server/Dockerfile"
-assert_contains ".github/workflows/docker.yml" "goddess-server/Dockerfile"
+assert_contains ".github/workflows/docker.yml" "assistant/Dockerfile"
 assert_contains ".github/workflows/docker.yml" "deploy/nginx/Dockerfile"
 assert_contains ".github/workflows/docker.yml" "docker/build-push-action@v7"
 

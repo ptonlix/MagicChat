@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -32,11 +31,8 @@ type AdminConfig struct {
 }
 
 type AppsConfig struct {
-	GoddessSecret       string `yaml:"goddess_secret"`
-	GoddessWebSocketURL string `yaml:"goddess_websocket_url"`
+	AIAssistantSecret string `yaml:"ai_assistant_secret"`
 }
-
-const DefaultGoddessWebSocketURL = "ws://goddess-server:20090/ws"
 
 type StorageConfig struct {
 	Provider        string                 `yaml:"provider"`
@@ -131,34 +127,12 @@ func validateHostnameEnv(name string, value string) error {
 }
 
 func normalizeAppsConfig(cfg *AppsConfig) error {
-	if value := firstNonEmptyEnv("GODDESS_APP_SECRET"); value != "" {
-		cfg.GoddessSecret = value
+	if value := firstNonEmptyEnv("MYGOD_AI_ASSISTANT_SECRET"); value != "" {
+		cfg.AIAssistantSecret = value
 	}
-	if value := firstNonEmptyEnv("GODDESS_APP_WEBSOCKET_URL"); value != "" {
-		cfg.GoddessWebSocketURL = value
-	}
-	cfg.GoddessSecret = strings.TrimSpace(cfg.GoddessSecret)
-	if cfg.GoddessSecret == "" {
-		return fmt.Errorf("apps.goddess_secret is required")
-	}
-	cfg.GoddessWebSocketURL = strings.TrimSpace(cfg.GoddessWebSocketURL)
-	if cfg.GoddessWebSocketURL == "" {
-		cfg.GoddessWebSocketURL = DefaultGoddessWebSocketURL
-	}
-	if err := validateWebSocketURL("apps.goddess_websocket_url", cfg.GoddessWebSocketURL); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func validateWebSocketURL(name string, value string) error {
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("%s must be a ws or wss URL", name)
-	}
-	if parsed.Scheme != "ws" && parsed.Scheme != "wss" {
-		return fmt.Errorf("%s must be a ws or wss URL", name)
+	cfg.AIAssistantSecret = strings.TrimSpace(cfg.AIAssistantSecret)
+	if cfg.AIAssistantSecret == "" {
+		return fmt.Errorf("apps.ai_assistant_secret is required")
 	}
 
 	return nil
