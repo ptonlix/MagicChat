@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const maxGroupConversationMembers = 200
@@ -64,14 +66,26 @@ type conversationListItemResponse struct {
 	LastMessageID      *string                      `json:"last_message_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 	LastMessageSeq     int64                        `json:"last_message_seq" example:"12"`
 	LastMessageSummary string                       `json:"last_message_summary" example:"好的，我看一下"`
+	LastReadSeq        int64                        `json:"last_read_seq" example:"9"`
 	MemberCount        int                          `json:"member_count" example:"2"`
 	Members            []conversationMemberResponse `json:"members"`
 	Name               string                       `json:"name" example:"张三"`
 	Type               string                       `json:"type" example:"direct"`
+	UnreadCount        int64                        `json:"unread_count" example:"3"`
 }
 
 type listClientConversationsResponse struct {
 	Conversations []conversationListItemResponse `json:"conversations"`
+}
+
+type markConversationReadRequest struct {
+	UpToSeq *int64 `json:"up_to_seq" example:"123"`
+}
+
+type markConversationReadResponse struct {
+	ConversationID string `json:"conversation_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	LastReadSeq    int64  `json:"last_read_seq" example:"123"`
+	UnreadCount    int64  `json:"unread_count" example:"0"`
 }
 
 type conversationMemberCandidate struct {
@@ -130,6 +144,56 @@ func (s *Server) listClientConversations(c echo.Context) error {
 	return success(c, http.StatusOK, listClientConversationsResponse{
 		Conversations: responses,
 	})
+}
+
+// markConversationRead godoc
+//
+// @Summary 标记会话已读
+// @Description 普通用户把自己在指定会话中的已读位置推进到指定 seq，未指定时推进到会话当前最新消息。
+// @Tags 客户端会话
+// @Accept json
+// @Produce json
+// @Param conversation_id path string true "会话 ID"
+// @Param body body markConversationReadRequest false "已读位置"
+// @Success 200 {object} successEnvelope{data=markConversationReadResponse}
+// @Failure 400 {object} errorEnvelope
+// @Failure 401 {object} errorEnvelope
+// @Failure 403 {object} errorEnvelope
+// @Failure 404 {object} errorEnvelope
+// @Failure 500 {object} errorEnvelope
+// @Router /api/client/conversations/{conversation_id}/read [post]
+func (s *Server) markConversationRead(c echo.Context) error {
+	user, ok := currentUser(c)
+	if !ok {
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	conversationID, err := normalizeMessageConversationID(c.Param("conversation_id"))
+	if err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
+	}
+
+	var req markConversationReadRequest
+	if err := c.Bind(&req); err != nil && !errors.Is(err, io.EOF) {
+		return failure(c, http.StatusBadRequest, "invalid_request", "请求格式错误")
+	}
+	if req.UpToSeq != nil && *req.UpToSeq <= 0 {
+		return failure(c, http.StatusBadRequest, "invalid_request", "up_to_seq 必须是正整数")
+	}
+
+	response, err := s.markUserConversationRead(user.ID, conversationID, req.UpToSeq)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return failure(c, http.StatusNotFound, "not_found", "会话不存在")
+		}
+		if errors.Is(err, errConversationAccessDenied) {
+			return failure(c, http.StatusForbidden, "forbidden", "无权访问会话")
+		}
+
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	return success(c, http.StatusOK, response)
 }
 
 // createDirectConversation godoc
@@ -421,6 +485,57 @@ func findDirectConversationByUserPair(db *gorm.DB, userLowID string, userHighID 
 	return conversation, nil
 }
 
+func (s *Server) markUserConversationRead(userID string, conversationID string, upToSeq *int64) (markConversationReadResponse, error) {
+	var response markConversationReadResponse
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var conversation store.Conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+			return err
+		}
+		if conversation.Status != store.ConversationStatusActive {
+			return errConversationAccessDenied
+		}
+
+		var member store.ConversationMember
+		if err := tx.First(
+			&member,
+			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
+			conversationID,
+			store.ConversationMemberTypeUser,
+			userID,
+		).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errConversationAccessDenied
+			}
+			return err
+		}
+
+		targetSeq := conversation.LastMessageSeq
+		if upToSeq != nil && *upToSeq < targetSeq {
+			targetSeq = *upToSeq
+		}
+		if err := advanceConversationMemberReadSeq(tx, conversationID, userID, targetSeq); err != nil {
+			return err
+		}
+		if targetSeq > member.LastReadSeq {
+			member.LastReadSeq = targetSeq
+		}
+
+		response = markConversationReadResponse{
+			ConversationID: conversationID,
+			LastReadSeq:    member.LastReadSeq,
+			UnreadCount:    unreadCount(conversation.LastMessageSeq, member.LastReadSeq),
+		}
+		return nil
+	})
+	if err != nil {
+		return markConversationReadResponse{}, err
+	}
+
+	return response, nil
+}
+
 func orderDirectConversationUserIDs(first string, second string) (string, string) {
 	if first < second {
 		return first, second
@@ -534,6 +649,7 @@ func newConversationListItemResponse(
 ) conversationListItemResponse {
 	name := conversation.Name
 	avatar := ""
+	lastReadSeq := currentMemberLastReadSeq(currentUserID, members)
 	if conversation.Kind == store.ConversationKindDirect {
 		for _, member := range members {
 			if member.MemberID == currentUserID {
@@ -565,11 +681,31 @@ func newConversationListItemResponse(
 		LastMessageID:      conversation.LastMessageID,
 		LastMessageSeq:     conversation.LastMessageSeq,
 		LastMessageSummary: conversation.LastMessageSummary,
+		LastReadSeq:        lastReadSeq,
 		MemberCount:        len(members),
 		Members:            newConversationMemberResponses(members, usersByID),
 		Name:               name,
 		Type:               conversation.Kind,
+		UnreadCount:        unreadCount(conversation.LastMessageSeq, lastReadSeq),
 	}
+}
+
+func currentMemberLastReadSeq(currentUserID string, members []store.ConversationMember) int64 {
+	for _, member := range members {
+		if member.MemberType == store.ConversationMemberTypeUser && member.MemberID == currentUserID {
+			return member.LastReadSeq
+		}
+	}
+
+	return 0
+}
+
+func unreadCount(lastMessageSeq int64, lastReadSeq int64) int64 {
+	if lastReadSeq >= lastMessageSeq {
+		return 0
+	}
+
+	return lastMessageSeq - lastReadSeq
 }
 
 func newConversationMemberResponses(

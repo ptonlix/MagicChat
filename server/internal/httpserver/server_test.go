@@ -349,6 +349,33 @@ func insertTestConversation(t *testing.T, db *gorm.DB, input testConversationInp
 	return conversation
 }
 
+func setTestConversationMemberLastReadSeq(t *testing.T, db *gorm.DB, conversationID string, memberID string, lastReadSeq int64) {
+	t.Helper()
+
+	if err := db.Model(&store.ConversationMember{}).
+		Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, store.ConversationMemberTypeUser, memberID).
+		Update("last_read_seq", lastReadSeq).Error; err != nil {
+		t.Fatalf("set conversation member last_read_seq: %v", err)
+	}
+}
+
+func getTestConversationMemberLastReadSeq(t *testing.T, db *gorm.DB, conversationID string, memberID string) int64 {
+	t.Helper()
+
+	var member store.ConversationMember
+	if err := db.First(
+		&member,
+		"conversation_id = ? AND member_type = ? AND member_id = ?",
+		conversationID,
+		store.ConversationMemberTypeUser,
+		memberID,
+	).Error; err != nil {
+		t.Fatalf("find conversation member: %v", err)
+	}
+
+	return member.LastReadSeq
+}
+
 func insertTestMessage(t *testing.T, db *gorm.DB, conversationID string, senderID string, seq int64, content string, createdAt time.Time) store.Message {
 	t.Helper()
 
@@ -736,6 +763,7 @@ func TestListClientConversationsReturnsRecentCurrentUserConversations(t *testing
 		memberIDs:          []string{alice.ID, bob.ID},
 		now:                now.Add(-4 * time.Hour),
 	})
+	setTestConversationMemberLastReadSeq(t, db, newDirect.ID, alice.ID, 2)
 	insertTestConversation(t, db, testConversationInput{
 		createdByUserID:    bob.ID,
 		kind:               store.ConversationKindDirect,
@@ -787,6 +815,12 @@ func TestListClientConversationsReturnsRecentCurrentUserConversations(t *testing
 	}
 	if first["last_message_seq"] != float64(5) {
 		t.Fatalf("direct last_message_seq = %v, want 5", first["last_message_seq"])
+	}
+	if first["last_read_seq"] != float64(2) {
+		t.Fatalf("direct last_read_seq = %v, want 2", first["last_read_seq"])
+	}
+	if first["unread_count"] != float64(3) {
+		t.Fatalf("direct unread_count = %v, want 3", first["unread_count"])
 	}
 	if first["last_message_at"] != newDirectLastAt.Format(time.RFC3339) {
 		t.Fatalf("direct last_message_at = %v, want %s", first["last_message_at"], newDirectLastAt.Format(time.RFC3339))
@@ -987,6 +1021,123 @@ func TestCreateDirectConversationRejectsInvalidTargets(t *testing.T) {
 	}
 }
 
+func TestMarkConversationReadAdvancesCurrentUserReadSeq(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID:    alice.ID,
+		kind:               store.ConversationKindDirect,
+		lastMessageSeq:     8,
+		lastMessageSummary: "latest",
+		memberIDs:          []string{alice.ID, bob.ID},
+		now:                now,
+	})
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID, 2)
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, bob.ID, 1)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/read", map[string]any{}, loginAsUser(t, server, alice.Email))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	if data["conversation_id"] != conversation.ID {
+		t.Fatalf("conversation_id = %v, want %s", data["conversation_id"], conversation.ID)
+	}
+	if data["last_read_seq"] != float64(8) {
+		t.Fatalf("last_read_seq = %v, want 8", data["last_read_seq"])
+	}
+	if data["unread_count"] != float64(0) {
+		t.Fatalf("unread_count = %v, want 0", data["unread_count"])
+	}
+
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID); got != 8 {
+		t.Fatalf("alice last_read_seq = %d, want 8", got)
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, bob.ID); got != 1 {
+		t.Fatalf("bob last_read_seq = %d, want 1", got)
+	}
+}
+
+func TestMarkConversationReadDoesNotRegressReadSeq(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID:    alice.ID,
+		kind:               store.ConversationKindDirect,
+		lastMessageSeq:     10,
+		lastMessageSummary: "latest",
+		memberIDs:          []string{alice.ID, bob.ID},
+		now:                now,
+	})
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID, 7)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/read", map[string]any{
+		"up_to_seq": 3,
+	}, loginAsUser(t, server, alice.Email))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	if data["last_read_seq"] != float64(7) {
+		t.Fatalf("last_read_seq = %v, want 7", data["last_read_seq"])
+	}
+	if data["unread_count"] != float64(3) {
+		t.Fatalf("unread_count = %v, want 3", data["unread_count"])
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID); got != 7 {
+		t.Fatalf("alice last_read_seq = %d, want 7", got)
+	}
+}
+
+func TestMarkConversationReadRejectsInvalidOrUnauthorizedRequests(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	dave := insertTestUser(t, db, "dave@example.com", "Dave", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindDirect,
+		lastMessageSeq:  5,
+		memberIDs:       []string{alice.ID, bob.ID},
+		now:             now,
+	})
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/read", map[string]any{})
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("missing session status = %d, want 401", resp.StatusCode)
+	}
+	requireError(t, body, "unauthorized")
+
+	aliceCookie := loginAsUser(t, server, alice.Email)
+	resp, body = postJSON(t, server, "/api/client/conversations/not-a-uuid/read", map[string]any{}, aliceCookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid uuid status = %d, want 400", resp.StatusCode)
+	}
+	requireError(t, body, "invalid_request")
+
+	resp, body = postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/read", map[string]any{}, loginAsUser(t, server, dave.Email))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-member status = %d, want 403", resp.StatusCode)
+	}
+	requireError(t, body, "forbidden")
+
+	resp, body = postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/read", map[string]any{
+		"up_to_seq": -1,
+	}, aliceCookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid up_to_seq status = %d, want 400", resp.StatusCode)
+	}
+	requireError(t, body, "invalid_request")
+}
+
 func TestCreateConversationTextMessageRequiresUserSession(t *testing.T) {
 	server, _ := newTestRouter(t)
 	defer server.Close()
@@ -1110,6 +1261,13 @@ func TestCreateConversationTextMessageStoresSummaryAndUpdatesConversation(t *tes
 	}
 	if storedConversation.LastMessageAt == nil || !storedConversation.LastMessageAt.Equal(storedMessage.CreatedAt) {
 		t.Fatalf("last_message_at = %v, want %s", storedConversation.LastMessageAt, storedMessage.CreatedAt)
+	}
+
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID); got != 3 {
+		t.Fatalf("alice last_read_seq = %d, want 3", got)
+	}
+	if got := getTestConversationMemberLastReadSeq(t, db, conversation.ID, bob.ID); got != 0 {
+		t.Fatalf("bob last_read_seq = %d, want 0", got)
 	}
 }
 

@@ -74,6 +74,7 @@ func NewRouterWithRealtimeAndLLMHealthChecker(db *gorm.DB, cfg config.Config, re
 	client.GET("/conversations", server.listClientConversations)
 	client.POST("/conversations/direct", server.createDirectConversation)
 	client.POST("/conversations/groups", server.createGroupConversation)
+	client.POST("/conversations/:conversation_id/read", server.markConversationRead)
 	client.GET("/conversations/:conversation_id/messages", server.listConversationMessages)
 	client.POST("/conversations/:conversation_id/messages", server.createConversationMessage)
 	client.GET("/ws", server.clientWebSocket)

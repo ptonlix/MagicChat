@@ -2236,6 +2236,88 @@
                 }
             }
         },
+        "/api/client/conversations/{conversation_id}/read": {
+            "post": {
+                "description": "普通用户把自己在指定会话中的已读位置推进到指定 seq，未指定时推进到会话当前最新消息。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "标记会话已读",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "已读位置",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.markConversationReadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.markConversationReadResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/info": {
             "get": {
                 "description": "返回客户端启动和登录页展示所需的公开信息，不需要登录。",
@@ -2488,6 +2570,10 @@
                     "type": "string",
                     "example": "好的，我看一下"
                 },
+                "last_read_seq": {
+                    "type": "integer",
+                    "example": 9
+                },
                 "member_count": {
                     "type": "integer",
                     "example": 2
@@ -2505,6 +2591,10 @@
                 "type": {
                     "type": "string",
                     "example": "direct"
+                },
+                "unread_count": {
+                    "type": "integer",
+                    "example": 3
                 }
             }
         },
@@ -2975,6 +3065,32 @@
                 "password": {
                     "type": "string",
                     "example": "password"
+                }
+            }
+        },
+        "httpserver.markConversationReadRequest": {
+            "type": "object",
+            "properties": {
+                "up_to_seq": {
+                    "type": "integer",
+                    "example": 123
+                }
+            }
+        },
+        "httpserver.markConversationReadResponse": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "last_read_seq": {
+                    "type": "integer",
+                    "example": 123
+                },
+                "unread_count": {
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },

@@ -75,6 +75,9 @@ definitions:
       last_message_summary:
         example: 好的，我看一下
         type: string
+      last_read_seq:
+        example: 9
+        type: integer
       member_count:
         example: 2
         type: integer
@@ -88,6 +91,9 @@ definitions:
       type:
         example: direct
         type: string
+      unread_count:
+        example: 3
+        type: integer
     type: object
   httpserver.conversationMemberResponse:
     properties:
@@ -404,6 +410,24 @@ definitions:
       password:
         example: password
         type: string
+    type: object
+  httpserver.markConversationReadRequest:
+    properties:
+      up_to_seq:
+        example: 123
+        type: integer
+    type: object
+  httpserver.markConversationReadResponse:
+    properties:
+      conversation_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      last_read_seq:
+        example: 123
+        type: integer
+      unread_count:
+        example: 0
+        type: integer
     type: object
   httpserver.messageResponse:
     properties:
@@ -1872,6 +1896,57 @@ paths:
       summary: 发送消息
       tags:
       - 客户端消息
+  /api/client/conversations/{conversation_id}/read:
+    post:
+      consumes:
+      - application/json
+      description: 普通用户把自己在指定会话中的已读位置推进到指定 seq，未指定时推进到会话当前最新消息。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      - description: 已读位置
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/httpserver.markConversationReadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.markConversationReadResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 标记会话已读
+      tags:
+      - 客户端会话
   /api/client/conversations/direct:
     post:
       consumes:

@@ -471,6 +471,9 @@ func (s *Server) createUserMessage(userID string, conversationID string, clientM
 		).Error
 		if err == nil {
 			message = existing
+			if err := advanceConversationMemberReadSeq(tx, conversationID, userID, existing.Seq); err != nil {
+				return err
+			}
 			created = false
 			return nil
 		}
@@ -506,6 +509,9 @@ func (s *Server) createUserMessage(userID string, conversationID string, clientM
 			}).Error; err != nil {
 			return err
 		}
+		if err := advanceConversationMemberReadSeq(tx, conversationID, userID, message.Seq); err != nil {
+			return err
+		}
 
 		ids, err := loadActiveConversationUserIDs(tx, conversationID)
 		if err != nil {
@@ -520,6 +526,12 @@ func (s *Server) createUserMessage(userID string, conversationID string, clientM
 	}
 
 	return message, created, memberUserIDs, nil
+}
+
+func advanceConversationMemberReadSeq(db *gorm.DB, conversationID string, userID string, seq int64) error {
+	return db.Model(&store.ConversationMember{}).
+		Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, store.ConversationMemberTypeUser, userID).
+		Update("last_read_seq", gorm.Expr("CASE WHEN last_read_seq > ? THEN last_read_seq ELSE ? END", seq, seq)).Error
 }
 
 func newMessageResponse(message store.Message) messageResponse {
