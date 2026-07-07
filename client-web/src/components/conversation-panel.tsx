@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  FolderClosed,
   ImageIcon,
   LoaderCircle,
   MessageCircle,
@@ -11,6 +12,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import type { ClientConversation, ClientMessage } from "@/lib/client-data-api"
+import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import {
   ExpressionPicker,
@@ -113,23 +115,38 @@ function ConversationPanelHeader({
       className="flex h-14 shrink-0 items-center justify-between border-b px-5"
       data-testid="conversation-panel-header"
     >
-      <div className="min-w-0">
+      <div className="min-w-0 pr-3">
         <h2 className="truncate text-base font-medium">{conversation.name}</h2>
         <p className="truncate text-xs text-muted-foreground">
           {getConversationHeaderDescription(conversation)}
         </p>
       </div>
-      <ConversationInfoDrawer conversationId={conversation.id}>
+      <div className="flex shrink-0 items-center gap-1">
+        {conversation.type === "group" && (
+          <AddGroupMembersDialog conversation={conversation} />
+        )}
         <Button
-          aria-label="会话设置"
+          aria-label="历史附件"
+          disabled
           size="icon-sm"
-          title="会话设置"
+          title="历史附件"
           type="button"
           variant="ghost"
         >
-          <Settings className="size-4" />
+          <FolderClosed className="size-4" />
         </Button>
-      </ConversationInfoDrawer>
+        <ConversationInfoDrawer conversationId={conversation.id}>
+          <Button
+            aria-label="会话设置"
+            size="icon-sm"
+            title="会话设置"
+            type="button"
+            variant="ghost"
+          >
+            <Settings className="size-4" />
+          </Button>
+        </ConversationInfoDrawer>
+      </div>
     </header>
   )
 }

@@ -4,6 +4,7 @@ import type { ClientConversationMember } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { UserProfilePopover } from "@/components/user-profile-popover"
 import {
   SheetDescription,
   SheetFooter,
@@ -35,7 +36,9 @@ export function GroupConversationInfo({
     )
   }
 
-  const members = conversation.members ?? []
+  const members = [...(conversation.members ?? [])].sort(
+    compareConversationMembers
+  )
 
   return (
     <>
@@ -73,10 +76,26 @@ export function GroupConversationInfo({
 }
 
 function GroupMemberItem({ member }: { member: ClientConversationMember }) {
+  return (
+    <UserProfilePopover
+      fallbackProfile={member}
+      triggerClassName="flex w-full min-w-0 items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+      userId={member.id}
+    >
+      <GroupMemberItemContent member={member} />
+    </UserProfilePopover>
+  )
+}
+
+function GroupMemberItemContent({
+  member,
+}: {
+  member: ClientConversationMember
+}) {
   const displayName = getMemberDisplayName(member)
 
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+    <>
       <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
         {member.avatar && (
           <AvatarImage
@@ -95,7 +114,7 @@ function GroupMemberItem({ member }: { member: ClientConversationMember }) {
           {getMemberRoleLabel(member.role)}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -114,6 +133,19 @@ function getMemberRoleLabel(role: ClientConversationMember["role"]) {
   }
 
   return "成员"
+}
+
+const memberRoleOrder: Record<ClientConversationMember["role"], number> = {
+  owner: 0,
+  admin: 1,
+  member: 2,
+}
+
+function compareConversationMembers(
+  left: ClientConversationMember,
+  right: ClientConversationMember
+) {
+  return memberRoleOrder[left.role] - memberRoleOrder[right.role]
 }
 
 function getInitial(name: string) {

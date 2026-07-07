@@ -16,6 +16,8 @@ import {
 
 type UserProfilePopoverProps = {
   children: React.ReactNode
+  fallbackProfile?: UserProfile | null
+  triggerClassName?: string
   userId: string | null
 }
 
@@ -30,6 +32,8 @@ type UserProfile = {
 
 export function UserProfilePopover({
   children,
+  fallbackProfile = null,
+  triggerClassName,
   userId,
 }: UserProfilePopoverProps) {
   const { contacts, me, openDirectConversation } = useClientData()
@@ -37,8 +41,8 @@ export function UserProfilePopover({
   const [open, setOpen] = React.useState(false)
   const [openingConversation, setOpeningConversation] = React.useState(false)
   const user = React.useMemo(
-    () => resolveUserProfile(userId, me, contacts),
-    [contacts, me, userId]
+    () => resolveUserProfile(userId, me, contacts, fallbackProfile),
+    [contacts, fallbackProfile, me, userId]
   )
 
   if (!user) {
@@ -70,7 +74,10 @@ export function UserProfilePopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="inline-flex cursor-pointer appearance-none rounded-sm border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className={cn(
+          "inline-flex cursor-pointer appearance-none rounded-sm border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          triggerClassName
+        )}
         type="button"
       >
         {children}
@@ -146,7 +153,8 @@ export function UserProfilePopover({
 function resolveUserProfile(
   userId: string | null,
   me: UserProfile,
-  contacts: UserProfile[]
+  contacts: UserProfile[],
+  fallbackProfile: UserProfile | null
 ) {
   if (!userId) {
     return null
@@ -156,7 +164,10 @@ function resolveUserProfile(
     return me
   }
 
-  return contacts.find((contact) => contact.id === userId) ?? null
+  return (
+    contacts.find((contact) => contact.id === userId) ??
+    (fallbackProfile?.id === userId ? fallbackProfile : null)
+  )
 }
 
 function UserProfileRow({
