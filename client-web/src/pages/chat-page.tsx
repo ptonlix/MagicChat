@@ -281,26 +281,7 @@ export function ChatPage() {
                       variant="ghost"
                     >
                       <ItemMedia>
-                        {conversation.type === "group" ? (
-                          <GroupAvatar
-                            className="size-10"
-                            members={conversation.members}
-                            name={conversation.name}
-                          />
-                        ) : (
-                          <Avatar className="size-10 rounded-sm bg-muted after:rounded-sm">
-                            {conversation.avatar && (
-                              <AvatarImage
-                                alt={conversation.name}
-                                className="rounded-sm"
-                                src={conversation.avatar}
-                              />
-                            )}
-                            <AvatarFallback className="rounded-sm">
-                              {getConversationInitial(conversation.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
+                        <ConversationListAvatar conversation={conversation} />
                       </ItemMedia>
                       <ItemContent className="min-w-0 flex-1 overflow-hidden">
                         <div
@@ -312,11 +293,6 @@ export function ChatPage() {
                               {conversation.name}
                             </span>
                           </span>
-                          {conversation.unreadCount > 0 && (
-                            <ConversationUnreadBadge
-                              count={conversation.unreadCount}
-                            />
-                          )}
                           {lastMessageTime && (
                             <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
                               {lastMessageTime}
@@ -604,6 +580,42 @@ function getConversationListDescription(conversation: ClientConversation) {
   return summary || "暂无消息"
 }
 
+function ConversationListAvatar({
+  conversation,
+}: {
+  conversation: ClientConversation
+}) {
+  return (
+    <div className="relative shrink-0">
+      {conversation.type === "group" ? (
+        <GroupAvatar
+          className="size-10"
+          members={conversation.members}
+          name={conversation.name}
+        />
+      ) : (
+        <Avatar className="size-10 rounded-sm bg-muted after:rounded-sm">
+          {conversation.avatar && (
+            <AvatarImage
+              alt={conversation.name}
+              className="rounded-sm"
+              src={conversation.avatar}
+            />
+          )}
+          <AvatarFallback className="rounded-sm">
+            {getConversationInitial(conversation.name)}
+          </AvatarFallback>
+        </Avatar>
+      )}
+      {conversation.unreadCount > 0 && (
+        <span className="absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/3">
+          <ConversationUnreadBadge count={conversation.unreadCount} />
+        </span>
+      )}
+    </div>
+  )
+}
+
 function getConversationInitial(name: string) {
   return Array.from(name.trim())[0]?.toUpperCase() ?? "?"
 }
@@ -616,7 +628,11 @@ function getContactDisplayName(contact: { name: string; nickname: string }) {
 
 function ConversationUnreadBadge({ count }: { count: number }) {
   return (
-    <Badge aria-label={`${count} 条未读消息`} variant="destructive">
+    <Badge
+      aria-label={`${count} 条未读消息`}
+      className="h-4 bg-rose-700 px-1 py-0 text-[10px] leading-4 font-normal text-white dark:bg-rose-700"
+      variant="destructive"
+    >
       {formatUnreadCount(count)}
     </Badge>
   )
