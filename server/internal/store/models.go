@@ -157,18 +157,18 @@ func (TemporaryFile) TableName() string {
 }
 
 type App struct {
-	ID             string    `gorm:"type:uuid;primaryKey"`
-	Name           string    `gorm:"size:120;not null"`
-	Avatar         string    `gorm:"size:512;not null;default:''"`
-	Description    string    `gorm:"not null;default:''"`
-	CreatorUserID  *string   `gorm:"type:uuid;index"`
-	CreatorUser    *User     `gorm:"foreignKey:CreatorUserID;constraint:OnDelete:SET NULL;"`
-	Enabled        bool      `gorm:"not null;default:true;index"`
-	Visibility     string    `gorm:"size:32;not null;index"`
-	CallbackURL    string    `gorm:"size:2048;not null;default:''"`
-	CallbackSecret string    `gorm:"not null;uniqueIndex"`
-	CreatedAt      time.Time `gorm:"not null"`
-	UpdatedAt      time.Time `gorm:"not null"`
+	ID               string    `gorm:"type:uuid;primaryKey"`
+	Name             string    `gorm:"size:120;not null"`
+	Avatar           string    `gorm:"size:512;not null;default:''"`
+	Description      string    `gorm:"not null;default:''"`
+	CreatorUserID    *string   `gorm:"type:uuid;index"`
+	CreatorUser      *User     `gorm:"foreignKey:CreatorUserID;constraint:OnDelete:SET NULL;"`
+	Enabled          bool      `gorm:"not null;default:true;index"`
+	Visibility       string    `gorm:"size:32;not null;index"`
+	WebSocketURL     string    `gorm:"column:websocket_url;size:2048;not null;default:''"`
+	ConnectionSecret string    `gorm:"not null;uniqueIndex"`
+	CreatedAt        time.Time `gorm:"not null"`
+	UpdatedAt        time.Time `gorm:"not null"`
 }
 
 type AppConversation struct {

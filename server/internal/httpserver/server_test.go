@@ -3335,8 +3335,11 @@ func TestAdminCanManageApps(t *testing.T) {
 	if goddessApp["name"] != appregistry.GoddessDefaultName {
 		t.Fatalf("goddess name = %v, want %s", goddessApp["name"], appregistry.GoddessDefaultName)
 	}
-	if goddessApp["callback_secret"] != "test-goddess-secret" {
-		t.Fatalf("goddess secret = %v, want configured secret", goddessApp["callback_secret"])
+	if goddessApp["connection_secret"] != "test-goddess-secret" {
+		t.Fatalf("goddess secret = %v, want configured secret", goddessApp["connection_secret"])
+	}
+	if goddessApp["connection_status"] != "offline" {
+		t.Fatalf("goddess connection_status = %v, want offline", goddessApp["connection_status"])
 	}
 	if goddessApp["system"] != true {
 		t.Fatalf("goddess system = %v, want true", goddessApp["system"])
@@ -3346,11 +3349,11 @@ func TestAdminCanManageApps(t *testing.T) {
 	}
 
 	updateGoddessResp, updateGoddessBody := putJSON(t, server, "/api/admin/apps/"+appregistry.GoddessAppID, map[string]any{
-		"name":         "女菩萨 Pro",
-		"avatar":       "/assets/apps/goddess.webp",
-		"description":  "AI Agent",
-		"callback_url": "https://agent.example.com/webhook",
-		"visibility":   "public",
+		"name":          "女菩萨 Pro",
+		"avatar":        "/assets/apps/goddess.webp",
+		"description":   "AI Agent",
+		"websocket_url": "wss://agent.example.com/ws",
+		"visibility":    "public",
 	}, adminCookie)
 	if updateGoddessResp.StatusCode != http.StatusOK {
 		t.Fatalf("update goddess status = %d, want 200, body = %#v", updateGoddessResp.StatusCode, updateGoddessBody)
@@ -3359,11 +3362,11 @@ func TestAdminCanManageApps(t *testing.T) {
 	if updatedGoddess["name"] != "女菩萨 Pro" {
 		t.Fatalf("updated goddess name = %v", updatedGoddess["name"])
 	}
-	if updatedGoddess["callback_url"] != "https://agent.example.com/webhook" {
-		t.Fatalf("updated goddess callback_url = %v", updatedGoddess["callback_url"])
+	if updatedGoddess["websocket_url"] != "wss://agent.example.com/ws" {
+		t.Fatalf("updated goddess websocket_url = %v", updatedGoddess["websocket_url"])
 	}
-	if updatedGoddess["callback_secret"] != "test-goddess-secret" {
-		t.Fatalf("updated goddess secret = %v, want configured secret", updatedGoddess["callback_secret"])
+	if updatedGoddess["connection_secret"] != "test-goddess-secret" {
+		t.Fatalf("updated goddess secret = %v, want configured secret", updatedGoddess["connection_secret"])
 	}
 
 	regenerateGoddessResp, _ := postJSON(t, server, "/api/admin/apps/"+appregistry.GoddessAppID+"/secret/regenerate", map[string]any{}, adminCookie)
@@ -3376,18 +3379,18 @@ func TestAdminCanManageApps(t *testing.T) {
 	}
 
 	createResp, createBody := postJSON(t, server, "/api/admin/apps", map[string]any{
-		"name":         "知识库助手",
-		"avatar":       "/assets/apps/kb.webp",
-		"description":  "回答知识库问题",
-		"visibility":   "public",
-		"callback_url": "https://kb.example.com/webhook",
+		"name":          "知识库助手",
+		"avatar":        "/assets/apps/kb.webp",
+		"description":   "回答知识库问题",
+		"visibility":    "public",
+		"websocket_url": "wss://kb.example.com/ws",
 	}, adminCookie)
 	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201, body = %#v", createResp.StatusCode, createBody)
 	}
 	createdApp := requireSuccess(t, createBody)["app"].(map[string]any)
 	appID := createdApp["id"].(string)
-	firstSecret := createdApp["callback_secret"].(string)
+	firstSecret := createdApp["connection_secret"].(string)
 	if appID == "" {
 		t.Fatal("created app id is empty")
 	}
@@ -3400,13 +3403,16 @@ func TestAdminCanManageApps(t *testing.T) {
 	if createdApp["creator_user_id"] != nil {
 		t.Fatalf("created app creator_user_id = %v, want nil", createdApp["creator_user_id"])
 	}
+	if createdApp["connection_status"] != "offline" {
+		t.Fatalf("created app connection_status = %v, want offline", createdApp["connection_status"])
+	}
 
 	updateResp, updateBody := putJSON(t, server, "/api/admin/apps/"+appID, map[string]any{
-		"name":         "知识库 Agent",
-		"avatar":       "",
-		"description":  "更新后的介绍",
-		"visibility":   "public",
-		"callback_url": "",
+		"name":          "知识库 Agent",
+		"avatar":        "",
+		"description":   "更新后的介绍",
+		"visibility":    "public",
+		"websocket_url": "",
 	}, adminCookie)
 	if updateResp.StatusCode != http.StatusOK {
 		t.Fatalf("update status = %d, want 200, body = %#v", updateResp.StatusCode, updateBody)
@@ -3415,8 +3421,8 @@ func TestAdminCanManageApps(t *testing.T) {
 	if updatedApp["name"] != "知识库 Agent" {
 		t.Fatalf("updated app name = %v", updatedApp["name"])
 	}
-	if updatedApp["callback_url"] != "" {
-		t.Fatalf("updated callback_url = %v, want empty", updatedApp["callback_url"])
+	if updatedApp["websocket_url"] != "" {
+		t.Fatalf("updated websocket_url = %v, want empty", updatedApp["websocket_url"])
 	}
 
 	disableResp, disableBody := postJSON(t, server, "/api/admin/apps/"+appID+"/disable", map[string]any{}, adminCookie)
@@ -3442,7 +3448,7 @@ func TestAdminCanManageApps(t *testing.T) {
 		t.Fatalf("regenerate status = %d, want 200, body = %#v", regenerateResp.StatusCode, regenerateBody)
 	}
 	regeneratedApp := requireSuccess(t, regenerateBody)["app"].(map[string]any)
-	secondSecret := regeneratedApp["callback_secret"].(string)
+	secondSecret := regeneratedApp["connection_secret"].(string)
 	if secondSecret == "" || secondSecret == firstSecret {
 		t.Fatalf("regenerated secret = %q, want changed from %q", secondSecret, firstSecret)
 	}

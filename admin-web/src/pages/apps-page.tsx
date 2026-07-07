@@ -20,6 +20,7 @@ import {
   disableAdminApp,
   enableAdminApp,
   type AdminApp,
+  type AdminAppConnectionStatus,
   type AdminAppInput,
   type AdminAppVisibility,
   listAdminApps,
@@ -71,10 +72,10 @@ import { Textarea } from "@/components/ui/textarea"
 
 type AdminAppForm = {
   avatar: string
-  callbackUrl: string
   description: string
   name: string
   visibility: AdminAppVisibility
+  websocketUrl: string
 }
 
 export default function AppsPage() {
@@ -189,9 +190,7 @@ export default function AppsPage() {
       toast.success("应用密钥已生成")
     } catch (error) {
       toast.error(
-        error instanceof AdminAppsRequestError
-          ? error.message
-          : "生成密钥失败"
+        error instanceof AdminAppsRequestError ? error.message : "生成密钥失败"
       )
     } finally {
       setUpdatingAppId(null)
@@ -266,14 +265,19 @@ export default function AppsPage() {
                       状态
                     </TableHead>
                     <TableHead
+                      className={getAdminAppColumnClassName("connection")}
+                    >
+                      在线状态
+                    </TableHead>
+                    <TableHead
                       className={getAdminAppColumnClassName("visibility")}
                     >
                       可见范围
                     </TableHead>
                     <TableHead
-                      className={getAdminAppColumnClassName("callback")}
+                      className={getAdminAppColumnClassName("websocket")}
                     >
-                      回调地址
+                      WebSocket 地址
                     </TableHead>
                     <TableHead
                       className={getAdminAppColumnClassName("actions")}
@@ -285,7 +289,7 @@ export default function AppsPage() {
                 <TableBody>
                   {apps.length === 0 ? (
                     <TableRow>
-                      <TableCell className="h-24 text-center" colSpan={5}>
+                      <TableCell className="h-24 text-center" colSpan={6}>
                         {isLoading ? "加载中" : "暂无应用"}
                       </TableCell>
                     </TableRow>
@@ -325,15 +329,24 @@ export default function AppsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell
+                          className={getAdminAppColumnClassName("connection")}
+                        >
+                          <Badge variant="outline">
+                            {getAdminAppConnectionStatusLabel(
+                              app.connectionStatus
+                            )}
+                          </Badge>
+                        </TableCell>
+                        <TableCell
                           className={getAdminAppColumnClassName("visibility")}
                         >
                           {getAdminAppVisibilityLabel(app.visibility)}
                         </TableCell>
                         <TableCell
-                          className={getAdminAppColumnClassName("callback")}
+                          className={getAdminAppColumnClassName("websocket")}
                         >
                           <div className="truncate">
-                            {app.callbackUrl || "未配置"}
+                            {app.websocketUrl || "未配置"}
                           </div>
                         </TableCell>
                         <TableCell
@@ -441,7 +454,7 @@ function AdminAppActions({
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={isUpdating}
-            onClick={() => onCopy(app.callbackSecret, "回调密钥")}
+            onClick={() => onCopy(app.connectionSecret, "连接密钥")}
           >
             <CopyIcon />
             复制密钥
@@ -506,7 +519,7 @@ function AdminAppDialog({
   const avatarId = useId()
   const descriptionId = useId()
   const visibilityId = useId()
-  const callbackUrlId = useId()
+  const websocketUrlId = useId()
   const [form, setForm] = useState<AdminAppForm>(createDefaultAdminAppForm)
   const [isSaving, setIsSaving] = useState(false)
   const isEditing = editingApp !== null
@@ -598,20 +611,20 @@ function AdminAppDialog({
                   </div>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor={secretId}>回调密钥</FieldLabel>
+                  <FieldLabel htmlFor={secretId}>连接密钥</FieldLabel>
                   <div className="flex gap-2">
                     <Input
                       id={secretId}
                       readOnly
                       type="text"
-                      value={editingApp.callbackSecret}
+                      value={editingApp.connectionSecret}
                     />
                     <Button
                       onClick={() =>
-                        copyAppField(editingApp.callbackSecret, "回调密钥")
+                        copyAppField(editingApp.connectionSecret, "连接密钥")
                       }
                       size="icon"
-                      title="复制回调密钥"
+                      title="复制连接密钥"
                       type="button"
                       variant="outline"
                     >
@@ -673,18 +686,18 @@ function AdminAppDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor={callbackUrlId}>回调地址</FieldLabel>
+              <FieldLabel htmlFor={websocketUrlId}>WebSocket 地址</FieldLabel>
               <Input
                 disabled={isSaving}
-                id={callbackUrlId}
+                id={websocketUrlId}
                 onChange={(event) =>
                   setForm((currentForm) => ({
                     ...currentForm,
-                    callbackUrl: event.target.value,
+                    websocketUrl: event.target.value,
                   }))
                 }
-                placeholder="https://example.com/webhook"
-                value={form.callbackUrl}
+                placeholder="wss://example.com/ws"
+                value={form.websocketUrl}
               />
             </Field>
           </FieldGroup>
@@ -729,30 +742,30 @@ function AdminAppAvatar({ app }: { app: AdminApp }) {
 function createDefaultAdminAppForm(): AdminAppForm {
   return {
     avatar: "",
-    callbackUrl: "",
     description: "",
     name: "",
     visibility: "public",
+    websocketUrl: "",
   }
 }
 
 function adminAppToForm(app: AdminApp): AdminAppForm {
   return {
     avatar: app.avatar,
-    callbackUrl: app.callbackUrl,
     description: app.description,
     name: app.name,
     visibility: app.visibility,
+    websocketUrl: app.websocketUrl,
   }
 }
 
 function adminAppFormToInput(form: AdminAppForm): AdminAppInput {
   return {
     avatar: form.avatar,
-    callbackUrl: form.callbackUrl,
     description: form.description,
     name: form.name,
     visibility: form.visibility,
+    websocketUrl: form.websocketUrl,
   }
 }
 
@@ -774,6 +787,13 @@ function getAdminAppVisibilityLabel(visibility: AdminAppVisibility) {
       return "仅创建者"
     case "public":
       return "所有人"
+  }
+}
+
+function getAdminAppConnectionStatusLabel(status: AdminAppConnectionStatus) {
+  switch (status) {
+    case "offline":
+      return "离线"
   }
 }
 
@@ -799,16 +819,24 @@ export function getAdminAppsTableClassName() {
 }
 
 export function getAdminAppColumnClassName(
-  column: "actions" | "callback" | "name" | "status" | "visibility"
+  column:
+    | "actions"
+    | "connection"
+    | "name"
+    | "status"
+    | "visibility"
+    | "websocket"
 ) {
   switch (column) {
     case "name":
-      return "w-[34%] min-w-0"
+      return "w-[30%] min-w-0"
     case "status":
+      return "w-24"
+    case "connection":
       return "w-24"
     case "visibility":
       return "w-28"
-    case "callback":
+    case "websocket":
       return "min-w-0"
     case "actions":
       return "w-16 text-right"

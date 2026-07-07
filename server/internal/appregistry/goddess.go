@@ -38,15 +38,15 @@ func EnsureGoddessApp(db *gorm.DB, cfg config.AppsConfig) (store.App, error) {
 		}
 
 		app = store.App{
-			ID:             GoddessAppID,
-			Name:           GoddessDefaultName,
-			Avatar:         GoddessDefaultAvatar,
-			Description:    GoddessDefaultSummary,
-			Enabled:        true,
-			Visibility:     store.AppVisibilityPublic,
-			CallbackSecret: secret,
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			ID:               GoddessAppID,
+			Name:             GoddessDefaultName,
+			Avatar:           GoddessDefaultAvatar,
+			Description:      GoddessDefaultSummary,
+			Enabled:          true,
+			Visibility:       store.AppVisibilityPublic,
+			ConnectionSecret: secret,
+			CreatedAt:        now,
+			UpdatedAt:        now,
 		}
 		return tx.Create(&app).Error
 	})
@@ -83,8 +83,8 @@ func ensureGoddessAppFields(db *gorm.DB, app *store.App, secret string, now time
 	if app.Visibility != store.AppVisibilityPublic {
 		updates["visibility"] = store.AppVisibilityPublic
 	}
-	if app.CallbackSecret != secret {
-		updates["callback_secret"] = secret
+	if app.ConnectionSecret != secret {
+		updates["connection_secret"] = secret
 	}
 	if len(updates) == 0 {
 		return nil

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -18,33 +19,35 @@ import (
 )
 
 const (
-	appSecretBytes       = 32
-	maxAppNameLength     = 120
-	maxAppAvatarLength   = 512
-	maxAppCallbackLength = 2048
+	appConnectionStatusOffline = "offline"
+	appSecretBytes             = 32
+	maxAppNameLength           = 120
+	maxAppAvatarLength         = 512
+	maxAppWebSocketURLLength   = 2048
 )
 
 type adminAppRequest struct {
-	Avatar      string `json:"avatar"`
-	CallbackURL string `json:"callback_url"`
-	Description string `json:"description"`
-	Name        string `json:"name"`
-	Visibility  string `json:"visibility"`
+	Avatar       string `json:"avatar"`
+	Description  string `json:"description"`
+	Name         string `json:"name"`
+	Visibility   string `json:"visibility"`
+	WebSocketURL string `json:"websocket_url"`
 }
 
 type adminAppResponse struct {
-	Avatar         string    `json:"avatar"`
-	CallbackSecret string    `json:"callback_secret"`
-	CallbackURL    string    `json:"callback_url"`
-	CreatedAt      time.Time `json:"created_at" format:"date-time"`
-	CreatorUserID  *string   `json:"creator_user_id"`
-	Description    string    `json:"description"`
-	Enabled        bool      `json:"enabled"`
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	System         bool      `json:"system"`
-	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
-	Visibility     string    `json:"visibility"`
+	Avatar           string    `json:"avatar"`
+	ConnectionSecret string    `json:"connection_secret"`
+	ConnectionStatus string    `json:"connection_status"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	CreatorUserID    *string   `json:"creator_user_id"`
+	Description      string    `json:"description"`
+	Enabled          bool      `json:"enabled"`
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	System           bool      `json:"system"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	Visibility       string    `json:"visibility"`
+	WebSocketURL     string    `json:"websocket_url"`
 }
 
 type listAdminAppsResponse struct {
@@ -58,7 +61,7 @@ type adminAppEnvelope struct {
 // listAdminApps godoc
 //
 // @Summary 列出应用
-// @Description 管理员读取应用配置，包含回调地址和回调密钥。
+// @Description 管理员读取应用配置，包含 WebSocket 地址、连接密钥和连接状态。
 // @Tags 管理员应用
 // @Produce json
 // @Success 200 {object} successEnvelope{data=listAdminAppsResponse}
@@ -87,7 +90,7 @@ func (s *Server) listAdminApps(c echo.Context) error {
 // createAdminApp godoc
 //
 // @Summary 创建应用
-// @Description 管理员创建一个应用配置。回调密钥由服务端生成。
+// @Description 管理员创建一个应用配置。连接密钥由服务端生成。
 // @Tags 管理员应用
 // @Accept json
 // @Produce json
@@ -113,7 +116,7 @@ func (s *Server) createAdminApp(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
-	app.CallbackSecret = secret
+	app.ConnectionSecret = secret
 
 	if err := s.db.Create(&app).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
@@ -156,12 +159,12 @@ func (s *Server) updateAdminApp(c echo.Context) error {
 	}
 
 	updates := map[string]any{
-		"avatar":       updatedApp.Avatar,
-		"callback_url": updatedApp.CallbackURL,
-		"description":  updatedApp.Description,
-		"name":         updatedApp.Name,
-		"visibility":   updatedApp.Visibility,
-		"updated_at":   time.Now().UTC(),
+		"avatar":        updatedApp.Avatar,
+		"description":   updatedApp.Description,
+		"name":          updatedApp.Name,
+		"visibility":    updatedApp.Visibility,
+		"websocket_url": updatedApp.WebSocketURL,
+		"updated_at":    time.Now().UTC(),
 	}
 	if err := s.db.Model(&app).Updates(updates).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
@@ -205,7 +208,7 @@ func (s *Server) disableAdminApp(c echo.Context) error {
 
 // regenerateAdminAppSecret godoc
 //
-// @Summary 生成应用回调密钥
+// @Summary 生成应用连接密钥
 // @Description 普通应用可以生成新密钥。女菩萨密钥由配置管理，不能在后台生成。
 // @Tags 管理员应用
 // @Produce json
@@ -230,8 +233,8 @@ func (s *Server) regenerateAdminAppSecret(c echo.Context) error {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 	if err := s.db.Model(&app).Updates(map[string]any{
-		"callback_secret": secret,
-		"updated_at":      time.Now().UTC(),
+		"connection_secret": secret,
+		"updated_at":        time.Now().UTC(),
 	}).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
@@ -335,20 +338,20 @@ func newAdminAppFromRequest(req adminAppRequest) (store.App, error) {
 	if err != nil {
 		return store.App{}, err
 	}
-	callbackURL, err := normalizeOptionalAppCallbackURL(req.CallbackURL)
+	webSocketURL, err := normalizeOptionalAppWebSocketURL(req.WebSocketURL)
 	if err != nil {
 		return store.App{}, err
 	}
 
 	now := time.Now().UTC()
 	return store.App{
-		Name:        name,
-		Avatar:      avatar,
-		Description: description,
-		Visibility:  visibility,
-		CallbackURL: callbackURL,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Name:         name,
+		Avatar:       avatar,
+		Description:  description,
+		Visibility:   visibility,
+		WebSocketURL: webSocketURL,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}, nil
 }
 
@@ -363,32 +366,41 @@ func normalizeAdminAppVisibility(value string) (string, error) {
 	}
 }
 
-func normalizeOptionalAppCallbackURL(value string) (string, error) {
+func normalizeOptionalAppWebSocketURL(value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return "", nil
 	}
-	if len(trimmed) > maxAppCallbackLength {
-		return "", errors.New("回调地址不能超过 2048 个字符")
+	if len(trimmed) > maxAppWebSocketURLLength {
+		return "", errors.New("WebSocket 地址不能超过 2048 个字符")
 	}
 
-	return normalizeHTTPURL(trimmed, "回调地址格式错误")
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("WebSocket 地址格式错误")
+	}
+	if parsed.Scheme != "ws" && parsed.Scheme != "wss" {
+		return "", errors.New("WebSocket 地址格式错误")
+	}
+
+	return trimmed, nil
 }
 
 func newAdminAppResponse(app store.App) adminAppResponse {
 	return adminAppResponse{
-		Avatar:         app.Avatar,
-		CallbackSecret: app.CallbackSecret,
-		CallbackURL:    app.CallbackURL,
-		CreatedAt:      app.CreatedAt,
-		CreatorUserID:  app.CreatorUserID,
-		Description:    app.Description,
-		Enabled:        app.Enabled,
-		ID:             app.ID,
-		Name:           app.Name,
-		System:         appregistry.IsGoddessAppID(app.ID),
-		UpdatedAt:      app.UpdatedAt,
-		Visibility:     app.Visibility,
+		Avatar:           app.Avatar,
+		ConnectionSecret: app.ConnectionSecret,
+		ConnectionStatus: appConnectionStatusOffline,
+		CreatedAt:        app.CreatedAt,
+		CreatorUserID:    app.CreatorUserID,
+		Description:      app.Description,
+		Enabled:          app.Enabled,
+		ID:               app.ID,
+		Name:             app.Name,
+		System:           appregistry.IsGoddessAppID(app.ID),
+		UpdatedAt:        app.UpdatedAt,
+		Visibility:       app.Visibility,
+		WebSocketURL:     app.WebSocketURL,
 	}
 }
 
@@ -416,7 +428,7 @@ func generateUniqueAppSecret(db *gorm.DB) (string, error) {
 		}
 
 		var count int64
-		if err := db.Model(&store.App{}).Where("callback_secret = ?", secret).Count(&count).Error; err != nil {
+		if err := db.Model(&store.App{}).Where("connection_secret = ?", secret).Count(&count).Error; err != nil {
 			return "", err
 		}
 		if count == 0 {

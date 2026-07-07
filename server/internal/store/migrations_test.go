@@ -14,10 +14,6 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	}
 	want := []string{
 		"00001_init_schema.sql",
-		"00002_add_conversation_member_last_read_seq.sql",
-		"00003_create_temporary_files.sql",
-		"00004_add_conversation_avatar.sql",
-		"00005_create_apps.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -25,62 +21,6 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
-		}
-	}
-}
-
-func TestConversationAvatarMigrationDefinesSchemaChange(t *testing.T) {
-	rawSQL, err := os.ReadFile("../../migrations/00004_add_conversation_avatar.sql")
-	if err != nil {
-		t.Fatalf("read conversation avatar migration: %v", err)
-	}
-	sql := normalizeSQL(string(rawSQL))
-
-	for _, required := range []string{
-		"-- +goose up",
-		"alter table conversations add column avatar text not null default ''",
-		"-- +goose down",
-		"alter table conversations drop column avatar",
-	} {
-		if !strings.Contains(sql, required) {
-			t.Fatalf("conversation avatar migration missing %q", required)
-		}
-	}
-}
-
-func TestAppsMigrationDefinesSchema(t *testing.T) {
-	rawSQL, err := os.ReadFile("../../migrations/00005_create_apps.sql")
-	if err != nil {
-		t.Fatalf("read apps migration: %v", err)
-	}
-	sql := normalizeSQL(string(rawSQL))
-
-	for _, required := range []string{
-		"-- +goose up",
-		"create table apps",
-		"id uuid primary key",
-		"name text not null",
-		"avatar text not null default ''",
-		"description text not null default ''",
-		"creator_user_id uuid references users(id) on delete set null",
-		"enabled boolean not null default true",
-		"visibility text not null",
-		"callback_url text not null default ''",
-		"callback_secret text not null",
-		"constraint apps_visibility_check check (visibility in ('creator', 'public'))",
-		"constraint apps_callback_secret_unique unique (callback_secret)",
-		"create table app_conversations",
-		"app_id uuid not null references apps(id) on delete cascade",
-		"user_id uuid not null references users(id) on delete cascade",
-		"conversation_id uuid not null references conversations(id) on delete cascade",
-		"primary key (app_id, user_id)",
-		"constraint app_conversations_conversation_unique unique (conversation_id)",
-		"-- +goose down",
-		"drop table app_conversations",
-		"drop table apps",
-	} {
-		if !strings.Contains(sql, required) {
-			t.Fatalf("apps migration missing %q", required)
 		}
 	}
 }
@@ -146,6 +86,7 @@ func TestInitialSchemaMigrationDefinesCurrentSchema(t *testing.T) {
 		"constraint llm_models_connectivity_status_check check (connectivity_status in ('unknown', 'connected', 'failed'))",
 		"create table conversations",
 		"created_by_user_id uuid not null references users(id) on delete restrict",
+		"avatar text not null default ''",
 		"last_message_seq bigint not null default 0",
 		"last_message_summary text not null default ''",
 		"constraint conversations_kind_check check (kind in ('direct', 'group', 'app'))",
@@ -156,6 +97,7 @@ func TestInitialSchemaMigrationDefinesCurrentSchema(t *testing.T) {
 		"case when member_type = 'user' then member_id else null end",
 		"stored references users(id) on delete restrict",
 		"history_visible_from_seq bigint not null default 1",
+		"last_read_seq bigint not null default 0",
 		"constraint conversation_members_member_type_check check (member_type in ('user', 'app'))",
 		"constraint conversation_members_role_check check (role in ('owner', 'admin', 'member'))",
 		"constraint conversation_members_history_visible_from_seq_check check (history_visible_from_seq >= 1)",
@@ -171,7 +113,29 @@ func TestInitialSchemaMigrationDefinesCurrentSchema(t *testing.T) {
 		"create table direct_conversations",
 		"constraint direct_conversations_user_pair_unique unique (user_low_id, user_high_id)",
 		"constraint direct_conversations_user_order_check check (user_low_id < user_high_id)",
+		"create table temporary_files",
+		"object_key text not null",
+		"size_bytes bigint not null",
+		"created_at timestamptz not null default now()",
+		"constraint temporary_files_object_key_unique unique (object_key)",
+		"constraint temporary_files_size_bytes_check check (size_bytes >= 0)",
+		"create table apps",
+		"creator_user_id uuid references users(id) on delete set null",
+		"visibility text not null",
+		"websocket_url text not null default ''",
+		"connection_secret text not null",
+		"constraint apps_visibility_check check (visibility in ('creator', 'public'))",
+		"constraint apps_connection_secret_unique unique (connection_secret)",
+		"create table app_conversations",
+		"app_id uuid not null references apps(id) on delete cascade",
+		"user_id uuid not null references users(id) on delete cascade",
+		"conversation_id uuid not null references conversations(id) on delete cascade",
+		"primary key (app_id, user_id)",
+		"constraint app_conversations_conversation_unique unique (conversation_id)",
 		"drop table llm_models",
+		"drop table app_conversations",
+		"drop table apps",
+		"drop table temporary_files",
 		"-- +goose down",
 	} {
 		if !strings.Contains(sql, required) {
@@ -184,35 +148,11 @@ func TestInitialSchemaMigrationDefinesCurrentSchema(t *testing.T) {
 		"alter table users",
 		"alter table conversations",
 		"alter table conversation_members",
+		"rename column",
 		"if not exists",
 	} {
 		if strings.Contains(sql, forbidden) {
 			t.Fatalf("init schema migration contains legacy fragment %q", forbidden)
-		}
-	}
-}
-
-func TestTemporaryFilesMigrationDefinesSchema(t *testing.T) {
-	rawSQL, err := os.ReadFile("../../migrations/00003_create_temporary_files.sql")
-	if err != nil {
-		t.Fatalf("read temporary files migration: %v", err)
-	}
-	sql := normalizeSQL(string(rawSQL))
-
-	for _, required := range []string{
-		"-- +goose up",
-		"create table temporary_files",
-		"id uuid primary key",
-		"object_key text not null",
-		"size_bytes bigint not null",
-		"created_at timestamptz not null default now()",
-		"constraint temporary_files_object_key_unique unique (object_key)",
-		"constraint temporary_files_size_bytes_check check (size_bytes >= 0)",
-		"-- +goose down",
-		"drop table temporary_files",
-	} {
-		if !strings.Contains(sql, required) {
-			t.Fatalf("temporary files migration missing %q", required)
 		}
 	}
 }

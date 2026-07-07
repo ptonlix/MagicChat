@@ -25,22 +25,22 @@ definitions:
     properties:
       avatar:
         type: string
-      callback_url:
-        type: string
       description:
         type: string
       name:
         type: string
       visibility:
         type: string
+      websocket_url:
+        type: string
     type: object
   httpserver.adminAppResponse:
     properties:
       avatar:
         type: string
-      callback_secret:
+      connection_secret:
         type: string
-      callback_url:
+      connection_status:
         type: string
       created_at:
         format: date-time
@@ -61,6 +61,8 @@ definitions:
         format: date-time
         type: string
       visibility:
+        type: string
+      websocket_url:
         type: string
     type: object
   httpserver.adminLoginResponse:
@@ -752,7 +754,7 @@ info:
 paths:
   /api/admin/apps:
     get:
-      description: 管理员读取应用配置，包含回调地址和回调密钥。
+      description: 管理员读取应用配置，包含 WebSocket 地址、连接密钥和连接状态。
       produces:
       - application/json
       responses:
@@ -779,7 +781,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 管理员创建一个应用配置。回调密钥由服务端生成。
+      description: 管理员创建一个应用配置。连接密钥由服务端生成。
       parameters:
       - description: 应用配置
         in: body
@@ -1003,7 +1005,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
-      summary: 生成应用回调密钥
+      summary: 生成应用连接密钥
       tags:
       - 管理员应用
   /api/admin/assistant/models:

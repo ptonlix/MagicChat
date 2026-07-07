@@ -20,8 +20,8 @@ type AdminAppsErrorEnvelope = {
 
 type AdminAppResponse = {
   avatar?: string
-  callback_secret?: string
-  callback_url?: string
+  connection_secret?: string
+  connection_status?: string
   created_at?: string
   creator_user_id?: null | string
   description?: string
@@ -31,14 +31,16 @@ type AdminAppResponse = {
   system?: boolean
   updated_at?: string
   visibility?: string
+  websocket_url?: string
 }
 
+export type AdminAppConnectionStatus = "offline"
 export type AdminAppVisibility = "creator" | "public"
 
 export type AdminApp = {
   avatar: string
-  callbackSecret: string
-  callbackUrl: string
+  connectionSecret: string
+  connectionStatus: AdminAppConnectionStatus
   createdAt: string
   creatorUserId: null | string
   description: string
@@ -48,11 +50,12 @@ export type AdminApp = {
   system: boolean
   updatedAt: string
   visibility: AdminAppVisibility
+  websocketUrl: string
 }
 
 export type AdminAppInput = Pick<
   AdminApp,
-  "avatar" | "callbackUrl" | "description" | "name" | "visibility"
+  "avatar" | "description" | "name" | "visibility" | "websocketUrl"
 >
 
 export class AdminAppsRequestError extends Error {
@@ -227,10 +230,10 @@ async function updateAdminAppStatus(
 function toAdminAppRequest(input: AdminAppInput) {
   return {
     avatar: input.avatar.trim(),
-    callback_url: input.callbackUrl.trim(),
     description: input.description.trim(),
     name: input.name.trim(),
     visibility: input.visibility,
+    websocket_url: input.websocketUrl.trim(),
   }
 }
 
@@ -248,8 +251,8 @@ function normalizeAdminApp(app: AdminAppResponse | undefined): AdminApp {
   if (
     !app ||
     typeof app.avatar !== "string" ||
-    typeof app.callback_secret !== "string" ||
-    typeof app.callback_url !== "string" ||
+    typeof app.connection_secret !== "string" ||
+    typeof app.connection_status !== "string" ||
     typeof app.created_at !== "string" ||
     typeof app.description !== "string" ||
     typeof app.enabled !== "boolean" ||
@@ -257,9 +260,13 @@ function normalizeAdminApp(app: AdminAppResponse | undefined): AdminApp {
     typeof app.name !== "string" ||
     typeof app.system !== "boolean" ||
     typeof app.updated_at !== "string" ||
-    typeof app.visibility !== "string"
+    typeof app.visibility !== "string" ||
+    typeof app.websocket_url !== "string"
   ) {
     throw new AdminAppsRequestError("应用响应格式不正确")
+  }
+  if (!isAdminAppConnectionStatus(app.connection_status)) {
+    throw new AdminAppsRequestError("应用连接状态响应格式不正确")
   }
   if (!isAdminAppVisibility(app.visibility)) {
     throw new AdminAppsRequestError("应用可见范围响应格式不正确")
@@ -274,8 +281,8 @@ function normalizeAdminApp(app: AdminAppResponse | undefined): AdminApp {
 
   return {
     avatar: app.avatar,
-    callbackSecret: app.callback_secret,
-    callbackUrl: app.callback_url,
+    connectionSecret: app.connection_secret,
+    connectionStatus: app.connection_status,
     createdAt: app.created_at,
     creatorUserId: app.creator_user_id ?? null,
     description: app.description,
@@ -285,7 +292,14 @@ function normalizeAdminApp(app: AdminAppResponse | undefined): AdminApp {
     system: app.system,
     updatedAt: app.updated_at,
     visibility: app.visibility,
+    websocketUrl: app.websocket_url,
   }
+}
+
+function isAdminAppConnectionStatus(
+  value: string
+): value is AdminAppConnectionStatus {
+  return value === "offline"
 }
 
 function isAdminAppVisibility(value: string): value is AdminAppVisibility {

@@ -152,6 +152,7 @@ CREATE TABLE conversations (
   id uuid PRIMARY KEY,
   kind text NOT NULL,
   name text NOT NULL DEFAULT '',
+  avatar text NOT NULL DEFAULT '',
   created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   status text NOT NULL DEFAULT 'active',
   posting_policy text NOT NULL DEFAULT 'open',
@@ -183,6 +184,7 @@ CREATE TABLE conversation_members (
   history_visible_from_seq bigint NOT NULL DEFAULT 1,
   left_at timestamptz,
   last_read_message_id uuid,
+  last_read_seq bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (conversation_id, member_type, member_id),
   CONSTRAINT conversation_members_member_type_check CHECK (member_type IN ('user', 'app')),
   CONSTRAINT conversation_members_role_check CHECK (role IN ('owner', 'admin', 'member')),
@@ -230,7 +232,50 @@ CREATE TABLE direct_conversations (
   CONSTRAINT direct_conversations_user_order_check CHECK (user_low_id < user_high_id)
 );
 
+CREATE TABLE temporary_files (
+  id uuid PRIMARY KEY,
+  object_key text NOT NULL,
+  size_bytes bigint NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT temporary_files_object_key_unique UNIQUE (object_key),
+  CONSTRAINT temporary_files_size_bytes_check CHECK (size_bytes >= 0)
+);
+
+CREATE TABLE apps (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  avatar text NOT NULL DEFAULT '',
+  description text NOT NULL DEFAULT '',
+  creator_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  enabled boolean NOT NULL DEFAULT true,
+  visibility text NOT NULL,
+  websocket_url text NOT NULL DEFAULT '',
+  connection_secret text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT apps_visibility_check CHECK (visibility IN ('creator', 'public')),
+  CONSTRAINT apps_connection_secret_unique UNIQUE (connection_secret)
+);
+
+CREATE INDEX apps_creator_user_id_index ON apps (creator_user_id);
+CREATE INDEX apps_enabled_index ON apps (enabled);
+CREATE INDEX apps_visibility_index ON apps (visibility);
+
+CREATE TABLE app_conversations (
+  app_id uuid NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (app_id, user_id),
+  CONSTRAINT app_conversations_conversation_unique UNIQUE (conversation_id)
+);
+
+CREATE INDEX app_conversations_user_id_index ON app_conversations (user_id);
+
 -- +goose Down
+DROP TABLE app_conversations;
+DROP TABLE apps;
+DROP TABLE temporary_files;
 DROP TABLE direct_conversations;
 DROP TABLE messages;
 DROP TABLE conversation_members;

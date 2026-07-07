@@ -10,7 +10,7 @@
     "paths": {
         "/api/admin/apps": {
             "get": {
-                "description": "管理员读取应用配置，包含回调地址和回调密钥。",
+                "description": "管理员读取应用配置，包含 WebSocket 地址、连接密钥和连接状态。",
                 "produces": [
                     "application/json"
                 ],
@@ -52,7 +52,7 @@
                 }
             },
             "post": {
-                "description": "管理员创建一个应用配置。回调密钥由服务端生成。",
+                "description": "管理员创建一个应用配置。连接密钥由服务端生成。",
                 "consumes": [
                     "application/json"
                 ],
@@ -367,7 +367,7 @@
                 "tags": [
                     "管理员应用"
                 ],
-                "summary": "生成应用回调密钥",
+                "summary": "生成应用连接密钥",
                 "parameters": [
                     {
                         "type": "string",
@@ -3518,9 +3518,6 @@
                 "avatar": {
                     "type": "string"
                 },
-                "callback_url": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -3528,6 +3525,9 @@
                     "type": "string"
                 },
                 "visibility": {
+                    "type": "string"
+                },
+                "websocket_url": {
                     "type": "string"
                 }
             }
@@ -3538,10 +3538,10 @@
                 "avatar": {
                     "type": "string"
                 },
-                "callback_secret": {
+                "connection_secret": {
                     "type": "string"
                 },
-                "callback_url": {
+                "connection_status": {
                     "type": "string"
                 },
                 "created_at": {
@@ -3571,6 +3571,9 @@
                     "format": "date-time"
                 },
                 "visibility": {
+                    "type": "string"
+                },
+                "websocket_url": {
                     "type": "string"
                 }
             }
