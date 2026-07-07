@@ -15,6 +15,7 @@ import { NavLink, Outlet, useMatch, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog"
+import type { CroppedAvatar } from "@/components/custom-avatar-picker"
 import { useTheme } from "@/components/theme-provider"
 import {
   AlertDialog,
@@ -38,7 +39,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { clientLogout } from "@/lib/client-auth"
-import { updateCurrentClientUser } from "@/lib/client-data-api"
+import {
+  updateCurrentClientUser,
+  uploadCurrentClientAvatar,
+} from "@/lib/client-data-api"
 import type { ClientUser } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
 
@@ -113,6 +117,18 @@ function UserAvatarMenu({
     }
   }
 
+  async function handleCustomAvatarSave(avatar: CroppedAvatar) {
+    try {
+      const updatedUser = await uploadCurrentClientAvatar(avatar.file)
+      await refreshMe()
+      toast.success("头像已保存")
+      return updatedUser.avatar
+    } catch (error) {
+      toast.error(getProfileUpdateErrorMessage(error))
+      throw error
+    }
+  }
+
   async function handleNicknameSave(nickname: string) {
     try {
       await updateCurrentClientUser({ nickname })
@@ -170,15 +186,13 @@ function UserAvatarMenu({
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           onAvatarSave={handleAvatarSave}
+          onCustomAvatarSave={handleCustomAvatarSave}
           onNicknameSave={handleNicknameSave}
           user={user}
         />
       </DropdownMenu>
 
-      <AlertDialog
-        open={logoutConfirmOpen}
-        onOpenChange={setLogoutConfirmOpen}
-      >
+      <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认退出登录</AlertDialogTitle>

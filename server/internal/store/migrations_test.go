@@ -16,6 +16,7 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00001_init_schema.sql",
 		"00002_add_conversation_member_last_read_seq.sql",
 		"00003_create_temporary_files.sql",
+		"00004_add_conversation_avatar.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -23,6 +24,25 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
+	}
+}
+
+func TestConversationAvatarMigrationDefinesSchemaChange(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00004_add_conversation_avatar.sql")
+	if err != nil {
+		t.Fatalf("read conversation avatar migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+
+	for _, required := range []string{
+		"-- +goose up",
+		"alter table conversations add column avatar text not null default ''",
+		"-- +goose down",
+		"alter table conversations drop column avatar",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("conversation avatar migration missing %q", required)
 		}
 	}
 }

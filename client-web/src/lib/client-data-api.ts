@@ -32,6 +32,10 @@ type CurrentClientUserResponse = {
   user?: ClientUserResponse
 }
 
+type UploadCurrentClientAvatarResponse = {
+  user?: ClientUserResponse
+}
+
 type UpdateCurrentClientUserInput = {
   avatar?: string
   nickname?: string
@@ -97,6 +101,11 @@ type AddGroupConversationMembersResponse = {
   message?: MessageResponse | null
 }
 
+type UploadGroupConversationAvatarResponse = {
+  conversation?: ConversationResponse
+  message?: MessageResponse
+}
+
 type MessageSenderResponse = {
   id?: string
   type?: string
@@ -119,8 +128,16 @@ type GroupMembersInvitedSystemEventBodyResponse = {
   type?: "system_event"
 }
 
+type GroupAvatarUpdatedSystemEventBodyResponse = {
+  actor?: SystemEventUserRefResponse
+  event?: string
+  type?: "system_event"
+}
+
 type MessageBodyResponse =
-  TextMessageBodyResponse | GroupMembersInvitedSystemEventBodyResponse
+  | TextMessageBodyResponse
+  | GroupMembersInvitedSystemEventBodyResponse
+  | GroupAvatarUpdatedSystemEventBodyResponse
 
 type MessageResponse = {
   body?: MessageBodyResponse
@@ -232,8 +249,16 @@ export type ClientGroupMembersInvitedSystemEventBody = {
   type: "system_event"
 }
 
+export type ClientGroupAvatarUpdatedSystemEventBody = {
+  actor: ClientSystemEventUserRef
+  event: "group_avatar_updated"
+  type: "system_event"
+}
+
 export type ClientMessageBody =
-  ClientTextMessageBody | ClientGroupMembersInvitedSystemEventBody
+  | ClientTextMessageBody
+  | ClientGroupMembersInvitedSystemEventBody
+  | ClientGroupAvatarUpdatedSystemEventBody
 
 export type ClientMessage = {
   body: ClientMessageBody
@@ -293,6 +318,11 @@ export type AddGroupConversationMembersResult = {
   message: ClientMessage | null
 }
 
+export type UploadGroupConversationAvatarResult = {
+  conversation: ClientConversation
+  message: ClientMessage
+}
+
 export class ClientDataRequestError extends Error {
   code?: string
   status?: number
@@ -349,6 +379,35 @@ export async function updateCurrentClientUser(
 
   const user = (
     payload as ClientDataSuccessEnvelope<CurrentClientUserResponse> | undefined
+  )?.data?.user
+
+  return normalizeClientUser(user)
+}
+
+export async function uploadCurrentClientAvatar(
+  file: File,
+  fetcher: ClientDataFetch = fetch
+) {
+  const formData = new FormData()
+  formData.set("file", file)
+
+  const response = await fetcher("/api/client/me/avatar", {
+    body: formData,
+    credentials: "include",
+    method: "POST",
+  })
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<UploadCurrentClientAvatarResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "上传头像失败")
+  }
+
+  const user = (
+    payload as
+      ClientDataSuccessEnvelope<UploadCurrentClientAvatarResponse> | undefined
   )?.data?.user
 
   return normalizeClientUser(user)
@@ -512,6 +571,47 @@ export async function addGroupConversationMembers(
   }
 }
 
+export async function uploadGroupConversationAvatar(
+  conversationId: string,
+  file: File,
+  fetcher: ClientDataFetch = fetch
+): Promise<UploadGroupConversationAvatarResult> {
+  const formData = new FormData()
+  formData.set("file", file)
+
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/avatar`,
+    {
+      body: formData,
+      credentials: "include",
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<UploadGroupConversationAvatarResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "上传群头像失败")
+  }
+
+  const data = (
+    payload as
+      | ClientDataSuccessEnvelope<UploadGroupConversationAvatarResponse>
+      | undefined
+  )?.data
+
+  if (!data?.conversation || !data.message) {
+    throw new ClientDataRequestError("上传群头像响应格式不正确")
+  }
+
+  return {
+    conversation: normalizeConversation(data.conversation),
+    message: normalizeMessage(data.message),
+  }
+}
+
 export async function listConversationMessages(
   conversationId: string,
   options: ListConversationMessagesOptions = {},
@@ -652,6 +752,10 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
     return body.content
   }
 
+  if (body.event === "group_avatar_updated") {
+    return `${body.actor.displayName} 修改了群头像`
+  }
+
   return `${body.inviter.displayName} 邀请 ${body.invitees
     .map((invitee) => invitee.displayName)
     .join(",")} 加入群聊`
@@ -665,9 +769,15 @@ export function isClientMessageInitiatedByUser(
     return message.sender.id === userId
   }
 
-  return (
-    message.body.type === "system_event" && message.body.inviter.id === userId
-  )
+  if (message.body.type !== "system_event") {
+    return false
+  }
+
+  if (message.body.event === "group_avatar_updated") {
+    return message.body.actor.id === userId
+  }
+
+  return message.body.inviter.id === userId
 }
 
 function normalizeClientUser(user: ClientUserResponse | undefined): ClientUser {
@@ -838,11 +948,29 @@ function normalizeMessageBody(
 }
 
 function normalizeSystemEventMessageBody(
-  body: GroupMembersInvitedSystemEventBodyResponse
-): ClientGroupMembersInvitedSystemEventBody {
+  body:
+    | GroupMembersInvitedSystemEventBodyResponse
+    | GroupAvatarUpdatedSystemEventBodyResponse
+):
+  | ClientGroupMembersInvitedSystemEventBody
+  | ClientGroupAvatarUpdatedSystemEventBody {
+  if (body.event === "group_avatar_updated") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_avatar_updated",
+      type: "system_event",
+    }
+  }
+
   if (
     body.event !== "group_members_invited" ||
+    !("inviter" in body) ||
     !isSystemEventUserRefResponse(body.inviter) ||
+    !("invitees" in body) ||
     !Array.isArray(body.invitees)
   ) {
     throw new ClientDataRequestError("消息响应格式不正确")

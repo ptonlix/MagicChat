@@ -89,6 +89,7 @@ type Conversation struct {
 	ID                 string    `gorm:"type:uuid;primaryKey"`
 	Kind               string    `gorm:"size:32;not null;index"`
 	Name               string    `gorm:"size:160;not null"`
+	Avatar             string    `gorm:"size:512;not null;default:''"`
 	CreatedByUserID    string    `gorm:"type:uuid;not null;index"`
 	CreatedByUser      User      `gorm:"foreignKey:CreatedByUserID;constraint:OnDelete:RESTRICT;"`
 	Status             string    `gorm:"size:32;not null;index"`

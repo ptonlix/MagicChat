@@ -15,6 +15,7 @@ import {
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
   sendConversationTextMessage,
+  uploadGroupConversationAvatar as uploadGroupConversationAvatarRequest,
   type ClientConversation,
   type ClientMessage,
   type ClientMessagePage,
@@ -591,6 +592,23 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, mergeIncomingConversationMessage, upsertConversation]
   )
 
+  const updateGroupConversationAvatar = useCallback(
+    async (conversationId: string, file: File) => {
+      try {
+        const result = await uploadGroupConversationAvatarRequest(
+          conversationId,
+          file
+        )
+        upsertConversation(result.conversation)
+        mergeIncomingConversationMessage(result.message, { markLoaded: true })
+        return result.conversation
+      } catch (error) {
+        throw handleError(error, "上传群头像失败")
+      }
+    },
+    [handleError, mergeIncomingConversationMessage, upsertConversation]
+  )
+
   const bootstrap = useCallback(async () => {
     const minimumLoading = wait(minimumBootstrapLoadingMs)
 
@@ -721,6 +739,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationText,
     syncLoadedConversationMessages,
     updateConversationLastMessage,
+    updateGroupConversationAvatar,
   }
 
   return (

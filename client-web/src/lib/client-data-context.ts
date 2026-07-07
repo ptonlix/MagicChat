@@ -66,6 +66,10 @@ export type ClientDataContextValue = {
   ) => Promise<ClientMessage | null>
   syncLoadedConversationMessages: () => void
   updateConversationLastMessage: (message: ClientMessage) => void
+  updateGroupConversationAvatar: (
+    conversationId: string,
+    file: File
+  ) => Promise<ClientConversation>
 }
 
 export const ClientDataContext = createContext<ClientDataContextValue | null>(

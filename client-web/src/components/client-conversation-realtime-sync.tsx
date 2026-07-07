@@ -23,10 +23,17 @@ export function ClientConversationRealtimeSync() {
   React.useEffect(() => {
     return subscribeRealtimeEvent("message.created", (payload) => {
       try {
-        handleIncomingConversationMessage(normalizeMessageCreatedEventPayload(payload), {
+        const message = normalizeMessageCreatedEventPayload(payload)
+        handleIncomingConversationMessage(message, {
           activeConversationId,
           visible: document.visibilityState === "visible",
         })
+        if (
+          message.body.type === "system_event" &&
+          message.body.event === "group_avatar_updated"
+        ) {
+          void refreshConversations().catch(() => undefined)
+        }
       } catch {
         // Ignore malformed realtime events. The websocket remains usable.
       }
@@ -34,6 +41,7 @@ export function ClientConversationRealtimeSync() {
   }, [
     activeConversationId,
     handleIncomingConversationMessage,
+    refreshConversations,
     subscribeRealtimeEvent,
   ])
 

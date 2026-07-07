@@ -1,9 +1,24 @@
-import { LogOut } from "lucide-react"
+import { useEffect, useState } from "react"
+
+import { Camera, LogOut, X } from "lucide-react"
+import { toast } from "sonner"
 
 import type { ClientConversationMember } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
+import {
+  CustomAvatarPicker,
+  type CroppedAvatar,
+} from "@/components/custom-avatar-picker"
+import { GroupAvatar } from "@/components/group-avatar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { UserProfilePopover } from "@/components/user-profile-popover"
 import {
   SheetDescription,
@@ -19,8 +34,15 @@ type GroupConversationInfoProps = {
 export function GroupConversationInfo({
   conversationId,
 }: GroupConversationInfoProps) {
-  const { getConversation } = useClientData()
+  const { getConversation, me, updateGroupConversationAvatar } = useClientData()
   const conversation = getConversation(conversationId)
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [draftAvatar, setDraftAvatar] = useState("")
+
+  useEffect(() => {
+    setDraftAvatar(conversation?.avatar ?? "")
+  }, [conversation?.avatar, conversation?.id])
 
   if (!conversation) {
     return (
@@ -36,21 +58,57 @@ export function GroupConversationInfo({
     )
   }
 
-  const members = [...(conversation.members ?? [])].sort(
+  const activeConversation = conversation
+  const members = [...(activeConversation.members ?? [])].sort(
     compareConversationMembers
   )
+  const currentMember = members.find((member) => member.id === me.id)
+  const canChangeAvatar = canManageGroupAvatar(currentMember?.role)
+
+  async function handleAvatarSave(avatar: CroppedAvatar) {
+    if (!canChangeAvatar || avatarSaving) {
+      return
+    }
+
+    setAvatarSaving(true)
+    try {
+      const updatedConversation = await updateGroupConversationAvatar(
+        activeConversation.id,
+        avatar.file
+      )
+      setDraftAvatar(updatedConversation.avatar)
+      setAvatarPickerOpen(false)
+      toast.success("群头像已保存")
+    } catch (error) {
+      toast.error(getErrorMessage(error, "上传群头像失败"))
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
 
   return (
     <>
       <SheetHeader className="border-b">
         <SheetTitle>群聊信息</SheetTitle>
-        <SheetDescription>{conversation.memberCount} 人群聊</SheetDescription>
+        <SheetDescription>
+          {activeConversation.memberCount} 人群聊
+        </SheetDescription>
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="flex flex-col gap-5">
+          <div className="flex justify-center">
+            <GroupConversationAvatarControl
+              avatar={draftAvatar}
+              canChangeAvatar={canChangeAvatar}
+              members={members}
+              name={activeConversation.name}
+              onClick={() => setAvatarPickerOpen(true)}
+            />
+          </div>
+
           <div className="grid gap-2">
             <div className="text-sm font-medium">
-              群成员（{conversation.memberCount}）
+              群成员（{activeConversation.memberCount}）
             </div>
             <div className="grid gap-1">
               {members.map((member) => (
@@ -65,6 +123,42 @@ export function GroupConversationInfo({
           </div>
         </div>
       </div>
+      <Dialog
+        open={avatarPickerOpen}
+        onOpenChange={(open) => {
+          if (!avatarSaving) {
+            setAvatarPickerOpen(open)
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="flex w-[calc(100vw-2rem)] max-w-2xl flex-col gap-4 rounded-md border bg-background p-5 text-foreground shadow-lg ring-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-medium">
+                修改群头像
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                上传并裁切一张图片作为群聊头像
+              </DialogDescription>
+            </div>
+            <DialogClose asChild>
+              <Button
+                aria-label="关闭群头像选择"
+                disabled={avatarSaving}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
+            </DialogClose>
+          </div>
+          <CustomAvatarPicker onSave={handleAvatarSave} saving={avatarSaving} />
+        </DialogContent>
+      </Dialog>
       <SheetFooter className="border-t">
         <Button type="button" variant="destructive">
           <LogOut aria-hidden="true" className="size-4" />
@@ -72,6 +166,54 @@ export function GroupConversationInfo({
         </Button>
       </SheetFooter>
     </>
+  )
+}
+
+function GroupConversationAvatarControl({
+  avatar,
+  canChangeAvatar,
+  members,
+  name,
+  onClick,
+}: {
+  avatar: string
+  canChangeAvatar: boolean
+  members: ClientConversationMember[]
+  name: string
+  onClick: () => void
+}) {
+  const avatarNode = avatar ? (
+    <Avatar className="size-20 rounded-sm bg-muted after:rounded-sm">
+      <AvatarImage alt={name} className="rounded-sm" src={avatar} />
+      <AvatarFallback className="rounded-sm text-xl">
+        {getInitial(name)}
+      </AvatarFallback>
+    </Avatar>
+  ) : (
+    <GroupAvatar className="size-20" members={members} name={name} />
+  )
+
+  if (!canChangeAvatar) {
+    return avatarNode
+  }
+
+  return (
+    <Button
+      aria-haspopup="dialog"
+      aria-label="更换群头像"
+      className="group/group-avatar-change relative h-auto overflow-hidden rounded-sm bg-muted p-0 hover:bg-background"
+      onClick={onClick}
+      type="button"
+      variant="ghost"
+    >
+      {avatarNode}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-foreground/40 text-background opacity-0 transition-opacity group-hover/group-avatar-change:opacity-100 group-focus-visible/group-avatar-change:opacity-100"
+      >
+        <Camera className="size-5" />
+      </span>
+    </Button>
   )
 }
 
@@ -146,6 +288,16 @@ function compareConversationMembers(
   right: ClientConversationMember
 ) {
   return memberRoleOrder[left.role] - memberRoleOrder[right.role]
+}
+
+function canManageGroupAvatar(
+  role: ClientConversationMember["role"] | undefined
+) {
+  return role === "owner" || role === "admin"
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+  return error instanceof Error ? error.message : fallbackMessage
 }
 
 function getInitial(name: string) {

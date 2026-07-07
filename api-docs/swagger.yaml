@@ -247,6 +247,9 @@ definitions:
     type: object
   httpserver.groupConversationResponse:
     properties:
+      avatar:
+        example: /assets/avatars/groups/07.webp
+        type: string
       created_at:
         format: date-time
         type: string
@@ -622,6 +625,13 @@ definitions:
       nickname:
         example: 小张
         type: string
+    type: object
+  httpserver.updateGroupConversationAvatarResponse:
+    properties:
+      conversation:
+        $ref: '#/definitions/httpserver.conversationListItemResponse'
+      message:
+        $ref: '#/definitions/httpserver.messageResponse'
     type: object
   httpserver.updateInfoSettingsRequest:
     properties:
@@ -1856,6 +1866,61 @@ paths:
       summary: 列出当前用户会话
       tags:
       - 客户端会话
+  /api/client/conversations/{conversation_id}/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 群主或管理员上传裁切后的 WebP 群头像。头像必须是 256x256，文件会写入 public bucket，并生成一条系统消息。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      - description: WebP 群头像
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.updateGroupConversationAvatarResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 上传群聊头像
+      tags:
+      - 客户端会话
   /api/client/conversations/{conversation_id}/members:
     post:
       consumes:
@@ -2246,6 +2311,48 @@ paths:
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
       summary: 修改当前用户资料
+      tags:
+      - 客户端认证
+  /api/client/me/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 普通用户上传裁切后的 WebP 头像。头像必须是 256x256，文件会写入 public bucket，并更新当前用户头像。
+      parameters:
+      - description: WebP 头像
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.currentUserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 上传当前用户头像
       tags:
       - 客户端认证
   /api/client/temporary-files:

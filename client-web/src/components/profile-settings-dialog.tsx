@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react"
 import { Bell, Camera, Loader2Icon, X } from "lucide-react"
 
 import { AvatarPickerDialog } from "@/components/avatar-picker-dialog"
+import type { CroppedAvatar } from "@/components/custom-avatar-picker"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +23,9 @@ import type { ClientUser } from "@/lib/client-data-api"
 
 type ProfileSettingsDialogProps = {
   onAvatarSave?: (avatar: string) => Promise<void> | void
+  onCustomAvatarSave?: (
+    avatar: CroppedAvatar
+  ) => Promise<string | void> | string | void
   onNicknameSave?: (nickname: string) => Promise<void> | void
   onOpenChange: (open: boolean) => void
   open: boolean
@@ -30,6 +34,7 @@ type ProfileSettingsDialogProps = {
 
 export function ProfileSettingsDialog({
   onAvatarSave,
+  onCustomAvatarSave,
   onNicknameSave,
   onOpenChange,
   open,
@@ -40,6 +45,7 @@ export function ProfileSettingsDialog({
       {open && (
         <ProfileSettingsDialogContent
           onAvatarSave={onAvatarSave}
+          onCustomAvatarSave={onCustomAvatarSave}
           onNicknameSave={onNicknameSave}
           user={user}
         />
@@ -50,10 +56,14 @@ export function ProfileSettingsDialog({
 
 function ProfileSettingsDialogContent({
   onAvatarSave,
+  onCustomAvatarSave,
   onNicknameSave,
   user,
 }: {
   onAvatarSave?: (avatar: string) => Promise<void> | void
+  onCustomAvatarSave?: (
+    avatar: CroppedAvatar
+  ) => Promise<string | void> | string | void
   onNicknameSave?: (nickname: string) => Promise<void> | void
   user: ClientUser
 }) {
@@ -253,6 +263,21 @@ function ProfileSettingsDialogContent({
 
           try {
             await onAvatarSave?.(nextAvatar)
+          } catch (error) {
+            setAvatar(previousAvatar)
+            throw error
+          }
+        }}
+        onSaveCustomAvatar={async (nextAvatar) => {
+          const previousAvatar = avatar
+
+          setAvatar(nextAvatar.previewUrl)
+
+          try {
+            const savedAvatar = await onCustomAvatarSave?.(nextAvatar)
+            if (savedAvatar) {
+              setAvatar(savedAvatar)
+            }
           } catch (error) {
             setAvatar(previousAvatar)
             throw error

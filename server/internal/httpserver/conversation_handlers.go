@@ -22,13 +22,15 @@ const maxClientConversationListItems = 100
 const (
 	messageTypeSystemEvent              = "system_event"
 	systemEventGroupMembersInvited      = "group_members_invited"
+	systemEventGroupAvatarUpdated       = "group_avatar_updated"
 	groupMembersInvitedSummarySeparator = ","
 )
 
 var (
-	errConversationNotGroup        = errors.New("conversation is not group")
-	errGroupConversationMemberCap  = errors.New("group conversation member cap exceeded")
-	errGroupConversationMemberMiss = errors.New("group conversation member missing")
+	errConversationNotGroup             = errors.New("conversation is not group")
+	errGroupConversationMemberCap       = errors.New("group conversation member cap exceeded")
+	errGroupConversationMemberMiss      = errors.New("group conversation member missing")
+	errGroupConversationAvatarForbidden = errors.New("group conversation avatar forbidden")
 )
 
 type createGroupConversationRequest struct {
@@ -55,6 +57,7 @@ type conversationMemberResponse struct {
 }
 
 type groupConversationResponse struct {
+	Avatar             string                       `json:"avatar" example:"/assets/avatars/groups/07.webp"`
 	CreatedAt          time.Time                    `json:"created_at" format:"date-time"`
 	CreatedByUserID    string                       `json:"created_by_user_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 	ID                 string                       `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
@@ -79,6 +82,11 @@ type createGroupConversationResponse struct {
 type addGroupConversationMembersResponse struct {
 	Conversation conversationListItemResponse `json:"conversation"`
 	Message      *messageResponse             `json:"message"`
+}
+
+type updateGroupConversationAvatarResponse struct {
+	Conversation conversationListItemResponse `json:"conversation"`
+	Message      messageResponse              `json:"message"`
 }
 
 type createDirectConversationResponse struct {
@@ -131,6 +139,12 @@ type groupMembersInvitedSystemEventBody struct {
 	Invitees []systemEventUserRef `json:"invitees"`
 	Inviter  systemEventUserRef   `json:"inviter"`
 	Type     string               `json:"type"`
+}
+
+type groupAvatarUpdatedSystemEventBody struct {
+	Actor systemEventUserRef `json:"actor"`
+	Event string             `json:"event"`
+	Type  string             `json:"type"`
 }
 
 // listClientConversations godoc
@@ -507,6 +521,10 @@ func (s *Server) addGroupConversationMembers(c echo.Context) error {
 	})
 }
 
+func canManageGroupConversation(role string) bool {
+	return role == store.ConversationMemberRoleOwner || role == store.ConversationMemberRoleAdmin
+}
+
 func normalizeDirectConversationUserID(rawID string, currentUserID string) (string, error) {
 	id := strings.TrimSpace(rawID)
 	if id == "" {
@@ -819,8 +837,119 @@ func (s *Server) addUserGroupConversationMembers(currentUser store.User, convers
 	return conversation, message, memberUserIDs, nil
 }
 
+func (s *Server) updateUserGroupConversationAvatar(currentUser store.User, conversationID string, avatarURL string) (store.Conversation, store.Message, []string, error) {
+	var conversation store.Conversation
+	var message store.Message
+	memberUserIDs := []string{}
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+			return err
+		}
+		if conversation.Status != store.ConversationStatusActive {
+			return errConversationAccessDenied
+		}
+		if conversation.Kind != store.ConversationKindGroup {
+			return errConversationNotGroup
+		}
+
+		var currentMember store.ConversationMember
+		if err := tx.First(
+			&currentMember,
+			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
+			conversationID,
+			store.ConversationMemberTypeUser,
+			currentUser.ID,
+		).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errConversationAccessDenied
+			}
+			return err
+		}
+		if !canManageGroupConversation(currentMember.Role) {
+			return errGroupConversationAvatarForbidden
+		}
+
+		now := time.Now().UTC()
+		if err := tx.Model(&store.Conversation{}).
+			Where("id = ?", conversationID).
+			Updates(map[string]any{
+				"avatar":     avatarURL,
+				"updated_at": now,
+			}).Error; err != nil {
+			return err
+		}
+		conversation.Avatar = avatarURL
+		conversation.UpdatedAt = now
+
+		createdMessage, err := createGroupAvatarUpdatedSystemMessage(tx, &conversation, currentUser, now)
+		if err != nil {
+			return err
+		}
+		message = createdMessage
+
+		if err := advanceConversationMemberReadSeq(tx, conversationID, currentUser.ID, createdMessage.Seq); err != nil {
+			return err
+		}
+
+		ids, err := loadActiveConversationUserIDs(tx, conversationID)
+		if err != nil {
+			return err
+		}
+		memberUserIDs = ids
+		return nil
+	})
+	if err != nil {
+		return store.Conversation{}, store.Message{}, nil, err
+	}
+
+	return conversation, message, memberUserIDs, nil
+}
+
 func createGroupMembersInvitedSystemMessage(db *gorm.DB, conversation *store.Conversation, inviter store.User, invitees []store.User, now time.Time) (store.Message, error) {
 	body, summary, err := newGroupMembersInvitedSystemEventBody(inviter, invitees)
+	if err != nil {
+		return store.Message{}, err
+	}
+
+	message := store.Message{
+		ID:             uuid.NewString(),
+		ConversationID: conversation.ID,
+		Seq:            conversation.LastMessageSeq + 1,
+		SenderType:     store.MessageSenderTypeSystem,
+		Body:           body,
+		Summary:        summary,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := db.Create(&message).Error; err != nil {
+		return store.Message{}, err
+	}
+
+	if err := db.Model(&store.Conversation{}).
+		Where("id = ?", conversation.ID).
+		Updates(map[string]any{
+			"last_message_at":      message.CreatedAt,
+			"last_message_id":      message.ID,
+			"last_message_seq":     message.Seq,
+			"last_message_summary": message.Summary,
+			"updated_at":           now,
+		}).Error; err != nil {
+		return store.Message{}, err
+	}
+
+	lastMessageAt := message.CreatedAt
+	conversation.LastMessageAt = &lastMessageAt
+	conversation.LastMessageID = &message.ID
+	conversation.LastMessageSeq = message.Seq
+	conversation.LastMessageSummary = message.Summary
+	conversation.UpdatedAt = now
+
+	return message, nil
+}
+
+func createGroupAvatarUpdatedSystemMessage(db *gorm.DB, conversation *store.Conversation, actor store.User, now time.Time) (store.Message, error) {
+	body, summary, err := newGroupAvatarUpdatedSystemEventBody(actor)
 	if err != nil {
 		return store.Message{}, err
 	}
@@ -883,6 +1012,24 @@ func newGroupMembersInvitedSystemEventBody(inviter store.User, invitees []store.
 			ID:          inviter.ID,
 		},
 		Type: messageTypeSystemEvent,
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	return body, summary, nil
+}
+
+func newGroupAvatarUpdatedSystemEventBody(actor store.User) (json.RawMessage, string, error) {
+	actorDisplayName := userDisplayName(actor)
+	summary := actorDisplayName + " 修改了群头像"
+	body, err := json.Marshal(groupAvatarUpdatedSystemEventBody{
+		Actor: systemEventUserRef{
+			DisplayName: actorDisplayName,
+			ID:          actor.ID,
+		},
+		Event: systemEventGroupAvatarUpdated,
+		Type:  messageTypeSystemEvent,
 	})
 	if err != nil {
 		return nil, "", err
@@ -1007,7 +1154,7 @@ func newConversationListItemResponse(
 	usersByID map[string]store.User,
 ) conversationListItemResponse {
 	name := conversation.Name
-	avatar := ""
+	avatar := conversation.Avatar
 	lastReadSeq := currentMemberLastReadSeq(currentUserID, members)
 	if conversation.Kind == store.ConversationKindDirect {
 		for _, member := range members {
@@ -1139,6 +1286,7 @@ func newGroupConversationResponse(
 	}
 
 	return groupConversationResponse{
+		Avatar:             conversation.Avatar,
 		CreatedAt:          conversation.CreatedAt,
 		CreatedByUserID:    conversation.CreatedByUserID,
 		ID:                 conversation.ID,

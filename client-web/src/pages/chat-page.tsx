@@ -587,7 +587,7 @@ function ConversationListAvatar({
 }) {
   return (
     <div className="relative shrink-0">
-      {conversation.type === "group" ? (
+      {conversation.type === "group" && !conversation.avatar ? (
         <GroupAvatar
           className="size-10"
           members={conversation.members}
