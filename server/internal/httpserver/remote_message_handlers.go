@@ -22,6 +22,7 @@ import (
 	"app/internal/store"
 
 	"github.com/HugoSmits86/nativewebp"
+	lossywebp "github.com/chai2010/webp"
 	"github.com/google/uuid"
 	xdraw "golang.org/x/image/draw"
 )
@@ -29,6 +30,7 @@ import (
 const (
 	remoteMessageFetchTimeout     = 15 * time.Second
 	remoteMessageFetchMaxRedirect = 3
+	remoteImageWebPQuality        = 80
 )
 
 type downloadedRemoteMessageFile struct {
@@ -51,7 +53,7 @@ func (s *Server) createRemoteImageMessageBody(ctx context.Context, rawURL string
 		return nil, err
 	}
 	if len(webpContent) > maxImageMessageUploadBytes {
-		return nil, newAppRequestFailure("request_too_large", "图片不能超过 2MiB")
+		return nil, newAppRequestFailure("request_too_large", "图片不能超过 5MiB")
 	}
 	if _, _, err := parseWebPDimensions(webpContent); err != nil {
 		return nil, newAppRequestFailure("invalid_request", "图片转换失败")
@@ -253,7 +255,7 @@ func convertImageMessageContentToWebP(content []byte) ([]byte, error) {
 	img = resizeImageToMaxDimension(img, maxImageMessageDimension)
 
 	var buffer bytes.Buffer
-	if err := nativewebp.Encode(&buffer, img, &nativewebp.Options{CompressionLevel: nativewebp.DefaultCompression}); err != nil {
+	if err := lossywebp.Encode(&buffer, img, &lossywebp.Options{Quality: remoteImageWebPQuality}); err != nil {
 		return nil, newAppRequestFailure("invalid_request", "图片转换失败")
 	}
 

@@ -17,7 +17,7 @@ import (
 
 const (
 	imageMessageContentType     = "image/webp"
-	maxImageMessageUploadBytes  = 2 * 1024 * 1024
+	maxImageMessageUploadBytes  = 5 * 1024 * 1024
 	maxImageMessageRequestBytes = maxImageMessageUploadBytes + 1*1024*1024
 	maxImageMessageDimension    = 1920
 	messageTypeImage            = "image"
@@ -101,12 +101,12 @@ func (s *Server) createConversationImageMessage(c echo.Context) error {
 	fileHeader, err := c.FormFile("image")
 	if err != nil {
 		if isRequestBodyTooLarge(err) {
-			return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "图片不能超过 2MiB")
+			return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "图片不能超过 5MiB")
 		}
 		return failure(c, http.StatusBadRequest, "invalid_request", "请选择要发送的图片")
 	}
 	if fileHeader.Size > maxImageMessageUploadBytes {
-		return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "图片不能超过 2MiB")
+		return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "图片不能超过 5MiB")
 	}
 	if fileHeader.Size <= 0 {
 		return failure(c, http.StatusBadRequest, "invalid_request", "图片不能为空")
@@ -121,7 +121,7 @@ func (s *Server) createConversationImageMessage(c echo.Context) error {
 	imageBytes, err := readImageMessageUpload(file)
 	if err != nil {
 		if errors.Is(err, errImageMessageTooLarge) {
-			return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "图片不能超过 2MiB")
+			return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "图片不能超过 5MiB")
 		}
 		return failure(c, http.StatusBadRequest, "invalid_request", "读取图片失败")
 	}

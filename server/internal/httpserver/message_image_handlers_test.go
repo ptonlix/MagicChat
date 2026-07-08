@@ -113,6 +113,12 @@ func TestAppMessageSendConvertsImageURLToWebP(t *testing.T) {
 	if width != 64 || height != 32 {
 		t.Fatalf("uploaded WebP dimensions = %dx%d, want 64x32", width, height)
 	}
+	if !webpHasChunk(uploadedBody, "VP8 ") {
+		t.Fatalf("uploaded WebP chunks do not include VP8 lossy chunk")
+	}
+	if webpHasChunk(uploadedBody, "VP8L") {
+		t.Fatalf("uploaded WebP chunks include VP8L lossless chunk, want lossy WebP")
+	}
 	if storedFile.SizeBytes != int64(len(uploadedBody)) {
 		t.Fatalf("stored file size = %d, want uploaded size %d", storedFile.SizeBytes, len(uploadedBody))
 	}
@@ -529,6 +535,43 @@ func TestCreateConversationImageMessageRejectsLargeDimensions(t *testing.T) {
 	requireError(t, body, "invalid_request")
 }
 
+func TestCreateConversationImageMessageAcceptsImageUpToFiveMiB(t *testing.T) {
+	s3Server, _ := newFakeS3Server(t)
+	defer s3Server.Close()
+
+	server, db := newTemporaryFileTestRouter(t, s3Server.URL, "assets.example.test")
+	defer server.Close()
+
+	now := time.Date(2026, 7, 7, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindDirect,
+		memberIDs:       []string{alice.ID, bob.ID},
+		now:             now,
+	})
+
+	content := testSizedWebPVP8X(1024, 768, 3*1024*1024)
+	resp, body := postMultipartImageMessage(
+		t,
+		server,
+		"/api/client/conversations/"+conversation.ID+"/messages/images",
+		"client-image-message-1",
+		"image.webp",
+		content,
+		loginAsUser(t, server, alice.Email),
+	)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("send image status = %d, want 201: %#v", resp.StatusCode, body)
+	}
+	message := requireSuccess(t, body)["message"].(map[string]any)
+	messageBody := message["body"].(map[string]any)
+	if messageBody["type"] != messageTypeImage {
+		t.Fatalf("message.body.type = %v, want image", messageBody["type"])
+	}
+}
+
 func TestCreateConversationImageMessageRejectsLargeFile(t *testing.T) {
 	s3Server, _ := newFakeS3Server(t)
 	defer s3Server.Close()
@@ -546,8 +589,7 @@ func TestCreateConversationImageMessageRejectsLargeFile(t *testing.T) {
 		now:             now,
 	})
 
-	content := make([]byte, 2*1024*1024+1)
-	copy(content, testWebPVP8X(1024, 768))
+	content := testSizedWebPVP8X(1024, 768, 5*1024*1024+1)
 	resp, body := postMultipartImageMessage(
 		t,
 		server,
@@ -623,6 +665,37 @@ func postMultipartImageMessage(t *testing.T, server *httptest.Server, path strin
 	}
 
 	return resp, decoded
+}
+
+func testSizedWebPVP8X(width int, height int, size int) []byte {
+	content := make([]byte, size)
+	copy(content, testWebPVP8X(width, height))
+
+	return content
+}
+
+func webpHasChunk(content []byte, chunkType string) bool {
+	if len(content) < 12 || string(content[0:4]) != "RIFF" || string(content[8:12]) != "WEBP" {
+		return false
+	}
+
+	for offset := 12; offset+8 <= len(content); {
+		currentChunkType := string(content[offset : offset+4])
+		chunkSize := int(uint32(content[offset+4]) | uint32(content[offset+5])<<8 | uint32(content[offset+6])<<16 | uint32(content[offset+7])<<24)
+		payloadEnd := offset + 8 + chunkSize
+		if chunkSize < 0 || payloadEnd > len(content) {
+			return false
+		}
+		if currentChunkType == chunkType {
+			return true
+		}
+		offset = payloadEnd
+		if chunkSize%2 == 1 {
+			offset++
+		}
+	}
+
+	return false
 }
 
 func testPNGImage(t *testing.T, width int, height int) []byte {
