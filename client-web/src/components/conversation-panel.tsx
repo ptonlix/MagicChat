@@ -676,7 +676,7 @@ function ConversationPanelComposer({
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleComposerKeyDown}
             onPaste={handleComposerPaste}
-            placeholder="输入消息"
+            placeholder={richTextMode ? "输入 Markdown 消息" : "输入消息"}
             readOnly={sending}
             className="max-h-48 min-h-24 resize-none"
           />

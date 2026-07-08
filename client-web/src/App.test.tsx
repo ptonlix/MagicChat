@@ -2520,6 +2520,27 @@ describe("App", () => {
     expect(screen.getByPlaceholderText("输入消息")).toHaveValue("")
   }, 10_000)
 
+  it("启用 Markdown 输入时更新聊天输入框占位文案", async () => {
+    const user = userEvent.setup()
+
+    renderApp("/chat?conversation_id=conversation-bob")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole(
+      "heading",
+      { name: "Bob Li" },
+      { timeout: 4_000 }
+    )
+    expect(screen.getByPlaceholderText("输入消息")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "支持 markdown" }))
+
+    expect(
+      screen.getByPlaceholderText("输入 Markdown 消息")
+    ).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("输入消息")).not.toBeInTheDocument()
+  }, 10_000)
+
   it("群聊信息抽屉不展示顶部群聊摘要", async () => {
     const user = userEvent.setup()
 
