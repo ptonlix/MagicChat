@@ -2745,7 +2745,8 @@ describe("App", () => {
     await user.click(sendButton)
 
     expect(sendButton).toBeDisabled()
-    expect(editor).toBeDisabled()
+    expect(editor).not.toBeDisabled()
+    expect(editor).toHaveAttribute("readonly")
     expect(sendButton.querySelector(".animate-spin")).toBeInTheDocument()
     expect(
       within(screen.getByTestId("conversation-panel-history")).queryByText(
@@ -2785,7 +2786,8 @@ describe("App", () => {
 
     expect(await screen.findByText("帮我总结今天的消息")).toBeInTheDocument()
     expect(editor).toHaveValue("")
-    await waitFor(() => expect(editor).not.toBeDisabled())
+    await waitFor(() => expect(editor).not.toHaveAttribute("readonly"))
+    expect(editor).toHaveFocus()
     await waitFor(() => expect(sendButton).not.toBeDisabled())
   }, 10_000)
 

@@ -440,6 +440,8 @@ function ConversationPanelComposer({
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
   const imageInputRef = React.useRef<HTMLInputElement | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
+  const previousSendingRef = React.useRef(sending)
+  const shouldFocusAfterSendingRef = React.useRef(false)
   const [expressionPickerOpen, setExpressionPickerOpen] = React.useState(false)
   const [fileDialogOpen, setFileDialogOpen] = React.useState(false)
   const [imageDialogOpen, setImageDialogOpen] = React.useState(false)
@@ -447,10 +449,41 @@ function ConversationPanelComposer({
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
 
+  React.useEffect(() => {
+    const wasSending = previousSendingRef.current
+    previousSendingRef.current = sending
+
+    if (sending || !wasSending || !shouldFocusAfterSendingRef.current) {
+      return
+    }
+
+    shouldFocusAfterSendingRef.current = false
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+
+    textarea.focus()
+  }, [sending])
+
+  function handleSendMessage() {
+    if (sending || !draft.trim()) {
+      return
+    }
+
+    shouldFocusAfterSendingRef.current = true
+    onSendMessage()
+  }
+
   function handleComposerKeyDown(
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) {
     if (event.key !== "Enter") {
+      return
+    }
+
+    if (sending) {
+      event.preventDefault()
       return
     }
 
@@ -461,9 +494,7 @@ function ConversationPanelComposer({
     }
 
     event.preventDefault()
-    if (!sending) {
-      onSendMessage()
-    }
+    handleSendMessage()
   }
 
   function handleExpressionSelect(item: ExpressionItem) {
@@ -641,11 +672,12 @@ function ConversationPanelComposer({
           <Textarea
             ref={textareaRef}
             value={draft}
-            disabled={sending}
+            aria-disabled={sending}
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleComposerKeyDown}
             onPaste={handleComposerPaste}
             placeholder="输入消息"
+            readOnly={sending}
             className="max-h-48 min-h-24 resize-none"
           />
         </div>
@@ -718,7 +750,7 @@ function ConversationPanelComposer({
             aria-label="发送消息"
             className="shrink-0"
             disabled={sending}
-            onClick={onSendMessage}
+            onClick={handleSendMessage}
           >
             {sending ? (
               <LoaderCircle className="size-4 animate-spin" />
