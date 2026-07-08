@@ -1021,6 +1021,188 @@ func TestAppWebSocketReceivesTextMessageEvents(t *testing.T) {
 	}
 }
 
+func TestAppWebSocketConversationMessagesListReturnsAuthorizedSummaries(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:             "Echo App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "echo-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	userCookie := loginAsUser(t, server, alice.Email)
+	appConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+
+	createConversationResp, createConversationBody := postJSON(t, server, "/api/client/conversations/apps", map[string]any{
+		"app_id": app.ID,
+	}, userCookie)
+	if createConversationResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create app conversation status = %d, want 201, body = %#v", createConversationResp.StatusCode, createConversationBody)
+	}
+	conversation := requireSuccess(t, createConversationBody)["conversation"].(map[string]any)
+	conversationID := conversation["id"].(string)
+	if err := db.Model(&store.ConversationMember{}).
+		Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, store.ConversationMemberTypeApp, app.ID).
+		Update("history_visible_from_seq", 20).Error; err != nil {
+		t.Fatalf("set app member history_visible_from_seq: %v", err)
+	}
+
+	for seq := int64(1); seq <= 150; seq++ {
+		createdAt := now.Add(time.Duration(seq) * time.Minute)
+		if seq == 100 {
+			clientMessageID := "app-history-message-100"
+			senderID := app.ID
+			message := store.Message{
+				ID:              uuid.NewString(),
+				ConversationID:  conversationID,
+				Seq:             seq,
+				SenderType:      store.MessageSenderTypeApp,
+				SenderID:        &senderID,
+				ClientMessageID: &clientMessageID,
+				Body:            json.RawMessage(`{"type":"text","content":"assistant full body 100"}`),
+				Summary:         "assistant summary 100",
+				CreatedAt:       createdAt,
+				UpdatedAt:       createdAt,
+			}
+			if err := db.Create(&message).Error; err != nil {
+				t.Fatalf("create app history message: %v", err)
+			}
+			continue
+		}
+		insertTestMessage(t, db, conversationID, alice.ID, seq, fmt.Sprintf("user summary %03d", seq), createdAt)
+	}
+
+	response := sendAppRequest(t, appConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "app-history-request",
+		Method: appMethodConversationMessagesList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"conversation_id":     conversationID,
+			"before_or_equal_seq": 150,
+			"limit":               200,
+		}),
+	})
+	var payload map[string]any
+	if err := json.Unmarshal(response.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal history response: %v", err)
+	}
+	if payload["limit"] != float64(100) {
+		t.Fatalf("limit = %v, want 100", payload["limit"])
+	}
+	messages := payload["messages"].([]any)
+	if len(messages) != 100 {
+		t.Fatalf("message count = %d, want 100", len(messages))
+	}
+	first := messages[0].(map[string]any)
+	if first["seq"] != float64(51) {
+		t.Fatalf("first seq = %v, want 51", first["seq"])
+	}
+	last := messages[len(messages)-1].(map[string]any)
+	if last["seq"] != float64(150) {
+		t.Fatalf("last seq = %v, want 150", last["seq"])
+	}
+	appHistoryMessage := messages[49].(map[string]any)
+	if appHistoryMessage["seq"] != float64(100) {
+		t.Fatalf("app history seq = %v, want 100", appHistoryMessage["seq"])
+	}
+	if appHistoryMessage["summary"] != "assistant summary 100" {
+		t.Fatalf("app history summary = %v, want summary only", appHistoryMessage["summary"])
+	}
+	if _, ok := appHistoryMessage["body"]; ok {
+		t.Fatalf("app history body = %v, want omitted", appHistoryMessage["body"])
+	}
+	appSender := appHistoryMessage["sender"].(map[string]any)
+	if appSender["type"] != store.MessageSenderTypeApp {
+		t.Fatalf("app sender type = %v, want app", appSender["type"])
+	}
+	if appSender["name"] != app.Name {
+		t.Fatalf("app sender name = %v, want %s", appSender["name"], app.Name)
+	}
+
+	earlyResponse := sendAppRequest(t, appConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "app-history-early-window-request",
+		Method: appMethodConversationMessagesList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"conversation_id":     conversationID,
+			"before_or_equal_seq": 25,
+			"limit":               100,
+		}),
+	})
+	var earlyPayload map[string]any
+	if err := json.Unmarshal(earlyResponse.Payload, &earlyPayload); err != nil {
+		t.Fatalf("unmarshal early history response: %v", err)
+	}
+	earlyMessages := earlyPayload["messages"].([]any)
+	if len(earlyMessages) != 6 {
+		t.Fatalf("early message count = %d, want 6", len(earlyMessages))
+	}
+	earlyFirst := earlyMessages[0].(map[string]any)
+	if earlyFirst["seq"] != float64(20) {
+		t.Fatalf("early first seq = %v, want 20", earlyFirst["seq"])
+	}
+	earlyLast := earlyMessages[len(earlyMessages)-1].(map[string]any)
+	if earlyLast["seq"] != float64(25) {
+		t.Fatalf("early last seq = %v, want 25", earlyLast["seq"])
+	}
+}
+
+func TestAppWebSocketConversationMessagesListRejectsNonMemberApp(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:             "Echo App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "echo-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	appConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	group := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+
+	request := realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "app-history-forbidden",
+		Method: appMethodConversationMessagesList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"conversation_id":     group.ID,
+			"before_or_equal_seq": 1,
+			"limit":               30,
+		}),
+	}
+	if err := appConn.WriteJSON(request); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+	response := readRealtimeEvent(t, appConn)
+	if response.Kind != realtime.KindResponse || response.ReplyTo != request.ID {
+		t.Fatalf("response = %#v, want matching response", response)
+	}
+	if response.OK == nil || *response.OK {
+		t.Fatalf("response ok = %#v, want false", response.OK)
+	}
+	if response.Error == nil || response.Error.Code != "forbidden" {
+		t.Fatalf("response error = %#v, want forbidden", response.Error)
+	}
+}
+
 func TestAppWebSocketMessageSendSupportsUserGroupAndAppTargets(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()

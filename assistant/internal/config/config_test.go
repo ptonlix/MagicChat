@@ -1,14 +1,25 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestLoadFromEnvUsesDefaults(t *testing.T) {
 	cfg, err := LoadFromEnv(func(key string) string {
-		if key == "MYGOD_APP_SECRET" {
+		switch key {
+		case "MYGOD_APP_SECRET":
 			return "secret"
+		case "MYGOD_LLM_BASE_URL":
+			return "https://api.example.com/v1"
+		case "MYGOD_LLM_API_KEY":
+			return "llm-api-key"
+		case "MYGOD_LLM_MODEL_NAME":
+			return "claude-sonnet-4"
+		default:
+			return ""
 		}
-
-		return ""
 	})
 	if err != nil {
 		t.Fatalf("LoadFromEnv() error = %v", err)
@@ -33,6 +44,12 @@ func TestLoadFromEnvReadsExplicitValues(t *testing.T) {
 			return "app-secret"
 		case "MYGOD_WS_URL":
 			return "wss://mygod.example.com/api/app/ws"
+		case "MYGOD_LLM_BASE_URL":
+			return " https://api.example.com/v1 "
+		case "MYGOD_LLM_API_KEY":
+			return " llm-api-key "
+		case "MYGOD_LLM_MODEL_NAME":
+			return " claude-sonnet-4 "
 		default:
 			return ""
 		}
@@ -49,15 +66,148 @@ func TestLoadFromEnvReadsExplicitValues(t *testing.T) {
 	if cfg.WebSocketURL != "wss://mygod.example.com/api/app/ws" {
 		t.Fatalf("WebSocketURL = %q, want wss://mygod.example.com/api/app/ws", cfg.WebSocketURL)
 	}
+	if cfg.LLM.BaseURL != "https://api.example.com/v1" {
+		t.Fatalf("LLM.BaseURL = %q, want https://api.example.com/v1", cfg.LLM.BaseURL)
+	}
+	if cfg.LLM.APIKey != "llm-api-key" {
+		t.Fatalf("LLM.APIKey = %q, want llm-api-key", cfg.LLM.APIKey)
+	}
+	if cfg.LLM.ModelName != "claude-sonnet-4" {
+		t.Fatalf("LLM.ModelName = %q, want claude-sonnet-4", cfg.LLM.ModelName)
+	}
+}
+
+func TestLoadFromFileReadsAssistantAndLLMConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(`
+app:
+  id: "assistant-app-id"
+  secret: "assistant-secret"
+  websocket_url: "wss://mygod.example.com/api/app/ws"
+
+llm:
+  base_url: "https://api.example.com/v1"
+  api_key: "llm-api-key"
+  model_name: "claude-sonnet-4"
+`), 0o600); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := LoadFromFile(path, func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+	if cfg.AppID != "assistant-app-id" {
+		t.Fatalf("AppID = %q, want assistant-app-id", cfg.AppID)
+	}
+	if cfg.AppSecret != "assistant-secret" {
+		t.Fatalf("AppSecret = %q, want assistant-secret", cfg.AppSecret)
+	}
+	if cfg.WebSocketURL != "wss://mygod.example.com/api/app/ws" {
+		t.Fatalf("WebSocketURL = %q, want wss://mygod.example.com/api/app/ws", cfg.WebSocketURL)
+	}
+	if cfg.LLM.BaseURL != "https://api.example.com/v1" {
+		t.Fatalf("LLM.BaseURL = %q, want https://api.example.com/v1", cfg.LLM.BaseURL)
+	}
+	if cfg.LLM.APIKey != "llm-api-key" {
+		t.Fatalf("LLM.APIKey = %q, want llm-api-key", cfg.LLM.APIKey)
+	}
+	if cfg.LLM.ModelName != "claude-sonnet-4" {
+		t.Fatalf("LLM.ModelName = %q, want claude-sonnet-4", cfg.LLM.ModelName)
+	}
+}
+
+func TestLoadFromFileAllowsEnvOverrides(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(`
+app:
+  id: "assistant-app-id"
+  secret: "file-secret"
+  websocket_url: "ws://server:20080/api/app/ws"
+
+llm:
+  base_url: "https://file.example.com/v1"
+  api_key: "file-api-key"
+  model_name: "file-model"
+`), 0o600); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := LoadFromFile(path, func(key string) string {
+		switch key {
+		case "MYGOD_APP_SECRET":
+			return "env-secret"
+		case "MYGOD_LLM_BASE_URL":
+			return "https://env.example.com/v1"
+		case "MYGOD_LLM_API_KEY":
+			return "env-api-key"
+		case "MYGOD_LLM_MODEL_NAME":
+			return "env-model"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+	if cfg.AppSecret != "env-secret" {
+		t.Fatalf("AppSecret = %q, want env-secret", cfg.AppSecret)
+	}
+	if cfg.LLM.BaseURL != "https://env.example.com/v1" {
+		t.Fatalf("LLM.BaseURL = %q, want https://env.example.com/v1", cfg.LLM.BaseURL)
+	}
+	if cfg.LLM.APIKey != "env-api-key" {
+		t.Fatalf("LLM.APIKey = %q, want env-api-key", cfg.LLM.APIKey)
+	}
+	if cfg.LLM.ModelName != "env-model" {
+		t.Fatalf("LLM.ModelName = %q, want env-model", cfg.LLM.ModelName)
+	}
+}
+
+func TestLoadReadsConfigPathFromEnv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assistant.yaml")
+	if err := os.WriteFile(path, []byte(`
+app:
+  secret: "assistant-secret"
+
+llm:
+  base_url: "https://api.example.com/v1"
+  api_key: "llm-api-key"
+  model_name: "claude-sonnet-4"
+`), 0o600); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+	t.Setenv("CONFIG", path)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AppSecret != "assistant-secret" {
+		t.Fatalf("AppSecret = %q, want assistant-secret", cfg.AppSecret)
+	}
+	if cfg.AppID != DefaultAppID {
+		t.Fatalf("AppID = %q, want %s", cfg.AppID, DefaultAppID)
+	}
+	if cfg.WebSocketURL != DefaultWebSocketURL {
+		t.Fatalf("WebSocketURL = %q, want %s", cfg.WebSocketURL, DefaultWebSocketURL)
+	}
 }
 
 func TestLoadFromEnvFallsBackToAIAssistantSecret(t *testing.T) {
 	cfg, err := LoadFromEnv(func(key string) string {
-		if key == "MYGOD_AI_ASSISTANT_SECRET" {
+		switch key {
+		case "MYGOD_AI_ASSISTANT_SECRET":
 			return "ai-assistant-secret"
+		case "MYGOD_LLM_BASE_URL":
+			return "https://api.example.com/v1"
+		case "MYGOD_LLM_API_KEY":
+			return "llm-api-key"
+		case "MYGOD_LLM_MODEL_NAME":
+			return "claude-sonnet-4"
+		default:
+			return ""
 		}
-
-		return ""
 	})
 	if err != nil {
 		t.Fatalf("LoadFromEnv() error = %v", err)
@@ -87,5 +237,56 @@ func TestLoadFromEnvRejectsInvalidWebSocketURL(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("LoadFromEnv() error = nil, want invalid websocket URL error")
+	}
+}
+
+func TestLoadFromEnvRejectsMissingLLMConfig(t *testing.T) {
+	_, err := LoadFromEnv(func(key string) string {
+		if key == "MYGOD_APP_SECRET" {
+			return "app-secret"
+		}
+
+		return ""
+	})
+	if err == nil {
+		t.Fatal("LoadFromEnv() error = nil, want missing LLM config error")
+	}
+}
+
+func TestLoadFromEnvRejectsPartialLLMConfig(t *testing.T) {
+	_, err := LoadFromEnv(func(key string) string {
+		switch key {
+		case "MYGOD_APP_SECRET":
+			return "app-secret"
+		case "MYGOD_LLM_BASE_URL":
+			return "https://api.example.com/v1"
+		case "MYGOD_LLM_MODEL_NAME":
+			return "claude-sonnet-4"
+		default:
+			return ""
+		}
+	})
+	if err == nil {
+		t.Fatal("LoadFromEnv() error = nil, want partial LLM config error")
+	}
+}
+
+func TestLoadFromEnvRejectsInvalidLLMBaseURL(t *testing.T) {
+	_, err := LoadFromEnv(func(key string) string {
+		switch key {
+		case "MYGOD_APP_SECRET":
+			return "app-secret"
+		case "MYGOD_LLM_BASE_URL":
+			return "ws://api.example.com/v1"
+		case "MYGOD_LLM_API_KEY":
+			return "llm-api-key"
+		case "MYGOD_LLM_MODEL_NAME":
+			return "claude-sonnet-4"
+		default:
+			return ""
+		}
+	})
+	if err == nil {
+		t.Fatal("LoadFromEnv() error = nil, want invalid LLM base URL error")
 	}
 }

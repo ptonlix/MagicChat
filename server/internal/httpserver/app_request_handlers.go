@@ -15,7 +15,10 @@ import (
 )
 
 const (
-	appMethodMessageSend = "message.send"
+	appMethodMessageSend               = "message.send"
+	appMethodConversationMessagesList  = "conversation.messages.list"
+	defaultAppConversationHistoryLimit = 30
+	maxAppConversationHistoryLimit     = 100
 
 	appMessageTargetUser  = "user"
 	appMessageTargetGroup = "group"
@@ -40,6 +43,25 @@ type appSendMessageResponse struct {
 	Message      appMessagePayload             `json:"message"`
 }
 
+type appListConversationMessagesRequest struct {
+	BeforeOrEqualSeq int64  `json:"before_or_equal_seq"`
+	ConversationID   string `json:"conversation_id"`
+	Limit            int    `json:"limit"`
+}
+
+type appListConversationMessagesResponse struct {
+	Limit    int                                    `json:"limit"`
+	Messages []appConversationHistoryMessagePayload `json:"messages"`
+}
+
+type appConversationHistoryMessagePayload struct {
+	CreatedAt time.Time               `json:"created_at"`
+	ID        string                  `json:"id"`
+	Sender    appMessageSenderPayload `json:"sender"`
+	Seq       int64                   `json:"seq"`
+	Summary   string                  `json:"summary"`
+}
+
 type appRequestFailure struct {
 	Code    string
 	Message string
@@ -53,6 +75,12 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 	switch strings.TrimSpace(request.Method) {
 	case appMethodMessageSend:
 		response, err := s.handleAppSendMessage(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodConversationMessagesList:
+		response, err := s.handleAppListConversationMessages(appID, request)
 		if err != nil {
 			return appRequestErrorResponse(request.ID, err)
 		}
@@ -105,6 +133,167 @@ func (s *Server) handleAppSendMessage(appID string, request realtime.Envelope) (
 			Summary:   message.Summary,
 		},
 	}, nil
+}
+
+func (s *Server) handleAppListConversationMessages(appID string, request realtime.Envelope) (appListConversationMessagesResponse, error) {
+	var req appListConversationMessagesRequest
+	if err := json.Unmarshal(request.Payload, &req); err != nil {
+		return appListConversationMessagesResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+	}
+
+	req, err := normalizeAppListConversationMessagesRequest(req)
+	if err != nil {
+		return appListConversationMessagesResponse{}, err
+	}
+
+	member, err := s.requireReadableAppConversationMember(appID, req.ConversationID)
+	if err != nil {
+		return appListConversationMessagesResponse{}, err
+	}
+	visibleFromSeq := member.HistoryVisibleFromSeq
+	if visibleFromSeq < 1 {
+		visibleFromSeq = 1
+	}
+
+	var messages []store.Message
+	if err := s.db.
+		Where("conversation_id = ? AND deleted_at IS NULL AND seq >= ? AND seq <= ?", req.ConversationID, visibleFromSeq, req.BeforeOrEqualSeq).
+		Order("seq DESC").
+		Limit(req.Limit).
+		Find(&messages).Error; err != nil {
+		return appListConversationMessagesResponse{}, err
+	}
+	reverseMessages(messages)
+
+	payloads, err := s.newAppConversationHistoryMessagePayloads(messages)
+	if err != nil {
+		return appListConversationMessagesResponse{}, err
+	}
+
+	return appListConversationMessagesResponse{
+		Limit:    req.Limit,
+		Messages: payloads,
+	}, nil
+}
+
+func normalizeAppListConversationMessagesRequest(req appListConversationMessagesRequest) (appListConversationMessagesRequest, error) {
+	req.ConversationID = strings.TrimSpace(req.ConversationID)
+	if _, err := uuid.Parse(req.ConversationID); err != nil {
+		return appListConversationMessagesRequest{}, newAppRequestFailure("invalid_request", "会话 ID 格式错误")
+	}
+	if req.BeforeOrEqualSeq <= 0 {
+		return appListConversationMessagesRequest{}, newAppRequestFailure("invalid_request", "before_or_equal_seq 必须是正整数")
+	}
+	if req.Limit <= 0 {
+		req.Limit = defaultAppConversationHistoryLimit
+	}
+	if req.Limit > maxAppConversationHistoryLimit {
+		req.Limit = maxAppConversationHistoryLimit
+	}
+
+	return req, nil
+}
+
+func (s *Server) requireReadableAppConversationMember(appID string, conversationID string) (store.ConversationMember, error) {
+	var conversation store.Conversation
+	if err := s.db.First(&conversation, "id = ?", conversationID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return store.ConversationMember{}, newAppRequestFailure("not_found", "会话不存在")
+		}
+		return store.ConversationMember{}, err
+	}
+	if conversation.Status != store.ConversationStatusActive {
+		return store.ConversationMember{}, newAppRequestFailure("forbidden", "无权访问会话")
+	}
+
+	var member store.ConversationMember
+	err := s.db.First(
+		&member,
+		"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
+		conversationID,
+		store.ConversationMemberTypeApp,
+		appID,
+	).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return store.ConversationMember{}, newAppRequestFailure("forbidden", "无权访问会话")
+	}
+	if err != nil {
+		return store.ConversationMember{}, err
+	}
+
+	return member, nil
+}
+
+func (s *Server) newAppConversationHistoryMessagePayloads(messages []store.Message) ([]appConversationHistoryMessagePayload, error) {
+	userIDs := make([]string, 0)
+	appIDs := make([]string, 0)
+	for _, message := range messages {
+		if message.SenderID == nil {
+			continue
+		}
+		switch message.SenderType {
+		case store.MessageSenderTypeUser:
+			userIDs = append(userIDs, *message.SenderID)
+		case store.MessageSenderTypeApp:
+			appIDs = append(appIDs, *message.SenderID)
+		}
+	}
+
+	usersByID := map[string]store.User{}
+	if len(userIDs) > 0 {
+		var users []store.User
+		if err := s.db.Find(&users, "id IN ?", userIDs).Error; err != nil {
+			return nil, err
+		}
+		for _, user := range users {
+			usersByID[user.ID] = user
+		}
+	}
+	appsByID := map[string]store.App{}
+	if len(appIDs) > 0 {
+		var apps []store.App
+		if err := s.db.Find(&apps, "id IN ?", appIDs).Error; err != nil {
+			return nil, err
+		}
+		for _, app := range apps {
+			appsByID[app.ID] = app
+		}
+	}
+
+	payloads := make([]appConversationHistoryMessagePayload, 0, len(messages))
+	for _, message := range messages {
+		payloads = append(payloads, appConversationHistoryMessagePayload{
+			CreatedAt: message.CreatedAt,
+			ID:        message.ID,
+			Sender:    newAppHistoryMessageSenderPayload(message, usersByID, appsByID),
+			Seq:       message.Seq,
+			Summary:   message.Summary,
+		})
+	}
+
+	return payloads, nil
+}
+
+func newAppHistoryMessageSenderPayload(message store.Message, usersByID map[string]store.User, appsByID map[string]store.App) appMessageSenderPayload {
+	sender := appMessageSenderPayload{Type: message.SenderType}
+	if message.SenderID == nil {
+		return sender
+	}
+
+	sender.ID = *message.SenderID
+	switch message.SenderType {
+	case store.MessageSenderTypeUser:
+		if user, ok := usersByID[*message.SenderID]; ok {
+			sender.Name = user.Name
+			sender.Nickname = user.Nickname
+		}
+	case store.MessageSenderTypeApp:
+		if app, ok := appsByID[*message.SenderID]; ok {
+			sender.Name = app.Name
+		}
+	}
+
+	return sender
 }
 
 func normalizeAppSendMessageTarget(req appSendMessageRequest) (appSendMessageTarget, error) {

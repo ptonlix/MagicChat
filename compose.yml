@@ -40,9 +40,10 @@ services:
       server:
         condition: service_healthy
     environment:
-      MYGOD_APP_ID: 00000000-0000-0000-0000-000000000001
+      CONFIG: /app/config/config.yaml
       MYGOD_APP_SECRET: ${MYGOD_AI_ASSISTANT_SECRET:-change-me}
-      MYGOD_WS_URL: ws://server:20080/api/app/ws
+    volumes:
+      - ./data/assistant/config:/app/config:ro
 
   server:
     container_name: mygod-server

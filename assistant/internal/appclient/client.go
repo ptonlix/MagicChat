@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"assistant/internal/agent"
 	"assistant/internal/config"
+	"assistant/internal/llm"
 
 	"github.com/gorilla/websocket"
 )
@@ -19,6 +22,7 @@ import (
 const (
 	pingInterval        = 30 * time.Second
 	pongWait            = 60 * time.Second
+	requestWait         = 30 * time.Second
 	writeWait           = 10 * time.Second
 	maxMessageBytes     = 64 * 1024
 	maxReconnectBackoff = 30 * time.Second
@@ -31,13 +35,24 @@ const (
 	kindEvent           = "event"
 	eventMessageCreated = "message.created"
 	methodMessageSend   = "message.send"
+
+	methodConversationMessagesList = "conversation.messages.list"
+
+	defaultConversationContextLimit = 30
 )
 
-const fallbackReplyContent = "助手服务暂时还没有接入回复能力，我先收到你的消息了"
-
 type Client struct {
-	cfg    config.Config
-	dialer *websocket.Dialer
+	cfg            config.Config
+	dialer         *websocket.Dialer
+	assistantAgent replyAgent
+}
+
+type replyAgent interface {
+	Reply(ctx context.Context, request agent.Request) (string, error)
+}
+
+type appRequester interface {
+	Request(ctx context.Context, method string, payload any) (json.RawMessage, error)
 }
 
 type envelope struct {
@@ -72,6 +87,7 @@ type conversationPayload struct {
 type messagePayload struct {
 	Body    json.RawMessage `json:"body"`
 	ID      string          `json:"id"`
+	Seq     int64           `json:"seq"`
 	Summary string          `json:"summary"`
 }
 
@@ -97,10 +113,29 @@ type senderPayload struct {
 	Type     string `json:"type"`
 }
 
+type appListConversationMessagesRequestPayload struct {
+	BeforeOrEqualSeq int64  `json:"before_or_equal_seq"`
+	ConversationID   string `json:"conversation_id"`
+	Limit            int    `json:"limit"`
+}
+
+type appListConversationMessagesResponsePayload struct {
+	Messages []historyMessagePayload `json:"messages"`
+}
+
+type historyMessagePayload struct {
+	CreatedAt time.Time     `json:"created_at"`
+	ID        string        `json:"id"`
+	Seq       int64         `json:"seq"`
+	Sender    senderPayload `json:"sender"`
+	Summary   string        `json:"summary"`
+}
+
 func New(cfg config.Config) *Client {
 	return &Client{
-		cfg:    cfg,
-		dialer: websocket.DefaultDialer,
+		cfg:            cfg,
+		dialer:         websocket.DefaultDialer,
+		assistantAgent: agent.New(llm.NewAnthropicClient(cfg.LLM)),
 	}
 }
 
@@ -149,10 +184,10 @@ func (c *Client) connectOnce(ctx context.Context) (bool, error) {
 	defer conn.Close()
 
 	log.Printf("app websocket connected to %s", c.cfg.WebSocketURL)
-	return true, serveConnection(ctx, conn)
+	return true, serveConnection(ctx, conn, c.assistantAgent)
 }
 
-func serveConnection(ctx context.Context, conn *websocket.Conn) error {
+func serveConnection(ctx context.Context, conn *websocket.Conn, assistantAgent replyAgent) error {
 	var writeMu sync.Mutex
 	writeJSON := func(message envelope) error {
 		writeMu.Lock()
@@ -167,6 +202,7 @@ func serveConnection(ctx context.Context, conn *websocket.Conn) error {
 
 		return conn.WriteControl(messageType, data, time.Now().Add(writeWait))
 	}
+	requester := newConnectionRequester(writeJSON)
 
 	conn.SetReadLimit(maxMessageBytes)
 	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -185,7 +221,15 @@ func serveConnection(ctx context.Context, conn *websocket.Conn) error {
 				readErr <- err
 				return
 			}
-			handleServerMessage(messageType, data, writeJSON)
+			message, ok := decodeServerMessage(messageType, data)
+			if !ok {
+				continue
+			}
+			if message.Kind == kindResponse {
+				requester.HandleResponse(message)
+				continue
+			}
+			go handleParsedServerMessage(ctx, message, requester, assistantAgent, writeJSON)
 		}
 	}()
 
@@ -207,23 +251,112 @@ func serveConnection(ctx context.Context, conn *websocket.Conn) error {
 	}
 }
 
-func handleServerMessage(messageType int, data []byte, writeJSON func(envelope) error) {
-	if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+type pendingResponse struct {
+	ch chan envelope
+}
+
+type connectionRequester struct {
+	mu      sync.Mutex
+	pending map[string]pendingResponse
+	write   func(envelope) error
+}
+
+func newConnectionRequester(writeJSON func(envelope) error) *connectionRequester {
+	return &connectionRequester{
+		pending: map[string]pendingResponse{},
+		write:   writeJSON,
+	}
+}
+
+func (r *connectionRequester) Request(ctx context.Context, method string, payload any) (json.RawMessage, error) {
+	content, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	id := newRequestID()
+	responseCh := make(chan envelope, 1)
+	r.mu.Lock()
+	r.pending[id] = pendingResponse{ch: responseCh}
+	r.mu.Unlock()
+	defer r.forget(id)
+
+	if err := r.write(envelope{
+		V:       protocolVersion,
+		Kind:    kindRequest,
+		ID:      id,
+		Method:  method,
+		Payload: content,
+	}); err != nil {
+		return nil, err
+	}
+
+	requestCtx, cancel := context.WithTimeout(ctx, requestWait)
+	defer cancel()
+	select {
+	case <-requestCtx.Done():
+		return nil, requestCtx.Err()
+	case response := <-responseCh:
+		if response.OK != nil && !*response.OK {
+			if response.Error != nil {
+				return nil, fmt.Errorf("%s: %s", response.Error.Code, response.Error.Message)
+			}
+			return nil, fmt.Errorf("app request failed")
+		}
+		return response.Payload, nil
+	}
+}
+
+func (r *connectionRequester) HandleResponse(response envelope) {
+	r.mu.Lock()
+	pending, ok := r.pending[response.ReplyTo]
+	r.mu.Unlock()
+	if !ok {
+		if response.OK != nil && !*response.OK && response.Error != nil {
+			log.Printf("app websocket request failed: reply_to=%s code=%s message=%s", response.ReplyTo, response.Error.Code, response.Error.Message)
+		}
 		return
+	}
+
+	select {
+	case pending.ch <- response:
+	default:
+	}
+}
+
+func (r *connectionRequester) forget(id string) {
+	r.mu.Lock()
+	delete(r.pending, id)
+	r.mu.Unlock()
+}
+
+func decodeServerMessage(messageType int, data []byte) (envelope, bool) {
+	if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+		return envelope{}, false
 	}
 
 	var message envelope
 	if err := json.Unmarshal(data, &message); err != nil {
 		log.Printf("ignore invalid app websocket message: %v", err)
-		return
+		return envelope{}, false
 	}
 	if message.V != protocolVersion {
+		return envelope{}, false
+	}
+
+	return message, true
+}
+
+func handleServerMessage(ctx context.Context, messageType int, data []byte, requester appRequester, assistantAgent replyAgent, writeJSON func(envelope) error) {
+	message, ok := decodeServerMessage(messageType, data)
+	if !ok {
 		return
 	}
+	handleParsedServerMessage(ctx, message, requester, assistantAgent, writeJSON)
+}
+
+func handleParsedServerMessage(ctx context.Context, message envelope, requester appRequester, assistantAgent replyAgent, writeJSON func(envelope) error) {
 	if message.Kind == kindResponse {
-		if message.OK != nil && !*message.OK && message.Error != nil {
-			log.Printf("app websocket request failed: reply_to=%s code=%s message=%s", message.ReplyTo, message.Error.Code, message.Error.Message)
-		}
 		return
 	}
 	if message.Kind != kindEvent || message.Event != eventMessageCreated {
@@ -255,12 +388,75 @@ func handleServerMessage(messageType int, data []byte, writeJSON func(envelope) 
 		payload.Conversation.ID,
 		body.Content,
 	)
-	if err := sendFallbackReply(writeJSON, payload.Conversation); err != nil {
-		log.Printf("send fallback reply failed: %v", err)
+	history, err := loadConversationHistory(ctx, requester, payload)
+	if err != nil {
+		log.Printf("load conversation history failed: %v", err)
+		return
+	}
+	reply, err := assistantAgent.Reply(ctx, agent.Request{
+		Conversation: agent.Conversation{
+			ID:   payload.Conversation.ID,
+			Name: payload.Conversation.Name,
+			Type: payload.Conversation.Type,
+		},
+		Sender: agent.Sender{
+			ID:   payload.Sender.ID,
+			Name: senderName,
+			Type: payload.Sender.Type,
+		},
+		MessageID: payload.Message.ID,
+		Content:   body.Content,
+		History:   history,
+	})
+	if err != nil {
+		log.Printf("agent reply failed: %v", err)
+		return
+	}
+	if strings.TrimSpace(reply) == "" {
+		log.Printf("ignore empty LLM reply for message %s", payload.Message.ID)
+		return
+	}
+	if err := sendTextReply(writeJSON, payload.Conversation, reply); err != nil {
+		log.Printf("send LLM reply failed: %v", err)
 	}
 }
 
-func sendFallbackReply(writeJSON func(envelope) error, conversation conversationPayload) error {
+func loadConversationHistory(ctx context.Context, requester appRequester, payload messageCreatedPayload) ([]agent.HistoryMessage, error) {
+	raw, err := requester.Request(ctx, methodConversationMessagesList, appListConversationMessagesRequestPayload{
+		BeforeOrEqualSeq: payload.Message.Seq,
+		ConversationID:   payload.Conversation.ID,
+		Limit:            defaultConversationContextLimit,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var response appListConversationMessagesResponsePayload
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return nil, err
+	}
+
+	history := make([]agent.HistoryMessage, 0, len(response.Messages))
+	for _, message := range response.Messages {
+		if message.ID == payload.Message.ID {
+			continue
+		}
+		senderName := message.Sender.Name
+		if message.Sender.Nickname != "" {
+			senderName = message.Sender.Nickname
+		}
+		history = append(history, agent.HistoryMessage{
+			Seq:        message.Seq,
+			SenderType: message.Sender.Type,
+			SenderName: senderName,
+			Summary:    message.Summary,
+		})
+	}
+
+	return history, nil
+}
+
+func sendTextReply(writeJSON func(envelope) error, conversation conversationPayload, content string) error {
 	targetType := conversation.Type
 	switch targetType {
 	case "app", "group":
@@ -275,7 +471,7 @@ func sendFallbackReply(writeJSON func(envelope) error, conversation conversation
 		},
 		Message: textMessageBody{
 			Type:    "text",
-			Content: fallbackReplyContent,
+			Content: content,
 		},
 	})
 	if err != nil {

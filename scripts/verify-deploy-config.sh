@@ -27,6 +27,7 @@ assert_file "assistant/Dockerfile"
 assert_file "deploy/nginx/Dockerfile"
 assert_file "deploy/nginx/nginx.conf"
 assert_file "deploy/nginx/templates/default.conf.template"
+assert_file "deploy/assistant/config.example.yaml"
 assert_file "deploy/server/config.example.yaml"
 assert_file ".github/workflows/docker.yml"
 assert_file ".dockerignore"
@@ -46,13 +47,13 @@ assert_contains "compose.yml" 'RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me
 assert_contains "compose.yml" 'CLIENT_HOSTNAME: ${CLIENT_HOSTNAME:-client.localhost}'
 assert_contains "compose.yml" 'ADMIN_HOSTNAME: ${ADMIN_HOSTNAME:-admin.localhost}'
 assert_contains "compose.yml" 'ASSETS_HOSTNAME: ${ASSETS_HOSTNAME:-assets.localhost}'
-assert_contains "compose.yml" 'MYGOD_APP_ID: 00000000-0000-0000-0000-000000000001'
+assert_contains "compose.yml" 'CONFIG: /app/config/config.yaml'
 assert_contains "compose.yml" 'MYGOD_APP_SECRET: ${MYGOD_AI_ASSISTANT_SECRET:-change-me}'
-assert_contains "compose.yml" 'MYGOD_WS_URL: ws://server:20080/api/app/ws'
 assert_contains "compose.yml" "80:80"
 assert_contains "compose.yml" "443:443"
 assert_contains "compose.yml" "./data/postgres/data:/var/lib/postgresql/data"
 assert_contains "compose.yml" "./data/rustfs/data:/data"
+assert_contains "compose.yml" "./data/assistant/config:/app/config:ro"
 assert_contains "compose.yml" "./data/server/config:/app/config:ro"
 assert_contains "compose.yml" "./data/server/log:/app/log"
 assert_contains "compose.yml" "./data/nginx/certs:/etc/nginx/certs:ro"
@@ -64,6 +65,9 @@ fi
 if grep -Fq -- "your-org" "${ROOT_DIR}/compose.yml"; then
   fail "compose.yml should not contain placeholder image namespace"
 fi
+if grep -Fq -- "MYGOD_LLM_" "${ROOT_DIR}/compose.yml"; then
+  fail "compose.yml should not contain assistant LLM settings; use deploy/assistant/config.example.yaml"
+fi
 old_ai_assistant_name="god""dess"
 if grep -Fqi -- "${old_ai_assistant_name}" "${ROOT_DIR}/compose.yml"; then
   fail "compose.yml should not contain old AI assistant naming"
@@ -72,6 +76,13 @@ fi
 assert_contains ".dockerignore" "data"
 assert_contains ".dockerignore" "**/node_modules"
 assert_contains ".dockerignore" "**/dist"
+
+assert_contains "deploy/assistant/config.example.yaml" 'id: "00000000-0000-0000-0000-000000000001"'
+assert_contains "deploy/assistant/config.example.yaml" 'secret: "change-me"'
+assert_contains "deploy/assistant/config.example.yaml" 'websocket_url: "ws://server:20080/api/app/ws"'
+assert_contains "deploy/assistant/config.example.yaml" 'base_url: ""'
+assert_contains "deploy/assistant/config.example.yaml" 'api_key: ""'
+assert_contains "deploy/assistant/config.example.yaml" 'model_name: ""'
 
 assert_contains "deploy/server/config.example.yaml" "postgres://app:app@postgres:5432/app?sslmode=disable"
 assert_contains "deploy/server/config.example.yaml" 'ai_assistant_secret: "change-me"'
