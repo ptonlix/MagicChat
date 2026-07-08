@@ -3004,7 +3004,9 @@ describe("App", () => {
     })
 
     expect(
-      await screen.findByText("收到新消息，可在设置中开启桌面通知")
+      await screen.findByText(
+        "收到新消息，左上角点击头像，在设置中可以开启桌面通知"
+      )
     ).toBeInTheDocument()
     expect(
       BrowserNotificationPermissionDefault.requestPermission
@@ -3382,4 +3384,27 @@ describe("App", () => {
     ).toBeInTheDocument()
     expect(document.documentElement).toHaveClass("dark")
   }, 12_000)
+
+  it("按下 d 不会切换当前配色", async () => {
+    const user = userEvent.setup()
+
+    renderApp("/chat")
+
+    await openLatestAppWebSocket()
+    expect(
+      await screen.findByRole(
+        "button",
+        { name: "配色：跟随系统" },
+        { timeout: 4_000 }
+      )
+    ).toBeInTheDocument()
+    expect(window.localStorage.getItem("theme")).toBeNull()
+
+    await user.keyboard("d")
+
+    expect(window.localStorage.getItem("theme")).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "配色：跟随系统" })
+    ).toBeInTheDocument()
+  }, 10_000)
 })

@@ -20,6 +20,8 @@ import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
 
 const enableNotificationToastId = "enable-browser-message-notifications"
+const enableNotificationToastText =
+  "收到新消息，左上角点击头像，在设置中可以开启桌面通知"
 
 export function ClientMessageNotificationSync() {
   const location = useLocation()
@@ -58,7 +60,7 @@ export function ClientMessageNotificationSync() {
         const body = `${senderName}: ${getMessageNotificationSummary(message)}`
 
         if (getBrowserNotificationPermission() !== "granted") {
-          toast.info("收到新消息，可在设置中开启桌面通知", {
+          toast.info(enableNotificationToastText, {
             id: enableNotificationToastId,
           })
           return
@@ -76,7 +78,7 @@ export function ClientMessageNotificationSync() {
           },
         })
         if (!notified) {
-          toast.info("收到新消息，可在设置中开启桌面通知", {
+          toast.info(enableNotificationToastText, {
             id: enableNotificationToastId,
           })
         }
