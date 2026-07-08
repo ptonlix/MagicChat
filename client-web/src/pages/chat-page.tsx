@@ -95,6 +95,8 @@ export function ChatPage() {
   )
 
   const activeConversationId = activeConversation?.id ?? ""
+  const activeConversationIdRef = React.useRef(activeConversationId)
+  activeConversationIdRef.current = activeConversationId
   const activeMessageState = activeConversationId
     ? getConversationMessageState(activeConversationId)
     : undefined
@@ -147,6 +149,10 @@ export function ChatPage() {
         : [],
     [activeClientMessages, activeConversation, contactsById, me]
   )
+
+  React.useLayoutEffect(() => {
+    setDraft("")
+  }, [activeConversationId])
 
   React.useEffect(() => {
     if (!activeConversationId) {
@@ -202,8 +208,13 @@ export function ChatPage() {
       return
     }
 
-    void sendConversationText(activeConversationId, content).then((message) => {
-      if (message) {
+    const sendingConversationId = activeConversationId
+
+    void sendConversationText(sendingConversationId, content).then((message) => {
+      if (
+        message &&
+        activeConversationIdRef.current === sendingConversationId
+      ) {
         setDraft("")
       }
     })
@@ -354,6 +365,7 @@ export function ChatPage() {
       </aside>
 
       <ConversationPanel
+        key={activeConversationId || "empty"}
         conversation={activeConversation}
         conversationOnline={activeConversationOnline}
         draft={draft}

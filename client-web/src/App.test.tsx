@@ -40,6 +40,22 @@ function renderApp(path = "/login") {
   )
 }
 
+function dispatchBeforeUnload() {
+  const event = new Event("beforeunload", {
+    cancelable: true,
+  }) as BeforeUnloadEvent
+
+  Object.defineProperty(event, "returnValue", {
+    configurable: true,
+    value: undefined,
+    writable: true,
+  })
+
+  window.dispatchEvent(event)
+
+  return event
+}
+
 function createDirectConversationResponse() {
   return new Response(
     JSON.stringify({
@@ -1092,6 +1108,25 @@ describe("App", () => {
     ).not.toBeInTheDocument()
     expect(screen.getByTestId("location")).toHaveTextContent("/login")
     await waitFor(() => expect(document.title).toBe("登录 - 星环协作"))
+  })
+
+  it("登录页不拦截刷新或关闭页面", async () => {
+    renderApp("/login")
+
+    await screen.findByText("星环协作 智能协作平台")
+    const event = dispatchBeforeUnload()
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(event.returnValue).toBeUndefined()
+  })
+
+  it("登录后的页面仍然拦截刷新或关闭页面", () => {
+    renderApp("/chat")
+
+    const event = dispatchBeforeUnload()
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(event.returnValue).toBe("")
   })
 
   it("访问登录页时如果已经登录则进入初始化页", async () => {
@@ -2438,6 +2473,34 @@ describe("App", () => {
     ).toBeGreaterThan(0)
   }, 10_000)
 
+  it("切换会话时重新初始化聊天输入框草稿", async () => {
+    const user = userEvent.setup()
+
+    renderApp("/chat?conversation_id=conversation-bob")
+
+    await openLatestAppWebSocket()
+    await screen.findByRole(
+      "heading",
+      { name: "Bob Li" },
+      { timeout: 4_000 }
+    )
+    const editor = screen.getByPlaceholderText(
+      "输入消息"
+    ) as HTMLTextAreaElement
+
+    await user.type(editor, "这条草稿不应该带到别的会话")
+    expect(editor).toHaveValue("这条草稿不应该带到别的会话")
+
+    await user.click(screen.getByRole("button", { name: /产品讨论组/ }))
+    await screen.findByRole(
+      "heading",
+      { name: "产品讨论组" },
+      { timeout: 4_000 }
+    )
+
+    expect(screen.getByPlaceholderText("输入消息")).toHaveValue("")
+  }, 10_000)
+
   it("群聊信息抽屉不展示群聊头像和群名摘要", async () => {
     const user = userEvent.setup()
 
@@ -2661,6 +2724,7 @@ describe("App", () => {
     await user.click(sendButton)
 
     expect(sendButton).toBeDisabled()
+    expect(editor).toBeDisabled()
     expect(sendButton.querySelector(".animate-spin")).toBeInTheDocument()
     expect(
       within(screen.getByTestId("conversation-panel-history")).queryByText(
@@ -2700,7 +2764,67 @@ describe("App", () => {
 
     expect(await screen.findByText("帮我总结今天的消息")).toBeInTheDocument()
     expect(editor).toHaveValue("")
+    await waitFor(() => expect(editor).not.toBeDisabled())
     await waitFor(() => expect(sendButton).not.toBeDisabled())
+  }, 10_000)
+
+  it("旧会话发送完成不会清空新会话正在输入的草稿", async () => {
+    const user = userEvent.setup()
+    let resolveSendMessage!: (response: Response) => void
+    const sendMessageResponse = new Promise<Response>((resolve) => {
+      resolveSendMessage = resolve
+    })
+    const fetcher = createClientFetchMock({ sendMessageResponse })
+    vi.stubGlobal("fetch", fetcher)
+
+    renderApp("/chat?conversation_id=conversation-bob")
+
+    await openLatestAppWebSocket()
+    await screen.findByText("好的，我看一下", undefined, { timeout: 4_000 })
+    const bobEditor = screen.getByPlaceholderText(
+      "输入消息"
+    ) as HTMLTextAreaElement
+
+    await user.type(bobEditor, "Bob 会话发送中的消息")
+    await user.click(screen.getByRole("button", { name: "发送消息" }))
+
+    const sendCall = fetcher.mock.calls.find(([input, init]) => {
+      return (
+        String(input) ===
+          "/api/client/conversations/conversation-bob/messages" &&
+        init?.method === "POST"
+      )
+    })
+    const requestBody = JSON.parse(String(sendCall?.[1]?.body ?? "{}")) as {
+      client_message_id?: string
+    }
+
+    await user.click(screen.getByRole("button", { name: /产品讨论组/ }))
+    await screen.findByRole(
+      "heading",
+      { name: "产品讨论组" },
+      { timeout: 4_000 }
+    )
+    const teamEditor = screen.getByPlaceholderText(
+      "输入消息"
+    ) as HTMLTextAreaElement
+    await user.type(teamEditor, "产品讨论组的新草稿")
+
+    resolveSendMessage(
+      createSendMessageResponse({
+        clientMessageId: requestBody.client_message_id,
+        content: "Bob 会话发送中的消息",
+      })
+    )
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("button", { name: /Bob Li/ })).getByText(
+          "Bob 会话发送中的消息"
+        )
+      ).toBeInTheDocument()
+    )
+    expect(teamEditor).toHaveValue("产品讨论组的新草稿")
   }, 10_000)
 
   it("在聊天输入框按回车发送消息", async () => {

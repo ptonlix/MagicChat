@@ -17,7 +17,6 @@ import { TasksPage } from "@/pages/tasks-page"
 export function App() {
   return (
     <AppInfoProvider>
-      <GlobalBeforeUnloadGuard />
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route
@@ -31,13 +30,16 @@ export function App() {
         />
         <Route
           element={
-            <ClientDataProvider>
-              <ClientRealtimeProvider>
-                <ClientConversationRealtimeSync />
-                <ClientMessageNotificationSync />
-                <AppLayout />
-              </ClientRealtimeProvider>
-            </ClientDataProvider>
+            <>
+              <GlobalBeforeUnloadGuard />
+              <ClientDataProvider>
+                <ClientRealtimeProvider>
+                  <ClientConversationRealtimeSync />
+                  <ClientMessageNotificationSync />
+                  <AppLayout />
+                </ClientRealtimeProvider>
+              </ClientDataProvider>
+            </>
           }
         >
           <Route

@@ -451,6 +451,10 @@ function ConversationPanelComposer({
   }
 
   function handleExpressionSelect(item: ExpressionItem) {
+    if (sending) {
+      return
+    }
+
     const textarea = textareaRef.current
 
     if (!textarea) {
@@ -621,6 +625,7 @@ function ConversationPanelComposer({
           <Textarea
             ref={textareaRef}
             value={draft}
+            disabled={sending}
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleComposerKeyDown}
             onPaste={handleComposerPaste}
@@ -640,6 +645,7 @@ function ConversationPanelComposer({
               <PopoverTrigger asChild>
                 <Button
                   aria-label="选择表情"
+                  disabled={sending}
                   size="icon-sm"
                   title="选择表情"
                   type="button"
