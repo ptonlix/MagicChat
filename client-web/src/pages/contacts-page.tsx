@@ -16,6 +16,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { formatContactPhone } from "@/lib/contact-format"
+import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { useClientData } from "@/lib/client-data-context"
 import type { ContactApp, ContactGroup, ContactUser } from "@/lib/client-data-api"
 import { GroupAvatar } from "@/components/group-avatar"
@@ -93,17 +94,19 @@ export function ContactsPage() {
   }, [contactApps, normalizedAppKeyword])
   const filteredContacts = React.useMemo(() => {
     if (!normalizedContactKeyword) {
-      return contacts
+      return sortContactsByDisplayName(contacts)
     }
 
-    return contacts.filter((contact) =>
-      [
-        contact.email,
-        contact.name,
-        contact.nickname,
-        contact.phone,
-        formatContactPhone(contact.phone),
-      ].some((value) => value.toLowerCase().includes(normalizedContactKeyword))
+    return sortContactsByDisplayName(
+      contacts.filter((contact) =>
+        [
+          contact.email,
+          contact.name,
+          contact.nickname,
+          contact.phone,
+          formatContactPhone(contact.phone),
+        ].some((value) => value.toLowerCase().includes(normalizedContactKeyword))
+      )
     )
   }, [contacts, normalizedContactKeyword])
   const filteredGroups = React.useMemo(() => {

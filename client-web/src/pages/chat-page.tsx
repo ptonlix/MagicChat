@@ -4,6 +4,7 @@ import { Loader2Icon, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
+import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { useClientData } from "@/lib/client-data-context"
 import {
   type ClientConversation,
@@ -504,21 +505,23 @@ function CreateGroupConversationForm({
   const filteredContacts = React.useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase()
 
-    return contacts.filter((contact) => {
-      if (contact.id === currentUserId) {
-        return false
-      }
-      if (!normalizedKeyword) {
-        return true
-      }
+    return sortContactsByDisplayName(
+      contacts.filter((contact) => {
+        if (contact.id === currentUserId) {
+          return false
+        }
+        if (!normalizedKeyword) {
+          return true
+        }
 
-      return [
-        contact.email,
-        contact.name,
-        contact.nickname,
-        contact.phone,
-      ].some((value) => value.toLowerCase().includes(normalizedKeyword))
-    })
+        return [
+          contact.email,
+          contact.name,
+          contact.nickname,
+          contact.phone,
+        ].some((value) => value.toLowerCase().includes(normalizedKeyword))
+      })
+    )
   }, [contacts, currentUserId, keyword])
 
   function toggleMember(contactId: string, checked: boolean | string) {
