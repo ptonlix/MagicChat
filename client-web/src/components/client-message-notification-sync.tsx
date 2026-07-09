@@ -18,6 +18,7 @@ import {
   type ContactUser,
   normalizeMessageCreatedEventPayload,
 } from "@/lib/client-data-api"
+import { getConversationAppDisplayName } from "@/lib/conversation-app-profile"
 import { useClientData } from "@/lib/client-data-context"
 import { formatMentionTemplateText } from "@/lib/message-mentions"
 import { useRealtime } from "@/lib/realtime-context"
@@ -59,6 +60,7 @@ export function ClientMessageNotificationSync() {
             currentConversation.id === message.conversationId
         )
         const senderName = getMessageNotificationSenderName({
+          appsById: contactAppsById,
           contacts,
           conversation,
           me,
@@ -115,9 +117,11 @@ export function ClientMessageNotificationSync() {
 function getMessageNotificationSenderName({
   contacts,
   conversation,
+  appsById,
   me,
   sender,
 }: {
+  appsById: ReadonlyMap<string, ContactApp>
   contacts: ContactUser[]
   conversation: ClientConversation | undefined
   me: ClientUser
@@ -128,7 +132,7 @@ function getMessageNotificationSenderName({
   }
 
   if (sender.type === "app") {
-    return conversation?.name ?? "应用"
+    return getConversationAppDisplayName(conversation, sender.id, appsById)
   }
 
   if (sender.id === me.id) {

@@ -5,6 +5,10 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
+import {
+  getConversationAppAvatar,
+  getConversationAppDisplayName,
+} from "@/lib/conversation-app-profile"
 import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { useClientData } from "@/lib/client-data-context"
 import {
@@ -207,6 +211,7 @@ export function ChatPage() {
               activeConversation,
               me,
               contactsById,
+              contactAppsByLookup,
               activeClientMessagesById,
               activeMentionLabelResolver
             )
@@ -217,6 +222,7 @@ export function ChatPage() {
       activeClientMessagesById,
       activeConversation,
       activeMentionLabelResolver,
+      contactAppsByLookup,
       contactsById,
       me,
     ]
@@ -909,6 +915,7 @@ function toConversationPanelMessage(
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "avatar" | "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>,
   messagesById: ReadonlyMap<string, ClientMessage>,
   mentionLabelResolver: MentionLabelResolver
 ): ConversationPanelMessage {
@@ -918,8 +925,20 @@ function toConversationPanelMessage(
     message.sender.type === "system" ? "system" : fromMe ? "me" : "other"
 
   return {
-    author: getMessageAuthor(message, conversation, currentUser, contactsById),
-    avatar: getMessageAvatar(message, conversation, currentUser, contactsById),
+    author: getMessageAuthor(
+      message,
+      conversation,
+      currentUser,
+      contactsById,
+      appsById
+    ),
+    avatar: getMessageAvatar(
+      message,
+      conversation,
+      currentUser,
+      contactsById,
+      appsById
+    ),
     body: message.body,
     canRevoke: canRevokeMessage(message, conversation, currentUser.id),
     delegatedByName: message.delegatedBy?.name ?? "",
@@ -929,6 +948,7 @@ function toConversationPanelMessage(
       conversation,
       currentUser,
       contactsById,
+      appsById,
       messagesById,
       mentionLabelResolver
     ),
@@ -965,6 +985,7 @@ function getMessageReplyTarget(
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "avatar" | "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>,
   messagesById: ReadonlyMap<string, ClientMessage>,
   mentionLabelResolver: MentionLabelResolver
 ): ConversationPanelReplyTarget | undefined {
@@ -975,7 +996,8 @@ function getMessageReplyTarget(
         message.replyTo.sender,
         conversation,
         currentUser,
-        contactsById
+        contactsById,
+        appsById
       ),
       summary: formatMentionTemplateText(
         message.replyTo.summary,
@@ -999,7 +1021,8 @@ function getMessageReplyTarget(
       replyMessage,
       conversation,
       currentUser,
-      contactsById
+      contactsById,
+      appsById
     ),
     summary: formatConversationMessageSummary(
       replyMessage.body,
@@ -1022,14 +1045,18 @@ function getReplyToSenderAuthor(
   sender: NonNullable<ClientMessage["replyTo"]>["sender"],
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
-  contactsById: ReadonlyMap<string, ContactUser>
+  contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>
 ) {
   if (sender.type === "system") {
     return "系统"
   }
 
   if (sender.type === "app") {
-    return sender.name || conversation.name
+    return (
+      sender.name ||
+      getConversationAppDisplayName(conversation, sender.id, appsById)
+    )
   }
 
   if (sender.id === currentUser.id) {
@@ -1050,14 +1077,19 @@ function getMessageAuthor(
   message: ClientMessage,
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
-  contactsById: ReadonlyMap<string, ContactUser>
+  contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>
 ) {
   if (message.sender.type === "system") {
     return "系统"
   }
 
   if (message.sender.type === "app") {
-    return conversation.name
+    return getConversationAppDisplayName(
+      conversation,
+      message.sender.id,
+      appsById
+    )
   }
 
   if (message.sender.type === "user" && message.sender.id === currentUser.id) {
@@ -1115,7 +1147,8 @@ function getMessageAvatar(
   message: ClientMessage,
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "avatar" | "id">,
-  contactsById: ReadonlyMap<string, ContactUser>
+  contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>
 ) {
   if (message.sender.type === "user" && message.sender.id === currentUser.id) {
     return currentUser.avatar
@@ -1129,7 +1162,7 @@ function getMessageAvatar(
   }
 
   if (message.sender.type === "app") {
-    return conversation.avatar
+    return getConversationAppAvatar(conversation, message.sender.id, appsById)
   }
 
   return ""

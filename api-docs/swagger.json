@@ -2029,6 +2029,77 @@
                 }
             }
         },
+        "/api/client/conversations/groups/{conversation_id}": {
+            "delete": {
+                "description": "群主解散 active 群聊。解散后所有成员将不再看到该群聊。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "解散群聊",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.dissolveGroupConversationResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/conversations/groups/{conversation_id}/join": {
             "post": {
                 "description": "普通用户加入 active 公开群，并生成系统消息。",
@@ -2186,6 +2257,91 @@
                     {
                         "type": "string",
                         "description": "成员用户 ID",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.addGroupConversationMembersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/conversations/groups/{conversation_id}/members/{member_type}/{member_id}": {
+            "delete": {
+                "description": "群主或管理员将用户成员或应用成员移出 active 群聊，并生成系统消息。群主不能被移出。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "移出群聊成员或应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "成员类型 user|app",
+                        "name": "member_type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "成员 ID",
                         "name": "member_id",
                         "in": "path",
                         "required": true
@@ -3559,6 +3715,15 @@
         "httpserver.addGroupConversationMembersRequest": {
             "type": "object",
             "properties": {
+                "app_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                    ]
+                },
                 "member_ids": {
                     "type": "array",
                     "items": {
@@ -3995,6 +4160,15 @@
             "properties": {
                 "user": {
                     "$ref": "#/definitions/httpserver.userResponse"
+                }
+            }
+        },
+        "httpserver.dissolveGroupConversationResponse": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
                 }
             }
         },
