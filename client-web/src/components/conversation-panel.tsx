@@ -32,6 +32,10 @@ import {
   type MentionLabelResolver,
   type MentionTargetType,
 } from "@/lib/message-mentions"
+import {
+  createPinyinSearchText,
+  normalizePinyinSearchQuery,
+} from "@/lib/pinyin-search"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import {
@@ -80,9 +84,16 @@ export type ConversationPanelMessage = {
   body: ClientMessage["body"]
   canRevoke: boolean
   delegatedByName: string
+  mentionTarget: ConversationPanelMentionTarget | null
   replyTo?: ConversationPanelReplyTarget
   time: string
   senderUserId: string | null
+}
+
+export type ConversationPanelMentionTarget = {
+  id: string
+  label: string
+  targetType: MentionTargetType
 }
 
 export type ConversationPanelReplyTarget = {
@@ -92,6 +103,7 @@ export type ConversationPanelReplyTarget = {
 }
 
 const maxFileMessageUploadBytes = 20 * 1024 * 1024
+const maxMentionCandidateResults = 50
 const fallbackMentionLabelResolver: MentionLabelResolver = () => undefined
 
 type DraftMention = {
@@ -105,10 +117,12 @@ type DraftMention = {
 type MentionCandidate = {
   avatar: string
   description: string
-  id: string
-  label: string
   searchText: string
-  targetType: MentionTargetType
+} & ConversationPanelMentionTarget
+
+type ConversationPanelComposerHandle = {
+  focus: () => void
+  insertMention: (target: ConversationPanelMentionTarget) => void
 }
 
 type MentionTrigger = {
@@ -163,6 +177,34 @@ export function ConversationPanel({
   richTextMode,
   sending,
 }: ConversationPanelProps) {
+  const composerRef = React.useRef<ConversationPanelComposerHandle | null>(null)
+
+  const insertComposerMention = React.useCallback(
+    (target: ConversationPanelMentionTarget) => {
+      if (conversation?.type !== "group") {
+        composerRef.current?.focus()
+        return
+      }
+
+      composerRef.current?.insertMention(target)
+    },
+    [conversation?.type]
+  )
+
+  const handleReplyToMessage = React.useCallback(
+    (message: ConversationPanelMessage) => {
+      onReplyToMessage(message)
+
+      if (conversation?.type === "group" && message.mentionTarget) {
+        composerRef.current?.insertMention(message.mentionTarget)
+        return
+      }
+
+      composerRef.current?.focus()
+    },
+    [conversation?.type, onReplyToMessage]
+  )
+
   return (
     <main
       className={cn(
@@ -186,10 +228,12 @@ export function ConversationPanel({
             mentionLabelResolver={mentionLabelResolver}
             messages={messages}
             onLoadBeforeMessages={onLoadBeforeMessages}
-            onReplyToMessage={onReplyToMessage}
+            onInsertMention={insertComposerMention}
+            onReplyToMessage={handleReplyToMessage}
             onRevokeMessage={onRevokeMessage}
           />
           <ConversationPanelComposer
+            ref={composerRef}
             conversation={conversation}
             draft={draft}
             replyTarget={replyTarget}
@@ -316,6 +360,7 @@ function ConversationPanelHistory({
   mentionLabelResolver,
   messages,
   onLoadBeforeMessages,
+  onInsertMention,
   onReplyToMessage,
   onRevokeMessage,
 }: {
@@ -327,6 +372,7 @@ function ConversationPanelHistory({
   mentionLabelResolver: MentionLabelResolver
   messages: ConversationPanelMessage[]
   onLoadBeforeMessages: () => void
+  onInsertMention: (target: ConversationPanelMentionTarget) => void
   onReplyToMessage: (message: ConversationPanelMessage) => void
   onRevokeMessage: (message: ConversationPanelMessage) => void
 }) {
@@ -484,6 +530,7 @@ function ConversationPanelHistory({
               conversation={conversation}
               currentUserId={currentUserId}
               mentionLabelResolver={mentionLabelResolver}
+              onInsertMention={onInsertMention}
               onReply={onReplyToMessage}
               onRevoke={onRevokeMessage}
             />
@@ -494,19 +541,9 @@ function ConversationPanelHistory({
   )
 }
 
-function ConversationPanelComposer({
-  conversation,
-  draft,
-  replyTarget,
-  onCancelReply,
-  onDraftChange,
-  onSendFile,
-  onSendImage,
-  onRichTextModeChange,
-  onSendMessage,
-  richTextMode,
-  sending,
-}: {
+const ConversationPanelComposer = React.forwardRef<
+  ConversationPanelComposerHandle,
+  {
   conversation: ClientConversation
   draft: string
   replyTarget: ConversationPanelReplyTarget | null
@@ -518,9 +555,26 @@ function ConversationPanelComposer({
   onSendMessage: (content?: string) => void
   richTextMode: boolean
   sending: boolean
-}) {
+  }
+>(function ConversationPanelComposer(
+  {
+    conversation,
+    draft,
+    replyTarget,
+    onCancelReply,
+    onDraftChange,
+    onSendFile,
+    onSendImage,
+    onRichTextModeChange,
+    onSendMessage,
+    richTextMode,
+    sending,
+  },
+  ref
+) {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
   const imageInputRef = React.useRef<HTMLInputElement | null>(null)
+  const mentionOptionRefs = React.useRef<Array<HTMLButtonElement | null>>([])
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
   const previousSendingRef = React.useRef(sending)
   const shouldFocusAfterSendingRef = React.useRef(false)
@@ -547,9 +601,35 @@ function ConversationPanelComposer({
     [mentionCandidates, mentionTrigger?.query]
   )
 
+  React.useImperativeHandle(ref, () => ({
+    focus() {
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus()
+      })
+    },
+    insertMention(target) {
+      insertMentionTarget(target)
+    },
+  }))
+
   React.useEffect(() => {
     textareaRef.current?.focus()
   }, [])
+
+  React.useEffect(() => {
+    if (!mentionTrigger) {
+      return
+    }
+
+    const visibleSelectedIndex = getVisibleMentionIndex(
+      selectedMentionIndex,
+      filteredMentionCandidates.length
+    )
+
+    mentionOptionRefs.current[visibleSelectedIndex]?.scrollIntoView({
+      block: "nearest",
+    })
+  }, [filteredMentionCandidates.length, mentionTrigger, selectedMentionIndex])
 
   React.useEffect(() => {
     if (!replyTarget) {
@@ -645,7 +725,12 @@ function ConversationPanelComposer({
       if (event.key === "Enter" || event.key === "Tab") {
         event.preventDefault()
         insertMentionCandidate(
-          filteredMentionCandidates[selectedMentionIndex] ??
+          filteredMentionCandidates[
+            getVisibleMentionIndex(
+              selectedMentionIndex,
+              filteredMentionCandidates.length
+            )
+          ] ??
             filteredMentionCandidates[0]
         )
         return
@@ -687,27 +772,42 @@ function ConversationPanelComposer({
     const textarea = textareaRef.current
     const cursor = textarea?.selectionStart ?? draft.length
     const trigger = getMentionTrigger(draft, cursor)
-    if (!trigger) {
-      return
-    }
 
-    const mentionText = `@${candidate.label}`
+    insertMentionTarget(candidate, {
+      end: cursor,
+      start: trigger?.start ?? cursor,
+    })
+  }
+
+  function insertMentionTarget(
+    target: ConversationPanelMentionTarget,
+    range?: {
+      end: number
+      start: number
+    }
+  ) {
+    const textarea = textareaRef.current
+    const selectionStart = range?.start ?? textarea?.selectionStart ?? draft.length
+    const selectionEnd = range?.end ?? textarea?.selectionEnd ?? selectionStart
+
+    const mentionText = `@${target.label}`
     const insertedText = `${mentionText} `
     const nextDraft =
-      draft.slice(0, trigger.start) + insertedText + draft.slice(cursor)
+      draft.slice(0, selectionStart) + insertedText + draft.slice(selectionEnd)
     const nextMention: DraftMention = {
-      end: trigger.start + mentionText.length,
-      id: candidate.id,
-      label: candidate.label,
-      start: trigger.start,
-      targetType: candidate.targetType,
+      end: selectionStart + mentionText.length,
+      id: target.id,
+      label: target.label,
+      start: selectionStart,
+      targetType: target.targetType,
     }
 
     setDraftMentions((currentMentions) =>
       [
         ...syncDraftMentions(
           currentMentions.filter(
-            (mention) => mention.end <= trigger.start || mention.start >= cursor
+            (mention) =>
+              mention.end <= selectionStart || mention.start >= selectionEnd
           ),
           draft,
           nextDraft
@@ -724,7 +824,7 @@ function ConversationPanelComposer({
         return
       }
 
-      const nextCursor = trigger.start + insertedText.length
+      const nextCursor = selectionStart + insertedText.length
       textareaRef.current.focus()
       textareaRef.current.setSelectionRange(nextCursor, nextCursor)
     })
@@ -946,13 +1046,20 @@ function ConversationPanelComposer({
             className="max-h-48 min-h-24 resize-none"
           />
           {mentionTrigger && filteredMentionCandidates.length > 0 && (
-            <div className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+            <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
               {filteredMentionCandidates.map((candidate, index) => (
                 <Button
                   key={`${candidate.targetType}-${candidate.id}`}
+                  ref={(element) => {
+                    mentionOptionRefs.current[index] = element
+                  }}
                   className={cn(
                     "h-auto w-full justify-start gap-2 px-2 py-1.5 text-left",
-                    index === selectedMentionIndex && "bg-accent"
+                    index ===
+                      getVisibleMentionIndex(
+                        selectedMentionIndex,
+                        filteredMentionCandidates.length
+                      ) && "bg-accent"
                   )}
                   onMouseDown={(event) => {
                     event.preventDefault()
@@ -1095,7 +1202,7 @@ function ConversationPanelComposer({
       />
     </footer>
   )
-}
+})
 
 function getClipboardImageFile(clipboardData: DataTransfer) {
   for (const item of Array.from(clipboardData.items)) {
@@ -1143,16 +1250,14 @@ function createMentionCandidates(
 
       const description =
         member.type === "app" ? "应用" : member.email || member.phone || "成员"
-      const searchText = [
+      const searchText = createPinyinSearchText([
         label,
         member.name,
         member.nickname,
         member.email,
         member.phone,
         member.type,
-      ]
-        .join(" ")
-        .toLowerCase()
+      ])
 
       return {
         avatar: member.avatar,
@@ -1171,7 +1276,12 @@ function createMentionCandidates(
       description: "所有成员",
       id: "all",
       label: "所有人",
-      searchText: "所有人 全体 all everyone",
+      searchText: createPinyinSearchText([
+        "所有人",
+        "全体",
+        "all",
+        "everyone",
+      ]),
       targetType: "all",
     },
     ...memberCandidates,
@@ -1182,14 +1292,22 @@ function filterMentionCandidates(
   candidates: MentionCandidate[],
   query: string
 ) {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) {
-    return candidates.slice(0, 8)
+  const normalizedQuery = normalizePinyinSearchQuery(query)
+  const filteredCandidates = normalizedQuery
+    ? candidates.filter((candidate) =>
+        candidate.searchText.includes(normalizedQuery)
+      )
+    : candidates
+
+  return filteredCandidates.slice(0, maxMentionCandidateResults)
+}
+
+function getVisibleMentionIndex(index: number, length: number) {
+  if (length <= 0) {
+    return 0
   }
 
-  return candidates
-    .filter((candidate) => candidate.searchText.includes(normalizedQuery))
-    .slice(0, 8)
+  return Math.min(index, length - 1)
 }
 
 function getMentionTrigger(
@@ -1366,6 +1484,7 @@ function MessageBubble({
   conversation,
   currentUserId,
   mentionLabelResolver,
+  onInsertMention,
   onReply,
   onRevoke,
 }: {
@@ -1373,11 +1492,14 @@ function MessageBubble({
   conversation: ClientConversation
   currentUserId: string
   mentionLabelResolver: MentionLabelResolver
+  onInsertMention: (target: ConversationPanelMentionTarget) => void
   onReply: (message: ConversationPanelMessage) => void
   onRevoke: (message: ConversationPanelMessage) => void
 }) {
   const fromMe = message.role === "me"
   const fallback = fromMe ? "我" : getConversationInitial(conversation.name)
+  const canInsertAuthorMention =
+    conversation.type === "group" && message.mentionTarget !== null
   const copyText = getMessageCopyText(message, mentionLabelResolver)
   const bubbleRef = React.useRef<HTMLDivElement | null>(null)
   const selectedCopyTextRef = React.useRef("")
@@ -1400,6 +1522,14 @@ function MessageBubble({
     )
   }
 
+  function handleAuthorMentionClick() {
+    if (!message.mentionTarget) {
+      return
+    }
+
+    onInsertMention(message.mentionTarget)
+  }
+
   return (
     <div className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}>
       {!fromMe && <MessageAvatar fallback={fallback} message={message} />}
@@ -1410,7 +1540,18 @@ function MessageBubble({
         )}
       >
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{message.author}</span>
+          {canInsertAuthorMention ? (
+            <button
+              className="cursor-pointer p-0 text-muted-foreground transition-colors hover:text-sky-500"
+              onClick={handleAuthorMentionClick}
+              onMouseDown={(event) => event.preventDefault()}
+              type="button"
+            >
+              {message.author}
+            </button>
+          ) : (
+            <span>{message.author}</span>
+          )}
           <span>{message.time}</span>
         </div>
         <MessageActionMenu

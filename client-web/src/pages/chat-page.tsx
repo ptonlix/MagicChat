@@ -27,6 +27,7 @@ import {
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
 import {
   ConversationPanel,
+  type ConversationPanelMentionTarget,
   type ConversationPanelMessage,
   type ConversationPanelReplyTarget,
 } from "@/components/conversation-panel"
@@ -943,6 +944,7 @@ function toConversationPanelMessage(
     canRevoke: canRevokeMessage(message, conversation, currentUser.id),
     delegatedByName: message.delegatedBy?.name ?? "",
     id: message.id,
+    mentionTarget: getMessageMentionTarget(message, mentionLabelResolver),
     replyTo: getMessageReplyTarget(
       message,
       conversation,
@@ -978,6 +980,29 @@ function canRevokeMessage(
   )
 
   return currentMember?.role === "owner" || currentMember?.role === "admin"
+}
+
+function getMessageMentionTarget(
+  message: ClientMessage,
+  mentionLabelResolver: MentionLabelResolver
+): ConversationPanelMentionTarget | null {
+  if (message.sender.type !== "user" && message.sender.type !== "app") {
+    return null
+  }
+
+  const label = mentionLabelResolver({
+    id: message.sender.id,
+    type: message.sender.type,
+  })?.trim()
+  if (!label) {
+    return null
+  }
+
+  return {
+    id: message.sender.id,
+    label,
+    targetType: message.sender.type,
+  }
 }
 
 function getMessageReplyTarget(
