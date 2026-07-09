@@ -272,8 +272,16 @@ function ConversationPanelHeader({
           conversation={conversation}
           online={online}
         />
-        <div className="min-w-0">
-          <h2 className="truncate text-sm font-medium">{conversation.name}</h2>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h2 className="min-w-0 truncate text-sm font-medium">
+            {conversation.name}
+          </h2>
+          {conversation.type === "group" && (
+            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <UsersRound className="size-3" />
+              {getGroupMemberCount(conversation)} 人
+            </span>
+          )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -304,6 +312,10 @@ function ConversationPanelHeader({
       </div>
     </header>
   )
+}
+
+function getGroupMemberCount(conversation: ClientConversation) {
+  return conversation.memberCount || conversation.members?.length || 0
 }
 
 function ConversationPanelHeaderAvatar({
