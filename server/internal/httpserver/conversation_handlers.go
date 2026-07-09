@@ -52,6 +52,7 @@ type createGroupConversationRequest struct {
 }
 
 type addGroupConversationMembersRequest struct {
+	AppIDs    []string `json:"app_ids" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 	MemberIDs []string `json:"member_ids" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 }
 
@@ -118,6 +119,10 @@ type leaveGroupConversationResponse struct {
 	Message        messageResponse `json:"message"`
 }
 
+type dissolveGroupConversationResponse struct {
+	ConversationID string `json:"conversation_id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+}
+
 type createDirectConversationResponse struct {
 	Conversation conversationListItemResponse `json:"conversation"`
 	Created      bool                         `json:"created" example:"true"`
@@ -163,6 +168,7 @@ type conversationMemberCandidate struct {
 type systemEventUserRef struct {
 	DisplayName string `json:"display_name"`
 	ID          string `json:"id"`
+	Type        string `json:"type,omitempty"`
 }
 
 type groupMembersInvitedSystemEventBody struct {
@@ -805,7 +811,7 @@ func (s *Server) createUserGroupConversation(user store.User, name string, membe
 			return err
 		}
 
-		message, err := createGroupMembersInvitedSystemMessage(tx, &conversation, user, members, now)
+		message, err := createGroupMembersInvitedSystemMessage(tx, &conversation, user, makeGroupMemberInviteeRefs(members, nil), now)
 		if err != nil {
 			return err
 		}
@@ -854,11 +860,15 @@ func (s *Server) addGroupConversationMembers(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
-	if len(memberIDs) == 0 {
-		return failure(c, http.StatusBadRequest, "invalid_request", "至少选择一名成员")
+	appIDs, err := normalizeGroupAppIDs(req.AppIDs)
+	if err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
+	}
+	if len(memberIDs)+len(appIDs) == 0 {
+		return failure(c, http.StatusBadRequest, "invalid_request", "至少选择一名成员或应用")
 	}
 
-	conversation, message, memberUserIDs, err := s.addUserGroupConversationMembers(user, conversationID, memberIDs)
+	conversation, message, memberUserIDs, err := s.addGroupConversationMemberTargets(user, conversationID, memberIDs, appIDs)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return failure(c, http.StatusNotFound, "not_found", "会话不存在")
@@ -873,7 +883,7 @@ func (s *Server) addGroupConversationMembers(c echo.Context) error {
 			return failure(c, http.StatusBadRequest, "invalid_request", "群聊成员不能超过 100 人")
 		}
 		if errors.Is(err, errGroupConversationMemberMiss) {
-			return failure(c, http.StatusBadRequest, "invalid_request", "成员不存在或已禁用")
+			return failure(c, http.StatusBadRequest, "invalid_request", "成员或应用不存在或不可用")
 		}
 
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
@@ -919,6 +929,37 @@ func (s *Server) addGroupConversationMembers(c echo.Context) error {
 // @Failure 500 {object} errorEnvelope
 // @Router /api/client/conversations/groups/{conversation_id}/members/{member_id} [delete]
 func (s *Server) removeGroupConversationMember(c echo.Context) error {
+	return s.removeGroupConversationMemberByType(c, store.ConversationMemberTypeUser)
+}
+
+// removeTypedGroupConversationMember godoc
+//
+// @Summary 移出群聊成员或应用
+// @Description 群主或管理员将用户成员或应用成员移出 active 群聊，并生成系统消息。群主不能被移出。
+// @Tags 客户端会话
+// @Produce json
+// @Param conversation_id path string true "会话 ID"
+// @Param member_type path string true "成员类型 user|app"
+// @Param member_id path string true "成员 ID"
+// @Success 200 {object} successEnvelope{data=addGroupConversationMembersResponse}
+// @Failure 400 {object} errorEnvelope
+// @Failure 401 {object} errorEnvelope
+// @Failure 403 {object} errorEnvelope
+// @Failure 404 {object} errorEnvelope
+// @Failure 500 {object} errorEnvelope
+// @Router /api/client/conversations/groups/{conversation_id}/members/{member_type}/{member_id} [delete]
+func (s *Server) removeTypedGroupConversationMember(c echo.Context) error {
+	memberType := strings.TrimSpace(c.Param("member_type"))
+	switch memberType {
+	case store.ConversationMemberTypeUser, store.ConversationMemberTypeApp:
+	default:
+		return failure(c, http.StatusBadRequest, "invalid_request", "成员类型格式错误")
+	}
+
+	return s.removeGroupConversationMemberByType(c, memberType)
+}
+
+func (s *Server) removeGroupConversationMemberByType(c echo.Context, memberType string) error {
 	user, ok := currentUser(c)
 	if !ok {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
@@ -932,7 +973,7 @@ func (s *Server) removeGroupConversationMember(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
 
-	conversation, message, memberUserIDs, removedUserID, err := s.removeUserGroupConversationMember(user, conversationID, memberID)
+	conversation, message, memberUserIDs, removedUserID, err := s.removeGroupConversationMemberTarget(user, conversationID, memberType, memberID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return failure(c, http.StatusNotFound, "not_found", "会话不存在或成员不在群聊中")
@@ -960,7 +1001,9 @@ func (s *Server) removeGroupConversationMember(c echo.Context) error {
 		messageResponse = &response
 		s.realtime.SendToUsers(memberUserIDs, realtimeMessageCreatedEvent(response))
 	}
-	s.realtime.SendToUsers([]string{removedUserID}, realtimeConversationRemovedEvent(conversation.ID))
+	if removedUserID != "" {
+		s.realtime.SendToUsers([]string{removedUserID}, realtimeConversationRemovedEvent(conversation.ID))
+	}
 
 	return success(c, http.StatusOK, addGroupConversationMembersResponse{
 		Conversation: newConversationListItemResponse(
@@ -1228,6 +1271,48 @@ func (s *Server) leaveGroupConversation(c echo.Context) error {
 	return success(c, http.StatusOK, leaveGroupConversationResponse{
 		ConversationID: conversationID,
 		Message:        response,
+	})
+}
+
+// dissolveGroupConversation godoc
+//
+// @Summary 解散群聊
+// @Description 群主解散 active 群聊。解散后所有成员将不再看到该群聊。
+// @Tags 客户端会话
+// @Produce json
+// @Param conversation_id path string true "会话 ID"
+// @Success 200 {object} successEnvelope{data=dissolveGroupConversationResponse}
+// @Failure 400 {object} errorEnvelope
+// @Failure 401 {object} errorEnvelope
+// @Failure 403 {object} errorEnvelope
+// @Failure 404 {object} errorEnvelope
+// @Failure 500 {object} errorEnvelope
+// @Router /api/client/conversations/groups/{conversation_id} [delete]
+func (s *Server) dissolveGroupConversation(c echo.Context) error {
+	user, ok := currentUser(c)
+	if !ok {
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+	conversationID, err := normalizeMessageConversationID(c.Param("conversation_id"))
+	if err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
+	}
+
+	memberUserIDs, err := s.dissolveUserGroupConversation(user, conversationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return failure(c, http.StatusNotFound, "not_found", "会话不存在")
+		}
+		if errors.Is(err, errConversationAccessDenied) || errors.Is(err, errConversationNotGroup) {
+			return failure(c, http.StatusForbidden, "forbidden", "无权操作群聊")
+		}
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	s.realtime.SendToUsers(memberUserIDs, realtimeConversationRemovedEvent(conversationID))
+
+	return success(c, http.StatusOK, dissolveGroupConversationResponse{
+		ConversationID: conversationID,
 	})
 }
 
@@ -1555,6 +1640,10 @@ func (s *Server) markUserConversationRead(userID string, conversationID string, 
 }
 
 func (s *Server) addUserGroupConversationMembers(currentUser store.User, conversationID string, memberIDs []string) (store.Conversation, *store.Message, []string, error) {
+	return s.addGroupConversationMemberTargets(currentUser, conversationID, memberIDs, nil)
+}
+
+func (s *Server) addGroupConversationMemberTargets(currentUser store.User, conversationID string, memberIDs []string, appIDs []string) (store.Conversation, *store.Message, []string, error) {
 	var conversation store.Conversation
 	var message *store.Message
 	memberUserIDs := []string{}
@@ -1586,7 +1675,7 @@ func (s *Server) addUserGroupConversationMembers(currentUser store.User, convers
 
 		var existingMembers []store.ConversationMember
 		if err := tx.
-			Where("conversation_id = ? AND member_type = ?", conversationID, store.ConversationMemberTypeUser).
+			Where("conversation_id = ?", conversationID).
 			Find(&existingMembers).Error; err != nil {
 			return err
 		}
@@ -1594,17 +1683,17 @@ func (s *Server) addUserGroupConversationMembers(currentUser store.User, convers
 		activeMemberCount := 0
 		membersByID := make(map[string]store.ConversationMember, len(existingMembers))
 		for _, member := range existingMembers {
-			membersByID[member.MemberID] = member
 			if member.LeftAt == nil {
 				activeMemberCount++
 			}
+			membersByID[conversationMemberMentionKey(member.MemberType, member.MemberID)] = member
 		}
 
 		newMemberIDs := make([]string, 0, len(memberIDs))
 		reactivatedMemberIDs := make([]string, 0, len(memberIDs))
 		addedMemberIDs := make([]string, 0, len(memberIDs))
 		for _, memberID := range memberIDs {
-			existingMember, ok := membersByID[memberID]
+			existingMember, ok := membersByID[conversationMemberMentionKey(store.ConversationMemberTypeUser, memberID)]
 			if ok && existingMember.LeftAt == nil {
 				continue
 			}
@@ -1615,14 +1704,37 @@ func (s *Server) addUserGroupConversationMembers(currentUser store.User, convers
 			}
 			newMemberIDs = append(newMemberIDs, memberID)
 		}
-		if len(addedMemberIDs) == 0 {
+
+		newAppIDs := make([]string, 0, len(appIDs))
+		reactivatedAppIDs := make([]string, 0, len(appIDs))
+		addedAppIDs := make([]string, 0, len(appIDs))
+		for _, appID := range appIDs {
+			existingMember, ok := membersByID[conversationMemberMentionKey(store.ConversationMemberTypeApp, appID)]
+			if ok && existingMember.LeftAt == nil {
+				continue
+			}
+			addedAppIDs = append(addedAppIDs, appID)
+			if ok {
+				reactivatedAppIDs = append(reactivatedAppIDs, appID)
+				continue
+			}
+			newAppIDs = append(newAppIDs, appID)
+		}
+		if len(addedMemberIDs)+len(addedAppIDs) == 0 {
 			return nil
 		}
-		if activeMemberCount+len(newMemberIDs)+len(reactivatedMemberIDs) > maxGroupConversationMembers {
+		if activeMemberCount+len(newMemberIDs)+len(reactivatedMemberIDs)+len(newAppIDs)+len(reactivatedAppIDs) > maxGroupConversationMembers {
 			return errGroupConversationMemberCap
 		}
 
 		addedUsers, err := loadActiveGroupMembers(tx, addedMemberIDs)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errGroupConversationMemberMiss
+			}
+			return err
+		}
+		addedApps, err := loadVisibleGroupApps(tx, currentUser.ID, addedAppIDs)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errGroupConversationMemberMiss
@@ -1645,12 +1757,29 @@ func (s *Server) addUserGroupConversationMembers(currentUser store.User, convers
 				return err
 			}
 		}
+		if len(reactivatedAppIDs) > 0 {
+			if err := tx.Model(&store.ConversationMember{}).
+				Where("conversation_id = ? AND member_type = ? AND member_id IN ?", conversationID, store.ConversationMemberTypeApp, reactivatedAppIDs).
+				Updates(map[string]any{
+					"role":                     store.ConversationMemberRoleMember,
+					"joined_at":                now,
+					"history_visible_from_seq": systemMessageSeq,
+					"left_at":                  nil,
+					"last_read_seq":            conversation.LastMessageSeq,
+				}).Error; err != nil {
+				return err
+			}
+		}
 
 		newUsersByID := make(map[string]store.User, len(addedUsers))
 		for _, addedUser := range addedUsers {
 			newUsersByID[addedUser.ID] = addedUser
 		}
-		conversationMembers := make([]store.ConversationMember, 0, len(newMemberIDs))
+		newAppsByID := make(map[string]store.App, len(addedApps))
+		for _, addedApp := range addedApps {
+			newAppsByID[addedApp.ID] = addedApp
+		}
+		conversationMembers := make([]store.ConversationMember, 0, len(newMemberIDs)+len(newAppIDs))
 		for _, newMemberID := range newMemberIDs {
 			newUser := newUsersByID[newMemberID]
 			conversationMembers = append(conversationMembers, store.ConversationMember{
@@ -1663,13 +1792,26 @@ func (s *Server) addUserGroupConversationMembers(currentUser store.User, convers
 				LastReadSeq:           conversation.LastMessageSeq,
 			})
 		}
+		for _, newAppID := range newAppIDs {
+			newApp := newAppsByID[newAppID]
+			conversationMembers = append(conversationMembers, store.ConversationMember{
+				ConversationID:        conversationID,
+				MemberType:            store.ConversationMemberTypeApp,
+				MemberID:              newApp.ID,
+				Role:                  store.ConversationMemberRoleMember,
+				JoinedAt:              now,
+				HistoryVisibleFromSeq: systemMessageSeq,
+				LastReadSeq:           conversation.LastMessageSeq,
+			})
+		}
 		if len(conversationMembers) > 0 {
 			if err := tx.Create(&conversationMembers).Error; err != nil {
 				return err
 			}
 		}
 
-		createdMessage, err := createGroupMembersInvitedSystemMessage(tx, &conversation, currentUser, addedUsers, now)
+		invitees := makeGroupMemberInviteeRefs(addedUsers, addedApps)
+		createdMessage, err := createGroupMembersInvitedSystemMessage(tx, &conversation, currentUser, invitees, now)
 		if err != nil {
 			return err
 		}
@@ -1945,9 +2087,14 @@ func (s *Server) joinUserPublicGroupConversation(currentUser store.User, convers
 }
 
 func (s *Server) removeUserGroupConversationMember(currentUser store.User, conversationID string, targetUserID string) (store.Conversation, *store.Message, []string, string, error) {
+	return s.removeGroupConversationMemberTarget(currentUser, conversationID, store.ConversationMemberTypeUser, targetUserID)
+}
+
+func (s *Server) removeGroupConversationMemberTarget(currentUser store.User, conversationID string, targetMemberType string, targetMemberID string) (store.Conversation, *store.Message, []string, string, error) {
 	var conversation store.Conversation
 	var message *store.Message
 	memberUserIDs := []string{}
+	removedUserID := ""
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
@@ -1959,7 +2106,7 @@ func (s *Server) removeUserGroupConversationMember(currentUser store.User, conve
 		if conversation.Kind != store.ConversationKindGroup {
 			return errConversationNotGroup
 		}
-		if currentUser.ID == targetUserID {
+		if targetMemberType == store.ConversationMemberTypeUser && currentUser.ID == targetMemberID {
 			return errGroupConversationCannotRemoveSelf
 		}
 
@@ -1985,8 +2132,8 @@ func (s *Server) removeUserGroupConversationMember(currentUser store.User, conve
 			&targetMember,
 			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
 			conversationID,
-			store.ConversationMemberTypeUser,
-			targetUserID,
+			targetMemberType,
+			targetMemberID,
 		).Error; err != nil {
 			return err
 		}
@@ -1994,21 +2141,21 @@ func (s *Server) removeUserGroupConversationMember(currentUser store.User, conve
 			return errGroupConversationOwnerCannotRemove
 		}
 
-		var targetUser store.User
-		if err := tx.First(&targetUser, "id = ?", targetUserID).Error; err != nil {
+		targetRef, err := loadGroupMemberSystemRef(tx, targetMemberType, targetMemberID)
+		if err != nil {
 			return err
 		}
 
 		now := time.Now().UTC()
 		if err := tx.Model(&store.ConversationMember{}).
-			Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, store.ConversationMemberTypeUser, targetUserID).
+			Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, targetMemberType, targetMemberID).
 			Updates(map[string]any{
 				"left_at": now,
 			}).Error; err != nil {
 			return err
 		}
 
-		createdMessage, err := createGroupMemberRemovedSystemMessage(tx, &conversation, currentUser, targetUser, now)
+		createdMessage, err := createGroupMemberRemovedSystemMessage(tx, &conversation, currentUser, targetRef, now)
 		if err != nil {
 			return err
 		}
@@ -2022,13 +2169,16 @@ func (s *Server) removeUserGroupConversationMember(currentUser store.User, conve
 			return err
 		}
 		memberUserIDs = ids
+		if targetMemberType == store.ConversationMemberTypeUser {
+			removedUserID = targetMemberID
+		}
 		return nil
 	})
 	if err != nil {
 		return store.Conversation{}, nil, nil, "", err
 	}
 
-	return conversation, message, memberUserIDs, targetUserID, nil
+	return conversation, message, memberUserIDs, removedUserID, nil
 }
 
 func (s *Server) leaveUserGroupConversation(currentUser store.User, conversationID string) (store.Message, []string, error) {
@@ -2091,6 +2241,63 @@ func (s *Server) leaveUserGroupConversation(currentUser store.User, conversation
 	}
 
 	return message, memberUserIDs, nil
+}
+
+func (s *Server) dissolveUserGroupConversation(currentUser store.User, conversationID string) ([]string, error) {
+	memberUserIDs := []string{}
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var conversation store.Conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+			return err
+		}
+		if conversation.Status != store.ConversationStatusActive {
+			return errConversationAccessDenied
+		}
+		if conversation.Kind != store.ConversationKindGroup {
+			return errConversationNotGroup
+		}
+
+		var currentMember store.ConversationMember
+		if err := tx.First(
+			&currentMember,
+			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
+			conversationID,
+			store.ConversationMemberTypeUser,
+			currentUser.ID,
+		).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errConversationAccessDenied
+			}
+			return err
+		}
+		if currentMember.Role != store.ConversationMemberRoleOwner {
+			return errConversationAccessDenied
+		}
+
+		ids, err := loadActiveConversationUserIDs(tx, conversationID)
+		if err != nil {
+			return err
+		}
+		memberUserIDs = ids
+
+		now := time.Now().UTC()
+		if err := tx.Model(&store.Conversation{}).
+			Where("id = ?", conversationID).
+			Updates(map[string]any{
+				"dissolved_at": now,
+				"status":       store.ConversationStatusDissolved,
+				"updated_at":   now,
+			}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return memberUserIDs, nil
 }
 
 func (s *Server) updateUserGroupConversationAvatar(currentUser store.User, conversationID string, avatarURL string) (store.Conversation, store.Message, []string, error) {
@@ -2162,7 +2369,7 @@ func (s *Server) updateUserGroupConversationAvatar(currentUser store.User, conve
 	return conversation, message, memberUserIDs, nil
 }
 
-func createGroupMembersInvitedSystemMessage(db *gorm.DB, conversation *store.Conversation, inviter store.User, invitees []store.User, now time.Time) (store.Message, error) {
+func createGroupMembersInvitedSystemMessage(db *gorm.DB, conversation *store.Conversation, inviter store.User, invitees []systemEventUserRef, now time.Time) (store.Message, error) {
 	body, summary, err := newGroupMembersInvitedSystemEventBody(inviter, invitees)
 	if err != nil {
 		return store.Message{}, err
@@ -2372,7 +2579,7 @@ func createGroupMemberLeftSystemMessage(db *gorm.DB, conversation *store.Convers
 	return message, nil
 }
 
-func createGroupMemberRemovedSystemMessage(db *gorm.DB, conversation *store.Conversation, actor store.User, target store.User, now time.Time) (store.Message, error) {
+func createGroupMemberRemovedSystemMessage(db *gorm.DB, conversation *store.Conversation, actor store.User, target systemEventUserRef, now time.Time) (store.Message, error) {
 	body, summary, err := newGroupMemberRemovedSystemEventBody(actor, target)
 	if err != nil {
 		return store.Message{}, err
@@ -2456,16 +2663,10 @@ func createGroupNameUpdatedSystemMessage(db *gorm.DB, conversation *store.Conver
 	return message, nil
 }
 
-func newGroupMembersInvitedSystemEventBody(inviter store.User, invitees []store.User) (json.RawMessage, string, error) {
-	inviteeRefs := make([]systemEventUserRef, 0, len(invitees))
-	inviteeNames := make([]string, 0, len(invitees))
-	for _, invitee := range invitees {
-		displayName := userDisplayName(invitee)
-		inviteeRefs = append(inviteeRefs, systemEventUserRef{
-			DisplayName: displayName,
-			ID:          invitee.ID,
-		})
-		inviteeNames = append(inviteeNames, displayName)
+func newGroupMembersInvitedSystemEventBody(inviter store.User, inviteeRefs []systemEventUserRef) (json.RawMessage, string, error) {
+	inviteeNames := make([]string, 0, len(inviteeRefs))
+	for _, invitee := range inviteeRefs {
+		inviteeNames = append(inviteeNames, invitee.DisplayName)
 	}
 
 	inviterDisplayName := userDisplayName(inviter)
@@ -2484,6 +2685,51 @@ func newGroupMembersInvitedSystemEventBody(inviter store.User, invitees []store.
 	}
 
 	return body, summary, nil
+}
+
+func makeGroupMemberInviteeRefs(users []store.User, apps []store.App) []systemEventUserRef {
+	refs := make([]systemEventUserRef, 0, len(users)+len(apps))
+	for _, user := range users {
+		refs = append(refs, systemEventUserRef{
+			DisplayName: userDisplayName(user),
+			ID:          user.ID,
+		})
+	}
+	for _, app := range apps {
+		refs = append(refs, systemEventUserRef{
+			DisplayName: app.Name,
+			ID:          app.ID,
+			Type:        store.ConversationMemberTypeApp,
+		})
+	}
+
+	return refs
+}
+
+func loadGroupMemberSystemRef(db *gorm.DB, memberType string, memberID string) (systemEventUserRef, error) {
+	switch memberType {
+	case store.ConversationMemberTypeUser:
+		var user store.User
+		if err := db.First(&user, "id = ?", memberID).Error; err != nil {
+			return systemEventUserRef{}, err
+		}
+		return systemEventUserRef{
+			DisplayName: userDisplayName(user),
+			ID:          user.ID,
+		}, nil
+	case store.ConversationMemberTypeApp:
+		var app store.App
+		if err := db.Unscoped().First(&app, "id = ?", memberID).Error; err != nil {
+			return systemEventUserRef{}, err
+		}
+		return systemEventUserRef{
+			DisplayName: app.Name,
+			ID:          app.ID,
+			Type:        store.ConversationMemberTypeApp,
+		}, nil
+	default:
+		return systemEventUserRef{}, gorm.ErrRecordNotFound
+	}
 }
 
 func newGroupAvatarUpdatedSystemEventBody(actor store.User) (json.RawMessage, string, error) {
@@ -2562,21 +2808,17 @@ func newGroupMemberLeftSystemEventBody(actor store.User) (json.RawMessage, strin
 	return body, summary, nil
 }
 
-func newGroupMemberRemovedSystemEventBody(actor store.User, target store.User) (json.RawMessage, string, error) {
+func newGroupMemberRemovedSystemEventBody(actor store.User, target systemEventUserRef) (json.RawMessage, string, error) {
 	actorDisplayName := userDisplayName(actor)
-	targetDisplayName := userDisplayName(target)
-	summary := actorDisplayName + " 已将 " + targetDisplayName + " 移出群聊"
+	summary := actorDisplayName + " 已将 " + target.DisplayName + " 移出群聊"
 	body, err := json.Marshal(groupMemberRemovedSystemEventBody{
 		Actor: systemEventUserRef{
 			DisplayName: actorDisplayName,
 			ID:          actor.ID,
 		},
-		Event: systemEventGroupMemberRemoved,
-		Target: systemEventUserRef{
-			DisplayName: targetDisplayName,
-			ID:          target.ID,
-		},
-		Type: messageTypeSystemEvent,
+		Event:  systemEventGroupMemberRemoved,
+		Target: target,
+		Type:   messageTypeSystemEvent,
 	})
 	if err != nil {
 		return nil, "", err
@@ -2676,6 +2918,31 @@ func normalizeGroupMemberIDs(rawIDs []string, creatorID string) ([]string, error
 	return memberIDs, nil
 }
 
+func normalizeGroupAppIDs(rawIDs []string) ([]string, error) {
+	seen := map[string]struct{}{}
+	appIDs := make([]string, 0, len(rawIDs))
+
+	for _, rawID := range rawIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			return nil, errors.New("应用 ID 不能为空")
+		}
+		parsedID, err := uuid.Parse(id)
+		if err != nil {
+			return nil, errors.New("应用 ID 格式错误")
+		}
+		id = parsedID.String()
+		if _, ok := seen[id]; ok {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		appIDs = append(appIDs, id)
+	}
+
+	return appIDs, nil
+}
+
 func (s *Server) loadActiveGroupMembers(memberIDs []string) ([]store.User, error) {
 	return loadActiveGroupMembers(s.db, memberIDs)
 }
@@ -2704,6 +2971,44 @@ func loadActiveGroupMembers(db *gorm.DB, memberIDs []string) ([]store.User, erro
 	}
 
 	return orderedUsers, nil
+}
+
+func loadVisibleGroupApps(db *gorm.DB, currentUserID string, appIDs []string) ([]store.App, error) {
+	if len(appIDs) == 0 {
+		return nil, nil
+	}
+
+	var apps []store.App
+	if err := db.
+		Where("id IN ? AND enabled = ?", appIDs, true).
+		Where(
+			"visibility = ? OR (visibility = ? AND creator_user_id = ?)",
+			store.AppVisibilityPublic,
+			store.AppVisibilityCreator,
+			currentUserID,
+		).
+		Find(&apps).Error; err != nil {
+		return nil, err
+	}
+	if len(apps) != len(appIDs) {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	appsByID := make(map[string]store.App, len(apps))
+	for _, app := range apps {
+		appsByID[app.ID] = app
+	}
+
+	orderedApps := make([]store.App, 0, len(appIDs))
+	for _, appID := range appIDs {
+		app, ok := appsByID[appID]
+		if !ok {
+			return nil, gorm.ErrRecordNotFound
+		}
+		orderedApps = append(orderedApps, app)
+	}
+
+	return orderedApps, nil
 }
 
 func (s *Server) loadConversationListMembers(conversationIDs []string) (map[string][]store.ConversationMember, map[string]store.User, map[string]store.App, error) {

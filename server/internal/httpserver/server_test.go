@@ -766,6 +766,16 @@ func readRealtimeEvent(t *testing.T, conn *websocket.Conn) realtime.Envelope {
 	return envelope
 }
 
+func requireNoRealtimeEvent(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+
+	_ = conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+	var envelope realtime.Envelope
+	if err := conn.ReadJSON(&envelope); err == nil {
+		t.Fatalf("unexpected realtime envelope: %#v", envelope)
+	}
+}
+
 func sendAppRequest(t *testing.T, conn *websocket.Conn, request realtime.Envelope) realtime.Envelope {
 	t.Helper()
 
@@ -1122,6 +1132,120 @@ func TestAppWebSocketReceivesTextMessageEvents(t *testing.T) {
 	if message["created_at"] == "" {
 		t.Fatalf("message.created_at = %#v, want non-empty", message["created_at"])
 	}
+}
+
+func TestAppWebSocketReceivesGroupMessageOnlyWhenMentionedDirectly(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:             "AI 女菩萨",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "assistant-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	otherApp := insertTestApp(t, db, store.App{
+		Name:             "Other App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "other-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID, bob.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+	appMembers := []store.ConversationMember{
+		{
+			ConversationID:        conversation.ID,
+			MemberType:            store.ConversationMemberTypeApp,
+			MemberID:              app.ID,
+			Role:                  store.ConversationMemberRoleMember,
+			JoinedAt:              now,
+			HistoryVisibleFromSeq: 1,
+		},
+		{
+			ConversationID:        conversation.ID,
+			MemberType:            store.ConversationMemberTypeApp,
+			MemberID:              otherApp.ID,
+			Role:                  store.ConversationMemberRoleMember,
+			JoinedAt:              now,
+			HistoryVisibleFromSeq: 1,
+		},
+	}
+	if err := db.Create(&appMembers).Error; err != nil {
+		t.Fatalf("create app members: %v", err)
+	}
+	userCookie := loginAsUser(t, server, alice.Email)
+
+	normalConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	normalResp, normalBody := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/messages", map[string]any{
+		"client_message_id": "client-message-normal",
+		"body": map[string]any{
+			"type":    "text",
+			"content": "普通群消息",
+		},
+	}, userCookie)
+	if normalResp.StatusCode != http.StatusCreated {
+		t.Fatalf("normal message status = %d, want 201, body = %#v", normalResp.StatusCode, normalBody)
+	}
+	requireNoRealtimeEvent(t, normalConn)
+
+	mentionedConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	otherConn := dialAppWebSocket(t, server, otherApp.ID, otherApp.ConnectionSecret)
+	mentionedContent := "请看一下 {(@app/" + app.ID + ")}"
+	mentionedResp, mentionedBody := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/messages", map[string]any{
+		"client_message_id": "client-message-mention",
+		"body": map[string]any{
+			"type":    "text",
+			"content": mentionedContent,
+		},
+	}, userCookie)
+	if mentionedResp.StatusCode != http.StatusCreated {
+		t.Fatalf("mentioned message status = %d, want 201, body = %#v", mentionedResp.StatusCode, mentionedBody)
+	}
+	event := readRealtimeEvent(t, mentionedConn)
+	if event.Kind != realtime.KindEvent || event.Event != realtime.EventMessageCreated {
+		t.Fatalf("app event = %#v, want message.created event", event)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal app event payload: %v", err)
+	}
+	eventConversation := payload["conversation"].(map[string]any)
+	if eventConversation["id"] != conversation.ID {
+		t.Fatalf("conversation.id = %v, want %s", eventConversation["id"], conversation.ID)
+	}
+	if eventConversation["type"] != store.ConversationKindGroup {
+		t.Fatalf("conversation.type = %v, want group", eventConversation["type"])
+	}
+	message := payload["message"].(map[string]any)
+	if message["summary"] != mentionedContent {
+		t.Fatalf("message.summary = %v, want %s", message["summary"], mentionedContent)
+	}
+	requireNoRealtimeEvent(t, otherConn)
+
+	allConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	allResp, allBody := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/messages", map[string]any{
+		"client_message_id": "client-message-all",
+		"body": map[string]any{
+			"type":    "text",
+			"content": "大家看一下 {(@user/all)}",
+		},
+	}, userCookie)
+	if allResp.StatusCode != http.StatusCreated {
+		t.Fatalf("all message status = %d, want 201, body = %#v", allResp.StatusCode, allBody)
+	}
+	requireNoRealtimeEvent(t, allConn)
 }
 
 func TestAppWebSocketConversationMessagesListReturnsAuthorizedSummaries(t *testing.T) {
@@ -7842,6 +7966,72 @@ func TestLeaveGroupConversationRejectsOwner(t *testing.T) {
 	}
 }
 
+func TestDissolveGroupConversationMarksConversationDissolved(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID, bob.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+
+	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/groups/"+conversation.ID, map[string]any{}, loginAsUser(t, server, alice.Email))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	if data["conversation_id"] != conversation.ID {
+		t.Fatalf("conversation_id = %v, want %s", data["conversation_id"], conversation.ID)
+	}
+
+	var storedConversation store.Conversation
+	if err := db.First(&storedConversation, "id = ?", conversation.ID).Error; err != nil {
+		t.Fatalf("find dissolved conversation: %v", err)
+	}
+	if storedConversation.Status != store.ConversationStatusDissolved {
+		t.Fatalf("status = %s, want %s", storedConversation.Status, store.ConversationStatusDissolved)
+	}
+	if storedConversation.DissolvedAt == nil {
+		t.Fatal("dissolved_at = nil, want set")
+	}
+}
+
+func TestDissolveGroupConversationRejectsMember(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID, bob.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+
+	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/groups/"+conversation.ID, map[string]any{}, loginAsUser(t, server, bob.Email))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "forbidden")
+
+	var storedConversation store.Conversation
+	if err := db.First(&storedConversation, "id = ?", conversation.ID).Error; err != nil {
+		t.Fatalf("find conversation: %v", err)
+	}
+	if storedConversation.Status != store.ConversationStatusActive {
+		t.Fatalf("status = %s, want %s", storedConversation.Status, store.ConversationStatusActive)
+	}
+}
+
 func TestRemoveGroupConversationMemberCreatesSystemMessage(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -8201,6 +8391,180 @@ func TestAddGroupConversationMembersCreatesMembersAndSystemMessage(t *testing.T)
 		t.Fatalf("stored summary = %v, want %s", storedMessage.Summary, summary)
 	}
 	requireGroupMembersInvitedBody(t, storedMessage.Body, alice.ID, "Alice", []string{carol.ID, dave.ID}, []string{"Carol", "Dave"})
+}
+
+func TestAddGroupConversationMembersCanAddApps(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:             "AI 女菩萨",
+		Avatar:           "/assets/apps/assistant.webp",
+		Description:      "AI 助手",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "assistant-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID:    alice.ID,
+		kind:               store.ConversationKindGroup,
+		lastMessageSeq:     2,
+		lastMessageSummary: "旧消息",
+		memberIDs:          []string{alice.ID, bob.ID},
+		name:               "产品讨论组",
+		now:                now.Add(-2 * time.Hour),
+	})
+	setTestConversationMemberLastReadSeq(t, db, conversation.ID, alice.ID, 2)
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/members", map[string]any{
+		"app_ids": []string{app.ID},
+	}, loginAsUser(t, server, alice.Email))
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	updatedConversation := data["conversation"].(map[string]any)
+	createdMessage := data["message"].(map[string]any)
+	summary := "Alice 邀请 AI 女菩萨 加入群聊"
+	if updatedConversation["member_count"] != float64(3) {
+		t.Fatalf("conversation.member_count = %v, want 3", updatedConversation["member_count"])
+	}
+	if updatedConversation["last_message_seq"] != float64(3) {
+		t.Fatalf("conversation.last_message_seq = %v, want 3", updatedConversation["last_message_seq"])
+	}
+	if updatedConversation["last_message_summary"] != summary {
+		t.Fatalf("conversation.last_message_summary = %v, want %s", updatedConversation["last_message_summary"], summary)
+	}
+	if createdMessage["seq"] != float64(3) {
+		t.Fatalf("message.seq = %v, want 3", createdMessage["seq"])
+	}
+
+	var appMember store.ConversationMember
+	if err := db.First(
+		&appMember,
+		"conversation_id = ? AND member_type = ? AND member_id = ?",
+		conversation.ID,
+		store.ConversationMemberTypeApp,
+		app.ID,
+	).Error; err != nil {
+		t.Fatalf("find app member: %v", err)
+	}
+	if appMember.LeftAt != nil {
+		t.Fatalf("app member left_at = %v, want nil", appMember.LeftAt)
+	}
+	if appMember.Role != store.ConversationMemberRoleMember {
+		t.Fatalf("app member role = %v, want member", appMember.Role)
+	}
+	if appMember.HistoryVisibleFromSeq != 3 {
+		t.Fatalf("app member history_visible_from_seq = %d, want 3", appMember.HistoryVisibleFromSeq)
+	}
+	if appMember.LastReadSeq != 2 {
+		t.Fatalf("app member last_read_seq = %d, want 2", appMember.LastReadSeq)
+	}
+
+	members := updatedConversation["members"].([]any)
+	var appResponse map[string]any
+	for _, rawMember := range members {
+		member := rawMember.(map[string]any)
+		if member["id"] == app.ID {
+			appResponse = member
+			break
+		}
+	}
+	if appResponse == nil {
+		t.Fatalf("conversation members missing app %s: %#v", app.ID, members)
+	}
+	if appResponse["type"] != store.ConversationMemberTypeApp {
+		t.Fatalf("app member type = %v, want app", appResponse["type"])
+	}
+	if appResponse["name"] != app.Name {
+		t.Fatalf("app member name = %v, want %s", appResponse["name"], app.Name)
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "id = ?", createdMessage["id"]).Error; err != nil {
+		t.Fatalf("find stored system message: %v", err)
+	}
+	if storedMessage.Summary != summary {
+		t.Fatalf("stored summary = %v, want %s", storedMessage.Summary, summary)
+	}
+}
+
+func TestRemoveGroupConversationMemberCanRemoveApp(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:             "AI 女菩萨",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "assistant-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID, bob.ID},
+		name:            "产品讨论组",
+		now:             now,
+	})
+	if err := db.Create(&store.ConversationMember{
+		ConversationID:        conversation.ID,
+		MemberType:            store.ConversationMemberTypeApp,
+		MemberID:              app.ID,
+		Role:                  store.ConversationMemberRoleMember,
+		JoinedAt:              now,
+		HistoryVisibleFromSeq: 1,
+	}).Error; err != nil {
+		t.Fatalf("create app member: %v", err)
+	}
+
+	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/groups/"+conversation.ID+"/members/app/"+app.ID, map[string]any{}, loginAsUser(t, server, alice.Email))
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	data := requireSuccess(t, body)
+	updatedConversation := data["conversation"].(map[string]any)
+	summary := "Alice 已将 AI 女菩萨 移出群聊"
+	if updatedConversation["member_count"] != float64(2) {
+		t.Fatalf("conversation.member_count = %v, want 2", updatedConversation["member_count"])
+	}
+	if updatedConversation["last_message_summary"] != summary {
+		t.Fatalf("conversation.last_message_summary = %v, want %s", updatedConversation["last_message_summary"], summary)
+	}
+
+	var appMember store.ConversationMember
+	if err := db.First(
+		&appMember,
+		"conversation_id = ? AND member_type = ? AND member_id = ?",
+		conversation.ID,
+		store.ConversationMemberTypeApp,
+		app.ID,
+	).Error; err != nil {
+		t.Fatalf("find app member: %v", err)
+	}
+	if appMember.LeftAt == nil {
+		t.Fatal("app member left_at = nil, want set")
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "conversation_id = ? AND seq = ?", conversation.ID, int64(1)).Error; err != nil {
+		t.Fatalf("find stored system message: %v", err)
+	}
+	if storedMessage.Summary != summary {
+		t.Fatalf("stored summary = %v, want %s", storedMessage.Summary, summary)
+	}
 }
 
 func TestAddGroupConversationMembersNoopsWhenMembersAlreadyExist(t *testing.T) {

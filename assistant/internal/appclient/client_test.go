@@ -249,6 +249,114 @@ func TestHandleServerMessageSendsLLMReply(t *testing.T) {
 	}
 }
 
+func TestHandleParsedServerMessageIgnoresGroupMessageWithoutDirectAppMention(t *testing.T) {
+	appID := "00000000-0000-0000-0000-000000000001"
+	calledRequester := false
+	calledAgent := false
+	requester := appRequestFunc(func(ctx context.Context, method string, payload any) (json.RawMessage, error) {
+		calledRequester = true
+		return nil, nil
+	})
+	replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
+		calledAgent = true
+		return nil
+	})
+
+	handleParsedServerMessage(
+		context.Background(),
+		testGroupMessageCreatedEnvelope(t, appID, "user-1", "message-1", 1, "普通群消息 {(@user/all)}"),
+		appID,
+		requester,
+		replyAgent,
+		directAgentRunner{},
+		func(envelope) error { return nil },
+	)
+
+	if calledRequester {
+		t.Fatal("requester called for group message without direct app mention")
+	}
+	if calledAgent {
+		t.Fatal("agent called for group message without direct app mention")
+	}
+}
+
+func TestHandleParsedServerMessageRunsGroupMessageWithDirectAppMention(t *testing.T) {
+	appID := "00000000-0000-0000-0000-000000000001"
+	var agentRequests []agent.Request
+	var sent []envelope
+	requester := appRequestFunc(func(ctx context.Context, method string, payload any) (json.RawMessage, error) {
+		if method != methodConversationMessagesList {
+			t.Fatalf("unexpected app request method %q", method)
+		}
+		return json.Marshal(appListConversationMessagesResponsePayload{
+			Messages: []historyMessagePayload{
+				historyTextMessage("message-1", 1, "user-1", "Alice", "请处理 {(@app/"+appID+")}"),
+			},
+		})
+	})
+	replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
+		agentRequests = append(agentRequests, request)
+		return sink.SendMarkdown(ctx, "收到")
+	})
+
+	handleParsedServerMessage(
+		context.Background(),
+		testGroupMessageCreatedEnvelope(t, appID, "user-1", "message-1", 1, "请处理 {(@app/"+appID+")}"),
+		appID,
+		requester,
+		replyAgent,
+		directAgentRunner{},
+		func(message envelope) error {
+			sent = append(sent, message)
+			return nil
+		},
+	)
+
+	if len(agentRequests) != 1 {
+		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
+	}
+	if agentRequests[0].Conversation.Type != "group" {
+		t.Fatalf("conversation type = %q, want group", agentRequests[0].Conversation.Type)
+	}
+	if len(sent) != 1 {
+		t.Fatalf("sent count = %d, want 1", len(sent))
+	}
+}
+
+func TestHandleParsedServerMessageRunsGroupMessageWithUppercaseDirectAppMention(t *testing.T) {
+	appID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1"
+	mentionedAppID := strings.ToUpper(appID)
+	var agentRequests []agent.Request
+	requester := appRequestFunc(func(ctx context.Context, method string, payload any) (json.RawMessage, error) {
+		if method != methodConversationMessagesList {
+			t.Fatalf("unexpected app request method %q", method)
+		}
+		return json.Marshal(appListConversationMessagesResponsePayload{
+			Messages: []historyMessagePayload{
+				historyTextMessage("message-1", 1, "user-1", "Alice", "请处理 {(@app/"+mentionedAppID+")}"),
+			},
+		})
+	})
+	replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
+		agentRequests = append(agentRequests, request)
+		return nil
+	})
+
+	handleParsedServerMessage(
+		context.Background(),
+		testGroupMessageCreatedEnvelope(t, appID, "user-1", "message-1", 1, "请处理 {(@app/"+mentionedAppID+")}"),
+		appID,
+		requester,
+		replyAgent,
+		directAgentRunner{},
+		func(envelope) error { return nil },
+	)
+
+	if len(agentRequests) != 1 {
+		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
+	}
+}
+
 func TestNewReturnsErrorWhenMCPServerCannotInitialize(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	defer server.Close()
@@ -364,6 +472,7 @@ func TestHandleServerMessageReadsTemporaryFileURLForImageAndFileMessages(t *test
 			handleParsedServerMessage(
 				context.Background(),
 				testMessageCreatedEnvelopeWithBody(t, "user-1", "message-"+tt.name, 1, tt.body),
+				"",
 				requester,
 				replyAgent,
 				directAgentRunner{},
@@ -484,6 +593,7 @@ func TestHandleServerMessagePrefetchesCurrentFileURLAndKeepsHistoryFileIDs(t *te
 			"type":    "image",
 			"file_id": "file-current-image",
 		}),
+		"",
 		requester,
 		replyAgent,
 		directAgentRunner{},
@@ -606,6 +716,7 @@ func TestHandleServerMessageDoesNotReadHistoryFileURLs(t *testing.T) {
 	handleParsedServerMessage(
 		context.Background(),
 		testMessageCreatedEnvelope(t, "user-1", "message-current", 3, "帮我看一下"),
+		"",
 		requester,
 		replyAgent,
 		directAgentRunner{},
@@ -691,7 +802,7 @@ func TestHandleServerMessageProvidesBuiltinToolScope(t *testing.T) {
 		return err
 	})
 
-	handleParsedServerMessage(context.Background(), testMessageCreatedEnvelope(t, "user-1", "message-1", 1, "帮我发给 Bob"), requester, replyAgent, directAgentRunner{}, func(message envelope) error {
+	handleParsedServerMessage(context.Background(), testMessageCreatedEnvelope(t, "user-1", "message-1", 1, "帮我发给 Bob"), "", requester, replyAgent, directAgentRunner{}, func(message envelope) error {
 		return nil
 	})
 
@@ -837,6 +948,7 @@ func TestConversationAgentRunnerAppendsSameConversationMessageToActiveSession(t 
 	handleParsedServerMessage(
 		context.Background(),
 		testMessageCreatedEnvelope(t, "user-1", "message-1", 1, "第一条"),
+		"",
 		requester,
 		assistantAgent,
 		runner,
@@ -847,6 +959,7 @@ func TestConversationAgentRunnerAppendsSameConversationMessageToActiveSession(t 
 	handleParsedServerMessage(
 		context.Background(),
 		testMessageCreatedEnvelope(t, "user-1", "message-3", 3, "第二条"),
+		"",
 		requester,
 		assistantAgent,
 		runner,
@@ -1041,6 +1154,43 @@ func testMessageCreatedEnvelope(t *testing.T, userID string, messageID string, s
 		t.Fatalf("marshal body: %v", err)
 	}
 	return testMessageCreatedEnvelopeWithRawBody(t, userID, messageID, seq, content, body)
+}
+
+func testGroupMessageCreatedEnvelope(t *testing.T, appID string, userID string, messageID string, seq int64, content string) envelope {
+	t.Helper()
+
+	body, err := json.Marshal(messageBody{Type: "text", Content: content})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	payload, err := json.Marshal(messageCreatedPayload{
+		Conversation: conversationPayload{
+			ID:   "conversation-group-1",
+			Name: "产品讨论组",
+			Type: "group",
+		},
+		Message: messagePayload{
+			Body:    body,
+			ID:      messageID,
+			Seq:     seq,
+			Summary: content,
+		},
+		Sender: senderPayload{
+			ID:   userID,
+			Name: "Alice",
+			Type: "user",
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	return envelope{
+		V:       protocolVersion,
+		Kind:    kindEvent,
+		ID:      "event-" + appID + "-" + messageID,
+		Event:   eventMessageCreated,
+		Payload: payload,
+	}
 }
 
 func testMessageCreatedEnvelopeWithBody(t *testing.T, userID string, messageID string, seq int64, body map[string]any) envelope {

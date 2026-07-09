@@ -34,6 +34,69 @@ describe("ConversationPanel", () => {
 
     await waitFor(() => expect(composer).toHaveFocus())
   })
+
+  it("refocuses the composer textarea when a reply target is selected", async () => {
+    const { rerender } = render(
+      <ConversationPanel
+        conversation={createConversation("conversation-1")}
+        currentUserId="user-1"
+        draft=""
+        historyError={null}
+        historyLoading={false}
+        historyLoadingBefore={false}
+        messages={[]}
+        onCancelReply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onLoadBeforeMessages={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onRevokeMessage={vi.fn()}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendMessage={vi.fn()}
+        replyTarget={null}
+        richTextMode={false}
+        sending={false}
+      />
+    )
+
+    const composer = screen.getByPlaceholderText("输入消息")
+    const sendButton = screen.getByRole("button", { name: "发送消息" })
+
+    await waitFor(() => expect(composer).toHaveFocus())
+    sendButton.focus()
+    expect(sendButton).toHaveFocus()
+
+    rerender(
+      <ConversationPanel
+        conversation={createConversation("conversation-1")}
+        currentUserId="user-1"
+        draft=""
+        historyError={null}
+        historyLoading={false}
+        historyLoadingBefore={false}
+        messages={[]}
+        onCancelReply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onLoadBeforeMessages={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onRevokeMessage={vi.fn()}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendMessage={vi.fn()}
+        replyTarget={{
+          author: "李四",
+          id: "message-1",
+          summary: "收到",
+        }}
+        richTextMode={false}
+        sending={false}
+      />
+    )
+
+    await waitFor(() => expect(composer).toHaveFocus())
+  })
 })
 
 function createConversation(id: string): ClientConversation {

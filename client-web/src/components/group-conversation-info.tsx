@@ -8,6 +8,7 @@ import {
   LogOut,
   MinusSquare,
   Pencil,
+  Trash2,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -56,6 +57,7 @@ export function GroupConversationInfo({
   conversationId,
 }: GroupConversationInfoProps) {
   const {
+    dissolveGroupConversation,
     getConversation,
     leaveGroupConversation,
     me,
@@ -68,6 +70,9 @@ export function GroupConversationInfo({
   const conversation = getConversation(conversationId)
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
+  const [dissolveConfirmOpen, setDissolveConfirmOpen] = useState(false)
+  const [dissolveSaving, setDissolveSaving] = useState(false)
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [leaveSaving, setLeaveSaving] = useState(false)
   const [memberRemovalSaving, setMemberRemovalSaving] = useState(false)
   const [memberRemovalTarget, setMemberRemovalTarget] =
@@ -106,6 +111,7 @@ export function GroupConversationInfo({
   const canManageMembers = canManageGroupMembers(currentMember?.role)
   const canChangeName = canManageGroupName(currentMember?.role)
   const canLeaveGroup = Boolean(currentMember && currentMember.role !== "owner")
+  const canDissolveGroup = currentMember?.role === "owner"
   const canChangeVisibility = currentMember?.role === "owner"
   const isPublicGroup = activeConversation.visibility === "public"
   const conversationName = activeConversation.name
@@ -166,6 +172,7 @@ export function GroupConversationInfo({
     setLeaveSaving(true)
     try {
       await leaveGroupConversation(activeConversation.id)
+      setLeaveConfirmOpen(false)
       toast.success("已退出群聊")
     } catch (error) {
       toast.error(getErrorMessage(error, "退出群聊失败"))
@@ -174,12 +181,30 @@ export function GroupConversationInfo({
     }
   }
 
+  async function handleDissolveGroup() {
+    if (!canDissolveGroup || dissolveSaving) {
+      return
+    }
+
+    setDissolveSaving(true)
+    try {
+      await dissolveGroupConversation(activeConversation.id)
+      setDissolveConfirmOpen(false)
+      toast.success("已解散群聊")
+    } catch (error) {
+      toast.error(getErrorMessage(error, "解散群聊失败"))
+    } finally {
+      setDissolveSaving(false)
+    }
+  }
+
   async function handleRemoveMember() {
     if (
       !canManageMembers ||
       !memberRemovalTarget ||
       memberRemovalSaving ||
-      memberRemovalTarget.id === me.id ||
+      (memberRemovalTarget.type === "user" &&
+        memberRemovalTarget.id === me.id) ||
       memberRemovalTarget.role === "owner"
     ) {
       return
@@ -188,7 +213,11 @@ export function GroupConversationInfo({
     const target = memberRemovalTarget
     setMemberRemovalSaving(true)
     try {
-      await removeGroupConversationMember(activeConversation.id, target.id)
+      await removeGroupConversationMember(
+        activeConversation.id,
+        target.id,
+        target.type
+      )
       setMemberRemovalTarget(null)
       toast.success("已移出群聊成员")
     } catch (error) {
@@ -251,10 +280,10 @@ export function GroupConversationInfo({
                 <GroupMemberItem
                   canRemove={
                     canManageMembers &&
-                    member.id !== me.id &&
+                    (member.type !== "user" || member.id !== me.id) &&
                     member.role !== "owner"
                   }
-                  key={member.id}
+                  key={`${member.type}:${member.id}`}
                   member={member}
                   onRemove={() => setMemberRemovalTarget(member)}
                 />
@@ -322,16 +351,101 @@ export function GroupConversationInfo({
             {isPublicGroup ? "取消公开群" : "设置为公开群"}
           </Button>
         )}
-        <Button
-          disabled={leaveSaving || !canLeaveGroup}
-          onClick={() => void handleLeaveGroup()}
-          type="button"
-          variant="destructive"
-        >
-          <LogOut aria-hidden="true" className="size-4" />
-          退出群聊
-        </Button>
+        {canLeaveGroup && (
+          <Button
+            disabled={leaveSaving}
+            onClick={() => setLeaveConfirmOpen(true)}
+            type="button"
+            variant="destructive"
+          >
+            <LogOut aria-hidden="true" className="size-4" />
+            退出群聊
+          </Button>
+        )}
+        {canDissolveGroup && (
+          <Button
+            disabled={dissolveSaving}
+            onClick={() => setDissolveConfirmOpen(true)}
+            type="button"
+            variant="destructive"
+          >
+            <Trash2 aria-hidden="true" className="size-4" />
+            解散群聊
+          </Button>
+        )}
       </SheetFooter>
+      <AlertDialog
+        open={leaveConfirmOpen}
+        onOpenChange={(open) => {
+          if (!leaveSaving) {
+            setLeaveConfirmOpen(open)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认退出群聊</AlertDialogTitle>
+            <AlertDialogDescription>
+              退出后将无法继续查看和发送该群聊消息。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={leaveSaving}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={leaveSaving || !canLeaveGroup}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleLeaveGroup()
+              }}
+              variant="destructive"
+            >
+              {leaveSaving && (
+                <span className="mr-1 inline-flex">
+                  <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                </span>
+              )}
+              退出群聊
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={dissolveConfirmOpen}
+        onOpenChange={(open) => {
+          if (!dissolveSaving) {
+            setDissolveConfirmOpen(open)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认解散群聊</AlertDialogTitle>
+            <AlertDialogDescription>
+              解散后所有成员都无法继续查看和发送该群聊消息。此操作不可恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={dissolveSaving}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={dissolveSaving || !canDissolveGroup}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDissolveGroup()
+              }}
+              variant="destructive"
+            >
+              {dissolveSaving && (
+                <span className="mr-1 inline-flex">
+                  <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                </span>
+              )}
+              解散群聊
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={visibilityTarget !== null}
         onOpenChange={(open) => {
@@ -386,7 +500,11 @@ export function GroupConversationInfo({
           <AlertDialogHeader>
             <AlertDialogTitle>移出群聊</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要将 {memberRemovalTarget ? getMemberDisplayName(memberRemovalTarget) : "该成员"} 移出群聊吗？
+              确定要将{" "}
+              {memberRemovalTarget
+                ? getMemberDisplayName(memberRemovalTarget)
+                : "该成员"}{" "}
+              移出群聊吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -589,16 +707,23 @@ function GroupMemberItem({
   onRemove: () => void
 }) {
   const displayName = getMemberDisplayName(member)
+  const content = <GroupMemberItemContent member={member} />
 
   return (
     <div className="group/member flex min-w-0 items-center gap-1 rounded-md hover:bg-muted">
-      <UserProfilePopover
-        fallbackProfile={member}
-        triggerClassName="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5 text-sm"
-        userId={member.id}
-      >
-        <GroupMemberItemContent member={member} />
-      </UserProfilePopover>
+      {member.type === "user" ? (
+        <UserProfilePopover
+          fallbackProfile={member}
+          triggerClassName="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5 text-sm"
+          userId={member.id}
+        >
+          {content}
+        </UserProfilePopover>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5 text-sm">
+          {content}
+        </div>
+      )}
       {canRemove && (
         <Button
           aria-label={`移出 ${displayName}`}
@@ -644,7 +769,7 @@ function GroupMemberItemContent({
       <div className="min-w-0 flex-1">
         <div className="truncate">{displayName}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {getMemberRoleLabel(member.role)}
+          {getMemberRoleLabel(member)}
         </div>
       </div>
     </>
@@ -657,11 +782,14 @@ function getMemberDisplayName(
   return member.nickname.trim() || member.name.trim()
 }
 
-function getMemberRoleLabel(role: ClientConversationMember["role"]) {
-  if (role === "owner") {
+function getMemberRoleLabel(member: ClientConversationMember) {
+  if (member.type === "app") {
+    return "应用"
+  }
+  if (member.role === "owner") {
     return "群主"
   }
-  if (role === "admin") {
+  if (member.role === "admin") {
     return "管理员"
   }
 

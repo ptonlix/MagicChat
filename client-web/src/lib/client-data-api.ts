@@ -140,6 +140,10 @@ type LeaveGroupConversationResponse = {
   message?: MessageResponse
 }
 
+type DissolveGroupConversationResponse = {
+  conversation_id?: string
+}
+
 type UploadGroupConversationAvatarResponse = {
   conversation?: ConversationResponse
   message?: MessageResponse
@@ -639,7 +643,8 @@ export type CreateGroupConversationInput = {
 }
 
 export type AddGroupConversationMembersInput = {
-  memberIds: string[]
+  appIds?: string[]
+  memberIds?: string[]
 }
 
 export type UpdateGroupConversationNameInput = {
@@ -664,6 +669,10 @@ export type UploadGroupConversationAvatarResult = {
 export type LeaveGroupConversationResult = {
   conversationId: string
   message: ClientMessage
+}
+
+export type DissolveGroupConversationResult = {
+  conversationId: string
 }
 
 export class ClientDataRequestError extends Error {
@@ -1022,18 +1031,59 @@ export async function leaveGroupConversation(
   }
 }
 
-export async function removeGroupConversationMember(
+export async function dissolveGroupConversation(
   conversationId: string,
-  memberId: string,
   fetcher: ClientDataFetch = fetch
-): Promise<GroupConversationActionResult> {
+): Promise<DissolveGroupConversationResult> {
   const response = await fetcher(
-    `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(memberId)}`,
+    `/api/client/conversations/groups/${encodeURIComponent(conversationId)}`,
     {
       credentials: "include",
       method: "DELETE",
     }
   )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<DissolveGroupConversationResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "解散群聊失败")
+  }
+
+  const data = (
+    payload as
+      ClientDataSuccessEnvelope<DissolveGroupConversationResponse> | undefined
+  )?.data
+
+  if (!data?.conversation_id) {
+    throw new ClientDataRequestError("解散群聊响应格式不正确")
+  }
+
+  return {
+    conversationId: data.conversation_id,
+  }
+}
+
+export async function removeGroupConversationMember(
+  conversationId: string,
+  memberId: string,
+  memberTypeOrFetcher: "user" | "app" | ClientDataFetch = "user",
+  fetcher: ClientDataFetch = fetch
+): Promise<GroupConversationActionResult> {
+  const memberType =
+    typeof memberTypeOrFetcher === "function" ? "user" : memberTypeOrFetcher
+  const activeFetcher =
+    typeof memberTypeOrFetcher === "function" ? memberTypeOrFetcher : fetcher
+  const url =
+    memberType === "user"
+      ? `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(memberId)}`
+      : `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(memberType)}/${encodeURIComponent(memberId)}`
+
+  const response = await activeFetcher(url, {
+    credentials: "include",
+    method: "DELETE",
+  })
   const payload = await readJson<
     | ClientDataErrorEnvelope
     | ClientDataSuccessEnvelope<GroupConversationActionResponse>
@@ -1100,7 +1150,8 @@ export async function addGroupConversationMembers(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/members`,
     {
       body: JSON.stringify({
-        member_ids: input.memberIds,
+        app_ids: input.appIds ?? [],
+        member_ids: input.memberIds ?? [],
       }),
       credentials: "include",
       headers: {

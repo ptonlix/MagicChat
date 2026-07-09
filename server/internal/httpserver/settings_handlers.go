@@ -179,16 +179,16 @@ func (s *Server) isClientInfoRequestAuthenticated(c echo.Context) (bool, error) 
 	}
 
 	var session store.UserSession
-	err = s.db.Preload("User").Where(
+	result := s.db.Preload("User").Where(
 		"token_hash = ? AND expires_at > ?",
 		auth.HashSessionToken(cookie.Value),
 		time.Now().UTC(),
-	).First(&session).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
+	).Order("id ASC").Limit(1).Find(&session)
+	if result.Error != nil {
+		return false, result.Error
 	}
-	if err != nil {
-		return false, err
+	if result.RowsAffected == 0 {
+		return false, nil
 	}
 
 	return session.User.Status == store.UserStatusActive, nil

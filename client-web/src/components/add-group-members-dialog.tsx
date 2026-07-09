@@ -8,6 +8,7 @@ import type {
   ClientConversation,
   ClientConversationMember,
   ClientUser,
+  ContactApp,
   ContactUser,
 } from "@/lib/client-data-api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -33,42 +34,61 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type AddGroupMembersDialogProps = {
   conversation: ClientConversation
 }
 
-type AddGroupMemberCandidate = Pick<
+type AddGroupUserCandidate = Pick<
   ContactUser,
-  "avatar" | "email" | "id" | "name" | "nickname" | "phone"
+  "avatar" | "email" | "id" | "name" | "nickname" | "phone" | "type"
 >
+
+type AddGroupAppCandidate = Pick<
+  ContactApp,
+  "avatar" | "description" | "id" | "name" | "type"
+>
+
+type AddGroupMemberCandidate = AddGroupUserCandidate | AddGroupAppCandidate
 
 export function AddGroupMembersDialog({
   conversation,
 }: AddGroupMembersDialogProps) {
-  const { addGroupConversationMembers, contacts, me } = useClientData()
+  const { addGroupConversationMembers, contactApps, contacts, me } =
+    useClientData()
   const [keyword, setKeyword] = React.useState("")
   const [open, setOpen] = React.useState(false)
+  const [tab, setTab] = React.useState<"users" | "apps">("users")
   const [submitting, setSubmitting] = React.useState(false)
-  const existingMemberIds = React.useMemo(
-    () => new Set((conversation.members ?? []).map((member) => member.id)),
+  const existingMemberKeys = React.useMemo(
+    () =>
+      new Set(
+        (conversation.members ?? []).map((member) =>
+          memberCandidateKey(member.type, member.id)
+        )
+      ),
     [conversation.members]
   )
-  const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(
-    () => new Set(existingMemberIds)
-  )
-  const candidates = React.useMemo(
-    () => createMemberCandidates(conversation.members ?? [], me, contacts),
+  const [selectedMemberKeys, setSelectedMemberKeys] = React.useState<
+    Set<string>
+  >(() => new Set(existingMemberKeys))
+  const userCandidates = React.useMemo(
+    () => createUserCandidates(conversation.members ?? [], me, contacts),
     [contacts, conversation.members, me]
   )
-  const filteredCandidates = React.useMemo(() => {
+  const appCandidates = React.useMemo(
+    () => createAppCandidates(conversation.members ?? [], contactApps),
+    [contactApps, conversation.members]
+  )
+  const filteredUserCandidates = React.useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase()
 
     if (!normalizedKeyword) {
-      return candidates
+      return userCandidates
     }
 
-    return candidates.filter((candidate) =>
+    return userCandidates.filter((candidate) =>
       [
         candidate.email,
         candidate.name,
@@ -76,15 +96,41 @@ export function AddGroupMembersDialog({
         candidate.phone,
       ].some((value) => value.toLowerCase().includes(normalizedKeyword))
     )
-  }, [candidates, keyword])
+  }, [keyword, userCandidates])
+  const filteredAppCandidates = React.useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase()
+
+    if (!normalizedKeyword) {
+      return appCandidates
+    }
+
+    return appCandidates.filter((candidate) =>
+      [candidate.name, candidate.description].some((value) =>
+        value.toLowerCase().includes(normalizedKeyword)
+      )
+    )
+  }, [appCandidates, keyword])
   const newMemberIds = React.useMemo(
     () =>
-      Array.from(selectedMemberIds).filter(
-        (memberId) => !existingMemberIds.has(memberId)
-      ),
-    [existingMemberIds, selectedMemberIds]
+      userCandidates
+        .map((candidate) => candidate.id)
+        .filter((memberId) => {
+          const key = memberCandidateKey("user", memberId)
+          return selectedMemberKeys.has(key) && !existingMemberKeys.has(key)
+        }),
+    [existingMemberKeys, selectedMemberKeys, userCandidates]
   )
-  const newMemberCount = newMemberIds.length
+  const newAppIds = React.useMemo(
+    () =>
+      appCandidates
+        .map((candidate) => candidate.id)
+        .filter((appId) => {
+          const key = memberCandidateKey("app", appId)
+          return selectedMemberKeys.has(key) && !existingMemberKeys.has(key)
+        }),
+    [appCandidates, existingMemberKeys, selectedMemberKeys]
+  )
+  const newMemberCount = newMemberIds.length + newAppIds.length
 
   function handleOpenChange(nextOpen: boolean) {
     if (submitting) {
@@ -93,20 +139,25 @@ export function AddGroupMembersDialog({
 
     if (nextOpen) {
       setKeyword("")
-      setSelectedMemberIds(new Set(existingMemberIds))
+      setTab("users")
+      setSelectedMemberKeys(new Set(existingMemberKeys))
     }
 
     setOpen(nextOpen)
   }
 
-  function toggleMember(candidateId: string, checked: boolean | string) {
-    if (existingMemberIds.has(candidateId) || submitting) {
+  function toggleMember(
+    candidate: AddGroupMemberCandidate,
+    checked: boolean | string
+  ) {
+    const key = memberCandidateKey(candidate.type, candidate.id)
+    if (existingMemberKeys.has(key) || submitting) {
       return
     }
 
-    setSelectedMemberIds((currentIds) => {
+    setSelectedMemberKeys((currentIds) => {
       const nextChecked = Boolean(checked)
-      const currentChecked = currentIds.has(candidateId)
+      const currentChecked = currentIds.has(key)
 
       if (currentChecked === nextChecked) {
         return currentIds
@@ -115,9 +166,9 @@ export function AddGroupMembersDialog({
       const nextIds = new Set(currentIds)
 
       if (nextChecked) {
-        nextIds.add(candidateId)
+        nextIds.add(key)
       } else {
-        nextIds.delete(candidateId)
+        nextIds.delete(key)
       }
 
       return nextIds
@@ -133,7 +184,11 @@ export function AddGroupMembersDialog({
 
     setSubmitting(true)
     try {
-      await addGroupConversationMembers(conversation.id, newMemberIds)
+      await addGroupConversationMembers(
+        conversation.id,
+        newMemberIds,
+        newAppIds
+      )
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "添加成员失败")
@@ -163,49 +218,58 @@ export function AddGroupMembersDialog({
           </DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={handleSubmit}>
-          <div className="grid gap-2">
-            <Label htmlFor="add-group-member-search">选择成员</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                disabled={submitting}
-                id="add-group-member-search"
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索联系人"
-                type="search"
-                value={keyword}
-              />
+          <Tabs
+            onValueChange={(value) =>
+              setTab(value === "apps" ? "apps" : "users")
+            }
+            value={tab}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger disabled={submitting} value="users">
+                成员
+              </TabsTrigger>
+              <TabsTrigger disabled={submitting} value="apps">
+                应用
+              </TabsTrigger>
+            </TabsList>
+            <div className="grid gap-2">
+              <Label htmlFor="add-group-member-search">
+                {tab === "apps" ? "选择应用" : "选择成员"}
+              </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  disabled={submitting}
+                  id="add-group-member-search"
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder={tab === "apps" ? "搜索应用" : "搜索联系人"}
+                  type="search"
+                  value={keyword}
+                />
+              </div>
             </div>
-          </div>
-          <div className="h-64 overflow-y-auto rounded-md border">
-            <ItemGroup
-              aria-label="添加群聊成员"
-              className="gap-1 p-2 has-data-[size=sm]:gap-1"
-              role="group"
-            >
-              {filteredCandidates.map((candidate) => {
-                const existing = existingMemberIds.has(candidate.id)
-
-                return (
-                  <AddGroupMemberItem
-                    candidate={candidate}
-                    checked={selectedMemberIds.has(candidate.id)}
-                    disabled={existing || submitting}
-                    key={candidate.id}
-                    onCheckedChange={(checked) =>
-                      toggleMember(candidate.id, checked)
-                    }
-                  />
-                )
-              })}
-              {filteredCandidates.length === 0 && (
-                <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                  没有匹配的联系人
-                </div>
-              )}
-            </ItemGroup>
-          </div>
+            <TabsContent value="users">
+              <CandidateList
+                candidates={filteredUserCandidates}
+                emptyText="没有匹配的联系人"
+                existingMemberKeys={existingMemberKeys}
+                onToggle={toggleMember}
+                selectedMemberKeys={selectedMemberKeys}
+                submitting={submitting}
+              />
+            </TabsContent>
+            <TabsContent value="apps">
+              <CandidateList
+                candidates={filteredAppCandidates}
+                emptyText="没有匹配的应用"
+                existingMemberKeys={existingMemberKeys}
+                onToggle={toggleMember}
+                selectedMemberKeys={selectedMemberKeys}
+                submitting={submitting}
+              />
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <DialogClose asChild>
               <Button disabled={submitting} type="button" variant="outline">
@@ -222,6 +286,55 @@ export function AddGroupMembersDialog({
   )
 }
 
+function CandidateList({
+  candidates,
+  emptyText,
+  existingMemberKeys,
+  onToggle,
+  selectedMemberKeys,
+  submitting,
+}: {
+  candidates: AddGroupMemberCandidate[]
+  emptyText: string
+  existingMemberKeys: Set<string>
+  onToggle: (
+    candidate: AddGroupMemberCandidate,
+    checked: boolean | string
+  ) => void
+  selectedMemberKeys: Set<string>
+  submitting: boolean
+}) {
+  return (
+    <div className="h-64 overflow-y-auto rounded-md border">
+      <ItemGroup
+        aria-label="添加群聊成员"
+        className="gap-1 p-2 has-data-[size=sm]:gap-1"
+        role="group"
+      >
+        {candidates.map((candidate) => {
+          const key = memberCandidateKey(candidate.type, candidate.id)
+          const existing = existingMemberKeys.has(key)
+
+          return (
+            <AddGroupMemberItem
+              candidate={candidate}
+              checked={selectedMemberKeys.has(key)}
+              disabled={existing || submitting}
+              key={key}
+              onCheckedChange={(checked) => onToggle(candidate, checked)}
+            />
+          )
+        })}
+        {candidates.length === 0 && (
+          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+            {emptyText}
+          </div>
+        )}
+      </ItemGroup>
+    </div>
+  )
+}
+
 function AddGroupMemberItem({
   candidate,
   checked,
@@ -233,7 +346,7 @@ function AddGroupMemberItem({
   disabled: boolean
   onCheckedChange: (checked: boolean | string) => void
 }) {
-  const checkboxId = `add-group-member-${candidate.id}`
+  const checkboxId = `add-group-member-${candidate.type}-${candidate.id}`
   const displayName = getMemberDisplayName(candidate)
 
   return (
@@ -281,18 +394,29 @@ function AddGroupMemberItem({
   )
 }
 
-function createMemberCandidates(
+function createUserCandidates(
   members: ClientConversationMember[],
   currentUser: ClientUser,
   contacts: ContactUser[]
 ) {
-  const candidatesById = new Map<string, AddGroupMemberCandidate>()
+  const candidatesById = new Map<string, AddGroupUserCandidate>()
 
   for (const member of members) {
-    candidatesById.set(member.id, member)
+    if (member.type !== "user") {
+      continue
+    }
+    candidatesById.set(member.id, {
+      avatar: member.avatar,
+      email: member.email,
+      id: member.id,
+      name: member.name,
+      nickname: member.nickname,
+      phone: member.phone,
+      type: "user",
+    })
   }
 
-  candidatesById.set(currentUser.id, currentUser)
+  candidatesById.set(currentUser.id, { ...currentUser, type: "user" })
 
   for (const contact of contacts) {
     candidatesById.set(contact.id, contact)
@@ -301,10 +425,40 @@ function createMemberCandidates(
   return Array.from(candidatesById.values())
 }
 
-function getMemberDisplayName(
-  member: Pick<AddGroupMemberCandidate, "name" | "nickname">
+function createAppCandidates(
+  members: ClientConversationMember[],
+  apps: ContactApp[]
 ) {
-  return member.nickname.trim() || member.name.trim()
+  const candidatesById = new Map<string, AddGroupAppCandidate>()
+
+  for (const member of members) {
+    if (member.type !== "app") {
+      continue
+    }
+    candidatesById.set(member.id, {
+      avatar: member.avatar,
+      description: "",
+      id: member.id,
+      name: member.name,
+      type: "app",
+    })
+  }
+
+  for (const app of apps) {
+    candidatesById.set(app.id, app)
+  }
+
+  return Array.from(candidatesById.values())
+}
+
+function getMemberDisplayName(
+  member: Pick<AddGroupMemberCandidate, "name"> & { nickname?: string }
+) {
+  return member.nickname?.trim() || member.name.trim()
+}
+
+function memberCandidateKey(type: "user" | "app", id: string) {
+  return `${type}:${id}`
 }
 
 function getInitial(name: string) {

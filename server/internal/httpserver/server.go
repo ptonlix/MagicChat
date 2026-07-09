@@ -79,6 +79,8 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	client.POST("/conversations/groups/:conversation_id/private", server.setGroupConversationPrivate)
 	client.POST("/conversations/groups/:conversation_id/join", server.joinPublicGroupConversation)
 	client.POST("/conversations/groups/:conversation_id/leave", server.leaveGroupConversation)
+	client.DELETE("/conversations/groups/:conversation_id", server.dissolveGroupConversation)
+	client.DELETE("/conversations/groups/:conversation_id/members/:member_type/:member_id", server.removeTypedGroupConversationMember)
 	client.DELETE("/conversations/groups/:conversation_id/members/:member_id", server.removeGroupConversationMember)
 	client.POST("/conversations/:conversation_id/avatar", server.uploadGroupConversationAvatar)
 	client.POST("/conversations/:conversation_id/members", server.addGroupConversationMembers)

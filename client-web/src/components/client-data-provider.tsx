@@ -7,6 +7,7 @@ import {
   ClientDataRequestError,
   createDirectConversation,
   createGroupConversation as createGroupConversationRequest,
+  dissolveGroupConversation as dissolveGroupConversationRequest,
   formatClientMessageBodySummary,
   getCurrentClientUser,
   isClientMessageInitiatedByUser,
@@ -833,11 +834,16 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   )
 
   const addGroupConversationMembers = useCallback(
-    async (conversationId: string, memberIds: string[]) => {
+    async (
+      conversationId: string,
+      memberIds: string[],
+      appIds: string[] = []
+    ) => {
       try {
         const result = await addGroupConversationMembersRequest(
           conversationId,
           {
+            appIds,
             memberIds,
           }
         )
@@ -931,10 +937,33 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, navigate, refreshContacts, removeConversation]
   )
 
+  const dissolveGroupConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        await dissolveGroupConversationRequest(conversationId)
+        removeConversation(conversationId)
+        navigate("/chat", { replace: true })
+        void refreshContacts().catch(() => undefined)
+      } catch (error) {
+        throw handleError(error, "解散群聊失败")
+      }
+    },
+    [handleError, navigate, refreshContacts, removeConversation]
+  )
+
   const removeGroupConversationMember = useCallback(
-    async (conversationId: string, memberId: string) =>
+    async (
+      conversationId: string,
+      memberId: string,
+      memberType: "user" | "app" = "user"
+    ) =>
       applyGroupConversationAction(
-        () => removeGroupConversationMemberRequest(conversationId, memberId),
+        () =>
+          removeGroupConversationMemberRequest(
+            conversationId,
+            memberId,
+            memberType
+          ),
         "移出群聊成员失败"
       ),
     [applyGroupConversationAction]
@@ -1097,6 +1126,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     contactsLoading,
     contactsRefreshing,
     createGroupConversation,
+    dissolveGroupConversation,
     ensureConversationMessages,
     getConversation,
     getConversationMessageState,

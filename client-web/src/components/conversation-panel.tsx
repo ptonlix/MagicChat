@@ -552,6 +552,20 @@ function ConversationPanelComposer({
   }, [])
 
   React.useEffect(() => {
+    if (!replyTarget) {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [replyTarget])
+
+  React.useEffect(() => {
     const wasSending = previousSendingRef.current
     previousSendingRef.current = sending
 

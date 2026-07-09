@@ -1,0 +1,246 @@
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
+import { describe, expect, it, vi } from "vitest"
+
+import { GroupConversationInfo } from "@/components/group-conversation-info"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
+import {
+  ClientDataContext,
+  type ClientDataContextValue,
+} from "@/lib/client-data-context"
+
+describe("GroupConversationInfo", () => {
+  it("confirms before leaving a group conversation", async () => {
+    const user = userEvent.setup()
+    const conversation = createGroupConversation()
+    const leaveGroupConversation = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <MemoryRouter>
+        <ClientDataContext.Provider
+          value={createClientDataContextValue({
+            conversations: [conversation],
+            getConversation: vi.fn((conversationId: string) =>
+              conversationId === conversation.id ? conversation : null
+            ),
+            leaveGroupConversation,
+          })}
+        >
+          <Sheet open>
+            <SheetContent showCloseButton={false}>
+              <GroupConversationInfo conversationId={conversation.id} />
+            </SheetContent>
+          </Sheet>
+        </ClientDataContext.Provider>
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole("button", { name: "退出群聊" }))
+
+    expect(leaveGroupConversation).not.toHaveBeenCalled()
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "确认退出群聊",
+    })
+    expect(
+      within(dialog).getByText("退出后将无法继续查看和发送该群聊消息。")
+    ).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole("button", { name: "退出群聊" }))
+
+    await waitFor(() => {
+      expect(leaveGroupConversation).toHaveBeenCalledWith(
+        "conversation-group-1"
+      )
+    })
+  })
+
+  it("confirms before dissolving a group conversation for the owner", async () => {
+    const user = userEvent.setup()
+    const conversation = createOwnedGroupConversation()
+    const dissolveGroupConversation = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <MemoryRouter>
+        <ClientDataContext.Provider
+          value={createClientDataContextValue({
+            conversations: [conversation],
+            dissolveGroupConversation,
+            getConversation: vi.fn((conversationId: string) =>
+              conversationId === conversation.id ? conversation : null
+            ),
+          })}
+        >
+          <Sheet open>
+            <SheetContent showCloseButton={false}>
+              <GroupConversationInfo conversationId={conversation.id} />
+            </SheetContent>
+          </Sheet>
+        </ClientDataContext.Provider>
+      </MemoryRouter>
+    )
+
+    expect(
+      screen.queryByRole("button", { name: "退出群聊" })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "解散群聊" }))
+
+    expect(dissolveGroupConversation).not.toHaveBeenCalled()
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "确认解散群聊",
+    })
+    expect(
+      within(dialog).getByText(
+        "解散后所有成员都无法继续查看和发送该群聊消息。此操作不可恢复。"
+      )
+    ).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole("button", { name: "解散群聊" }))
+
+    await waitFor(() => {
+      expect(dissolveGroupConversation).toHaveBeenCalledWith(
+        "conversation-group-1"
+      )
+    })
+  })
+})
+
+function createClientDataContextValue(
+  overrides: Partial<ClientDataContextValue>
+): ClientDataContextValue {
+  const me: ClientUser = {
+    avatar: "",
+    createdAt: "2026-07-09T00:00:00Z",
+    email: "alice@example.com",
+    id: "user-1",
+    lastOnlineAt: null,
+    name: "Alice",
+    nickname: "",
+    phone: "",
+    status: "active",
+  }
+  const conversation = createGroupConversation()
+
+  return {
+    contactApps: [],
+    contactGroups: [],
+    contacts: [],
+    contactsError: null,
+    contactsLoading: false,
+    contactsRefreshing: false,
+    conversations: [conversation],
+    me,
+    meError: null,
+    meLoading: false,
+    meRefreshing: false,
+    addGroupConversationMembers: vi.fn(),
+    createGroupConversation: vi.fn(),
+    ensureConversationMessages: vi.fn(),
+    dissolveGroupConversation: vi.fn(),
+    getConversation: vi.fn((conversationId: string) =>
+      conversationId === conversation.id ? conversation : null
+    ),
+    getConversationMessageState: vi.fn(),
+    handleIncomingConversationMessage: vi.fn(),
+    handleIncomingConversationMessageUpdate: vi.fn(),
+    joinGroupConversation: vi.fn(),
+    leaveGroupConversation: vi.fn(),
+    loadBeforeConversationMessages: vi.fn(),
+    markConversationRead: vi.fn(),
+    mergeIncomingConversationMessage: vi.fn(),
+    openAppConversation: vi.fn(),
+    openDirectConversation: vi.fn(),
+    refreshContacts: vi.fn(),
+    refreshConversations: vi.fn(),
+    refreshMe: vi.fn(),
+    removeConversation: vi.fn(),
+    removeGroupConversationMember: vi.fn(),
+    revokeConversationMessage: vi.fn(),
+    sendConversationFile: vi.fn(),
+    sendConversationImage: vi.fn(),
+    sendConversationLink: vi.fn(),
+    sendConversationMarkdown: vi.fn(),
+    sendConversationText: vi.fn(),
+    setGroupConversationPrivate: vi.fn(),
+    setGroupConversationPublic: vi.fn(),
+    syncLoadedConversationMessages: vi.fn(),
+    updateConversationLastMentionedSeq: vi.fn(),
+    updateConversationLastMessage: vi.fn(),
+    updateGroupConversationAvatar: vi.fn(),
+    updateGroupConversationName: vi.fn(),
+    ...overrides,
+  }
+}
+
+function createGroupConversation(): ClientConversation {
+  return {
+    avatar: "",
+    createdAt: "2026-07-09T00:00:00Z",
+    id: "conversation-group-1",
+    lastMessageAt: null,
+    lastMessageId: null,
+    lastMessageSeq: 0,
+    lastMessageSummary: "",
+    lastMentionedSeq: 0,
+    lastReadSeq: 0,
+    memberCount: 2,
+    members: [
+      {
+        avatar: "",
+        email: "owner@example.com",
+        id: "user-2",
+        name: "Owner",
+        nickname: "",
+        phone: "",
+        role: "owner",
+        type: "user",
+      },
+      {
+        avatar: "",
+        email: "alice@example.com",
+        id: "user-1",
+        name: "Alice",
+        nickname: "",
+        phone: "",
+        role: "member",
+        type: "user",
+      },
+    ],
+    name: "产品讨论组",
+    type: "group",
+    unreadCount: 0,
+    visibility: "private",
+  }
+}
+
+function createOwnedGroupConversation(): ClientConversation {
+  return {
+    ...createGroupConversation(),
+    members: [
+      {
+        avatar: "",
+        email: "alice@example.com",
+        id: "user-1",
+        name: "Alice",
+        nickname: "",
+        phone: "",
+        role: "owner",
+        type: "user",
+      },
+      {
+        avatar: "",
+        email: "bob@example.com",
+        id: "user-2",
+        name: "Bob",
+        nickname: "",
+        phone: "",
+        role: "member",
+        type: "user",
+      },
+    ],
+  }
+}

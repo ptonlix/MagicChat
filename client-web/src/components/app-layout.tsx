@@ -2,6 +2,7 @@ import {
   Cable,
   CircleCheckBig,
   CircleUserRound,
+  KeyRound,
   Loader2Icon,
   LogOut,
   MessageCircleMore,
@@ -9,6 +10,7 @@ import {
   Settings,
   Sun,
   SunMoon,
+  UserRound,
 } from "lucide-react"
 import { useState } from "react"
 import { NavLink, Outlet, useMatch, useNavigate } from "react-router"
@@ -17,6 +19,7 @@ import { toast } from "sonner"
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog"
 import type { CroppedAvatar } from "@/components/custom-avatar-picker"
 import { useTheme } from "@/components/theme-provider"
+import { UserSettingsDialog } from "@/components/user-settings-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,6 +93,7 @@ function UserAvatarMenu({
   const navigate = useNavigate()
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [logoutPending, setLogoutPending] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const displayName = getUserDisplayName(user)
 
@@ -168,6 +172,14 @@ function UserAvatarMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" className="w-64">
           <UserMenuProfileSummary user={user} />
+          <DropdownMenuItem onSelect={() => setProfileOpen(true)}>
+            <UserRound className="size-4" />
+            个人资料
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <KeyRound className="size-4" />
+            第三方账号
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
             <Settings className="size-4" />
             设置
@@ -183,13 +195,14 @@ function UserAvatarMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
         <ProfileSettingsDialog
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
           onAvatarSave={handleAvatarSave}
           onCustomAvatarSave={handleCustomAvatarSave}
           onNicknameSave={handleNicknameSave}
           user={user}
         />
+        <UserSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       </DropdownMenu>
 
       <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>

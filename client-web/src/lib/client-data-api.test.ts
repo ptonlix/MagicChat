@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  addGroupConversationMembers,
   ClientDataRequestError,
   createDirectConversation,
   createGroupConversation,
+  dissolveGroupConversation,
   getCurrentClientUser,
   joinGroupConversation,
   listClientContacts,
@@ -11,6 +13,7 @@ import {
   listConversationMessages,
   normalizeMessageUpdatedEventPayload,
   openAppConversation,
+  removeGroupConversationMember,
   revokeConversationMessage,
   sendConversationFileMessage,
   sendConversationImageMessage,
@@ -200,6 +203,7 @@ describe("client data API", () => {
         lastMessageId: "message-1",
         lastMessageSeq: 12,
         lastMessageSummary: "好的，我看一下",
+        lastMentionedSeq: 0,
         lastReadSeq: 0,
         memberCount: 2,
         name: "Bob Li",
@@ -252,6 +256,7 @@ describe("client data API", () => {
       lastMessageId: null,
       lastMessageSeq: 0,
       lastMessageSummary: "",
+      lastMentionedSeq: 0,
       lastReadSeq: 0,
       memberCount: 2,
       name: "Bob Li",
@@ -309,6 +314,7 @@ describe("client data API", () => {
       lastMessageId: null,
       lastMessageSeq: 0,
       lastMessageSummary: "",
+      lastMentionedSeq: 0,
       lastReadSeq: 0,
       memberCount: 2,
       name: "AI 女菩萨",
@@ -392,6 +398,7 @@ describe("client data API", () => {
       lastMessageId: null,
       lastMessageSeq: 0,
       lastMessageSummary: "",
+      lastMentionedSeq: 0,
       lastReadSeq: 0,
       memberCount: 2,
       members: [
@@ -432,6 +439,131 @@ describe("client data API", () => {
       },
       method: "POST",
     })
+  })
+
+  it("adds user and app members to a group conversation with credentials", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              avatar: "",
+              created_at: "2026-07-03T09:30:00Z",
+              id: "conversation-group-1",
+              member_count: 3,
+              members: [
+                {
+                  avatar: "/assets/avatars/builtin/03.webp",
+                  email: "bob@example.com",
+                  id: "user-2",
+                  name: "Bob Li",
+                  nickname: "",
+                  phone: "+8613912345679",
+                  role: "member",
+                  type: "user",
+                },
+                {
+                  avatar: "/assets/apps/assistant.webp",
+                  id: "app-1",
+                  name: "AI 女菩萨",
+                  role: "member",
+                  type: "app",
+                },
+              ],
+              name: "新品讨论组",
+              type: "group",
+            },
+            message: null,
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      addGroupConversationMembers(
+        "conversation-group-1",
+        {
+          appIds: ["app-1"],
+          memberIds: ["user-2"],
+        },
+        fetcher
+      )
+    ).resolves.toMatchObject({
+      conversation: {
+        id: "conversation-group-1",
+        memberCount: 3,
+      },
+      message: null,
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-group-1/members",
+      {
+        body: JSON.stringify({
+          app_ids: ["app-1"],
+          member_ids: ["user-2"],
+        }),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }
+    )
+  })
+
+  it("removes an app group member through the typed member route", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              avatar: "",
+              created_at: "2026-07-03T09:30:00Z",
+              id: "conversation-group-1",
+              member_count: 2,
+              name: "新品讨论组",
+              type: "group",
+            },
+            message: null,
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      removeGroupConversationMember(
+        "conversation-group-1",
+        "app-1",
+        "app",
+        fetcher
+      )
+    ).resolves.toMatchObject({
+      conversation: {
+        id: "conversation-group-1",
+        memberCount: 2,
+      },
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-group-1/members/app/app-1",
+      {
+        credentials: "include",
+        method: "DELETE",
+      }
+    )
   })
 
   it("joins a public group conversation with credentials", async () => {
@@ -489,6 +621,7 @@ describe("client data API", () => {
         lastMessageId: null,
         lastMessageSeq: 0,
         lastMessageSummary: "",
+        lastMentionedSeq: 0,
         lastReadSeq: 0,
         memberCount: 3,
         name: "公开群",
@@ -508,7 +641,9 @@ describe("client data API", () => {
         clientMessageId: "",
         conversationId: "conversation-group-1",
         createdAt: "2026-07-03T09:31:00Z",
+        delegatedBy: undefined,
         id: "message-join-1",
+        replyTo: undefined,
         sender: {
           id: "",
           type: "system",
@@ -521,6 +656,38 @@ describe("client data API", () => {
       {
         credentials: "include",
         method: "POST",
+      }
+    )
+  })
+
+  it("dissolves a group conversation with credentials", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation_id: "conversation-group-1",
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      dissolveGroupConversation("conversation-group-1", fetcher)
+    ).resolves.toEqual({
+      conversationId: "conversation-group-1",
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/groups/conversation-group-1",
+      {
+        credentials: "include",
+        method: "DELETE",
       }
     )
   })

@@ -40,12 +40,14 @@ export type ClientDataContextValue = {
   meRefreshing: boolean
   addGroupConversationMembers: (
     conversationId: string,
-    memberIds: string[]
+    memberIds: string[],
+    appIds?: string[]
   ) => Promise<ClientConversation>
   createGroupConversation: (
     name: string,
     memberIds: string[]
   ) => Promise<ClientConversation>
+  dissolveGroupConversation: (conversationId: string) => Promise<void>
   ensureConversationMessages: (conversationId: string) => void
   getConversation: (conversationId: string) => ClientConversation | null
   getConversationMessageState: (
@@ -76,7 +78,8 @@ export type ClientDataContextValue = {
   removeConversation: (conversationId: string) => void
   removeGroupConversationMember: (
     conversationId: string,
-    memberId: string
+    memberId: string,
+    memberType?: "user" | "app"
   ) => Promise<ClientConversation>
   revokeConversationMessage: (
     conversationId: string,

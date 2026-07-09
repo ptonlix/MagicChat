@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +46,8 @@ const (
 
 	defaultConversationContextLimit = 30
 )
+
+var appMentionTokenPattern = regexp.MustCompile(`\{\(@app/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)\}`)
 
 type Client struct {
 	cfg            config.Config
@@ -237,10 +241,10 @@ func (c *Client) connectOnce(ctx context.Context) (bool, error) {
 	defer conn.Close()
 
 	log.Printf("app websocket connected to %s", c.cfg.WebSocketURL)
-	return true, serveConnection(ctx, conn, c.assistantAgent)
+	return true, serveConnection(ctx, conn, c.cfg.AppID, c.assistantAgent)
 }
 
-func serveConnection(ctx context.Context, conn *websocket.Conn, assistantAgent replyAgent) error {
+func serveConnection(ctx context.Context, conn *websocket.Conn, appID string, assistantAgent replyAgent) error {
 	connCtx, cancelConnection := context.WithCancel(ctx)
 	defer cancelConnection()
 
@@ -287,7 +291,7 @@ func serveConnection(ctx context.Context, conn *websocket.Conn, assistantAgent r
 				requester.HandleResponse(message)
 				continue
 			}
-			go handleParsedServerMessage(connCtx, message, requester, assistantAgent, runner, writeJSON)
+			go handleParsedServerMessage(connCtx, message, appID, requester, assistantAgent, runner, writeJSON)
 		}
 	}()
 
@@ -420,10 +424,10 @@ func handleServerMessage(ctx context.Context, messageType int, data []byte, requ
 	if !ok {
 		return
 	}
-	handleParsedServerMessage(ctx, message, requester, assistantAgent, directAgentRunner{}, writeJSON)
+	handleParsedServerMessage(ctx, message, "", requester, assistantAgent, directAgentRunner{}, writeJSON)
 }
 
-func handleParsedServerMessage(ctx context.Context, message envelope, requester appRequester, assistantAgent replyAgent, runner agentRunner, writeJSON func(envelope) error) {
+func handleParsedServerMessage(ctx context.Context, message envelope, appID string, requester appRequester, assistantAgent replyAgent, runner agentRunner, writeJSON func(envelope) error) {
 	if message.Kind == kindResponse {
 		return
 	}
@@ -442,6 +446,9 @@ func handleParsedServerMessage(ctx context.Context, message envelope, requester 
 		return
 	}
 	if !isSupportedIncomingMessageType(body.Type) {
+		return
+	}
+	if !shouldHandleIncomingMessage(appID, payload, body) {
 		return
 	}
 
@@ -555,6 +562,35 @@ func isSupportedIncomingMessageType(messageType string) bool {
 	default:
 		return false
 	}
+}
+
+func shouldHandleIncomingMessage(appID string, payload messageCreatedPayload, body messageBody) bool {
+	switch payload.Conversation.Type {
+	case "app":
+		return true
+	case "group":
+		if strings.TrimSpace(appID) == "" {
+			return false
+		}
+		switch body.Type {
+		case "text", "markdown":
+			return contentMentionsApp(body.Content, appID)
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
+
+func contentMentionsApp(content string, appID string) bool {
+	for _, match := range appMentionTokenPattern.FindAllStringSubmatch(content, -1) {
+		if len(match) == 2 && strings.EqualFold(match[1], appID) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func buildAgentMessageContent(body messageBody, fileURLs map[string]temporaryFileReadURLPayload) (string, error) {

@@ -42,15 +42,36 @@ type appMessageSenderPayload struct {
 }
 
 func (s *Server) dispatchAppMessageCreatedEvent(sender store.User, message store.Message) error {
-	conversation, appID, ok, err := s.findMessageConversationApp(message.ConversationID)
-	if err != nil || !ok {
-		return err
-	}
-
 	if s.appConnections == nil {
 		return nil
 	}
 
+	conversation, err := s.findMessageConversation(message.ConversationID)
+	if err != nil {
+		return err
+	}
+
+	switch conversation.Kind {
+	case store.ConversationKindApp:
+		appID, ok, err := s.findMessageConversationAppID(message.ConversationID)
+		if err != nil || !ok {
+			return err
+		}
+		s.sendAppMessageCreatedEvent(appID, conversation, sender, message)
+	case store.ConversationKindGroup:
+		appIDs, err := s.findMentionedGroupAppIDs(conversation.ID, message.Body)
+		if err != nil {
+			return err
+		}
+		for _, appID := range appIDs {
+			s.sendAppMessageCreatedEvent(appID, conversation, sender, message)
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) sendAppMessageCreatedEvent(appID string, conversation store.Conversation, sender store.User, message store.Message) {
 	s.appConnections.SendToApp(appID, realtime.NewEvent(realtime.EventMessageCreated, appMessageCreatedPayload{
 		Conversation: appMessageConversationPayload{
 			ID:   conversation.ID,
@@ -72,19 +93,67 @@ func (s *Server) dispatchAppMessageCreatedEvent(sender store.User, message store
 			Type:     store.MessageSenderTypeUser,
 		},
 	}))
-
-	return nil
 }
 
-func (s *Server) findMessageConversationApp(conversationID string) (store.Conversation, string, bool, error) {
+func (s *Server) findMessageConversation(conversationID string) (store.Conversation, error) {
 	var conversation store.Conversation
 	if err := s.db.First(&conversation, "id = ?", conversationID).Error; err != nil {
-		return store.Conversation{}, "", false, err
-	}
-	if conversation.Kind != store.ConversationKindApp {
-		return store.Conversation{}, "", false, nil
+		return store.Conversation{}, err
 	}
 
+	return conversation, nil
+}
+
+func (s *Server) findMentionedGroupAppIDs(conversationID string, body json.RawMessage) ([]string, error) {
+	targets := parseMessageMentionTargets(body)
+	if len(targets) == 0 {
+		return nil, nil
+	}
+
+	targetSet := make(map[string]struct{}, len(targets))
+	targetIDs := make([]string, 0, len(targets))
+	for _, target := range targets {
+		if target.All || target.MemberType != store.ConversationMemberTypeApp {
+			continue
+		}
+		if _, ok := targetSet[target.MemberID]; ok {
+			continue
+		}
+		targetSet[target.MemberID] = struct{}{}
+		targetIDs = append(targetIDs, target.MemberID)
+	}
+	if len(targetIDs) == 0 {
+		return nil, nil
+	}
+
+	var members []store.ConversationMember
+	if err := s.db.
+		Where(
+			"conversation_id = ? AND member_type = ? AND member_id IN ? AND left_at IS NULL",
+			conversationID,
+			store.ConversationMemberTypeApp,
+			targetIDs,
+		).
+		Find(&members).Error; err != nil {
+		return nil, err
+	}
+
+	memberSet := make(map[string]struct{}, len(members))
+	for _, member := range members {
+		memberSet[member.MemberID] = struct{}{}
+	}
+
+	appIDs := make([]string, 0, len(targetIDs))
+	for _, targetID := range targetIDs {
+		if _, ok := memberSet[targetID]; ok {
+			appIDs = append(appIDs, targetID)
+		}
+	}
+
+	return appIDs, nil
+}
+
+func (s *Server) findMessageConversationAppID(conversationID string) (string, bool, error) {
 	var member store.ConversationMember
 	err := s.db.First(
 		&member,
@@ -93,11 +162,11 @@ func (s *Server) findMessageConversationApp(conversationID string) (store.Conver
 		store.ConversationMemberTypeApp,
 	).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return store.Conversation{}, "", false, nil
+		return "", false, nil
 	}
 	if err != nil {
-		return store.Conversation{}, "", false, err
+		return "", false, err
 	}
 
-	return conversation, member.MemberID, true, nil
+	return member.MemberID, true, nil
 }
