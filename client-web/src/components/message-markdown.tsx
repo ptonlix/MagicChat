@@ -6,6 +6,7 @@ import {
   parseMentionTemplate,
   type MentionLabelResolver,
 } from "@/lib/message-mentions"
+import { AppProfilePopover } from "@/components/app-profile-popover"
 import { UserProfilePopover } from "@/components/user-profile-popover"
 
 const allowedMarkdownElements = [
@@ -207,6 +208,24 @@ function MarkdownMention({
     )
   }
 
+  if (mentionType === "app" && mentionId) {
+    return (
+      <AppProfilePopover
+        appId={mentionId}
+        fallbackProfile={{
+          avatar: "",
+          description: "",
+          id: mentionId,
+          name: getMentionFallbackName(children),
+          online: false,
+        }}
+        triggerClassName="align-baseline"
+      >
+        {content}
+      </AppProfilePopover>
+    )
+  }
+
   return content
 }
 
@@ -222,6 +241,12 @@ function isSameUserId(userId: string | undefined, currentUserId?: string) {
     typeof currentUserId === "string" &&
     userId.toLowerCase() === currentUserId.toLowerCase()
   )
+}
+
+function getMentionFallbackName(children: React.ReactNode) {
+  const text = React.Children.toArray(children).join("").trim()
+
+  return text.replace(/^@/, "") || "应用"
 }
 
 function createRemarkMentionPlugin(

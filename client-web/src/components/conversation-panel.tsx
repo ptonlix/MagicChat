@@ -37,6 +37,7 @@ import {
   normalizePinyinSearchQuery,
 } from "@/lib/pinyin-search"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
+import { AppProfilePopover } from "@/components/app-profile-popover"
 import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import {
   ExpressionPicker,
@@ -1818,6 +1819,23 @@ function MentionTextPart({
   )
 
   if (part.targetType !== "user") {
+    if (part.targetType === "app") {
+      return (
+        <AppProfilePopover
+          appId={part.id}
+          fallbackProfile={{
+            avatar: "",
+            description: "",
+            id: part.id,
+            name: part.label.replace(/^@/, ""),
+            online: false,
+          }}
+        >
+          {content}
+        </AppProfilePopover>
+      )
+    }
+
     return content
   }
 
