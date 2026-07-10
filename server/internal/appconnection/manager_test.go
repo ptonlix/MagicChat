@@ -246,3 +246,62 @@ func TestManagerClosesLaggingConnectionInsteadOfSkippingCursor(t *testing.T) {
 		t.Fatal("lagging connection remained open after cursor enqueue failed")
 	}
 }
+
+func TestConnectionPrioritizesRequestResponseOverQueuedEvent(t *testing.T) {
+	serverSocket := make(chan *websocket.Conn, 1)
+	releaseServer := make(chan struct{})
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		serverSocket <- conn
+		<-releaseServer
+	}))
+	t.Cleanup(func() {
+		close(releaseServer)
+		server.Close()
+	})
+
+	client, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	manager := NewManager(Options{
+		SendBuffer: 1,
+		RequestHandler: func(_ string, request realtime.Envelope) realtime.Envelope {
+			return realtime.NewResponse(request.ID, map[string]any{"source": "handler"})
+		},
+	})
+	conn := manager.NewConnection("app-1", <-serverSocket)
+	writeLoopDone := make(chan struct{})
+	t.Cleanup(func() {
+		conn.Close()
+		_ = client.Close()
+		select {
+		case <-writeLoopDone:
+		case <-time.After(time.Second):
+			t.Errorf("writeLoop did not stop after connection cleanup")
+		}
+	})
+
+	if !conn.EnqueueReliable(realtime.NewCursorEvent(1, "test.event", map[string]any{"value": 1})) {
+		t.Fatal("failed to fill connection event queue")
+	}
+	request := testAppRequest("history-request-1", "conversation.messages.list", nil)
+	conn.handleAppMessage(request)
+	go func() {
+		conn.writeLoop()
+		close(writeLoopDone)
+	}()
+
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	var first realtime.Envelope
+	if err := client.ReadJSON(&first); err != nil {
+		t.Fatalf("read first outbound envelope: %v", err)
+	}
+	if first.Kind != realtime.KindResponse || first.ReplyTo != request.ID {
+		t.Fatalf("first outbound envelope = %#v, want response to %q before queued event", first, request.ID)
+	}
+}

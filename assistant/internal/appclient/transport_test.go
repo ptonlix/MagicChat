@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -360,6 +361,271 @@ func TestClientRetriesInFlightRequestAcrossReconnect(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Client.Run() did not stop")
+	}
+}
+
+func TestClientRecoversFromEventQueueOverflowWithPrioritizedResponses(t *testing.T) {
+	events := make([]envelope, maxQueuedAppEvents+1)
+	for i := range events {
+		events[i] = testMessageCreatedEnvelope(t, "user-1", "message-1", 1, "第一条")
+		events[i].Cursor = int64(i + 1)
+	}
+
+	var connections atomic.Int32
+	var finished atomic.Bool
+	historyRequestIDs := make(chan string, 2)
+	firstGenerationClosed := make(chan struct{})
+	acknowledged := make(chan int64, len(events))
+	finalAcknowledged := make(chan struct{})
+	serverErrors := make(chan error, 1)
+	reportServerError := func(err error) {
+		select {
+		case serverErrors <- err:
+		default:
+		}
+	}
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			reportServerError(fmt.Errorf("upgrade websocket: %w", err))
+			return
+		}
+		defer conn.Close()
+
+		generation := connections.Add(1)
+		if generation > 2 {
+			reportServerError(fmt.Errorf("unexpected websocket generation %d", generation))
+			return
+		}
+
+		writeResponse := func(request envelope) (int64, error) {
+			ok := true
+			payload := json.RawMessage(`{}`)
+			ackCursor := int64(0)
+			switch request.Method {
+			case methodConversationMessagesList:
+				payload = json.RawMessage(`{"messages":[]}`)
+			case methodEventsAck:
+				var ack struct {
+					Cursor int64 `json:"cursor"`
+				}
+				if err := json.Unmarshal(request.Payload, &ack); err != nil {
+					return 0, fmt.Errorf("unmarshal event ack: %w", err)
+				}
+				ackCursor = ack.Cursor
+			}
+			if err := conn.WriteJSON(envelope{
+				V:       protocolVersion,
+				Kind:    kindResponse,
+				ReplyTo: request.ID,
+				OK:      &ok,
+				Payload: payload,
+			}); err != nil {
+				return 0, fmt.Errorf("write response to %s: %w", request.Method, err)
+			}
+			return ackCursor, nil
+		}
+
+		if generation == 1 {
+			if err := conn.WriteJSON(events[0]); err != nil {
+				reportServerError(fmt.Errorf("write first cursor event: %w", err))
+				return
+			}
+			var historyRequest envelope
+			if err := conn.ReadJSON(&historyRequest); err != nil {
+				reportServerError(fmt.Errorf("read first history request: %w", err))
+				return
+			}
+			if historyRequest.Method != methodConversationMessagesList {
+				reportServerError(fmt.Errorf("first request method = %q, want %q", historyRequest.Method, methodConversationMessagesList))
+				return
+			}
+			historyRequestIDs <- historyRequest.ID
+
+			for _, event := range events[1:] {
+				if err := conn.WriteJSON(event); err != nil {
+					reportServerError(fmt.Errorf("write first-generation cursor %d: %w", event.Cursor, err))
+					return
+				}
+			}
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					close(firstGenerationClosed)
+					return
+				}
+			}
+		}
+
+		if err := conn.WriteJSON(events[0]); err != nil {
+			reportServerError(fmt.Errorf("replay first cursor event: %w", err))
+			return
+		}
+		var replayedHistoryRequest envelope
+		if err := conn.ReadJSON(&replayedHistoryRequest); err != nil {
+			reportServerError(fmt.Errorf("read replayed history request: %w", err))
+			return
+		}
+		if replayedHistoryRequest.Method != methodConversationMessagesList {
+			reportServerError(fmt.Errorf("replayed request method = %q, want %q", replayedHistoryRequest.Method, methodConversationMessagesList))
+			return
+		}
+		historyRequestIDs <- replayedHistoryRequest.ID
+		if _, err := writeResponse(replayedHistoryRequest); err != nil {
+			reportServerError(err)
+			return
+		}
+
+		var firstAckRequest envelope
+		if err := conn.ReadJSON(&firstAckRequest); err != nil {
+			reportServerError(fmt.Errorf("read first event ack: %w", err))
+			return
+		}
+		firstAckCursor, err := writeResponse(firstAckRequest)
+		if err != nil {
+			reportServerError(err)
+			return
+		}
+		if firstAckCursor != 1 {
+			reportServerError(fmt.Errorf("first acknowledged cursor = %d, want 1", firstAckCursor))
+			return
+		}
+		acknowledged <- firstAckCursor
+
+		for _, event := range events[1:] {
+			if err := conn.WriteJSON(event); err != nil {
+				reportServerError(fmt.Errorf("replay cursor %d: %w", event.Cursor, err))
+				return
+			}
+		}
+		for {
+			var request envelope
+			if err := conn.ReadJSON(&request); err != nil {
+				if !finished.Load() {
+					reportServerError(fmt.Errorf("read replay request: %w", err))
+				}
+				return
+			}
+			ackCursor, err := writeResponse(request)
+			if err != nil {
+				if !finished.Load() {
+					reportServerError(err)
+				}
+				return
+			}
+			if ackCursor == 0 {
+				continue
+			}
+			acknowledged <- ackCursor
+			if ackCursor == int64(len(events)) && finished.CompareAndSwap(false, true) {
+				close(finalAcknowledged)
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	cfg := config.Config{
+		AppID:        "app-1",
+		AppSecret:    "secret",
+		WebSocketURL: "ws" + strings.TrimPrefix(server.URL, "http"),
+	}
+	noWait := func(context.Context, time.Duration) error { return nil }
+	transport := newWebSocketManager(cfg, webSocketManagerOptions{Sleep: noWait})
+	requester := newReliableRequester(transport, reliableRequesterOptions{
+		MaxRetries:   20,
+		ResponseWait: 2 * time.Second,
+		Sleep:        noWait,
+	})
+	var agentCalls atomic.Int32
+	agentMessageIDs := make(chan string, 2)
+	client := &Client{
+		cfg:       cfg,
+		transport: transport,
+		requester: requester,
+		runner:    newConversationAgentRunner(ctx),
+		assistantAgent: replyAgentFunc(func(_ context.Context, request agent.Request, _ agent.OutputSink) error {
+			agentCalls.Add(1)
+			agentMessageIDs <- request.MessageID
+			return nil
+		}),
+	}
+	t.Cleanup(client.Close)
+	runDone := make(chan error, 1)
+	go func() { runDone <- client.Run(ctx) }()
+
+	select {
+	case <-firstGenerationClosed:
+	case err := <-serverErrors:
+		t.Fatalf("first generation server error: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for event queue overflow to close the first generation")
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("event queue overflow canceled process context: %v", ctx.Err())
+	}
+
+	select {
+	case <-finalAcknowledged:
+	case err := <-serverErrors:
+		t.Fatalf("replay server error: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timed out waiting for cursor %d acknowledgement after reconnect", len(events))
+	}
+	select {
+	case err := <-serverErrors:
+		t.Fatalf("replay server error after final acknowledgement: %v", err)
+	default:
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("replay completion canceled process context: %v", ctx.Err())
+	}
+	if got := connections.Load(); got < 2 {
+		t.Fatalf("websocket generations = %d, want at least 2", got)
+	}
+
+	firstHistoryID := <-historyRequestIDs
+	replayedHistoryID := <-historyRequestIDs
+	if firstHistoryID == "" || replayedHistoryID != firstHistoryID {
+		t.Fatalf("history request IDs = %q and %q, want one stable non-empty ID", firstHistoryID, replayedHistoryID)
+	}
+	for want := int64(1); want <= int64(len(events)); want++ {
+		select {
+		case got := <-acknowledged:
+			if got != want {
+				t.Fatalf("acknowledged cursor %d = %d, want %d", want, got, want)
+			}
+		default:
+			t.Fatalf("missing acknowledgement for cursor %d", want)
+		}
+	}
+	if got := agentCalls.Load(); got != 1 {
+		t.Fatalf("agent calls = %d, want 1 for replayed sequence", got)
+	}
+	select {
+	case messageID := <-agentMessageIDs:
+		if messageID != "message-1" {
+			t.Fatalf("agent message ID = %q, want message-1", messageID)
+		}
+	default:
+		t.Fatal("agent did not process the durable event")
+	}
+	select {
+	case duplicate := <-agentMessageIDs:
+		t.Fatalf("agent processed replayed event again: message ID %q", duplicate)
+	default:
+	}
+
+	cancel()
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatalf("Client.Run() error = %v, want nil after cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Client.Run() did not stop after cancellation")
 	}
 }
 

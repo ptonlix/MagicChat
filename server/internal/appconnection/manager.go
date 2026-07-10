@@ -87,11 +87,12 @@ func (m *Manager) HandleRequest(appID string, request realtime.Envelope) realtim
 
 func (m *Manager) NewConnection(appID string, socket *websocket.Conn) *Connection {
 	return &Connection{
-		appID:   appID,
-		done:    make(chan struct{}),
-		manager: m,
-		send:    make(chan realtime.Envelope, m.sendBuffer),
-		socket:  socket,
+		appID:    appID,
+		done:     make(chan struct{}),
+		manager:  m,
+		response: make(chan realtime.Envelope, m.sendBuffer),
+		send:     make(chan realtime.Envelope, m.sendBuffer),
+		socket:   socket,
 	}
 }
 

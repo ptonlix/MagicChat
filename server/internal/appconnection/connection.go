@@ -12,11 +12,12 @@ import (
 )
 
 type Connection struct {
-	appID   string
-	done    chan struct{}
-	manager *Manager
-	send    chan realtime.Envelope
-	socket  *websocket.Conn
+	appID    string
+	done     chan struct{}
+	manager  *Manager
+	response chan realtime.Envelope
+	send     chan realtime.Envelope
+	socket   *websocket.Conn
 
 	closeOnce sync.Once
 	writeMu   sync.Mutex
@@ -54,6 +55,15 @@ func (c *Connection) EnqueueReliable(message realtime.Envelope) bool {
 	}
 }
 
+func (c *Connection) EnqueueResponse(message realtime.Envelope) bool {
+	select {
+	case <-c.done:
+		return false
+	case c.response <- message:
+		return true
+	}
+}
+
 func (c *Connection) readLoop() {
 	defer c.Close()
 
@@ -84,15 +94,23 @@ func (c *Connection) writeLoop() {
 
 	for {
 		select {
+		case message := <-c.response:
+			if !c.writeEnvelope(message) {
+				return
+			}
+			continue
+		default:
+		}
+
+		select {
 		case <-c.done:
 			return
-		case message := <-c.send:
-			encoded, ok := encodeOutboundEnvelope(message, c.manager.maxMessageBytes)
-			if !ok {
-				logSkippedOutboundEnvelope(c.appID, message)
-				continue
+		case message := <-c.response:
+			if !c.writeEnvelope(message) {
+				return
 			}
-			if err := c.writeMessage(encoded); err != nil {
+		case message := <-c.send:
+			if !c.writeEnvelope(message) {
 				return
 			}
 		case <-ticker.C:
@@ -101,6 +119,15 @@ func (c *Connection) writeLoop() {
 			}
 		}
 	}
+}
+
+func (c *Connection) writeEnvelope(message realtime.Envelope) bool {
+	encoded, ok := encodeOutboundEnvelope(message, c.manager.maxMessageBytes)
+	if !ok {
+		logSkippedOutboundEnvelope(c.appID, message)
+		return true
+	}
+	return c.writeMessage(encoded) == nil
 }
 
 func logSkippedOutboundEnvelope(appID string, message realtime.Envelope) {
@@ -146,21 +173,21 @@ func (c *Connection) writeControl(messageType int, data []byte) error {
 
 func (c *Connection) handleAppMessage(message realtime.Envelope) {
 	if message.V != realtime.ProtocolVersion {
-		c.Enqueue(realtime.NewErrorResponse(message.ID, "unsupported_version", "不支持的应用协议版本"))
+		c.EnqueueResponse(realtime.NewErrorResponse(message.ID, "unsupported_version", "不支持的应用协议版本"))
 		return
 	}
 	if message.Kind != realtime.KindRequest {
-		c.Enqueue(realtime.NewErrorResponse(message.ID, "invalid_message", "应用消息类型不支持"))
+		c.EnqueueResponse(realtime.NewErrorResponse(message.ID, "invalid_message", "应用消息类型不支持"))
 		return
 	}
 	if message.ID == "" || message.Method == "" {
-		c.Enqueue(realtime.NewErrorResponse(message.ID, "invalid_request", "应用请求格式错误"))
+		c.EnqueueResponse(realtime.NewErrorResponse(message.ID, "invalid_request", "应用请求格式错误"))
 		return
 	}
 	if c.manager.requestHandler == nil {
-		c.Enqueue(realtime.NewErrorResponse(message.ID, "unknown_method", "未知应用方法"))
+		c.EnqueueResponse(realtime.NewErrorResponse(message.ID, "unknown_method", "未知应用方法"))
 		return
 	}
 
-	c.Enqueue(c.manager.HandleRequest(c.appID, message))
+	c.EnqueueResponse(c.manager.HandleRequest(c.appID, message))
 }
