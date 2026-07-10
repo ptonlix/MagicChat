@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
@@ -105,6 +105,82 @@ describe("ConversationPanel", () => {
     )
 
     await waitFor(() => expect(composer).toHaveFocus())
+  })
+
+  it("does not send while Enter is confirming IME composition", () => {
+    const onSendMessage = vi.fn()
+
+    render(
+      <ConversationPanel
+        conversation={createConversation("conversation-1")}
+        currentUserId="user-1"
+        draft="nihao"
+        historyError={null}
+        historyLoading={false}
+        historyLoadingBefore={false}
+        messages={[]}
+        onCancelReply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onLoadBeforeMessages={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onRevokeMessage={vi.fn()}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendMessage={onSendMessage}
+        replyTarget={null}
+        richTextMode={false}
+        sending={false}
+      />
+    )
+
+    const composer = screen.getByPlaceholderText("输入消息")
+    const keyDownNotCanceled = fireEvent.keyDown(composer, {
+      code: "Enter",
+      isComposing: true,
+      key: "Enter",
+    })
+
+    expect(keyDownNotCanceled).toBe(true)
+    expect(onSendMessage).not.toHaveBeenCalled()
+  })
+
+  it("does not send while Enter is reported as an IME process key", () => {
+    const onSendMessage = vi.fn()
+
+    render(
+      <ConversationPanel
+        conversation={createConversation("conversation-1")}
+        currentUserId="user-1"
+        draft="nihao"
+        historyError={null}
+        historyLoading={false}
+        historyLoadingBefore={false}
+        messages={[]}
+        onCancelReply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onLoadBeforeMessages={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onRevokeMessage={vi.fn()}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendMessage={onSendMessage}
+        replyTarget={null}
+        richTextMode={false}
+        sending={false}
+      />
+    )
+
+    const composer = screen.getByPlaceholderText("输入消息")
+    const keyDownNotCanceled = fireEvent.keyDown(composer, {
+      code: "Enter",
+      key: "Enter",
+      keyCode: 229,
+    })
+
+    expect(keyDownNotCanceled).toBe(true)
+    expect(onSendMessage).not.toHaveBeenCalled()
   })
 
   it("opens the app profile popover from an app message avatar", async () => {

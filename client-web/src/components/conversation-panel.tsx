@@ -722,6 +722,10 @@ const ConversationPanelComposer = React.forwardRef<
   function handleComposerKeyDown(
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) {
+    if (isImeCompositionKeyEvent(event)) {
+      return
+    }
+
     if (mentionTrigger && filteredMentionCandidates.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault()
@@ -1259,6 +1263,12 @@ function insertTextareaText(
   textarea.value = nextValue
   textarea.setSelectionRange(nextCursor, nextCursor)
   onChange(nextValue, nextCursor)
+}
+
+function isImeCompositionKeyEvent(
+  event: React.KeyboardEvent<HTMLTextAreaElement>
+) {
+  return event.nativeEvent.isComposing || event.keyCode === 229
 }
 
 function createMentionCandidates(
