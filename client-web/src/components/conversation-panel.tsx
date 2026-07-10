@@ -51,6 +51,7 @@ import { GroupAvatar } from "@/components/group-avatar"
 import { MarkdownIcon } from "@/components/icons/markdown-icon"
 import { MessageAttachment } from "@/components/message-attachment"
 import { MessageImage } from "@/components/message-image"
+import { MessageTextWithLinks } from "@/components/message-inline-link"
 import { MessageLink } from "@/components/message-link"
 import { MessageMarkdown } from "@/components/message-markdown"
 import {
@@ -1844,7 +1845,7 @@ function TextMessageBody({
     <span className="break-all whitespace-pre-wrap">
       {parts.map((part, index) =>
         part.type === "text" ? (
-          <React.Fragment key={`text-${index}`}>{part.text}</React.Fragment>
+          <MessageTextWithLinks key={`text-${index}`} text={part.text} />
         ) : (
           <MentionTextPart
             key={`${part.targetType}-${part.id}-${index}`}

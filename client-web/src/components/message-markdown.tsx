@@ -7,6 +7,7 @@ import {
   type MentionLabelResolver,
 } from "@/lib/message-mentions"
 import { AppProfilePopover } from "@/components/app-profile-popover"
+import { MessageInlineLink } from "@/components/message-inline-link"
 import { UserProfilePopover } from "@/components/user-profile-popover"
 
 const allowedMarkdownElements = [
@@ -82,14 +83,7 @@ export function MessageMarkdown({
         components={{
           a: ({ children, href }) =>
             href ? (
-              <a
-                className="mx-0.5 break-all font-medium text-sky-500 underline-offset-4 hover:text-sky-600 hover:underline"
-                href={href}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {children}
-              </a>
+              <MessageInlineLink href={href}>{children}</MessageInlineLink>
             ) : (
               <span>{children}</span>
             ),
