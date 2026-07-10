@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"app/internal/appconnection"
 	"app/internal/realtime"
 	"app/internal/store"
 
@@ -57,22 +58,24 @@ func (s *Server) dispatchAppMessageCreatedEvent(sender store.User, message store
 		if err != nil || !ok {
 			return err
 		}
-		s.sendAppMessageCreatedEvent(appID, conversation, sender, message)
+		return s.sendAppMessageCreatedEvent(appID, conversation, sender, message)
 	case store.ConversationKindGroup:
 		appIDs, err := s.findMentionedGroupAppIDs(conversation.ID, message.Body)
 		if err != nil {
 			return err
 		}
 		for _, appID := range appIDs {
-			s.sendAppMessageCreatedEvent(appID, conversation, sender, message)
+			if err := s.sendAppMessageCreatedEvent(appID, conversation, sender, message); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (s *Server) sendAppMessageCreatedEvent(appID string, conversation store.Conversation, sender store.User, message store.Message) {
-	s.appConnections.SendToApp(appID, realtime.NewEvent(realtime.EventMessageCreated, appMessageCreatedPayload{
+func (s *Server) sendAppMessageCreatedEvent(appID string, conversation store.Conversation, sender store.User, message store.Message) error {
+	return s.enqueueAppEvent(appID, realtime.EventMessageCreated, appMessageCreatedPayload{
 		Conversation: appMessageConversationPayload{
 			ID:   conversation.ID,
 			Name: conversation.Name,
@@ -92,7 +95,53 @@ func (s *Server) sendAppMessageCreatedEvent(appID string, conversation store.Con
 			Nickname: sender.Nickname,
 			Type:     store.MessageSenderTypeUser,
 		},
-	}))
+	})
+}
+
+func (s *Server) enqueueAppEvent(appID string, event string, payload any) error {
+	s.appEventMu.Lock()
+	defer s.appEventMu.Unlock()
+
+	rawPayload, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	stored := store.AppEventOutbox{
+		AppID:     appID,
+		Event:     event,
+		Payload:   rawPayload,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := s.db.Create(&stored).Error; err != nil {
+		return err
+	}
+	s.appConnections.SendToApp(appID, realtime.NewCursorEvent(stored.ID, stored.Event, stored.Payload))
+	return nil
+}
+
+func (s *Server) replayAppEvents(appID string, conn *appconnection.Connection) error {
+	var ack store.AppEventAck
+	lastAckedCursor := int64(0)
+	err := s.db.First(&ack, "app_id = ?", appID).Error
+	if err == nil {
+		lastAckedCursor = ack.LastAckedCursor
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	var events []store.AppEventOutbox
+	if err := s.db.
+		Where("app_id = ? AND id > ?", appID, lastAckedCursor).
+		Order("id ASC").
+		Find(&events).Error; err != nil {
+		return err
+	}
+	for _, event := range events {
+		if !conn.EnqueueReliable(realtime.NewCursorEvent(event.ID, event.Event, event.Payload)) {
+			return errors.New("app connection closed during event replay")
+		}
+	}
+	return nil
 }
 
 func (s *Server) findMessageConversation(conversationID string) (store.Conversation, error) {

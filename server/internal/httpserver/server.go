@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"app/internal/appconnection"
@@ -26,6 +27,7 @@ type Server struct {
 	cfg            config.Config
 	appConnections *appconnection.Manager
 	realtime       *realtime.ConnectionPool
+	appEventMu     sync.Mutex
 }
 
 func NewRouter(db *gorm.DB, cfg config.Config) *echo.Echo {

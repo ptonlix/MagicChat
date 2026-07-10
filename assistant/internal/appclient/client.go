@@ -42,6 +42,7 @@ const (
 
 	methodConversationMessagesList = "conversation.messages.list"
 	methodTemporaryFilesReadURLs   = "temporary_files.read_urls"
+	methodEventsAck                = "events.ack"
 
 	defaultConversationContextLimit = 30
 )
@@ -69,6 +70,7 @@ type appRequester interface {
 type envelope struct {
 	V       int             `json:"v"`
 	Kind    string          `json:"kind"`
+	Cursor  int64           `json:"cursor,omitempty"`
 	ID      string          `json:"id,omitempty"`
 	Method  string          `json:"method,omitempty"`
 	Event   string          `json:"event,omitempty"`
@@ -236,18 +238,27 @@ func (c *Client) handleTransportMessage(ctx context.Context, message envelope) {
 		c.requester.HandleResponse(message)
 		return
 	}
-	go handleParsedServerMessage(
-		ctx,
-		message,
-		c.cfg.AppID,
-		c.requester,
-		c.assistantAgent,
-		c.runner,
-		func(writeCtx context.Context, outgoing envelope) error {
-			_, err := c.requester.RequestEnvelope(writeCtx, outgoing)
-			return err
-		},
-	)
+	go func() {
+		handleParsedServerMessage(
+			ctx,
+			message,
+			c.cfg.AppID,
+			c.requester,
+			c.assistantAgent,
+			c.runner,
+			func(writeCtx context.Context, outgoing envelope) error {
+				_, err := c.requester.RequestEnvelope(writeCtx, outgoing)
+				return err
+			},
+		)
+		if message.Cursor > 0 {
+			if _, err := c.requester.Request(ctx, methodEventsAck, struct {
+				Cursor int64 `json:"cursor"`
+			}{Cursor: message.Cursor}); err != nil && ctx.Err() == nil {
+				log.Printf("ack app event failed: cursor=%d error=%v", message.Cursor, err)
+			}
+		}
+	}()
 }
 
 type pendingResponse struct {

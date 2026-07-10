@@ -45,6 +45,15 @@ func (c *Connection) Enqueue(message realtime.Envelope) bool {
 	}
 }
 
+func (c *Connection) EnqueueReliable(message realtime.Envelope) bool {
+	select {
+	case <-c.done:
+		return false
+	case c.send <- message:
+		return true
+	}
+}
+
 func (c *Connection) readLoop() {
 	defer c.Close()
 

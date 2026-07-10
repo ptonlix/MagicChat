@@ -151,6 +151,56 @@ func TestClientRetriesInFlightRequestAcrossReconnect(t *testing.T) {
 	}
 }
 
+func TestClientAcknowledgesAcceptedCursorEvent(t *testing.T) {
+	transport := &scriptedRequestTransport{}
+	acknowledged := make(chan int64, 1)
+	var requester *reliableRequester
+	transport.onSend = func(message envelope, attempt int) (<-chan struct{}, error) {
+		done := make(chan struct{})
+		payload := json.RawMessage(`{}`)
+		switch message.Method {
+		case methodConversationMessagesList:
+			payload = json.RawMessage(`{"messages":[]}`)
+		case methodEventsAck:
+			var ack struct {
+				Cursor int64 `json:"cursor"`
+			}
+			if err := json.Unmarshal(message.Payload, &ack); err != nil {
+				t.Fatalf("unmarshal ack payload: %v", err)
+			}
+			acknowledged <- ack.Cursor
+		}
+		ok := true
+		requester.HandleResponse(envelope{V: protocolVersion, Kind: kindResponse, ReplyTo: message.ID, OK: &ok, Payload: payload})
+		return done, nil
+	}
+	requester = newReliableRequester(transport, reliableRequesterOptions{
+		Sleep: func(context.Context, time.Duration) error { return nil },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client := &Client{
+		cfg:       config.Config{AppID: "app-1"},
+		requester: requester,
+		runner:    newConversationAgentRunner(ctx),
+		assistantAgent: replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
+			return sink.SendMarkdown(ctx, "完成")
+		}),
+	}
+	event := testMessageCreatedEnvelope(t, "user-1", "message-1", 1, "第一条")
+	event.Cursor = 42
+	client.handleTransportMessage(ctx, event)
+
+	select {
+	case cursor := <-acknowledged:
+		if cursor != 42 {
+			t.Fatalf("acknowledged cursor = %d, want 42", cursor)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for event acknowledgement")
+	}
+}
+
 func TestWebSocketManagerSendsAndRoutesEnvelope(t *testing.T) {
 	received := make(chan envelope, 1)
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}

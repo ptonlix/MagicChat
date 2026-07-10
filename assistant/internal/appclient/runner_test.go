@@ -42,3 +42,27 @@ func TestConversationAgentRunnerSessionOutlivesTriggerContext(t *testing.T) {
 	cancelRoot()
 	waitForSignal(t, canceled, "agent session to stop with process context")
 }
+
+func TestConversationAgentRunnerIgnoresDuplicateSequence(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runner := newConversationAgentRunner(ctx)
+	outputs := make(chan struct{}, 2)
+	assistantAgent := agent.New(llmModelFunc(func(ctx context.Context, request llm.Request) (llm.Response, error) {
+		return llm.Response{Blocks: []llm.Block{{Type: llm.BlockTypeText, Text: "完成"}}}, nil
+	}))
+	sink := agent.OutputSinkFunc(func(context.Context, string) error {
+		outputs <- struct{}{}
+		return nil
+	})
+	prepared := preparedTextRun("conversation-1", "message-1", 7, "第一条")
+	runner.Start(ctx, "conversation-1", sink, assistantAgent, prepared)
+	waitForSignal(t, outputs, "first response")
+
+	runner.Start(ctx, "conversation-1", sink, assistantAgent, prepared)
+	select {
+	case <-outputs:
+		t.Fatal("duplicate sequence executed a second time")
+	case <-time.After(50 * time.Millisecond):
+	}
+}

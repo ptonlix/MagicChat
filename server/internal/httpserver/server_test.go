@@ -72,6 +72,8 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.TemporaryFile{},
 		&store.App{},
 		&store.AppConversation{},
+		&store.AppEventOutbox{},
+		&store.AppEventAck{},
 		&store.AppSettings{},
 		&store.ThirdPartyLoginProvider{},
 		&store.ThirdPartyLoginState{},
@@ -787,6 +789,22 @@ func sendAppRequest(t *testing.T, conn *websocket.Conn, request realtime.Envelop
 	return response
 }
 
+func ackAppEvent(t *testing.T, conn *websocket.Conn, cursor int64) {
+	t.Helper()
+
+	payload, err := json.Marshal(map[string]any{"cursor": cursor})
+	if err != nil {
+		t.Fatalf("marshal app event ack: %v", err)
+	}
+	sendAppRequest(t, conn, realtime.Envelope{
+		V:       realtime.ProtocolVersion,
+		Kind:    realtime.KindRequest,
+		ID:      "ack-event-" + uuid.NewString(),
+		Method:  appMethodEventsAck,
+		Payload: payload,
+	})
+}
+
 func sendRawAppRequest(t *testing.T, conn *websocket.Conn, request realtime.Envelope) realtime.Envelope {
 	t.Helper()
 
@@ -1077,6 +1095,9 @@ func TestAppWebSocketReceivesTextMessageEvents(t *testing.T) {
 	if event.Kind != realtime.KindEvent || event.Event != realtime.EventMessageCreated {
 		t.Fatalf("app event = %#v, want message.created event", event)
 	}
+	if event.Cursor <= 0 {
+		t.Fatalf("app event cursor = %d, want positive cursor", event.Cursor)
+	}
 	var payload map[string]any
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		t.Fatalf("unmarshal app event payload: %v", err)
@@ -1113,6 +1134,18 @@ func TestAppWebSocketReceivesTextMessageEvents(t *testing.T) {
 	if message["id"] != createdMessage["id"] {
 		t.Fatalf("message.id = %v, want %v", message["id"], createdMessage["id"])
 	}
+
+	replayConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	replayed := readRealtimeEvent(t, replayConn)
+	if replayed.Cursor != event.Cursor || replayed.Event != event.Event || string(replayed.Payload) != string(event.Payload) {
+		t.Fatalf("replayed event = %#v, want cursor %d payload %s", replayed, event.Cursor, event.Payload)
+	}
+	requireNoRealtimeEvent(t, appConn)
+	_ = appConn.Close()
+	ackAppEvent(t, replayConn, event.Cursor)
+	_ = replayConn.Close()
+	afterAckConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	requireNoRealtimeEvent(t, afterAckConn)
 	if _, ok := message["conversation_id"]; ok {
 		t.Fatalf("message.conversation_id = %v, want omitted", message["conversation_id"])
 	}
@@ -1131,6 +1164,46 @@ func TestAppWebSocketReceivesTextMessageEvents(t *testing.T) {
 	}
 	if message["created_at"] == "" {
 		t.Fatalf("message.created_at = %#v, want non-empty", message["created_at"])
+	}
+}
+
+func TestAppWebSocketAckOlderCursorIsIdempotent(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 10, 6, 0, 0, 0, time.UTC)
+	app := insertTestApp(t, db, store.App{
+		Name:             "Echo App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "echo-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	events := []store.AppEventOutbox{
+		{AppID: app.ID, Event: realtime.EventMessageCreated, Payload: json.RawMessage(`{"message":"first"}`), CreatedAt: now},
+		{AppID: app.ID, Event: realtime.EventMessageCreated, Payload: json.RawMessage(`{"message":"second"}`), CreatedAt: now.Add(time.Second)},
+	}
+	if err := db.Create(&events).Error; err != nil {
+		t.Fatalf("create app events: %v", err)
+	}
+
+	conn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	first := readRealtimeEvent(t, conn)
+	second := readRealtimeEvent(t, conn)
+	if first.Cursor != events[0].ID || second.Cursor != events[1].ID {
+		t.Fatalf("replayed cursors = [%d, %d], want [%d, %d]", first.Cursor, second.Cursor, events[0].ID, events[1].ID)
+	}
+
+	ackAppEvent(t, conn, second.Cursor)
+	ackAppEvent(t, conn, first.Cursor)
+
+	var ack store.AppEventAck
+	if err := db.First(&ack, "app_id = ?", app.ID).Error; err != nil {
+		t.Fatalf("load app event ack: %v", err)
+	}
+	if ack.LastAckedCursor != second.Cursor {
+		t.Fatalf("last acked cursor = %d, want %d", ack.LastAckedCursor, second.Cursor)
 	}
 }
 
@@ -1232,6 +1305,7 @@ func TestAppWebSocketReceivesGroupMessageOnlyWhenMentionedDirectly(t *testing.T)
 	if message["summary"] != mentionedContent {
 		t.Fatalf("message.summary = %v, want %s", message["summary"], mentionedContent)
 	}
+	ackAppEvent(t, mentionedConn, event.Cursor)
 	requireNoRealtimeEvent(t, otherConn)
 
 	allConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
