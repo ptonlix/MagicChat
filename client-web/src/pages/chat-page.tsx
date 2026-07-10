@@ -11,6 +11,7 @@ import {
 } from "@/lib/conversation-app-profile"
 import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { useClientData } from "@/lib/client-data-context"
+import { useConversationDrafts } from "@/hooks/use-conversation-drafts"
 import {
   formatClientMessageBodySummary,
   type ClientConversation,
@@ -19,6 +20,10 @@ import {
   type ContactApp,
   type ContactUser,
 } from "@/lib/client-data-api"
+import {
+  emptyConversationDraft,
+  type ConversationDraftMention,
+} from "@/lib/conversation-drafts"
 import { formatConversationLastMessageTime } from "@/lib/conversation-format"
 import {
   formatMentionTemplateText,
@@ -133,15 +138,13 @@ export function ChatPage() {
     sendConversationMarkdown,
     sendConversationText,
   } = useClientData()
+  const {
+    clearConversationDraft,
+    drafts,
+    flushDrafts,
+    updateConversationDraft,
+  } = useConversationDrafts(me.id)
   const [searchParams, setSearchParams] = useSearchParams()
-  const [draftState, setDraftState] = React.useState({
-    conversationId: "",
-    value: "",
-  })
-  const [replyTargetState, setReplyTargetState] = React.useState<{
-    conversationId: string
-    target: ConversationPanelReplyTarget
-  } | null>(null)
   const [richTextMode, setRichTextMode] = React.useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] =
     React.useState(false)
@@ -154,13 +157,9 @@ export function ChatPage() {
   )
 
   const activeConversationId = activeConversation?.id ?? ""
-  const activeConversationIdRef = React.useRef(activeConversationId)
-  const draft =
-    draftState.conversationId === activeConversationId ? draftState.value : ""
-  const replyTarget =
-    replyTargetState?.conversationId === activeConversationId
-      ? replyTargetState.target
-      : null
+  const activeDraft = drafts[activeConversationId] ?? emptyConversationDraft
+  const draft = activeDraft.text
+  const replyTarget = activeDraft.replyTarget
   const activeMessageState = activeConversationId
     ? getConversationMessageState(activeConversationId)
     : undefined
@@ -240,18 +239,15 @@ export function ChatPage() {
   )
 
   const setDraft = React.useCallback(
-    (nextDraft: string) => {
-      setDraftState({
-        conversationId: activeConversationId,
-        value: nextDraft,
-      })
+    (nextDraft: string, nextMentions: ConversationDraftMention[]) => {
+      updateConversationDraft(activeConversationId, (currentDraft) => ({
+        ...currentDraft,
+        mentions: nextMentions,
+        text: nextDraft,
+      }))
     },
-    [activeConversationId]
+    [activeConversationId, updateConversationDraft]
   )
-
-  React.useEffect(() => {
-    activeConversationIdRef.current = activeConversationId
-  }, [activeConversationId])
 
   React.useEffect(() => {
     if (!activeConversationId) {
@@ -302,18 +298,17 @@ export function ChatPage() {
   }, [activeConversationId, loadBeforeConversationMessages])
 
   const clearReplyTarget = React.useCallback(() => {
-    setReplyTargetState((currentReplyTargetState) =>
-      currentReplyTargetState?.conversationId === activeConversationId
-        ? null
-        : currentReplyTargetState
-    )
-  }, [activeConversationId])
+    updateConversationDraft(activeConversationId, (currentDraft) => ({
+      ...currentDraft,
+      replyTarget: null,
+    }))
+  }, [activeConversationId, updateConversationDraft])
 
   const replyToMessage = React.useCallback(
     (message: ConversationPanelMessage) => {
-      setReplyTargetState({
-        conversationId: activeConversationId,
-        target: {
+      updateConversationDraft(activeConversationId, (currentDraft) => ({
+        ...currentDraft,
+        replyTarget: {
           id: message.id,
           author: message.author,
           summary: formatConversationMessageSummary(
@@ -321,9 +316,9 @@ export function ChatPage() {
             activeMentionLabelResolver
           ),
         },
-      })
+      }))
     },
-    [activeConversationId, activeMentionLabelResolver]
+    [activeConversationId, activeMentionLabelResolver, updateConversationDraft]
   )
 
   const revokeMessage = React.useCallback(
@@ -340,6 +335,22 @@ export function ChatPage() {
     },
     [activeConversationId, revokeConversationMessage]
   )
+
+  function clearSentReplyTarget(
+    conversationId: string,
+    replyToMessageId: string | undefined
+  ) {
+    if (!replyToMessageId) {
+      return
+    }
+
+    updateConversationDraft(conversationId, (currentDraft) =>
+      currentDraft.replyTarget?.id === replyToMessageId
+        ? { ...currentDraft, replyTarget: null }
+        : currentDraft
+    )
+    flushDrafts()
+  }
 
   function sendMessage(contentOverride?: string) {
     const visibleContent = draft.trim()
@@ -361,21 +372,9 @@ export function ChatPage() {
     void sendConversation(sendingConversationId, sendContent, {
       replyToMessageId: sendingReplyToMessageId,
     }).then((message) => {
-      if (
-        message &&
-        activeConversationIdRef.current === sendingConversationId
-      ) {
-        setDraftState((currentDraftState) =>
-          currentDraftState.conversationId === sendingConversationId
-            ? { ...currentDraftState, value: "" }
-            : currentDraftState
-        )
-        setReplyTargetState((currentReplyTargetState) =>
-          currentReplyTargetState?.conversationId === sendingConversationId &&
-          currentReplyTargetState.target.id === sendingReplyToMessageId
-            ? null
-            : currentReplyTargetState
-        )
+      if (message) {
+        clearConversationDraft(sendingConversationId)
+        flushDrafts()
       }
     })
   }
@@ -390,13 +389,8 @@ export function ChatPage() {
     const message = await sendConversationFile(sendingConversationId, file, {
       replyToMessageId: sendingReplyToMessageId,
     })
-    if (message && activeConversationIdRef.current === sendingConversationId) {
-      setReplyTargetState((currentReplyTargetState) =>
-        currentReplyTargetState?.conversationId === sendingConversationId &&
-        currentReplyTargetState.target.id === sendingReplyToMessageId
-          ? null
-          : currentReplyTargetState
-      )
+    if (message) {
+      clearSentReplyTarget(sendingConversationId, sendingReplyToMessageId)
     }
 
     return message
@@ -412,24 +406,21 @@ export function ChatPage() {
     const message = await sendConversationImage(sendingConversationId, image, {
       replyToMessageId: sendingReplyToMessageId,
     })
-    if (message && activeConversationIdRef.current === sendingConversationId) {
-      setReplyTargetState((currentReplyTargetState) =>
-        currentReplyTargetState?.conversationId === sendingConversationId &&
-        currentReplyTargetState.target.id === sendingReplyToMessageId
-          ? null
-          : currentReplyTargetState
-      )
+    if (message) {
+      clearSentReplyTarget(sendingConversationId, sendingReplyToMessageId)
     }
 
     return message
   }
 
   function selectConversation(conversationId: string) {
+    flushDrafts()
     setSearchParams({ conversation_id: conversationId }, { replace: true })
   }
 
   async function startGroupConversation(name: string, memberIds: string[]) {
     const conversation = await createGroupConversation(name, memberIds)
+    flushDrafts()
     setSearchParams({ conversation_id: conversation.id })
   }
 
@@ -517,10 +508,15 @@ export function ChatPage() {
                 })
               const hasUnreadMention =
                 conversation.lastMentionedSeq > conversation.lastReadSeq
-              const description = getConversationListDescription(
-                conversation,
-                mentionLabelResolver
-              )
+              const preview = getConversationListPreview({
+                draftText: drafts[conversation.id]?.text,
+                hasUnreadMention,
+                messageDescription: getConversationListDescription(
+                  conversation,
+                  mentionLabelResolver
+                ),
+                selected,
+              })
 
               return (
                 <ConversationListItemMenu key={conversation.id}>
@@ -553,12 +549,12 @@ export function ChatPage() {
                         <p
                           className="w-full min-w-0 truncate text-left text-xs leading-normal font-normal text-muted-foreground"
                         >
-                          {hasUnreadMention && (
+                          {preview.alertLabel && (
                             <span className="mr-1 font-medium text-rose-700 dark:text-rose-300">
-                              [有人 @ 我]
+                              {preview.alertLabel}
                             </span>
                           )}
-                          <span>{description}</span>
+                          <span>{preview.description}</span>
                         </p>
                       </div>
                     </SidebarMenuButton>
@@ -576,12 +572,14 @@ export function ChatPage() {
         conversationOnline={activeConversationOnline}
         currentUserId={me.id}
         draft={draft}
+        draftMentions={activeDraft.mentions}
         historyError={activeMessageState?.error ?? null}
         historyLoading={historyLoading}
         historyLoadingBefore={Boolean(activeMessageState?.loadingBefore)}
         mentionLabelResolver={activeMentionLabelResolver}
         messages={activeMessages}
         onCancelReply={clearReplyTarget}
+        onDraftBlur={flushDrafts}
         onDraftChange={setDraft}
         onReplyToMessage={replyToMessage}
         onRevokeMessage={revokeMessage}
@@ -852,6 +850,44 @@ function getConversationListDescription(
   return summary
     ? formatMentionTemplateText(summary, mentionLabelResolver)
     : "暂无消息"
+}
+
+function getConversationListPreview({
+  draftText,
+  hasUnreadMention,
+  messageDescription,
+  selected,
+}: {
+  draftText: string | undefined
+  hasUnreadMention: boolean
+  messageDescription: string
+  selected: boolean
+}) {
+  if (selected) {
+    return {
+      alertLabel: null,
+      description: messageDescription,
+    }
+  }
+
+  if (hasUnreadMention) {
+    return {
+      alertLabel: "[有人 @ 我]",
+      description: messageDescription,
+    }
+  }
+
+  if (draftText !== undefined) {
+    return {
+      alertLabel: "[草稿]",
+      description: draftText,
+    }
+  }
+
+  return {
+    alertLabel: null,
+    description: messageDescription,
+  }
 }
 
 function ConversationListAvatar({

@@ -32,6 +32,10 @@ import {
   type MentionLabelResolver,
   type MentionTargetType,
 } from "@/lib/message-mentions"
+import type {
+  ConversationDraftMention,
+  ConversationDraftReplyTarget,
+} from "@/lib/conversation-drafts"
 import {
   createPinyinSearchText,
   normalizePinyinSearchQuery,
@@ -107,23 +111,12 @@ export type ConversationPanelMentionTarget = {
   targetType: MentionTargetType
 }
 
-export type ConversationPanelReplyTarget = {
-  id: string
-  author: string
-  summary: string
-}
+export type ConversationPanelReplyTarget = ConversationDraftReplyTarget
 
 const maxFileMessageUploadBytes = 20 * 1024 * 1024
 const maxMentionCandidateResults = 50
 const fallbackMentionLabelResolver: MentionLabelResolver = () => undefined
-
-type DraftMention = {
-  end: number
-  id: string
-  label: string
-  start: number
-  targetType: MentionTargetType
-}
+const emptyDraftMentions: ConversationDraftMention[] = []
 
 type MentionCandidate = {
   avatar: string
@@ -146,12 +139,14 @@ type ConversationPanelProps = {
   conversationOnline?: boolean
   currentUserId: string
   draft: string
+  draftMentions?: ConversationDraftMention[]
   historyError: string | null
   historyLoading: boolean
   historyLoadingBefore: boolean
   mentionLabelResolver?: MentionLabelResolver
   messages: ConversationPanelMessage[]
-  onDraftChange: (draft: string) => void
+  onDraftBlur?: () => void
+  onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
   onCancelReply: () => void
   onReplyToMessage: (message: ConversationPanelMessage) => void
   onRevokeMessage: (message: ConversationPanelMessage) => void
@@ -170,11 +165,13 @@ export function ConversationPanel({
   conversationOnline,
   currentUserId,
   draft,
+  draftMentions = emptyDraftMentions,
   historyError,
   historyLoading,
   historyLoadingBefore,
   mentionLabelResolver = fallbackMentionLabelResolver,
   messages,
+  onDraftBlur,
   onDraftChange,
   onCancelReply,
   onReplyToMessage,
@@ -247,8 +244,10 @@ export function ConversationPanel({
             ref={composerRef}
             conversation={conversation}
             draft={draft}
+            draftMentions={draftMentions}
             replyTarget={replyTarget}
             onCancelReply={onCancelReply}
+            onDraftBlur={onDraftBlur}
             onDraftChange={onDraftChange}
             onSendFile={onSendFile}
             onSendImage={onSendImage}
@@ -569,9 +568,11 @@ const ConversationPanelComposer = React.forwardRef<
   {
   conversation: ClientConversation
   draft: string
+  draftMentions: ConversationDraftMention[]
   replyTarget: ConversationPanelReplyTarget | null
   onCancelReply: () => void
-  onDraftChange: (draft: string) => void
+  onDraftBlur?: () => void
+  onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
   onSendFile: (file: File) => Promise<ClientMessage | null>
   onSendImage: (image: File) => Promise<ClientMessage | null>
   onRichTextModeChange: (richTextMode: boolean) => void
@@ -583,8 +584,10 @@ const ConversationPanelComposer = React.forwardRef<
   {
     conversation,
     draft,
+    draftMentions,
     replyTarget,
     onCancelReply,
+    onDraftBlur,
     onDraftChange,
     onSendFile,
     onSendImage,
@@ -605,7 +608,6 @@ const ConversationPanelComposer = React.forwardRef<
   const [fileDialogOpen, setFileDialogOpen] = React.useState(false)
   const [imageDialogOpen, setImageDialogOpen] = React.useState(false)
   const [imagePreparing, setImagePreparing] = React.useState(false)
-  const [draftMentions, setDraftMentions] = React.useState<DraftMention[]>([])
   const [mentionTrigger, setMentionTrigger] =
     React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
@@ -688,11 +690,9 @@ const ConversationPanelComposer = React.forwardRef<
   function handleDraftChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
     const nextDraft = event.target.value
     const cursor = event.target.selectionStart
+    const nextMentions = syncDraftMentions(draftMentions, draft, nextDraft)
 
-    setDraftMentions((currentMentions) =>
-      syncDraftMentions(currentMentions, draft, nextDraft)
-    )
-    onDraftChange(nextDraft)
+    onDraftChange(nextDraft, nextMentions)
     updateMentionTrigger(nextDraft, cursor)
   }
 
@@ -714,7 +714,6 @@ const ConversationPanelComposer = React.forwardRef<
 
     shouldFocusAfterSendingRef.current = true
     onSendMessage(createDraftMentionTemplate(draft, draftMentions))
-    setDraftMentions([])
     setMentionTrigger(null)
     setSelectedMentionIndex(0)
   }
@@ -784,10 +783,7 @@ const ConversationPanelComposer = React.forwardRef<
   }
 
   function handleTextareaValueChange(value: string, cursor?: number) {
-    setDraftMentions((currentMentions) =>
-      syncDraftMentions(currentMentions, draft, value)
-    )
-    onDraftChange(value)
+    onDraftChange(value, syncDraftMentions(draftMentions, draft, value))
     updateMentionTrigger(value, cursor ?? value.length)
   }
 
@@ -821,7 +817,7 @@ const ConversationPanelComposer = React.forwardRef<
     const insertedText = `${mentionText} `
     const nextDraft =
       draft.slice(0, selectionStart) + insertedText + draft.slice(selectionEnd)
-    const nextMention: DraftMention = {
+    const nextMention: ConversationDraftMention = {
       end: selectionStart + mentionText.length,
       id: target.id,
       label: target.label,
@@ -829,20 +825,19 @@ const ConversationPanelComposer = React.forwardRef<
       targetType: target.targetType,
     }
 
-    setDraftMentions((currentMentions) =>
-      [
-        ...syncDraftMentions(
-          currentMentions.filter(
-            (mention) =>
-              mention.end <= selectionStart || mention.start >= selectionEnd
-          ),
-          draft,
-          nextDraft
+    const nextMentions = [
+      ...syncDraftMentions(
+        draftMentions.filter(
+          (mention) =>
+            mention.end <= selectionStart || mention.start >= selectionEnd
         ),
-        nextMention,
-      ].sort((mentionA, mentionB) => mentionA.start - mentionB.start)
-    )
-    onDraftChange(nextDraft)
+        draft,
+        nextDraft
+      ),
+      nextMention,
+    ].sort((mentionA, mentionB) => mentionA.start - mentionB.start)
+
+    onDraftChange(nextDraft, nextMentions)
     setMentionTrigger(null)
     setSelectedMentionIndex(0)
 
@@ -1059,6 +1054,7 @@ const ConversationPanelComposer = React.forwardRef<
             ref={textareaRef}
             value={draft}
             aria-disabled={sending}
+            onBlur={onDraftBlur}
             onChange={handleDraftChange}
             onKeyDown={handleComposerKeyDown}
             onSelect={(event) =>
@@ -1365,16 +1361,16 @@ function getMentionTrigger(
 }
 
 function syncDraftMentions(
-  mentions: DraftMention[],
+  mentions: ConversationDraftMention[],
   previousValue: string,
   value: string
-): DraftMention[] {
+): ConversationDraftMention[] {
   if (!value) {
     return []
   }
 
   const textChange = getTextChange(previousValue, value)
-  const nextMentions: DraftMention[] = []
+  const nextMentions: ConversationDraftMention[] = []
 
   for (const mention of mentions) {
     const text = getDraftMentionText(mention)
@@ -1434,7 +1430,10 @@ function getTextChange(previousValue: string, value: string): TextChange {
   }
 }
 
-function shiftDraftMention(mention: DraftMention, textChange: TextChange) {
+function shiftDraftMention(
+  mention: ConversationDraftMention,
+  textChange: TextChange
+) {
   if (mention.end <= textChange.start) {
     return mention
   }
@@ -1450,7 +1449,10 @@ function shiftDraftMention(mention: DraftMention, textChange: TextChange) {
   return null
 }
 
-function createDraftMentionTemplate(value: string, mentions: DraftMention[]) {
+function createDraftMentionTemplate(
+  value: string,
+  mentions: ConversationDraftMention[]
+) {
   let content = value
   const validMentions = mentions
     .filter(
@@ -1472,7 +1474,7 @@ function createDraftMentionTemplate(value: string, mentions: DraftMention[]) {
   return content
 }
 
-function getDraftMentionText(mention: Pick<DraftMention, "label">) {
+function getDraftMentionText(mention: Pick<ConversationDraftMention, "label">) {
   return `@${mention.label}`
 }
 
