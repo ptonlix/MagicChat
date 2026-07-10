@@ -138,5 +138,5 @@ func (c *Connection) handleAppMessage(message realtime.Envelope) {
 		return
 	}
 
-	c.Enqueue(c.manager.requestHandler(c.appID, message))
+	c.Enqueue(c.manager.HandleRequest(c.appID, message))
 }

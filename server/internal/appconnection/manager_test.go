@@ -41,3 +41,21 @@ func TestLimitOutboundEnvelopeSkipsOversizedEvent(t *testing.T) {
 		t.Fatal("limitOutboundEnvelope() ok = true, want oversized event skipped")
 	}
 }
+
+func TestManagerHandleRequestReplaysDuplicateResponse(t *testing.T) {
+	calls := 0
+	manager := NewManager(Options{RequestHandler: func(appID string, request realtime.Envelope) realtime.Envelope {
+		calls++
+		return realtime.NewResponse(request.ID, map[string]any{"calls": calls})
+	}})
+	request := testAppRequest("request-1", "method.one", map[string]any{"value": 1})
+
+	first := manager.HandleRequest("app-1", request)
+	second := manager.HandleRequest("app-1", request)
+	if calls != 1 {
+		t.Fatalf("handler calls = %d, want 1", calls)
+	}
+	if string(first.Payload) != string(second.Payload) {
+		t.Fatalf("responses differ: %s != %s", first.Payload, second.Payload)
+	}
+}
