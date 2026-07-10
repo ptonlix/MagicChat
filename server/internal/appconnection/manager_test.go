@@ -98,7 +98,41 @@ func dialManagedWebSocket(t *testing.T, manager *Manager) *websocket.Conn {
 	return client
 }
 
-func TestLimitOutboundEnvelopeReplacesOversizedResponse(t *testing.T) {
+func exactSizeResponse(t *testing.T, replyTo string, size int) realtime.Envelope {
+	t.Helper()
+	base := realtime.NewResponse(replyTo, map[string]any{"content": ""})
+	encoded, err := json.Marshal(base)
+	if err != nil {
+		t.Fatalf("marshal base response: %v", err)
+	}
+	response := realtime.NewResponse(replyTo, map[string]any{"content": strings.Repeat("x", size-len(encoded))})
+	encoded, err = json.Marshal(response)
+	if err != nil || len(encoded) != size {
+		t.Fatalf("encoded response bytes/error = %d/%v, want %d/nil", len(encoded), err, size)
+	}
+	return response
+}
+
+func TestConnectionWritesEnvelopeAtExactOneMiBBoundary(t *testing.T) {
+	response := exactSizeResponse(t, "exact-limit", 1<<20)
+	manager := NewManager(Options{RequestHandler: func(string, realtime.Envelope) realtime.Envelope {
+		return response
+	}})
+	client := dialManagedWebSocket(t, manager)
+	client.SetReadLimit(1 << 20)
+	if err := client.WriteJSON(testAppRequest("exact-limit", "test.limit", nil)); err != nil {
+		t.Fatalf("write exact-limit request: %v", err)
+	}
+	messageType, encoded, err := client.ReadMessage()
+	if err != nil {
+		t.Fatalf("read exact-limit response: %v", err)
+	}
+	if messageType != websocket.TextMessage || len(encoded) != 1<<20 {
+		t.Fatalf("message type/bytes = %d/%d, want %d/%d", messageType, len(encoded), websocket.TextMessage, 1<<20)
+	}
+}
+
+func TestEncodeOutboundEnvelopeReplacesOversizedResponse(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{"content": strings.Repeat("x", 1<<20)})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -106,9 +140,13 @@ func TestLimitOutboundEnvelopeReplacesOversizedResponse(t *testing.T) {
 	response := realtime.NewResponse("request-1", nil)
 	response.Payload = payload
 
-	limited, ok := limitOutboundEnvelope(response, 1<<20)
+	encoded, ok := encodeOutboundEnvelope(response, 1<<20)
 	if !ok {
-		t.Fatal("limitOutboundEnvelope() ok = false, want replacement response")
+		t.Fatal("encodeOutboundEnvelope() ok = false, want replacement response")
+	}
+	var limited realtime.Envelope
+	if err := json.Unmarshal(encoded, &limited); err != nil {
+		t.Fatalf("unmarshal limited response: %v", err)
 	}
 	if limited.Error == nil || limited.Error.Code != "response_too_large" {
 		t.Fatalf("limited response = %#v, want response_too_large", limited)
@@ -118,10 +156,10 @@ func TestLimitOutboundEnvelopeReplacesOversizedResponse(t *testing.T) {
 	}
 }
 
-func TestLimitOutboundEnvelopeSkipsOversizedEvent(t *testing.T) {
+func TestEncodeOutboundEnvelopeSkipsOversizedEvent(t *testing.T) {
 	event := realtime.NewEvent("large.event", map[string]any{"content": strings.Repeat("x", 1<<20)})
-	if _, ok := limitOutboundEnvelope(event, 1<<20); ok {
-		t.Fatal("limitOutboundEnvelope() ok = true, want oversized event skipped")
+	if _, ok := encodeOutboundEnvelope(event, 1<<20); ok {
+		t.Fatal("encodeOutboundEnvelope() ok = true, want oversized event skipped")
 	}
 }
 

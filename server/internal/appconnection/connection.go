@@ -87,12 +87,12 @@ func (c *Connection) writeLoop() {
 		case <-c.done:
 			return
 		case message := <-c.send:
-			limited, ok := limitOutboundEnvelope(message, c.manager.maxMessageBytes)
+			encoded, ok := encodeOutboundEnvelope(message, c.manager.maxMessageBytes)
 			if !ok {
 				log.Printf("skip oversized app websocket event: app_id=%s event=%s", c.appID, message.Event)
 				continue
 			}
-			if err := c.writeJSON(limited); err != nil {
+			if err := c.writeMessage(encoded); err != nil {
 				return
 			}
 		case <-ticker.C:
@@ -103,23 +103,27 @@ func (c *Connection) writeLoop() {
 	}
 }
 
-func limitOutboundEnvelope(message realtime.Envelope, maxMessageBytes int64) (realtime.Envelope, bool) {
+func encodeOutboundEnvelope(message realtime.Envelope, maxMessageBytes int64) ([]byte, bool) {
 	encoded, err := json.Marshal(message)
 	if err == nil && int64(len(encoded)) <= maxMessageBytes {
-		return message, true
+		return encoded, true
 	}
-	if message.Kind == realtime.KindResponse {
-		return realtime.NewErrorResponse(message.ReplyTo, "response_too_large", "应用响应超过 1MiB 限制"), true
+	if message.Kind != realtime.KindResponse {
+		return nil, false
 	}
-	return realtime.Envelope{}, false
+	replacement, err := json.Marshal(realtime.NewErrorResponse(message.ReplyTo, "response_too_large", "应用响应超过 1MiB 限制"))
+	if err != nil || int64(len(replacement)) > maxMessageBytes {
+		return nil, false
+	}
+	return replacement, true
 }
 
-func (c *Connection) writeJSON(message realtime.Envelope) error {
+func (c *Connection) writeMessage(encoded []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
 	_ = c.socket.SetWriteDeadline(time.Now().Add(c.manager.writeWait))
-	return c.socket.WriteJSON(message)
+	return c.socket.WriteMessage(websocket.TextMessage, encoded)
 }
 
 func (c *Connection) writeControl(messageType int, data []byte) error {
