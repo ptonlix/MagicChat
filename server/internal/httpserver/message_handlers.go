@@ -156,11 +156,12 @@ type messageBodyFinalizer interface {
 type finalizeMessageBodyFunc func(ctx context.Context, body json.RawMessage) (json.RawMessage, string, error)
 
 type createMessageMetadata struct {
-	DelegatedByType  *string
-	DelegatedByID    *string
-	DelegatedByName  string
-	ReplyToMessageID *string
-	EmitAppEvent     bool
+	DelegatedByType              *string
+	DelegatedByID                *string
+	DelegatedByName              string
+	ReplyToMessageID             *string
+	EmitAppEvent                 bool
+	AfterCommitBeforeAppDelivery func(store.Message, []string, []string)
 }
 
 type messageMentionTarget struct {
@@ -281,7 +282,7 @@ func (s *Server) createConversationMessage(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
 
-	message, created, memberUserIDs, mentionedUserIDs, err := s.createUserMessageWithMetadata(
+	message, created, _, _, err := s.createUserMessageWithMetadata(
 		c.Request().Context(),
 		user.ID,
 		conversationID,
@@ -291,6 +292,10 @@ func (s *Server) createConversationMessage(c echo.Context) error {
 		createMessageMetadata{
 			ReplyToMessageID: replyToMessageID,
 			EmitAppEvent:     true,
+			AfterCommitBeforeAppDelivery: func(message store.Message, memberUserIDs []string, mentionedUserIDs []string) {
+				s.sendRealtimeMessageCreatedToUsers(c.Request().Context(), memberUserIDs, message)
+				s.sendRealtimeConversationMemberMentionedToUsers(mentionedUserIDs, message)
+			},
 		},
 	)
 	if err != nil {
@@ -314,11 +319,6 @@ func (s *Server) createConversationMessage(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
-	if created {
-		s.sendRealtimeMessageCreatedToUsers(c.Request().Context(), memberUserIDs, message)
-		s.sendRealtimeConversationMemberMentionedToUsers(mentionedUserIDs, message)
-	}
-
 	status := http.StatusOK
 	if created {
 		status = http.StatusCreated
@@ -684,6 +684,9 @@ func (s *Server) createUserMessageWithMetadata(ctx context.Context, userID strin
 		return store.Message{}, false, nil, nil, err
 	}
 	if appEventLockHeld {
+		if metadata.AfterCommitBeforeAppDelivery != nil {
+			metadata.AfterCommitBeforeAppDelivery(message, memberUserIDs, mentionedUserIDs)
+		}
 		if s.afterUserMessageCommit != nil {
 			s.afterUserMessageCommit(message)
 		}

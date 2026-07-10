@@ -1130,6 +1130,7 @@ func TestUserMessageRollsBackWhenAppEventOutboxInsertFails(t *testing.T) {
 	})
 
 	subject := &Server{db: db}
+	callbackCalled := false
 	_, _, _, _, err := subject.createUserMessageWithMetadata(
 		context.Background(),
 		alice.ID,
@@ -1137,10 +1138,18 @@ func TestUserMessageRollsBackWhenAppEventOutboxInsertFails(t *testing.T) {
 		"message-1",
 		json.RawMessage(`{"type":"text","content":"hello"}`),
 		staticMessageBodyFinalizer("hello"),
-		createMessageMetadata{EmitAppEvent: true},
+		createMessageMetadata{
+			EmitAppEvent: true,
+			AfterCommitBeforeAppDelivery: func(store.Message, []string, []string) {
+				callbackCalled = true
+			},
+		},
 	)
 	if err == nil {
 		t.Fatal("createUserMessageWithMetadata() error = nil, want forced outbox failure")
+	}
+	if callbackCalled {
+		t.Fatal("AfterCommitBeforeAppDelivery called after transaction failure")
 	}
 
 	var messageCount int64
@@ -1156,6 +1165,83 @@ func TestUserMessageRollsBackWhenAppEventOutboxInsertFails(t *testing.T) {
 	}
 	if outboxCount != 0 {
 		t.Fatalf("app event outbox count = %d, want 0", outboxCount)
+	}
+}
+
+func TestUserRealtimeCallbackRunsBeforeAppDeliveryBoundary(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name:      "Echo App",
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindApp,
+		memberIDs:       []string{alice.ID},
+		name:            app.Name,
+		now:             now,
+	})
+	insertTestAppConversationLink(t, db, app.ID, alice.ID, conversation.ID, now)
+
+	deliveryOrder := []string{}
+	subject := &Server{db: db}
+	subject.afterUserMessageCommit = func(store.Message) {
+		deliveryOrder = append(deliveryOrder, "app-delivery-boundary")
+	}
+	metadata := createMessageMetadata{
+		EmitAppEvent: true,
+		AfterCommitBeforeAppDelivery: func(message store.Message, memberUserIDs []string, mentionedUserIDs []string) {
+			deliveryOrder = append(deliveryOrder, "user-realtime")
+			if message.Seq != 1 {
+				t.Errorf("callback message seq = %d, want 1", message.Seq)
+			}
+			if !slices.Equal(memberUserIDs, []string{alice.ID}) {
+				t.Errorf("callback member user IDs = %v, want [%s]", memberUserIDs, alice.ID)
+			}
+			if len(mentionedUserIDs) != 0 {
+				t.Errorf("callback mentioned user IDs = %v, want empty", mentionedUserIDs)
+			}
+		},
+	}
+	createMessage := func() (bool, error) {
+		_, created, _, _, err := subject.createUserMessageWithMetadata(
+			context.Background(),
+			alice.ID,
+			conversation.ID,
+			"message-1",
+			json.RawMessage(`{"type":"text","content":"hello"}`),
+			staticMessageBodyFinalizer("hello"),
+			metadata,
+		)
+		return created, err
+	}
+
+	created, err := createMessage()
+	if err != nil {
+		t.Fatalf("createUserMessageWithMetadata() error = %v", err)
+	}
+	if !created {
+		t.Fatal("created = false, want true")
+	}
+	if !slices.Equal(deliveryOrder, []string{"user-realtime", "app-delivery-boundary"}) {
+		t.Fatalf("delivery order = %v, want [user-realtime app-delivery-boundary]", deliveryOrder)
+	}
+
+	created, err = createMessage()
+	if err != nil {
+		t.Fatalf("duplicate createUserMessageWithMetadata() error = %v", err)
+	}
+	if created {
+		t.Fatal("duplicate created = true, want false")
+	}
+	if !slices.Equal(deliveryOrder, []string{"user-realtime", "app-delivery-boundary"}) {
+		t.Fatalf("delivery order after duplicate = %v, want no additional callbacks", deliveryOrder)
 	}
 }
 
@@ -1183,6 +1269,7 @@ func TestConcurrentAppMessagesPersistOutboxInSequenceOrder(t *testing.T) {
 	firstCommitted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	secondReachedEventLock := make(chan struct{})
+	appEventLockErrors := make(chan error, 1)
 	defer func() {
 		select {
 		case <-releaseFirst:
@@ -1194,6 +1281,12 @@ func TestConcurrentAppMessagesPersistOutboxInSequenceOrder(t *testing.T) {
 	subject := &Server{db: db}
 	subject.afterUserMessageCommit = func(message store.Message) {
 		if message.Seq == 1 {
+			if subject.appEventMu.TryLock() {
+				subject.appEventMu.Unlock()
+				appEventLockErrors <- errors.New("appEventMu was not held after message commit")
+			} else {
+				appEventLockErrors <- nil
+			}
 			close(firstCommitted)
 			<-releaseFirst
 		}
@@ -1223,6 +1316,9 @@ func TestConcurrentAppMessagesPersistOutboxInSequenceOrder(t *testing.T) {
 	case <-firstCommitted:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for first message commit")
+	}
+	if err := <-appEventLockErrors; err != nil {
+		t.Fatal(err)
 	}
 
 	go func() { errs <- createMessage("message-2") }()
@@ -4413,6 +4509,7 @@ func TestCreateConversationTextMessagePushesMessageCreatedToConversationMembers(
 		if pushedBody["type"] != "text" || pushedBody["content"] != "你好，Bob" {
 			t.Fatalf("%s pushed body = %#v, want text body", name, pushedBody)
 		}
+		requireNoRealtimeEvent(t, conn)
 	}
 }
 
