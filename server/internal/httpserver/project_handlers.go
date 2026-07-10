@@ -139,10 +139,10 @@ type conversationCountRow struct {
 }
 
 type createProjectRequest struct {
-	Name        projectOptionalString `json:"name"`
-	Description projectOptionalString `json:"description"`
-	Avatar      projectOptionalString `json:"avatar"`
-	GroupIDs    []string              `json:"group_ids"`
+	Name        projectOptionalString      `json:"name"`
+	Description projectOptionalString      `json:"description"`
+	Avatar      projectOptionalString      `json:"avatar"`
+	GroupIDs    projectOptionalStringSlice `json:"group_ids"`
 }
 
 type updateProjectRequest struct {
@@ -154,6 +154,11 @@ type updateProjectRequest struct {
 type projectOptionalString struct {
 	Present bool
 	Value   string
+}
+
+type projectOptionalStringSlice struct {
+	Present bool
+	Value   []string
 }
 
 type projectTaskStatusCount struct {
@@ -269,7 +274,7 @@ func (s *Server) createProject(c echo.Context) error {
 	if err != nil {
 		return projectInvalidRequest(c, err.Error())
 	}
-	groupIDs, err := normalizeProjectGroupIDs(req.GroupIDs)
+	groupIDs, err := normalizeProjectGroupIDs(req.GroupIDs.Value)
 	if err != nil {
 		return projectInvalidRequest(c, err.Error())
 	}
@@ -884,6 +889,14 @@ func (value *projectOptionalString) UnmarshalJSON(raw []byte) error {
 	value.Present = true
 	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return errors.New("字符串字段不能为 null")
+	}
+	return json.Unmarshal(raw, &value.Value)
+}
+
+func (value *projectOptionalStringSlice) UnmarshalJSON(raw []byte) error {
+	value.Present = true
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return errors.New("字符串数组字段不能为 null")
 	}
 	return json.Unmarshal(raw, &value.Value)
 }

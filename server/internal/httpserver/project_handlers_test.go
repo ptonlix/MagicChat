@@ -785,6 +785,36 @@ func TestProjectJSONRejectsNullAndTrailingPayload(t *testing.T) {
 	}
 }
 
+func TestProjectCreateDistinguishesOmittedEmptyAndNullGroupIDs(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	owner := insertTestUser(t, db, "project-group-ids-presence@example.com", "Group IDs Presence", store.UserStatusActive, time.Now().UTC())
+	cookie := loginAsUser(t, server, owner.Email)
+	testCases := []struct {
+		name       string
+		raw        string
+		wantStatus int
+	}{
+		{name: "omitted", raw: `{"name":"Omitted"}`, wantStatus: http.StatusCreated},
+		{name: "empty array", raw: `{"name":"Empty","group_ids":[]}`, wantStatus: http.StatusCreated},
+		{name: "null", raw: `{"name":"Valid","group_ids":null}`, wantStatus: http.StatusBadRequest},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resp, body := requestRawProjectJSON(t, server.URL, server.Client(), http.MethodPost, "/api/client/projects", testCase.raw, cookie)
+			if resp.StatusCode != testCase.wantStatus {
+				t.Fatalf("status = %d, want %d, body = %#v", resp.StatusCode, testCase.wantStatus, body)
+			}
+			if testCase.wantStatus == http.StatusCreated {
+				requireSuccess(t, body)
+				return
+			}
+			requireError(t, body, "invalid_request")
+		})
+	}
+}
+
 func TestProjectCreateLocksGroupsInSortedOrder(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
