@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const maxConsecutiveAppResponses = 16
+
 type Connection struct {
 	appID    string
 	done     chan struct{}
@@ -92,12 +94,42 @@ func (c *Connection) writeLoop() {
 		c.Close()
 	}()
 
+	consecutiveResponses := 0
 	for {
+		select {
+		case <-c.done:
+			return
+		default:
+		}
+
+		if consecutiveResponses >= maxConsecutiveAppResponses {
+			select {
+			case <-ticker.C:
+				if err := c.writeControl(websocket.PingMessage, nil); err != nil {
+					return
+				}
+				consecutiveResponses = 0
+				continue
+			default:
+			}
+			select {
+			case message := <-c.send:
+				if !c.writeEnvelope(message) {
+					return
+				}
+				consecutiveResponses = 0
+				continue
+			default:
+			}
+			consecutiveResponses = 0
+		}
+
 		select {
 		case message := <-c.response:
 			if !c.writeEnvelope(message) {
 				return
 			}
+			consecutiveResponses++
 			continue
 		default:
 		}
@@ -109,14 +141,17 @@ func (c *Connection) writeLoop() {
 			if !c.writeEnvelope(message) {
 				return
 			}
+			consecutiveResponses++
 		case message := <-c.send:
 			if !c.writeEnvelope(message) {
 				return
 			}
+			consecutiveResponses = 0
 		case <-ticker.C:
 			if err := c.writeControl(websocket.PingMessage, nil); err != nil {
 				return
 			}
+			consecutiveResponses = 0
 		}
 	}
 }

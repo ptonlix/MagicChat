@@ -3,6 +3,7 @@ package appconnection
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -98,6 +99,55 @@ func dialManagedWebSocket(t *testing.T, manager *Manager) *websocket.Conn {
 	}
 	t.Cleanup(func() { _ = client.Close() })
 	return client
+}
+
+func newUnservedManagedWebSocket(t *testing.T, manager *Manager) (*websocket.Conn, *Connection) {
+	t.Helper()
+
+	serverSocket := make(chan *websocket.Conn, 1)
+	releaseServer := make(chan struct{})
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		serverSocket <- conn
+		<-releaseServer
+	}))
+	t.Cleanup(func() {
+		close(releaseServer)
+		server.Close()
+	})
+
+	client, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	conn := manager.NewConnection("app-1", <-serverSocket)
+	t.Cleanup(func() {
+		conn.Close()
+		_ = client.Close()
+	})
+	return client, conn
+}
+
+func startManagedWriteLoop(t *testing.T, conn *Connection) {
+	t.Helper()
+
+	done := make(chan struct{})
+	go func() {
+		conn.writeLoop()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		conn.Close()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Errorf("writeLoop did not stop after connection cleanup")
+		}
+	})
 }
 
 func exactSizeResponse(t *testing.T, replyTo string, size int) realtime.Envelope {
@@ -303,5 +353,77 @@ func TestConnectionPrioritizesRequestResponseOverQueuedEvent(t *testing.T) {
 	}
 	if first.Kind != realtime.KindResponse || first.ReplyTo != request.ID {
 		t.Fatalf("first outbound envelope = %#v, want response to %q before queued event", first, request.ID)
+	}
+}
+
+func TestConnectionServicesQueuedEventWithinResponseBurst(t *testing.T) {
+	manager := NewManager(Options{
+		SendBuffer:   maxConsecutiveAppResponses + 4,
+		PingInterval: time.Hour,
+	})
+	client, conn := newUnservedManagedWebSocket(t, manager)
+	for i := 0; i < maxConsecutiveAppResponses+2; i++ {
+		if !conn.EnqueueResponse(realtime.NewResponse(fmt.Sprintf("response-%d", i), nil)) {
+			t.Fatalf("enqueue response %d = false, want true", i)
+		}
+	}
+	if !conn.EnqueueReliable(realtime.NewCursorEvent(1, "test.event", map[string]any{"value": 1})) {
+		t.Fatal("enqueue cursor event = false, want true")
+	}
+	startManagedWriteLoop(t, conn)
+
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	eventPosition := 0
+	for position := 1; position <= maxConsecutiveAppResponses+1; position++ {
+		var message realtime.Envelope
+		if err := client.ReadJSON(&message); err != nil {
+			t.Fatalf("read outbound envelope %d: %v", position, err)
+		}
+		if message.Kind == realtime.KindEvent {
+			eventPosition = position
+			break
+		}
+	}
+	if eventPosition == 0 {
+		t.Fatalf("queued event not written within %d consecutive responses", maxConsecutiveAppResponses)
+	}
+}
+
+func TestConnectionSendsPingWithinResponseBurst(t *testing.T) {
+	responseCount := maxConsecutiveAppResponses * 4
+	manager := NewManager(Options{
+		SendBuffer:   responseCount + 1,
+		PingInterval: time.Nanosecond,
+	})
+	client, conn := newUnservedManagedWebSocket(t, manager)
+	pingObserved := make(chan struct{}, 1)
+	client.SetPingHandler(func(message string) error {
+		select {
+		case pingObserved <- struct{}{}:
+		default:
+		}
+		return client.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+	})
+	for i := 0; i < responseCount; i++ {
+		if !conn.EnqueueResponse(realtime.NewResponse(fmt.Sprintf("response-%d", i), nil)) {
+			t.Fatalf("enqueue response %d = false, want true", i)
+		}
+	}
+	startManagedWriteLoop(t, conn)
+
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	for position := 1; position <= maxConsecutiveAppResponses+2; position++ {
+		var message realtime.Envelope
+		if err := client.ReadJSON(&message); err != nil {
+			t.Fatalf("read outbound response %d: %v", position, err)
+		}
+		if message.Kind != realtime.KindResponse {
+			t.Fatalf("outbound envelope %d kind = %q, want response", position, message.Kind)
+		}
+	}
+	select {
+	case <-pingObserved:
+	default:
+		t.Fatalf("ping not observed within %d consecutive responses", maxConsecutiveAppResponses)
 	}
 }
