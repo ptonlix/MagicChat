@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -41,6 +42,18 @@ const (
 	ConversationMemberRoleOwner  = "owner"
 	ConversationMemberRoleAdmin  = "admin"
 	ConversationMemberRoleMember = "member"
+
+	ProjectRoleOwner  = "owner"
+	ProjectRoleMember = "member"
+
+	TaskStatusTodo       = "todo"
+	TaskStatusInProgress = "in_progress"
+	TaskStatusDone       = "done"
+	TaskStatusCanceled   = "canceled"
+
+	TaskPriorityLow    int16 = 1
+	TaskPriorityMedium int16 = 2
+	TaskPriorityHigh   int16 = 3
 
 	AppVisibilityCreator = "creator"
 	AppVisibilityPublic  = "public"
@@ -150,6 +163,53 @@ type DirectConversation struct {
 	UserHighID     string       `gorm:"type:uuid;not null;uniqueIndex:direct_conversations_user_pair_unique,priority:2;check:direct_conversations_user_order_check,user_low_id < user_high_id"`
 	UserHigh       User         `gorm:"foreignKey:UserHighID;constraint:OnDelete:RESTRICT;"`
 	CreatedAt      time.Time    `gorm:"not null"`
+}
+
+type Project struct {
+	ID              string    `gorm:"type:uuid;primaryKey"`
+	Name            string    `gorm:"size:120;not null"`
+	Description     string    `gorm:"not null;default:''"`
+	Avatar          string    `gorm:"size:512;not null;default:''"`
+	OwnerUserID     string    `gorm:"type:uuid;not null;index"`
+	OwnerUser       User      `gorm:"foreignKey:OwnerUserID;constraint:OnDelete:RESTRICT;"`
+	CreatedByUserID string    `gorm:"type:uuid;not null"`
+	CreatedByUser   User      `gorm:"foreignKey:CreatedByUserID;constraint:OnDelete:RESTRICT;"`
+	IsPersonal      bool      `gorm:"not null;default:false"`
+	CreatedAt       time.Time `gorm:"not null"`
+	UpdatedAt       time.Time `gorm:"not null;index"`
+	DeletedAt       gorm.DeletedAt
+}
+
+type ProjectGroup struct {
+	ProjectID      string       `gorm:"type:uuid;primaryKey"`
+	Project        Project      `gorm:"constraint:OnDelete:CASCADE;"`
+	ConversationID string       `gorm:"type:uuid;primaryKey;index"`
+	Conversation   Conversation `gorm:"constraint:OnDelete:CASCADE;"`
+	LinkedByUserID string       `gorm:"type:uuid;not null"`
+	LinkedByUser   User         `gorm:"foreignKey:LinkedByUserID;constraint:OnDelete:RESTRICT;"`
+	CreatedAt      time.Time    `gorm:"not null"`
+}
+
+type Task struct {
+	ID              string         `gorm:"type:uuid;primaryKey"`
+	ProjectID       string         `gorm:"type:uuid;not null;index"`
+	Project         Project        `gorm:"constraint:OnDelete:CASCADE;"`
+	Title           string         `gorm:"size:240;not null"`
+	Description     string         `gorm:"not null;default:''"`
+	Status          string         `gorm:"size:32;not null;default:todo;index"`
+	Priority        int16          `gorm:"not null;default:2"`
+	AssigneeUserID  *string        `gorm:"type:uuid;index"`
+	AssigneeUser    *User          `gorm:"foreignKey:AssigneeUserID;constraint:OnDelete:SET NULL;"`
+	StartDate       *time.Time     `gorm:"type:date;index"`
+	DueDate         *time.Time     `gorm:"type:date;index"`
+	Labels          pq.StringArray `gorm:"type:text;not null;default:'{}'"`
+	CreatedByUserID string         `gorm:"type:uuid;not null"`
+	CreatedByUser   User           `gorm:"foreignKey:CreatedByUserID;constraint:OnDelete:RESTRICT;"`
+	CompletedAt     *time.Time
+	CanceledAt      *time.Time
+	CreatedAt       time.Time `gorm:"not null"`
+	UpdatedAt       time.Time `gorm:"not null;index"`
+	DeletedAt       gorm.DeletedAt
 }
 
 type TemporaryFile struct {

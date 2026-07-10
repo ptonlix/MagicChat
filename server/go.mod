@@ -14,6 +14,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/labstack/echo/v4 v4.15.4
+	github.com/lib/pq v1.10.9
 	github.com/pressly/goose/v3 v3.27.2
 	github.com/swaggo/echo-swagger v1.5.2
 	github.com/yuin/goldmark v1.8.2

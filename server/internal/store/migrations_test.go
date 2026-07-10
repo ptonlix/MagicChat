@@ -19,6 +19,7 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00004_add_app_soft_delete.sql",
 		"00005_add_message_revoke.sql",
 		"00006_add_conversation_member_mentions.sql",
+		"00007_add_projects_and_tasks.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -26,6 +27,74 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
+	}
+}
+
+func TestProjectsAndTasksMigrationDefinesSchema(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00007_add_projects_and_tasks.sql")
+	if err != nil {
+		t.Fatalf("read projects and tasks migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+
+	for _, required := range []string{
+		"-- +goose up",
+		"create table projects",
+		"id uuid primary key",
+		"name text not null",
+		"description text not null default ''",
+		"avatar text not null default ''",
+		"owner_user_id uuid not null references users(id) on delete restrict",
+		"created_by_user_id uuid not null references users(id) on delete restrict",
+		"is_personal boolean not null default false",
+		"deleted_at timestamptz",
+		"constraint projects_name_check check (char_length(btrim(name)) between 1 and 120)",
+		"create unique index projects_one_personal_per_owner",
+		"where is_personal and deleted_at is null",
+		"create index projects_owner_user_id_index",
+		"create index projects_updated_at_index",
+		"create table project_groups",
+		"project_id uuid not null references projects(id) on delete cascade",
+		"conversation_id uuid not null references conversations(id) on delete cascade",
+		"linked_by_user_id uuid not null references users(id) on delete restrict",
+		"primary key (project_id, conversation_id)",
+		"create index project_groups_conversation_id_index",
+		"create table tasks",
+		"project_id uuid not null references projects(id) on delete cascade",
+		"title text not null",
+		"description text not null default ''",
+		"status text not null default 'todo'",
+		"priority smallint not null default 2",
+		"assignee_user_id uuid references users(id) on delete set null",
+		"start_date date",
+		"due_date date",
+		"labels text[] not null default '{}'",
+		"created_by_user_id uuid not null references users(id) on delete restrict",
+		"completed_at timestamptz",
+		"canceled_at timestamptz",
+		"constraint tasks_title_check check (char_length(btrim(title)) between 1 and 240)",
+		"constraint tasks_status_check check (status in ('todo', 'in_progress', 'done', 'canceled'))",
+		"constraint tasks_priority_check check (priority between 1 and 3)",
+		"constraint tasks_date_order_check check (start_date is null or due_date is null or start_date <= due_date)",
+		"constraint tasks_completed_at_check check",
+		"constraint tasks_canceled_at_check check",
+		"create index tasks_project_updated_at_index",
+		"create index tasks_status_index",
+		"create index tasks_assignee_user_id_index",
+		"create index tasks_start_date_index",
+		"create index tasks_due_date_index",
+		"create index tasks_labels_gin_index on tasks using gin (labels)",
+		"insert into projects",
+		"select gen_random_uuid(), '个人工作区', '', '', id, id, true, created_at, updated_at",
+		"on conflict (owner_user_id) where is_personal and deleted_at is null do nothing",
+		"-- +goose down",
+		"drop table tasks",
+		"drop table project_groups",
+		"drop table projects",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("projects/tasks migration missing %q", required)
 		}
 	}
 }
