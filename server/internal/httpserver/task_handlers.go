@@ -853,10 +853,7 @@ func normalizeCreateTask(req createTaskRequest, projectID string, creatorUserID 
 	}
 
 	var assigneeUserID *string
-	if req.AssigneeUserID.Present {
-		if req.AssigneeUserID.Null {
-			return store.Task{}, errors.New("负责人不能为 null")
-		}
+	if req.AssigneeUserID.Present && !req.AssigneeUserID.Null {
 		parsed, err := parseTaskUUID(req.AssigneeUserID.Value, "负责人 ID 格式错误")
 		if err != nil {
 			return store.Task{}, err
@@ -932,11 +929,8 @@ func normalizeTaskLabels(values []string) (pq.StringArray, error) {
 }
 
 func parseCreateTaskDate(value taskOptionalString, fieldName string) (*time.Time, error) {
-	if !value.Present {
+	if !value.Present || value.Null {
 		return nil, nil
-	}
-	if value.Null {
-		return nil, errors.New(fieldName + "不能为 null")
 	}
 	parsed, err := parseTaskDate(value.Value)
 	if err != nil {

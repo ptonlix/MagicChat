@@ -75,6 +75,58 @@ func TestTaskCreateTitleOnlyUsesDefaults(t *testing.T) {
 	}
 }
 
+func TestTaskCreateAcceptsExplicitNullNullableFields(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "task-create-nullable-nulls@example.com", "Nullable Null Owner", store.UserStatusActive, now)
+	project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Nullable Null Project", UpdatedAt: now})
+	cookie := loginAsUser(t, server, owner.Email)
+	path := "/api/client/projects/" + project.ID + "/tasks"
+
+	testCases := []struct {
+		name    string
+		request func(*testing.T, string) (*http.Response, map[string]any)
+	}{
+		{
+			name: "raw JSON",
+			request: func(t *testing.T, title string) (*http.Response, map[string]any) {
+				return requestRawTaskJSON(t, server, http.MethodPost, path, `{"title":"`+title+`","assignee_user_id":null,"start_date":null,"due_date":null}`, cookie)
+			},
+		},
+		{
+			name: "body map",
+			request: func(t *testing.T, title string) (*http.Response, map[string]any) {
+				return postJSON(t, server, path, map[string]any{
+					"title":            title,
+					"assignee_user_id": nil,
+					"start_date":       nil,
+					"due_date":         nil,
+				}, cookie)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resp, body := testCase.request(t, "Nullable "+testCase.name)
+			if resp.StatusCode != http.StatusCreated {
+				t.Fatalf("status = %d, want 201, body = %#v", resp.StatusCode, body)
+			}
+			task := requireTaskResponse(t, requireSuccess(t, body))
+			for _, field := range []string{"assignee", "start_date", "due_date"} {
+				if task[field] != nil {
+					t.Fatalf("%s = %#v, want null", field, task[field])
+				}
+			}
+			stored := requireTaskByID(t, db, task["id"].(string), false)
+			if stored.AssigneeUserID != nil || stored.StartDate != nil || stored.DueDate != nil {
+				t.Fatalf("stored nullable fields = %#v, want null", stored)
+			}
+		})
+	}
+}
+
 func TestTaskCreateAcceptsFullRequestAndValidAssignee(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -222,9 +274,6 @@ func TestTaskCreateRejectsInvalidFieldsAndStrictJSONViolations(t *testing.T) {
 		{name: "invalid start date", raw: `{"title":"Valid","start_date":"2026-02-30"}`},
 		{name: "date with timestamp", raw: `{"title":"Valid","due_date":"2026-07-11T00:00:00Z"}`},
 		{name: "reversed dates", raw: `{"title":"Valid","start_date":"2026-07-12","due_date":"2026-07-11"}`},
-		{name: "null assignee", raw: `{"title":"Valid","assignee_user_id":null}`},
-		{name: "null start date", raw: `{"title":"Valid","start_date":null}`},
-		{name: "null due date", raw: `{"title":"Valid","due_date":null}`},
 		{name: "null labels", raw: `{"title":"Valid","labels":null}`},
 		{name: "blank label", raw: `{"title":"Valid","labels":["ok","  "]}`},
 		{name: "long label", raw: `{"title":"Valid","labels":["` + strings.Repeat("界", 33) + `"]}`},
