@@ -108,8 +108,12 @@ func (c *Connection) writeLoop() {
 				if err := c.writeControl(websocket.PingMessage, nil); err != nil {
 					return
 				}
-				consecutiveResponses = 0
-				continue
+			default:
+			}
+			consecutiveResponses = 0
+			select {
+			case <-c.done:
+				return
 			default:
 			}
 			select {
@@ -117,11 +121,9 @@ func (c *Connection) writeLoop() {
 				if !c.writeEnvelope(message) {
 					return
 				}
-				consecutiveResponses = 0
 				continue
 			default:
 			}
-			consecutiveResponses = 0
 		}
 
 		select {

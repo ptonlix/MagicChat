@@ -427,3 +427,49 @@ func TestConnectionSendsPingWithinResponseBurst(t *testing.T) {
 		t.Fatalf("ping not observed within %d consecutive responses", maxConsecutiveAppResponses)
 	}
 }
+
+func TestConnectionServicesPingAndEventAtResponseFairnessPoint(t *testing.T) {
+	manager := NewManager(Options{
+		SendBuffer:   maxConsecutiveAppResponses + 4,
+		PingInterval: time.Nanosecond,
+	})
+	client, conn := newUnservedManagedWebSocket(t, manager)
+	pingObserved := make(chan struct{}, 1)
+	client.SetPingHandler(func(message string) error {
+		select {
+		case pingObserved <- struct{}{}:
+		default:
+		}
+		return client.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+	})
+	for i := 0; i < maxConsecutiveAppResponses+2; i++ {
+		if !conn.EnqueueResponse(realtime.NewResponse(fmt.Sprintf("response-%d", i), nil)) {
+			t.Fatalf("enqueue response %d = false, want true", i)
+		}
+	}
+	if !conn.EnqueueReliable(realtime.NewCursorEvent(1, "test.event", map[string]any{"value": 1})) {
+		t.Fatal("enqueue cursor event = false, want true")
+	}
+	startManagedWriteLoop(t, conn)
+
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	var fairnessEnvelope realtime.Envelope
+	for position := 1; position <= maxConsecutiveAppResponses+1; position++ {
+		var message realtime.Envelope
+		if err := client.ReadJSON(&message); err != nil {
+			t.Fatalf("read outbound envelope %d: %v", position, err)
+		}
+		if position <= maxConsecutiveAppResponses && message.Kind != realtime.KindResponse {
+			t.Fatalf("outbound envelope %d kind = %q, want response", position, message.Kind)
+		}
+		fairnessEnvelope = message
+	}
+	select {
+	case <-pingObserved:
+	default:
+		t.Fatalf("ping not observed within %d consecutive responses", maxConsecutiveAppResponses)
+	}
+	if fairnessEnvelope.Kind != realtime.KindEvent {
+		t.Fatalf("outbound envelope %d kind = %q, want event after simultaneous ping fairness", maxConsecutiveAppResponses+1, fairnessEnvelope.Kind)
+	}
+}
