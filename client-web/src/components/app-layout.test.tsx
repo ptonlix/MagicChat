@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -90,6 +90,166 @@ describe("AppLayout", () => {
     expect(
       chatLink.querySelector('[data-slot="notification-dot"]')
     ).not.toBeInTheDocument()
+  })
+
+  it("positions the notification dot inward from the button edge", () => {
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    const chatLink = screen.getByRole("link", {
+      name: "聊天，有未读消息",
+    })
+    const notificationDot = chatLink.querySelector(
+      '[data-slot="notification-dot"]'
+    )
+
+    expect(notificationDot).toHaveClass("top-1", "right-1")
+  })
+
+  it("does not flash unread messages already present on initial load", () => {
+    mocks.clientData.conversations = [{ unreadCount: 2 }]
+
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    const notificationDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    expect(notificationDot).not.toHaveClass("notification-dot-flash")
+  })
+
+  it("flashes when the global unread total increases", () => {
+    mocks.clientData.conversations = [{ unreadCount: 0 }]
+    const view = render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+    view.rerender(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    const notificationDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    expect(notificationDot).toHaveClass("notification-dot-flash")
+  })
+
+  it("restarts the flash when another unread message arrives", () => {
+    mocks.clientData.conversations = [{ unreadCount: 0 }]
+    const view = render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+    view.rerender(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+    const firstDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    mocks.clientData.conversations = [{ unreadCount: 2 }]
+    view.rerender(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+    const restartedDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    expect(restartedDot).not.toBe(firstDot)
+    expect(restartedDot).toHaveClass("notification-dot-flash")
+  })
+
+  it("returns the dot to its static state when the flash ends", () => {
+    mocks.clientData.conversations = [{ unreadCount: 0 }]
+    const view = render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+    view.rerender(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+    const notificationDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    expect(notificationDot).toHaveClass("notification-dot-flash")
+    // JSDOM lacks AnimationEvent, so React registers its WebKit fallback.
+    fireEvent(
+      notificationDot!,
+      new Event("webkitAnimationEnd", { bubbles: true })
+    )
+    expect(notificationDot).not.toHaveClass("notification-dot-flash")
+  })
+
+  it("does not flash when the global unread total decreases", () => {
+    mocks.clientData.conversations = [{ unreadCount: 2 }]
+    const view = render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+    view.rerender(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    const notificationDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    expect(notificationDot).not.toHaveClass("notification-dot-flash")
+  })
+
+  it("does not flash when a message leaves the global unread total unchanged", () => {
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+    const view = render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    mocks.clientData.conversations = [{ unreadCount: 1 }]
+    view.rerender(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    const notificationDot = screen
+      .getByRole("link", { name: "聊天，有未读消息" })
+      .querySelector('[data-slot="notification-dot"]')
+
+    expect(notificationDot).not.toHaveClass("notification-dot-flash")
   })
 
   it("splits profile and settings actions in the user avatar menu", async () => {

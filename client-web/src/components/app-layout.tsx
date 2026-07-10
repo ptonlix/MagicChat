@@ -50,6 +50,7 @@ import {
 } from "@/lib/client-data-api"
 import type { ClientUser } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
+import { cn } from "@/lib/utils"
 
 const navItems = [
   { label: "聊天", to: "/chat", icon: MessageCircleMore },
@@ -69,9 +70,35 @@ type ThemeValue = (typeof themeItems)[number]["value"]
 
 export function AppLayout() {
   const { conversations, me, refreshMe } = useClientData()
-  const hasUnreadMessages = conversations.some(
-    (conversation) => conversation.unreadCount > 0
+  const totalUnreadCount = conversations.reduce(
+    (total, conversation) => total + conversation.unreadCount,
+    0
   )
+  const hasUnreadMessages = totalUnreadCount > 0
+  const [notificationAnimation, setNotificationAnimation] = useState({
+    active: false,
+    unreadCount: totalUnreadCount,
+    version: 0,
+  })
+
+  if (notificationAnimation.unreadCount !== totalUnreadCount) {
+    const unreadCountIncreased =
+      totalUnreadCount > notificationAnimation.unreadCount
+
+    setNotificationAnimation({
+      active: unreadCountIncreased,
+      unreadCount: totalUnreadCount,
+      version: unreadCountIncreased
+        ? notificationAnimation.version + 1
+        : notificationAnimation.version,
+    })
+  }
+
+  function handleNotificationAnimationEnd() {
+    setNotificationAnimation((current) =>
+      current.active ? { ...current, active: false } : current
+    )
+  }
 
   return (
     <div className="flex h-svh min-h-0 bg-background text-foreground">
@@ -83,6 +110,11 @@ export function AppLayout() {
               key={item.to}
               item={item}
               showNotification={item.to === "/chat" && hasUnreadMessages}
+              notificationAnimationActive={
+                item.to === "/chat" && notificationAnimation.active
+              }
+              notificationAnimationVersion={notificationAnimation.version}
+              onNotificationAnimationEnd={handleNotificationAnimationEnd}
             />
           ))}
         </nav>
@@ -292,9 +324,15 @@ function UserMenuProfileSummary({ user }: { user: ClientUser }) {
 
 function MainNavItem({
   item,
+  notificationAnimationActive,
+  notificationAnimationVersion,
+  onNotificationAnimationEnd,
   showNotification,
 }: {
   item: (typeof navItems)[number]
+  notificationAnimationActive: boolean
+  notificationAnimationVersion: number
+  onNotificationAnimationEnd: () => void
   showNotification: boolean
 }) {
   const active = Boolean(useMatch({ path: item.to, end: true }))
@@ -317,7 +355,14 @@ function MainNavItem({
       <NavLink to={item.to} aria-label={accessibleLabel} title={item.label}>
         <Icon className="size-4" strokeWidth={active ? 2.5 : 2} />
         {showNotification && (
-          <NotificationDot className="absolute top-0 right-0 ring-sidebar" />
+          <NotificationDot
+            key={notificationAnimationVersion}
+            className={cn(
+              "absolute top-1 right-1 ring-sidebar",
+              notificationAnimationActive && "notification-dot-flash"
+            )}
+            onAnimationEnd={onNotificationAnimationEnd}
+          />
         )}
       </NavLink>
     </Button>
