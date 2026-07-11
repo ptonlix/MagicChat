@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
   id uuid PRIMARY KEY,
   name text NOT NULL,
   description text NOT NULL DEFAULT '',
@@ -13,19 +13,19 @@ CREATE TABLE projects (
   CONSTRAINT projects_name_check CHECK (char_length(btrim(name)) BETWEEN 1 AND 120)
 );
 
-CREATE UNIQUE INDEX projects_one_personal_per_owner
+CREATE UNIQUE INDEX IF NOT EXISTS projects_one_personal_per_owner
   ON projects (owner_user_id)
   WHERE is_personal AND deleted_at IS NULL;
 
-CREATE INDEX projects_owner_user_id_index
+CREATE INDEX IF NOT EXISTS projects_owner_user_id_index
   ON projects (owner_user_id)
   WHERE deleted_at IS NULL;
 
-CREATE INDEX projects_updated_at_index
+CREATE INDEX IF NOT EXISTS projects_updated_at_index
   ON projects (updated_at DESC, id DESC)
   WHERE deleted_at IS NULL;
 
-CREATE TABLE project_groups (
+CREATE TABLE IF NOT EXISTS project_groups (
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   linked_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -33,10 +33,10 @@ CREATE TABLE project_groups (
   PRIMARY KEY (project_id, conversation_id)
 );
 
-CREATE INDEX project_groups_conversation_id_index
+CREATE INDEX IF NOT EXISTS project_groups_conversation_id_index
   ON project_groups (conversation_id, project_id);
 
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
   id uuid PRIMARY KEY,
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title text NOT NULL,
@@ -67,27 +67,27 @@ CREATE TABLE tasks (
   )
 );
 
-CREATE INDEX tasks_project_updated_at_index
+CREATE INDEX IF NOT EXISTS tasks_project_updated_at_index
   ON tasks (project_id, updated_at DESC, id DESC)
   WHERE deleted_at IS NULL;
 
-CREATE INDEX tasks_status_index
+CREATE INDEX IF NOT EXISTS tasks_status_index
   ON tasks (project_id, status)
   WHERE deleted_at IS NULL;
 
-CREATE INDEX tasks_assignee_user_id_index
+CREATE INDEX IF NOT EXISTS tasks_assignee_user_id_index
   ON tasks (project_id, assignee_user_id)
   WHERE deleted_at IS NULL AND assignee_user_id IS NOT NULL;
 
-CREATE INDEX tasks_start_date_index
+CREATE INDEX IF NOT EXISTS tasks_start_date_index
   ON tasks (project_id, start_date)
   WHERE deleted_at IS NULL AND start_date IS NOT NULL;
 
-CREATE INDEX tasks_due_date_index
+CREATE INDEX IF NOT EXISTS tasks_due_date_index
   ON tasks (project_id, due_date)
   WHERE deleted_at IS NULL AND due_date IS NOT NULL;
 
-CREATE INDEX tasks_labels_gin_index ON tasks USING gin (labels)
+CREATE INDEX IF NOT EXISTS tasks_labels_gin_index ON tasks USING gin (labels)
   WHERE deleted_at IS NULL;
 
 INSERT INTO projects (

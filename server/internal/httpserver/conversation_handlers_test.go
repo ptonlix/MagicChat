@@ -409,6 +409,44 @@ func TestCreateGroupConversationProjectTimestampUpdateFailureRollsBack(t *testin
 	}
 }
 
+func TestCreateGroupConversationCancellationRollsBackAllWrites(t *testing.T) {
+	_, db := newTestRouter(t)
+
+	oldUpdatedAt := time.Now().UTC().Add(-24 * time.Hour)
+	owner := insertTestUser(t, db, "group-canceled-owner@example.com", "Group Canceled Owner", store.UserStatusActive, oldUpdatedAt)
+	member := insertTestUser(t, db, "group-canceled-member@example.com", "Group Canceled Member", store.UserStatusActive, oldUpdatedAt)
+	project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Canceled Project", UpdatedAt: oldUpdatedAt})
+	ctx, cancel := context.WithCancel(context.Background())
+	const callbackName = "test:cancel_group_creation_after_member_load"
+	if err := db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Table == "users" {
+			cancel()
+		}
+	}); err != nil {
+		t.Fatalf("register group creation cancellation callback: %v", err)
+	}
+	t.Cleanup(func() {
+		cancel()
+		if err := db.Callback().Query().Remove(callbackName); err != nil {
+			t.Errorf("remove group creation cancellation callback: %v", err)
+		}
+	})
+
+	_, _, _, _, err := (&Server{db: db}).createUserGroupConversationWithProjects(
+		ctx,
+		owner,
+		"Canceled Group",
+		[]string{member.ID},
+		nil,
+		[]string{project.ID},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("create group error = %v, want context.Canceled", err)
+	}
+	requireNoGroupCreationWrites(t, db)
+	requireProjectUpdatedAt(t, db, project.ID, oldUpdatedAt)
+}
+
 func TestCreateGroupConversationProjectRowsLockInSortedOrder(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()

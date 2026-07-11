@@ -19,8 +19,9 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00004_add_app_soft_delete.sql",
 		"00005_add_message_revoke.sql",
 		"00006_add_conversation_member_mentions.sql",
-		"00007_add_projects_and_tasks.sql",
+		"00007_legacy_placeholder.sql",
 		"00008_add_app_event_outbox.sql",
+		"00009_add_projects_and_tasks.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -32,8 +33,26 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	}
 }
 
+func TestLegacyMigrationSevenIsReservedAsNoOp(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00007_legacy_placeholder.sql")
+	if err != nil {
+		t.Fatalf("read migration 7 placeholder: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+	for _, required := range []string{"-- +goose up", "select 1", "-- +goose down"} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("migration 7 placeholder missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{"create table", "alter table", "drop table", "insert into", "update ", "delete from"} {
+		if strings.Contains(sql, forbidden) {
+			t.Fatalf("migration 7 placeholder contains mutating SQL %q", forbidden)
+		}
+	}
+}
+
 func TestProjectsAndTasksMigrationDefinesSchema(t *testing.T) {
-	rawSQL, err := os.ReadFile("../../migrations/00007_add_projects_and_tasks.sql")
+	rawSQL, err := os.ReadFile("../../migrations/00009_add_projects_and_tasks.sql")
 	if err != nil {
 		t.Fatalf("read projects and tasks migration: %v", err)
 	}
@@ -41,7 +60,7 @@ func TestProjectsAndTasksMigrationDefinesSchema(t *testing.T) {
 
 	for _, required := range []string{
 		"-- +goose up",
-		"create table projects",
+		"create table if not exists projects",
 		"id uuid primary key",
 		"name text not null",
 		"description text not null default ''",
@@ -51,17 +70,17 @@ func TestProjectsAndTasksMigrationDefinesSchema(t *testing.T) {
 		"is_personal boolean not null default false",
 		"deleted_at timestamptz",
 		"constraint projects_name_check check (char_length(btrim(name)) between 1 and 120)",
-		"create unique index projects_one_personal_per_owner",
+		"create unique index if not exists projects_one_personal_per_owner",
 		"where is_personal and deleted_at is null",
-		"create index projects_owner_user_id_index",
-		"create index projects_updated_at_index",
-		"create table project_groups",
+		"create index if not exists projects_owner_user_id_index",
+		"create index if not exists projects_updated_at_index",
+		"create table if not exists project_groups",
 		"project_id uuid not null references projects(id) on delete cascade",
 		"conversation_id uuid not null references conversations(id) on delete cascade",
 		"linked_by_user_id uuid not null references users(id) on delete restrict",
 		"primary key (project_id, conversation_id)",
-		"create index project_groups_conversation_id_index",
-		"create table tasks",
+		"create index if not exists project_groups_conversation_id_index",
+		"create table if not exists tasks",
 		"project_id uuid not null references projects(id) on delete cascade",
 		"title text not null",
 		"description text not null default ''",
@@ -80,12 +99,12 @@ func TestProjectsAndTasksMigrationDefinesSchema(t *testing.T) {
 		"constraint tasks_date_order_check check (start_date is null or due_date is null or start_date <= due_date)",
 		"constraint tasks_completed_at_check check",
 		"constraint tasks_canceled_at_check check",
-		"create index tasks_project_updated_at_index",
-		"create index tasks_status_index",
-		"create index tasks_assignee_user_id_index",
-		"create index tasks_start_date_index",
-		"create index tasks_due_date_index",
-		"create index tasks_labels_gin_index on tasks using gin (labels)",
+		"create index if not exists tasks_project_updated_at_index",
+		"create index if not exists tasks_status_index",
+		"create index if not exists tasks_assignee_user_id_index",
+		"create index if not exists tasks_start_date_index",
+		"create index if not exists tasks_due_date_index",
+		"create index if not exists tasks_labels_gin_index on tasks using gin (labels)",
 		"insert into projects",
 		"select gen_random_uuid(), '个人工作区', '', '', id, id, true, created_at, updated_at",
 		"on conflict (owner_user_id) where is_personal and deleted_at is null do nothing",

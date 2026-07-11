@@ -308,6 +308,12 @@ func (s *Server) createProject(c echo.Context) error {
 	if err != nil {
 		return projectInvalidRequest(c, err.Error())
 	}
+	if err := validatePostgresText(req.Description.Value, "项目描述"); err != nil {
+		return projectInvalidRequest(c, err.Error())
+	}
+	if err := validatePostgresText(req.Avatar.Value, "项目头像"); err != nil {
+		return projectInvalidRequest(c, err.Error())
+	}
 	groupIDs, err := normalizeProjectGroupIDs(req.GroupIDs.Value)
 	if err != nil {
 		return projectInvalidRequest(c, err.Error())
@@ -438,9 +444,15 @@ func (s *Server) updateProject(c echo.Context) error {
 		updates["name"] = name
 	}
 	if req.Description.Present {
+		if err := validatePostgresText(req.Description.Value, "项目描述"); err != nil {
+			return projectInvalidRequest(c, err.Error())
+		}
 		updates["description"] = req.Description.Value
 	}
 	if req.Avatar.Present {
+		if err := validatePostgresText(req.Avatar.Value, "项目头像"); err != nil {
+			return projectInvalidRequest(c, err.Error())
+		}
 		updates["avatar"] = req.Avatar.Value
 	}
 
@@ -542,6 +554,9 @@ func (s *Server) deleteProject(c echo.Context) error {
 		}
 		if project.IsPersonal {
 			return errPersonalProjectDelete
+		}
+		if result := tx.Where("project_id = ?", project.ID).Delete(&store.ProjectGroup{}); result.Error != nil {
+			return result.Error
 		}
 		result := tx.Where("id = ?", project.ID).Delete(&store.Project{})
 		if result.Error != nil {
@@ -1272,10 +1287,20 @@ func (s *Server) loadProjectTaskCounts(ctx context.Context, projectIDs []string)
 
 func normalizeProjectName(value string) (string, error) {
 	name := strings.TrimSpace(value)
+	if err := validatePostgresText(name, "项目名称"); err != nil {
+		return "", err
+	}
 	if count := utf8.RuneCountInString(name); count < 1 || count > 120 {
 		return "", errors.New("项目名称长度必须为 1 到 120 个字符")
 	}
 	return name, nil
+}
+
+func validatePostgresText(value string, fieldName string) error {
+	if strings.IndexByte(value, 0) >= 0 {
+		return errors.New(fieldName + "不能包含空字符")
+	}
+	return nil
 }
 
 func normalizeProjectGroupIDs(values []string) ([]string, error) {
@@ -1438,13 +1463,24 @@ func decodeProjectMemberListCursor(value string) (*projectMemberListCursor, erro
 	if err != nil {
 		return nil, err
 	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
 	var cursor projectMemberListCursor
-	if err := json.Unmarshal(raw, &cursor); err != nil {
+	if err := decoder.Decode(&cursor); err != nil {
+		return nil, err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, errors.New("成员游标包含多余数据")
+		}
 		return nil, err
 	}
 	id, err := parseProjectUUID(cursor.ID, "成员游标格式错误")
 	if err != nil || cursor.DisplayName == "" {
 		return nil, errors.New("成员游标格式错误")
+	}
+	if err := validatePostgresText(cursor.DisplayName, "成员游标显示名称"); err != nil {
+		return nil, err
 	}
 	cursor.ID = id
 	return &cursor, nil

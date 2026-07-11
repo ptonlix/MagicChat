@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -883,11 +884,17 @@ func TestProjectJSONRejectsNullAndTrailingPayload(t *testing.T) {
 		{name: "post null name", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":null}`},
 		{name: "post null description", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":"Valid","description":null}`},
 		{name: "post null avatar", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":"Valid","avatar":null}`},
+		{name: "post NUL name", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":"Bad\u0000Name"}`},
+		{name: "post NUL description", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":"Valid","description":"Bad\u0000Description"}`},
+		{name: "post NUL avatar", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":"Valid","avatar":"/bad\u0000avatar.webp"}`},
 		{name: "post trailing payload", method: http.MethodPost, path: "/api/client/projects", raw: `{"name":"Valid"} {}`},
 		{name: "patch top-level null", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `null`},
 		{name: "patch null name", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{"name":null}`},
 		{name: "patch null description", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{"description":null}`},
 		{name: "patch null avatar", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{"avatar":null}`},
+		{name: "patch NUL name", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{"name":"Bad\u0000Name"}`},
+		{name: "patch NUL description", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{"description":"Bad\u0000Description"}`},
+		{name: "patch NUL avatar", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{"avatar":"/bad\u0000avatar.webp"}`},
 		{name: "patch trailing payload", method: http.MethodPatch, path: "/api/client/projects/" + project.ID, raw: `{} {}`},
 	}
 	for _, testCase := range testCases {
@@ -1068,7 +1075,7 @@ func TestProjectMutationLifecycleMissReturnsNotFoundAndRollsBack(t *testing.T) {
 		linked bool
 	}{
 		{name: "patch", method: http.MethodPatch, path: func(projectID string, _ string) string { return "/api/client/projects/" + projectID }, body: map[string]any{"name": "Must Roll Back"}},
-		{name: "delete", method: http.MethodDelete, path: func(projectID string, _ string) string { return "/api/client/projects/" + projectID }, body: map[string]any{}, delete: true},
+		{name: "delete", method: http.MethodDelete, path: func(projectID string, _ string) string { return "/api/client/projects/" + projectID }, body: map[string]any{}, delete: true, linked: true},
 		{name: "bind", method: http.MethodPut, path: func(projectID string, groupID string) string {
 			return "/api/client/projects/" + projectID + "/groups/" + groupID
 		}, body: map[string]any{}},
@@ -1120,6 +1127,13 @@ func TestProjectDeleteSoftDeletesCollaborativeAndRejectsPersonal(t *testing.T) {
 	owner := insertTestUser(t, db, "project-delete@example.com", "Delete Owner", store.UserStatusActive, now)
 	collaborative := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Delete Me", UpdatedAt: now})
 	personal := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Personal", IsPersonal: true, UpdatedAt: now})
+	for index := range 2 {
+		group := insertProjectConversationFixture(t, db, projectConversationFixtureInput{
+			Creator: owner, Kind: store.ConversationKindGroup, Status: store.ConversationStatusActive,
+			Name: "Delete Linked Group " + strconv.Itoa(index), Now: now,
+		})
+		insertProjectGroupFixture(t, db, collaborative.ID, group.ID, owner.ID, now)
+	}
 	cookie := loginAsUser(t, server, owner.Email)
 
 	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/projects/"+collaborative.ID, map[string]any{}, cookie)
@@ -1134,6 +1148,7 @@ func TestProjectDeleteSoftDeletesCollaborativeAndRejectsPersonal(t *testing.T) {
 	if !deleted.DeletedAt.Valid {
 		t.Fatal("deleted_at is not set")
 	}
+	requireRowCount(t, db, &store.ProjectGroup{}, 0, "project_id = ?", collaborative.ID)
 
 	resp, body = requestJSON(t, server, http.MethodDelete, "/api/client/projects/"+personal.ID, map[string]any{}, cookie)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -1147,6 +1162,34 @@ func TestProjectDeleteSoftDeletesCollaborativeAndRejectsPersonal(t *testing.T) {
 		t.Fatalf("malformed delete status = %d, want 400, body = %#v", resp.StatusCode, body)
 	}
 	requireError(t, body, "invalid_request")
+}
+
+func TestProjectDeleteReleasesGroupProjectCapacity(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "project-delete-capacity@example.com", "Delete Capacity Owner", store.UserStatusActive, now)
+	group := insertProjectConversationFixture(t, db, projectConversationFixtureInput{
+		Creator: owner, Kind: store.ConversationKindGroup, Status: store.ConversationStatusActive,
+		Name: "Delete Capacity Group", Now: now,
+	})
+	linkedProjects := insertFullProjectGroupFixtures(t, db, owner, group.ID, now)
+	replacement := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Capacity Replacement", UpdatedAt: now})
+	cookie := loginAsUser(t, server, owner.Email)
+
+	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/projects/"+linkedProjects[0].ID, map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	requireRowCount(t, db, &store.ProjectGroup{}, 0, "project_id = ?", linkedProjects[0].ID)
+	requireRowCount(t, db, &store.ProjectGroup{}, maxGroupConversationProjects-1, "conversation_id = ?", group.ID)
+
+	resp, body = putJSON(t, server, "/api/client/projects/"+replacement.ID+"/groups/"+group.ID, map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("replacement bind status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	requireRowCount(t, db, &store.ProjectGroup{}, maxGroupConversationProjects, "conversation_id = ?", group.ID)
 }
 
 func TestProjectAccessAllowsOnlyOwnerOrActiveHumanGroupMember(t *testing.T) {
@@ -1682,6 +1725,31 @@ func TestProjectMemberListPaginatesDisplayNameTies(t *testing.T) {
 			t.Fatalf("validation path %s status = %d, want 400, body = %#v", path, resp.StatusCode, body)
 		}
 		requireError(t, body, "invalid_request")
+	}
+}
+
+func TestProjectMemberListRejectsUntrustedCursorFields(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "project-member-cursor-owner@example.com", "Cursor Owner", store.UserStatusActive, now)
+	project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Cursor Project", UpdatedAt: now})
+	cookie := loginAsUser(t, server, owner.Email)
+
+	for name, rawCursor := range map[string]string{
+		"NUL display name": `{"display_name":"bad\u0000name","id":"` + owner.ID + `"}`,
+		"unknown field":    `{"display_name":"Cursor Owner","id":"` + owner.ID + `","extra":true}`,
+		"trailing payload": `{"display_name":"Cursor Owner","id":"` + owner.ID + `"} {}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			cursor := base64.RawURLEncoding.EncodeToString([]byte(rawCursor))
+			resp, body := getJSON(t, server, "/api/client/projects/"+project.ID+"/members?cursor="+cursor, cookie)
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400, body = %#v", resp.StatusCode, body)
+			}
+			requireError(t, body, "invalid_request")
+		})
 	}
 }
 

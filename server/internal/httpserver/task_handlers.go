@@ -520,6 +520,9 @@ func (s *Server) deleteTask(c echo.Context) error {
 func parseTaskListFilters(c echo.Context) (taskListFilters, error) {
 	params := c.QueryParams()
 	filters := taskListFilters{Keyword: c.QueryParam("keyword"), Limit: defaultTaskPageLimit}
+	if err := validatePostgresText(filters.Keyword, "搜索关键词"); err != nil {
+		return filters, err
+	}
 	if _, present := params["status"]; present {
 		statuses, err := parseTaskStatusFilter(c.QueryParam("status"))
 		if err != nil {
@@ -543,6 +546,9 @@ func parseTaskListFilters(c echo.Context) (taskListFilters, error) {
 	}
 	if _, present := params["label"]; present {
 		label := strings.TrimSpace(c.QueryParam("label"))
+		if err := validatePostgresText(label, "任务标签"); err != nil {
+			return filters, err
+		}
 		length := utf8.RuneCountInString(label)
 		if length < 1 || length > 32 {
 			return filters, errors.New("标签长度必须为 1 到 32 个字符")
@@ -750,6 +756,9 @@ func normalizeTaskPatch(req updateTaskRequest) (normalizedTaskPatch, error) {
 		if req.Description.Null {
 			return patch, errors.New("描述不能为 null")
 		}
+		if err := validatePostgresText(req.Description.Value, "任务描述"); err != nil {
+			return patch, err
+		}
 		patch.Description = &req.Description.Value
 	}
 	if req.Status.Present {
@@ -928,6 +937,9 @@ func normalizeCreateTask(req createTaskRequest, projectID string, creatorUserID 
 		if req.Description.Null {
 			return store.Task{}, errors.New("描述不能为 null")
 		}
+		if err := validatePostgresText(req.Description.Value, "任务描述"); err != nil {
+			return store.Task{}, err
+		}
 		description = req.Description.Value
 	}
 	status := store.TaskStatusTodo
@@ -992,6 +1004,9 @@ func normalizeCreateTask(req createTaskRequest, projectID string, creatorUserID 
 
 func normalizeTaskTitle(value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
+	if err := validatePostgresText(trimmed, "任务标题"); err != nil {
+		return "", err
+	}
 	length := utf8.RuneCountInString(trimmed)
 	if length < 1 || length > 240 {
 		return "", errors.New("标题长度必须为 1 到 240 个字符")
@@ -1007,6 +1022,9 @@ func normalizeTaskLabels(values []string) (pq.StringArray, error) {
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
+		if err := validatePostgresText(trimmed, "任务标签"); err != nil {
+			return nil, err
+		}
 		length := utf8.RuneCountInString(trimmed)
 		if length < 1 || length > 32 {
 			return nil, errors.New("标签长度必须为 1 到 32 个字符")

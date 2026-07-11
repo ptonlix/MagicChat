@@ -751,7 +751,7 @@ func (s *Server) createGroupConversation(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", "群聊成员不能超过 500 人")
 	}
 
-	conversation, createdMessage, candidates, memberUserIDs, err := s.createUserGroupConversationWithProjects(user, name, memberIDs, appIDs, projectIDs)
+	conversation, createdMessage, candidates, memberUserIDs, err := s.createUserGroupConversationWithProjects(c.Request().Context(), user, name, memberIDs, appIDs, projectIDs)
 	if err != nil {
 		if errors.Is(err, errGroupConversationMemberMiss) {
 			return failure(c, http.StatusBadRequest, "invalid_request", "成员或应用不存在或不可用")
@@ -780,23 +780,27 @@ func (s *Server) createGroupConversation(c echo.Context) error {
 	})
 }
 
-func (s *Server) createUserGroupConversation(user store.User, name string, memberIDs []string, appIDs []string) (store.Conversation, *store.Message, []conversationMemberCandidate, []string, error) {
-	return s.createUserGroupConversationWithProjects(user, name, memberIDs, appIDs, nil)
+func (s *Server) createUserGroupConversation(ctx context.Context, user store.User, name string, memberIDs []string, appIDs []string) (store.Conversation, *store.Message, []conversationMemberCandidate, []string, error) {
+	return s.createUserGroupConversationWithProjects(ctx, user, name, memberIDs, appIDs, nil)
 }
 
-func (s *Server) createUserGroupConversationWithProjects(user store.User, name string, memberIDs []string, appIDs []string, projectIDs []string) (store.Conversation, *store.Message, []conversationMemberCandidate, []string, error) {
+func (s *Server) createUserGroupConversationWithProjects(ctx context.Context, user store.User, name string, memberIDs []string, appIDs []string, projectIDs []string) (store.Conversation, *store.Message, []conversationMemberCandidate, []string, error) {
 	if len(memberIDs)+len(appIDs)+1 > maxGroupConversationMembers {
 		return store.Conversation{}, nil, nil, nil, errGroupConversationMemberCap
 	}
+	if err := ctx.Err(); err != nil {
+		return store.Conversation{}, nil, nil, nil, err
+	}
+	db := s.db.WithContext(ctx)
 
-	members, err := s.loadActiveGroupMembers(memberIDs)
+	members, err := loadActiveGroupMembers(db, memberIDs)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return store.Conversation{}, nil, nil, nil, errGroupConversationMemberMiss
 		}
 		return store.Conversation{}, nil, nil, nil, err
 	}
-	apps, err := loadVisibleGroupApps(s.db, user.ID, appIDs)
+	apps, err := loadVisibleGroupApps(db, user.ID, appIDs)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return store.Conversation{}, nil, nil, nil, errGroupConversationMemberMiss
@@ -839,7 +843,7 @@ func (s *Server) createUserGroupConversationWithProjects(user store.User, name s
 
 	var createdMessage *store.Message
 	memberUserIDs := make([]string, 0, len(candidates))
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		projects, err := lockOwnedGroupConversationProjects(tx, projectIDs, user.ID)
 		if err != nil {
 			return err

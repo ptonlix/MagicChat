@@ -576,7 +576,7 @@ func (s *Server) handleAppCreateGroupConversation(appID string, request realtime
 		return appCreateGroupConversationResponse{}, err
 	}
 
-	conversation, message, candidates, memberUserIDs, err := s.createUserGroupConversation(actor, name, memberIDs, nil)
+	conversation, message, candidates, memberUserIDs, err := s.createUserGroupConversation(context.Background(), actor, name, memberIDs, nil)
 	if err != nil {
 		return appCreateGroupConversationResponse{}, mapAppGroupConversationError(err)
 	}
