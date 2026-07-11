@@ -9,5 +9,5 @@ go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
   --generalInfo main.go \
   --dir cmd/server,internal/httpserver \
   --output ../api-docs \
-  --outputTypes json,yaml \
+  --outputTypes go,json,yaml \
   --parseInternal
