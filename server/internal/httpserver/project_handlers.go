@@ -25,13 +25,16 @@ import (
 const (
 	defaultProjectPageLimit = 50
 	maxProjectPageLimit     = 100
+	personalProjectName     = "个人工作区"
 )
 
 var (
-	errInvalidProjectGroup   = errors.New("invalid project group")
-	errProjectOwnerRequired  = errors.New("project owner required")
-	errPersonalProjectDelete = errors.New("personal project cannot be deleted")
-	errPersonalProjectGroup  = errors.New("personal project cannot link groups")
+	errInvalidProjectGroup         = errors.New("invalid project group")
+	errProjectOwnerRequired        = errors.New("project owner required")
+	errPersonalProjectDelete       = errors.New("personal project cannot be deleted")
+	errPersonalProjectGroup        = errors.New("personal project cannot link groups")
+	errPersonalProjectImmutable    = errors.New("personal project name and avatar are immutable")
+	errGroupConversationProjectCap = errors.New("group conversation project cap exceeded")
 )
 
 type projectUserSummary struct {
@@ -65,7 +68,7 @@ type projectResponse struct {
 }
 
 type projectListResponse struct {
-	PersonalProject *projectResponse  `json:"personal_project" extensions:"x-nullable"`
+	PersonalProject projectResponse   `json:"personal_project"`
 	Projects        []projectResponse `json:"projects"`
 	NextCursor      *string           `json:"next_cursor" extensions:"x-nullable"`
 }
@@ -173,7 +176,7 @@ type projectTaskStatusCount struct {
 func createPersonalProject(db *gorm.DB, user store.User, now time.Time) error {
 	project := store.Project{
 		ID:              uuid.NewString(),
-		Name:            "个人工作区",
+		Name:            personalProjectName,
 		Description:     "",
 		Avatar:          "",
 		OwnerUserID:     user.ID,
@@ -254,21 +257,17 @@ func (s *Server) listProjects(c echo.Context) error {
 		Preload("OwnerUser").
 		Where("owner_user_id = ? AND is_personal = ?", user.ID, true).
 		First(&personal).Error
-	if err == nil {
-		roles[personal.ID] = store.ProjectRoleOwner
-		allProjects = append(allProjects, personal)
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil {
 		return projectInternalError(c)
 	}
+	roles[personal.ID] = store.ProjectRoleOwner
+	allProjects = append(allProjects, personal)
 	allResponses, err := s.newProjectResponses(c.Request().Context(), allProjects, roles)
 	if err != nil {
 		return projectInternalError(c)
 	}
 	responses := allResponses[:len(projects)]
-	var personalResponse *projectResponse
-	if len(allResponses) > len(projects) {
-		personalResponse = &allResponses[len(projects)]
-	}
+	personalResponse := allResponses[len(projects)]
 
 	return success(c, http.StatusOK, projectListResponse{
 		PersonalProject: personalResponse,
@@ -299,6 +298,9 @@ func (s *Server) createProject(c echo.Context) error {
 	if err := decodeProjectRequest(c, &req); err != nil {
 		return projectInvalidRequest(c, "请求格式错误")
 	}
+	if len(req.GroupIDs.Value) > maxGroupConversationProjects {
+		return projectInvalidRequest(c, "项目最多关联 100 个群聊")
+	}
 	name, err := normalizeProjectName(req.Name.Value)
 	if err != nil {
 		return projectInvalidRequest(c, err.Error())
@@ -328,6 +330,9 @@ func (s *Server) createProject(c echo.Context) error {
 			if err := requireActiveGroupConversationForUpdate(tx, groupID); err != nil {
 				return err
 			}
+			if err := requireGroupConversationProjectCapacity(tx, groupID); err != nil {
+				return err
+			}
 			link := store.ProjectGroup{
 				ProjectID:      project.ID,
 				ConversationID: groupID,
@@ -344,7 +349,7 @@ func (s *Server) createProject(c echo.Context) error {
 		return projectInvalidRequest(c, "群聊不存在或不可用")
 	}
 	if err != nil {
-		return projectInternalError(c)
+		return projectMutationFailure(c, err)
 	}
 	project.OwnerUser = user
 	response, err := s.newProjectResponse(c.Request().Context(), project, store.ProjectRoleOwner)
@@ -444,6 +449,20 @@ func (s *Server) updateProject(c echo.Context) error {
 		}
 		if role != store.ProjectRoleOwner {
 			return errProjectOwnerRequired
+		}
+		if project.IsPersonal {
+			if name, exists := updates["name"].(string); exists {
+				if name != personalProjectName {
+					return errPersonalProjectImmutable
+				}
+				delete(updates, "name")
+			}
+			if avatar, exists := updates["avatar"].(string); exists {
+				if avatar != "" {
+					return errPersonalProjectImmutable
+				}
+				delete(updates, "avatar")
+			}
 		}
 		if len(updates) == 0 {
 			return nil
@@ -679,6 +698,18 @@ func (s *Server) bindProjectGroup(c echo.Context) error {
 			return errPersonalProjectGroup
 		}
 		if err := requireActiveGroupConversationForUpdate(tx, groupID); err != nil {
+			return err
+		}
+		var existingCount int64
+		if err := tx.Model(&store.ProjectGroup{}).
+			Where("project_id = ? AND conversation_id = ?", project.ID, groupID).
+			Count(&existingCount).Error; err != nil {
+			return err
+		}
+		if existingCount > 0 {
+			return nil
+		}
+		if err := requireGroupConversationProjectCapacity(tx, groupID); err != nil {
 			return err
 		}
 		now := time.Now().UTC()
@@ -1271,6 +1302,19 @@ func requireActiveGroupConversationForUpdate(tx *gorm.DB, groupID string) error 
 	return nil
 }
 
+func requireGroupConversationProjectCapacity(tx *gorm.DB, groupID string) error {
+	var count int64
+	if err := tx.Model(&store.ProjectGroup{}).
+		Where("conversation_id = ?", groupID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count >= maxGroupConversationProjects {
+		return errGroupConversationProjectCap
+	}
+	return nil
+}
+
 func parseProjectID(value string) (string, error) {
 	return parseProjectUUID(value, "项目 ID 格式错误")
 }
@@ -1416,6 +1460,12 @@ func projectForbidden(c echo.Context) error {
 }
 
 func projectMutationFailure(c echo.Context, err error) error {
+	if errors.Is(err, errPersonalProjectImmutable) {
+		return projectInvalidRequest(c, "个人工作区名称和头像不能修改")
+	}
+	if errors.Is(err, errGroupConversationProjectCap) {
+		return failure(c, http.StatusConflict, "conflict", "群聊关联项目数量已达上限")
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return projectNotFound(c)
 	}

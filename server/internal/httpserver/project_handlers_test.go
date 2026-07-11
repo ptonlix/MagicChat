@@ -381,6 +381,20 @@ func TestProjectListSeparatesPersonalAndPaginatesCollaborativeProjects(t *testin
 	}
 }
 
+func TestProjectListFailsWhenPersonalWorkspaceIsMissing(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	user := insertTestUser(t, db, "project-list-missing-personal@example.com", "Missing Personal", store.UserStatusActive, time.Now().UTC())
+	cookie := loginAsUser(t, server, user.Email)
+
+	resp, body := getJSON(t, server, "/api/client/projects", cookie)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "internal_error")
+}
+
 func TestProjectListRejectsInvalidLimitAndCursor(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -457,6 +471,57 @@ func TestProjectCreateSupportsMinimalAndFullRequests(t *testing.T) {
 		t.Fatalf("full stored project = %#v", fullStored)
 	}
 	requireRowCount(t, db, &store.ProjectGroup{}, 1, "project_id = ?", fullStored.ID)
+}
+
+func TestProjectCreateRejectsMoreThanMaximumRawGroupIDs(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "project-create-raw-group-cap@example.com", "Raw Group Cap Owner", store.UserStatusActive, now)
+	group := insertProjectConversationFixture(t, db, projectConversationFixtureInput{
+		Creator: owner, Kind: store.ConversationKindGroup, Status: store.ConversationStatusActive, Name: "Repeated Group", Now: now,
+	})
+	cookie := loginAsUser(t, server, owner.Email)
+	groupIDs := make([]string, maxGroupConversationProjects+1)
+	for index := range groupIDs {
+		groupIDs[index] = group.ID
+	}
+
+	resp, body := postJSON(t, server, "/api/client/projects", map[string]any{
+		"name":      "Too Many Raw Groups",
+		"group_ids": groupIDs,
+	}, cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "invalid_request")
+	requireRowCount(t, db, &store.Project{}, 0, "1 = 1")
+	requireRowCount(t, db, &store.ProjectGroup{}, 0, "1 = 1")
+}
+
+func TestProjectCreateRejectsGroupAtProjectCapacityAndRollsBack(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "project-create-full-group@example.com", "Full Group Owner", store.UserStatusActive, now)
+	group := insertProjectConversationFixture(t, db, projectConversationFixtureInput{
+		Creator: owner, Kind: store.ConversationKindGroup, Status: store.ConversationStatusActive, Name: "Full Group", Now: now,
+	})
+	insertFullProjectGroupFixtures(t, db, owner, group.ID, now)
+	cookie := loginAsUser(t, server, owner.Email)
+
+	resp, body := postJSON(t, server, "/api/client/projects", map[string]any{
+		"name":      "Must Roll Back At Capacity",
+		"group_ids": []string{group.ID},
+	}, cookie)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "conflict")
+	requireRowCount(t, db, &store.Project{}, maxGroupConversationProjects, "1 = 1")
+	requireRowCount(t, db, &store.ProjectGroup{}, maxGroupConversationProjects, "conversation_id = ?", group.ID)
 }
 
 func TestProjectCreateRollsBackInvalidGroupTargets(t *testing.T) {
@@ -683,6 +748,62 @@ func TestProjectUpdateChangesOnlyMutableFieldsForOwner(t *testing.T) {
 	updated = requireProjectObject(t, requireSuccess(t, body))
 	if updated["name"] != "Updated" || updated["description"] != "Changed description" || updated["avatar"] != "" {
 		t.Fatalf("second updated response = %#v", updated)
+	}
+}
+
+func TestProjectUpdateEnforcesPersonalWorkspaceNameAndAvatar(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC().Add(-time.Hour)
+	owner := insertTestUser(t, db, "project-update-personal@example.com", "Personal Update Owner", store.UserStatusActive, now)
+	owner.Avatar = "/avatars/current-personal-owner.webp"
+	if err := db.Model(&owner).Update("avatar", owner.Avatar).Error; err != nil {
+		t.Fatalf("update owner avatar: %v", err)
+	}
+	personal := insertProjectFixture(t, db, projectFixtureInput{
+		Owner: owner, Name: "个人工作区", Description: "Original description", Avatar: "", IsPersonal: true, UpdatedAt: now,
+	})
+	cookie := loginAsUser(t, server, owner.Email)
+
+	for name, body := range map[string]map[string]any{
+		"different name":   {"name": "Renamed Personal", "description": "Rejected name description"},
+		"non-empty avatar": {"avatar": "/avatars/personal-project.webp", "description": "Rejected avatar description"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp, responseBody := patchJSON(t, server, "/api/client/projects/"+personal.ID, body, cookie)
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400, body = %#v", resp.StatusCode, responseBody)
+			}
+			requireError(t, responseBody, "invalid_request")
+			stored := requireProjectByID(t, db, personal.ID)
+			if stored.Name != "个人工作区" || stored.Description != "Original description" || stored.Avatar != "" {
+				t.Fatalf("stored personal project changed after rejection: %#v", stored)
+			}
+			if !stored.UpdatedAt.Equal(now) {
+				t.Fatalf("updated_at = %v, want unchanged %v", stored.UpdatedAt, now)
+			}
+		})
+	}
+
+	resp, body := patchJSON(t, server, "/api/client/projects/"+personal.ID, map[string]any{
+		"name":        "个人工作区",
+		"description": "Changed description",
+		"avatar":      "",
+	}, cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("description update status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	updated := requireProjectObject(t, requireSuccess(t, body))
+	if updated["name"] != "个人工作区" || updated["description"] != "Changed description" {
+		t.Fatalf("updated personal response = %#v", updated)
+	}
+	if updated["avatar"] != owner.Avatar {
+		t.Fatalf("response avatar = %v, want current owner avatar %s", updated["avatar"], owner.Avatar)
+	}
+	stored := requireProjectByID(t, db, personal.ID)
+	if stored.Name != "个人工作区" || stored.Description != "Changed description" || stored.Avatar != "" {
+		t.Fatalf("stored personal project = %#v", stored)
 	}
 }
 
@@ -1176,6 +1297,40 @@ func TestProjectGroupBindAllowsOwnerWithoutMembershipAndIsIdempotent(t *testing.
 	}
 }
 
+func TestProjectGroupBindEnforcesCapacityAndKeepsExistingLinkIdempotent(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC().Add(-time.Hour)
+	owner := insertTestUser(t, db, "project-group-bind-cap@example.com", "Group Bind Cap Owner", store.UserStatusActive, now)
+	group := insertProjectConversationFixture(t, db, projectConversationFixtureInput{
+		Creator: owner, Kind: store.ConversationKindGroup, Status: store.ConversationStatusActive, Name: "Full Bind Group", Now: now,
+	})
+	linkedProjects := insertFullProjectGroupFixtures(t, db, owner, group.ID, now)
+	target := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Over Capacity Target", UpdatedAt: now})
+	cookie := loginAsUser(t, server, owner.Email)
+
+	resp, body := putJSON(t, server, "/api/client/projects/"+target.ID+"/groups/"+group.ID, map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("new bind status = %d, want 409, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "conflict")
+	requireRowCount(t, db, &store.ProjectGroup{}, 0, "project_id = ? AND conversation_id = ?", target.ID, group.ID)
+	requireRowCount(t, db, &store.ProjectGroup{}, maxGroupConversationProjects, "conversation_id = ?", group.ID)
+
+	existing := linkedProjects[0]
+	existingUpdatedAt := requireProjectByID(t, db, existing.ID).UpdatedAt
+	resp, body = putJSON(t, server, "/api/client/projects/"+existing.ID+"/groups/"+group.ID, map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("existing bind status = %d, want 200, body = %#v", resp.StatusCode, body)
+	}
+	requireSuccess(t, body)
+	requireRowCount(t, db, &store.ProjectGroup{}, maxGroupConversationProjects, "conversation_id = ?", group.ID)
+	if updatedAt := requireProjectByID(t, db, existing.ID).UpdatedAt; !updatedAt.Equal(existingUpdatedAt) {
+		t.Fatalf("existing project updated_at = %v, want unchanged %v", updatedAt, existingUpdatedAt)
+	}
+}
+
 func TestProjectGroupBindRejectsInvalidTargetsAndUnauthorizedProjects(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -1536,6 +1691,7 @@ func TestProjectListQueryCountStaysConstantAcrossPageSize(t *testing.T) {
 
 	now := time.Now().UTC()
 	owner := insertTestUser(t, db, "project-list-query-count@example.com", "List Query Owner", store.UserStatusActive, now)
+	insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: personalProjectName, IsPersonal: true, UpdatedAt: now})
 	for index := 0; index < 12; index++ {
 		insertProjectFixture(t, db, projectFixtureInput{
 			Owner: owner, Name: "Query Project", UpdatedAt: now.Add(time.Duration(index) * time.Second),
@@ -1743,6 +1899,20 @@ func insertProjectGroupFixture(t *testing.T, db *gorm.DB, projectID string, grou
 		t.Fatalf("create project group fixture: %v", err)
 	}
 	return link
+}
+
+func insertFullProjectGroupFixtures(t *testing.T, db *gorm.DB, owner store.User, groupID string, createdAt time.Time) []store.Project {
+	t.Helper()
+
+	projects := make([]store.Project, 0, maxGroupConversationProjects)
+	for index := range maxGroupConversationProjects {
+		project := insertProjectFixture(t, db, projectFixtureInput{
+			Owner: owner, Name: "Capacity Project " + strconv.Itoa(index), UpdatedAt: createdAt,
+		})
+		insertProjectGroupFixture(t, db, project.ID, groupID, owner.ID, createdAt)
+		projects = append(projects, project)
+	}
+	return projects
 }
 
 func insertTaskFixture(t *testing.T, db *gorm.DB, projectID string, createdByUserID string, status string, now time.Time, deleted bool) store.Task {
