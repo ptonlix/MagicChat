@@ -1,10 +1,12 @@
 package httpserver
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestNewConversationListItemResponseUsesDirectFallbackCopy(t *testing.T) {
@@ -131,6 +134,62 @@ func TestCreateGroupConversationProjectIDsDeduplicateCanonicalUUIDs(t *testing.T
 	}
 	conversationID := requireSuccess(t, body)["conversation"].(map[string]any)["id"].(string)
 	requireRowCount(t, db, &store.ProjectGroup{}, 1, "project_id = ? AND conversation_id = ?", project.ID, conversationID)
+}
+
+func TestCreateGroupConversationRejectsRawProjectIDsOverLimit(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "group-project-limit@example.com", "Group Project Limit", store.UserStatusActive, now)
+	projectID := uuid.NewString()
+	projectIDs := make([]string, 101)
+	for index := range projectIDs {
+		projectIDs[index] = projectID
+	}
+
+	resp, body := postJSON(t, server, "/api/client/conversations/groups", map[string]any{
+		"name":        "Too Many Raw Projects",
+		"project_ids": projectIDs,
+	}, loginAsUser(t, server, owner.Email))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "invalid_request")
+	requireNoGroupCreationWrites(t, db)
+}
+
+func TestCreateGroupConversationProjectQueryCountIsConstant(t *testing.T) {
+	for _, projectCount := range []int{1, 5} {
+		t.Run(string(rune('0'+projectCount))+" projects", func(t *testing.T) {
+			server, db := newTestRouter(t)
+			defer server.Close()
+
+			now := time.Now().UTC().Add(-time.Hour)
+			owner := insertTestUser(t, db, "group-project-query-count@example.com", "Group Project Query Count", store.UserStatusActive, now)
+			projectIDs := make([]string, 0, projectCount)
+			for index := range projectCount {
+				project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Counted Project " + string(rune('A'+index)), UpdatedAt: now})
+				projectIDs = append(projectIDs, project.ID)
+			}
+			cookie := loginAsUser(t, server, owner.Email)
+			counter := registerGroupProjectStatementCounter(t, db, "test:count_group_create_project_statements")
+
+			resp, body := postJSON(t, server, "/api/client/conversations/groups", map[string]any{
+				"name":        "Constant Project Work",
+				"project_ids": projectIDs,
+			}, cookie)
+			if resp.StatusCode != http.StatusCreated {
+				t.Fatalf("status = %d, want 201, body = %#v", resp.StatusCode, body)
+			}
+			if got := counter.queries.Load(); got != 1 {
+				t.Fatalf("project SELECT count = %d, want 1", got)
+			}
+			if got := counter.updates.Load(); got != 1 {
+				t.Fatalf("project UPDATE count = %d, want 1", got)
+			}
+		})
+	}
 }
 
 func TestCreateGroupConversationProjectIDsAllowOmittedAndEmpty(t *testing.T) {
@@ -359,9 +418,7 @@ func TestCreateGroupConversationProjectRowsLockInSortedOrder(t *testing.T) {
 	low := insertProjectFixture(t, db, projectFixtureInput{ID: "00000000-0000-0000-0000-000000000001", Owner: owner, Name: "Low", UpdatedAt: now})
 	high := insertProjectFixture(t, db, projectFixtureInput{ID: "00000000-0000-0000-0000-000000000002", Owner: owner, Name: "High", UpdatedAt: now})
 	cookie := loginAsUser(t, server, owner.Email)
-	recorder := registerProjectQueryLockRecorder(t, db, "test:record_group_create_project_locks", map[string]struct{}{
-		low.ID: {}, high.ID: {},
-	})
+	recorder := registerGroupLifecycleLockRecorder(t, db, "test:record_group_create_project_locks")
 
 	resp, body := postJSON(t, server, "/api/client/conversations/groups", map[string]any{
 		"name":        "Project Lock Group",
@@ -372,14 +429,12 @@ func TestCreateGroupConversationProjectRowsLockInSortedOrder(t *testing.T) {
 	}
 
 	records := recorder.snapshot()
-	wantIDs := []string{low.ID, high.ID}
-	if len(records) != len(wantIDs) {
-		t.Fatalf("project lock records = %#v, want IDs %v", records, wantIDs)
+	if len(records) != 1 {
+		t.Fatalf("project lock records = %#v, want one batch lock", records)
 	}
-	for index, record := range records {
-		if record.ID != wantIDs[index] || !record.Locked || !record.InTransaction {
-			t.Fatalf("project lock record %d = %#v, want ID %s FOR UPDATE in transaction", index, record, wantIDs[index])
-		}
+	record := records[0]
+	if record.Table != "projects" || len(record.IDs) != 2 || record.IDs[0] != low.ID || record.IDs[1] != high.ID || !record.Ordered || !record.InTransaction {
+		t.Fatalf("project lock record = %#v, want one ordered batch FOR UPDATE in transaction for [%s %s]", record, low.ID, high.ID)
 	}
 }
 
@@ -427,6 +482,169 @@ func TestDissolveGroupConversationRemovesProjectsAndUpdatesTimestampsAtomically(
 		if !storedProject.UpdatedAt.Equal(*storedConversation.DissolvedAt) {
 			t.Fatalf("project %s updated_at = %v, want dissolution time %v", project.ID, storedProject.UpdatedAt, *storedConversation.DissolvedAt)
 		}
+	}
+}
+
+func TestDissolveGroupConversationProjectQueryCountIsConstant(t *testing.T) {
+	for _, projectCount := range []int{1, 5} {
+		t.Run(string(rune('0'+projectCount))+" projects", func(t *testing.T) {
+			server, db := newTestRouter(t)
+			defer server.Close()
+
+			now := time.Now().UTC().Add(-time.Hour)
+			owner := insertTestUser(t, db, "dissolve-project-query-count@example.com", "Dissolve Project Query Count", store.UserStatusActive, now)
+			conversation := insertTestConversation(t, db, testConversationInput{
+				createdByUserID: owner.ID,
+				kind:            store.ConversationKindGroup,
+				memberIDs:       []string{owner.ID},
+				name:            "Dissolve Constant Project Work",
+				now:             now,
+			})
+			for index := range projectCount {
+				project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Dissolve Counted " + string(rune('A'+index)), UpdatedAt: now})
+				insertProjectGroupFixture(t, db, project.ID, conversation.ID, owner.ID, now)
+			}
+			cookie := loginAsUser(t, server, owner.Email)
+			counter := registerGroupProjectStatementCounter(t, db, "test:count_group_dissolve_project_statements")
+
+			resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/groups/"+conversation.ID, map[string]any{}, cookie)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200, body = %#v", resp.StatusCode, body)
+			}
+			if got := counter.queries.Load(); got != 1 {
+				t.Fatalf("project SELECT count = %d, want 1", got)
+			}
+			if got := counter.updates.Load(); got != 1 {
+				t.Fatalf("project UPDATE count = %d, want 1", got)
+			}
+		})
+	}
+}
+
+func TestDissolveGroupConversationUnauthorizedPreflightDoesNotLockProjects(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "dissolve-preflight-owner@example.com", "Dissolve Preflight Owner", store.UserStatusActive, now)
+	member := insertTestUser(t, db, "dissolve-preflight-member@example.com", "Dissolve Preflight Member", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{owner.ID, member.ID},
+		name:            "Dissolve Preflight Group",
+		now:             now,
+	})
+	project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Preflight Project", UpdatedAt: now})
+	insertProjectGroupFixture(t, db, project.ID, conversation.ID, owner.ID, now)
+	cookie := loginAsUser(t, server, member.Email)
+	recorder := registerGroupLifecycleLockRecorder(t, db, "test:record_unauthorized_dissolve_locks")
+
+	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/groups/"+conversation.ID, map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "forbidden")
+	if records := recorder.snapshot(); len(records) != 0 {
+		t.Fatalf("unauthorized dissolution acquired locks: %#v", records)
+	}
+}
+
+func TestDissolveGroupConversationRetriesOneRelationSetChange(t *testing.T) {
+	_, db := newTestRouter(t)
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "dissolve-retry-owner@example.com", "Dissolve Retry Owner", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{owner.ID},
+		name:            "Dissolve Retry Group",
+		now:             now,
+	})
+	initialProject := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Initial Retry Project", UpdatedAt: now})
+	extraProject := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Injected Retry Project", UpdatedAt: now})
+	insertProjectGroupFixture(t, db, initialProject.ID, conversation.ID, owner.ID, now)
+	changer := registerDissolveRelationSetChanger(t, db, "test:change_dissolve_relations_once", extraProject.ID, conversation.ID, owner.ID, 1)
+
+	if _, err := (&Server{db: db}).dissolveUserGroupConversation(context.Background(), owner, conversation.ID); err != nil {
+		t.Fatalf("dissolve group conversation after one retry: %v", err)
+	}
+	if got := changer.discoveries.Load(); got != 2 {
+		t.Fatalf("dissolution attempts = %d, want 2", got)
+	}
+	if got := changer.changes.Load(); got != 1 {
+		t.Fatalf("relation set changes = %d, want 1", got)
+	}
+	requireRowCount(t, db, &store.ProjectGroup{}, 0, "conversation_id = ?", conversation.ID)
+}
+
+func TestDissolveGroupConversationRelationSetChangeExhaustionReturnsConflict(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "dissolve-conflict-owner@example.com", "Dissolve Conflict Owner", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{owner.ID},
+		name:            "Dissolve Conflict Group",
+		now:             now,
+	})
+	initialProject := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Initial Conflict Project", UpdatedAt: now})
+	extraProject := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "Injected Conflict Project", UpdatedAt: now})
+	insertProjectGroupFixture(t, db, initialProject.ID, conversation.ID, owner.ID, now)
+	cookie := loginAsUser(t, server, owner.Email)
+	changer := registerDissolveRelationSetChanger(t, db, "test:always_change_dissolve_relations", extraProject.ID, conversation.ID, owner.ID, -1)
+
+	resp, body := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/groups/"+conversation.ID, map[string]any{}, cookie)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %#v", resp.StatusCode, body)
+	}
+	requireError(t, body, "conflict")
+	if got := changer.discoveries.Load(); got != 3 {
+		t.Fatalf("dissolution attempts = %d, want 3", got)
+	}
+	if got := changer.changes.Load(); got != 3 {
+		t.Fatalf("relation set changes = %d, want 3", got)
+	}
+	requireRowCount(t, db, &store.ProjectGroup{}, 1, "conversation_id = ?", conversation.ID)
+}
+
+func TestDissolveGroupConversationCanceledContextStopsBeforeQueries(t *testing.T) {
+	_, db := newTestRouter(t)
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "dissolve-canceled-owner@example.com", "Dissolve Canceled Owner", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{owner.ID},
+		name:            "Dissolve Canceled Group",
+		now:             now,
+	})
+	var queryCount atomic.Int32
+	const callbackName = "test:count_canceled_dissolve_queries"
+	if err := db.Callback().Query().Before("gorm:query").Register(callbackName, func(*gorm.DB) {
+		queryCount.Add(1)
+	}); err != nil {
+		t.Fatalf("register canceled query callback: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Callback().Query().Remove(callbackName); err != nil {
+			t.Errorf("remove canceled query callback: %v", err)
+		}
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := (&Server{db: db}).dissolveUserGroupConversation(ctx, owner, conversation.ID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("dissolve error = %v, want context.Canceled", err)
+	}
+	if got := queryCount.Load(); got != 0 {
+		t.Fatalf("queries after cancellation = %d, want 0", got)
 	}
 }
 
@@ -534,22 +752,22 @@ func TestDissolveGroupConversationProjectRowsLockBeforeConversation(t *testing.T
 	high := insertProjectFixture(t, db, projectFixtureInput{ID: "00000000-0000-0000-0000-000000000002", Owner: owner, Name: "High", UpdatedAt: now})
 	insertProjectGroupFixture(t, db, high.ID, conversation.ID, owner.ID, now)
 	insertProjectGroupFixture(t, db, low.ID, conversation.ID, owner.ID, now)
-	recorder := registerProjectQueryLockRecorder(t, db, "test:record_group_dissolve_lock_order", map[string]struct{}{
-		low.ID: {}, high.ID: {}, conversation.ID: {},
-	})
+	recorder := registerGroupLifecycleLockRecorder(t, db, "test:record_group_dissolve_lock_order")
 
-	if _, err := (&Server{db: db}).dissolveUserGroupConversation(owner, conversation.ID); err != nil {
+	if _, err := (&Server{db: db}).dissolveUserGroupConversation(context.Background(), owner, conversation.ID); err != nil {
 		t.Fatalf("dissolve group conversation: %v", err)
 	}
 	records := recorder.snapshot()
-	wantIDs := []string{low.ID, high.ID, conversation.ID}
-	if len(records) != len(wantIDs) {
-		t.Fatalf("lock records = %#v, want IDs %v", records, wantIDs)
+	if len(records) != 2 {
+		t.Fatalf("lock records = %#v, want project batch then conversation", records)
 	}
-	for index, record := range records {
-		if record.ID != wantIDs[index] || !record.Locked || !record.InTransaction {
-			t.Fatalf("lock record %d = %#v, want ID %s FOR UPDATE in transaction", index, record, wantIDs[index])
-		}
+	projectLock := records[0]
+	if projectLock.Table != "projects" || len(projectLock.IDs) != 2 || projectLock.IDs[0] != low.ID || projectLock.IDs[1] != high.ID || !projectLock.Ordered || !projectLock.InTransaction {
+		t.Fatalf("project lock = %#v, want one ordered batch FOR UPDATE in transaction", projectLock)
+	}
+	conversationLock := records[1]
+	if conversationLock.Table != "conversations" || len(conversationLock.IDs) != 1 || conversationLock.IDs[0] != conversation.ID || !conversationLock.InTransaction {
+		t.Fatalf("conversation lock = %#v, want conversation FOR UPDATE after projects", conversationLock)
 	}
 }
 
@@ -572,6 +790,159 @@ func requireProjectUpdatedAt(t *testing.T, db *gorm.DB, projectID string, want t
 	if !project.UpdatedAt.Equal(want) {
 		t.Fatalf("project %s updated_at = %v, want %v", projectID, project.UpdatedAt, want)
 	}
+}
+
+type groupProjectStatementCounter struct {
+	queries atomic.Int32
+	updates atomic.Int32
+}
+
+func registerGroupProjectStatementCounter(t *testing.T, db *gorm.DB, callbackName string) *groupProjectStatementCounter {
+	t.Helper()
+
+	counter := &groupProjectStatementCounter{}
+	if err := db.Callback().Query().After("gorm:query").Register(callbackName+":query", func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Table == "projects" {
+			counter.queries.Add(1)
+		}
+	}); err != nil {
+		t.Fatalf("register project query counter: %v", err)
+	}
+	if err := db.Callback().Update().After("gorm:update").Register(callbackName+":update", func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Table == "projects" {
+			counter.updates.Add(1)
+		}
+	}); err != nil {
+		t.Fatalf("register project update counter: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Callback().Query().Remove(callbackName + ":query"); err != nil {
+			t.Errorf("remove project query counter: %v", err)
+		}
+		if err := db.Callback().Update().Remove(callbackName + ":update"); err != nil {
+			t.Errorf("remove project update counter: %v", err)
+		}
+	})
+	return counter
+}
+
+type groupLifecycleLockRecord struct {
+	Table         string
+	IDs           []string
+	Ordered       bool
+	InTransaction bool
+}
+
+type groupLifecycleLockRecorder struct {
+	mu      sync.Mutex
+	records []groupLifecycleLockRecord
+}
+
+func (recorder *groupLifecycleLockRecorder) snapshot() []groupLifecycleLockRecord {
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	return append([]groupLifecycleLockRecord(nil), recorder.records...)
+}
+
+func registerGroupLifecycleLockRecorder(t *testing.T, db *gorm.DB, callbackName string) *groupLifecycleLockRecorder {
+	t.Helper()
+
+	recorder := &groupLifecycleLockRecorder{}
+	if err := db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Schema == nil {
+			return
+		}
+		locking, locked := tx.Statement.Clauses["FOR"].Expression.(clause.Locking)
+		if !locked || locking.Strength != "UPDATE" {
+			return
+		}
+		ids := make([]string, 0, len(tx.Statement.Vars))
+		for _, variable := range tx.Statement.Vars {
+			value, ok := variable.(string)
+			if !ok {
+				continue
+			}
+			if _, err := uuid.Parse(value); err == nil {
+				ids = append(ids, value)
+			}
+		}
+		ordered := false
+		if orderBy, ok := tx.Statement.Clauses["ORDER BY"].Expression.(clause.OrderBy); ok {
+			for _, column := range orderBy.Columns {
+				columnName := strings.TrimSpace(column.Column.Name)
+				if (columnName == "id" || strings.EqualFold(columnName, "id ASC")) && !column.Desc {
+					ordered = true
+				}
+			}
+		}
+		_, inTransaction := tx.Statement.ConnPool.(*sql.Tx)
+		recorder.mu.Lock()
+		recorder.records = append(recorder.records, groupLifecycleLockRecord{
+			Table:         tx.Statement.Schema.Table,
+			IDs:           ids,
+			Ordered:       ordered,
+			InTransaction: inTransaction,
+		})
+		recorder.mu.Unlock()
+	}); err != nil {
+		t.Fatalf("register group lifecycle lock recorder: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Callback().Query().Remove(callbackName); err != nil {
+			t.Errorf("remove group lifecycle lock recorder: %v", err)
+		}
+	})
+	return recorder
+}
+
+type dissolveRelationSetChanger struct {
+	discoveries atomic.Int32
+	changes     atomic.Int32
+	queries     atomic.Int32
+}
+
+func registerDissolveRelationSetChanger(t *testing.T, db *gorm.DB, callbackName string, projectID string, conversationID string, userID string, maxChanges int32) *dissolveRelationSetChanger {
+	t.Helper()
+
+	changer := &dissolveRelationSetChanger{}
+	if err := db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Schema == nil || tx.Statement.Schema.Table != "project_groups" {
+			return
+		}
+		if _, ok := tx.Statement.ConnPool.(*sql.Tx); !ok {
+			return
+		}
+		queryNumber := changer.queries.Add(1)
+		if queryNumber%2 == 0 {
+			return
+		}
+		discovery := changer.discoveries.Add(1)
+		if maxChanges >= 0 && discovery > maxChanges {
+			return
+		}
+		changer.changes.Add(1)
+		callbackDB := tx.Session(&gorm.Session{NewDB: true})
+		if _, ok := callbackDB.Statement.ConnPool.(*sql.Tx); !ok {
+			tx.AddError(errors.New("relation set changer is not in the dissolution transaction"))
+			return
+		}
+		if err := callbackDB.Create(&store.ProjectGroup{
+			ProjectID:      projectID,
+			ConversationID: conversationID,
+			LinkedByUserID: userID,
+			CreatedAt:      time.Now().UTC(),
+		}).Error; err != nil {
+			tx.AddError(err)
+		}
+	}); err != nil {
+		t.Fatalf("register dissolve relation set changer: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Callback().Query().Remove(callbackName); err != nil {
+			t.Errorf("remove dissolve relation set changer: %v", err)
+		}
+	})
+	return changer
 }
 
 func failUpdatesForTable(t *testing.T, db *gorm.DB, callbackName string, table string, updateErr error) {
