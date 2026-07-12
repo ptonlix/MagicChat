@@ -2,18 +2,9 @@ import * as React from "react"
 import { ChevronsDown, ChevronsUp, Equal } from "lucide-react"
 import { toast } from "sonner"
 
+import { ProjectMemberCombobox } from "@/components/projects/project-member-combobox"
 import type { ProjectTaskPriority } from "@/components/projects/project-types"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  useComboboxAnchor,
-} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -23,7 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { InputGroupAddon } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -34,10 +24,8 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  type ClientProjectMember,
-  listClientProjectMembers,
-} from "@/lib/project-data-api"
+import type { ClientProjectMember } from "@/lib/project-data-api"
+import { listAllClientProjectMembers } from "@/lib/project-members"
 import { createClientProjectTask } from "@/lib/project-task-data-api"
 
 export function CreateProjectTaskDialog({
@@ -59,7 +47,6 @@ export function CreateProjectTaskDialog({
   const [priority, setPriority] = React.useState<ProjectTaskPriority>(2)
   const [saving, setSaving] = React.useState(false)
   const [title, setTitle] = React.useState("")
-  const assigneeComboboxAnchor = useComboboxAnchor()
   const assigneeComboboxPortal = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
@@ -68,7 +55,7 @@ export function CreateProjectTaskDialog({
     }
 
     let active = true
-    void listAllProjectMembers(projectId)
+    void listAllClientProjectMembers(projectId)
       .then((nextMembers) => {
         if (active) {
           setMembers(nextMembers.filter((member) => member.status === "active"))
@@ -209,54 +196,16 @@ export function CreateProjectTaskDialog({
             </TaskSelectField>
 
             <TaskSelectField label="负责人">
-              <Combobox<ClientProjectMember>
+              <ProjectMemberCombobox
                 disabled={saving || membersLoading}
-                filter={(member, query) => memberMatchesQuery(member, query)}
-                isItemEqualToValue={(member, value) => member.id === value.id}
-                itemToStringLabel={(member) => member.displayName}
-                itemToStringValue={(member) => member.id}
-                items={members}
+                loading={membersLoading}
+                members={members}
                 onValueChange={(member: ClientProjectMember | null) =>
                   setAssigneeUserId(member?.id ?? "")
                 }
+                portalContainer={assigneeComboboxPortal}
                 value={selectedAssignee ?? null}
-              >
-                <div ref={assigneeComboboxAnchor}>
-                  <ComboboxInput
-                    aria-label="任务负责人"
-                    className="w-full"
-                    placeholder={membersLoading ? "正在加载" : "未指派"}
-                    showClear
-                  >
-                    {selectedAssignee && (
-                      <InputGroupAddon align="inline-start">
-                        <MemberAvatar member={selectedAssignee} />
-                      </InputGroupAddon>
-                    )}
-                  </ComboboxInput>
-                </div>
-                <ComboboxContent
-                  anchor={assigneeComboboxAnchor}
-                  container={assigneeComboboxPortal}
-                >
-                  <ComboboxEmpty>没有匹配的项目成员</ComboboxEmpty>
-                  <ComboboxList>
-                    {(member: ClientProjectMember) => (
-                      <ComboboxItem key={member.id} value={member}>
-                        <MemberAvatar className="size-8" member={member} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate">
-                            {member.displayName}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {member.email}
-                          </span>
-                        </span>
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
+              />
               {membersError && (
                 <p className="text-xs text-destructive">{membersError}</p>
               )}
@@ -287,29 +236,6 @@ export function CreateProjectTaskDialog({
   )
 }
 
-function MemberAvatar({
-  className = "size-6",
-  member,
-}: {
-  className?: string
-  member: ClientProjectMember
-}) {
-  const initial = Array.from(member.displayName.trim())[0]?.toUpperCase() ?? "?"
-
-  return (
-    <Avatar className={`${className} shrink-0 rounded-sm after:rounded-sm`}>
-      {member.avatar && (
-        <AvatarImage
-          alt={member.displayName}
-          className="rounded-sm"
-          src={member.avatar}
-        />
-      )}
-      <AvatarFallback className="rounded-sm">{initial}</AvatarFallback>
-    </Avatar>
-  )
-}
-
 function TaskSelectField({
   children,
   label,
@@ -323,32 +249,4 @@ function TaskSelectField({
       {children}
     </div>
   )
-}
-
-function memberMatchesQuery(member: ClientProjectMember, query: string) {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  return [member.displayName, member.name, member.email].some((value) =>
-    value.toLocaleLowerCase().includes(normalizedQuery)
-  )
-}
-
-async function listAllProjectMembers(projectId: string) {
-  const members: ClientProjectMember[] = []
-  const seenCursors = new Set<string>()
-  let cursor: string | undefined
-
-  do {
-    const page = await listClientProjectMembers(projectId, {
-      cursor,
-      limit: 100,
-    })
-    members.push(...page.members)
-    if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
-      break
-    }
-    seenCursors.add(page.nextCursor)
-    cursor = page.nextCursor
-  } while (cursor)
-
-  return members
 }

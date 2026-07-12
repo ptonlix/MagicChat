@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { ProjectMemberCombobox } from "@/components/projects/project-member-combobox"
 import { ProjectTaskDatePicker } from "@/components/projects/project-task-date-picker"
 import { ProjectTaskLabelsCombobox } from "@/components/projects/project-task-labels-combobox"
 import type {
@@ -19,15 +20,6 @@ import type {
 } from "@/components/projects/project-types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  useComboboxAnchor,
-} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -52,10 +44,8 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  type ClientProjectMember,
-  listClientProjectMembers,
-} from "@/lib/project-data-api"
+import type { ClientProjectMember } from "@/lib/project-data-api"
+import { listAllClientProjectMembers } from "@/lib/project-members"
 import {
   getClientProjectTask,
   listClientProjectTasks,
@@ -111,7 +101,6 @@ export function ProjectTaskDetailsDialog({
   const [membersError, setMembersError] = React.useState("")
   const [membersLoading, setMembersLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
-  const assigneeComboboxAnchor = useComboboxAnchor()
   const assigneeComboboxPortal = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
@@ -143,7 +132,7 @@ export function ProjectTaskDetailsDialog({
         }
       })
 
-    void listAllProjectMembers(task.projectId)
+    void listAllClientProjectMembers(task.projectId)
       .then((nextMembers) => {
         if (active) {
           setMembers(nextMembers.filter((member) => member.status === "active"))
@@ -383,60 +372,17 @@ export function ProjectTaskDetailsDialog({
 
               <div className="grid gap-4">
                 <TaskField label="负责人">
-                  <Combobox<ClientProjectMember>
+                  <ProjectMemberCombobox
                     disabled={loading || saving || membersLoading}
-                    filter={(member, query) =>
-                      memberMatchesQuery(member, query)
-                    }
-                    isItemEqualToValue={(member, value) =>
-                      member.id === value.id
-                    }
-                    itemToStringLabel={(member) => member.displayName}
-                    itemToStringValue={(member) => member.id}
-                    items={memberOptions}
+                    loading={membersLoading}
+                    members={memberOptions}
                     onValueChange={(member: ClientProjectMember | null) =>
                       updateForm("assigneeUserId", member?.id ?? "")
                     }
+                    portalContainer={assigneeComboboxPortal}
+                    showEmptyEmail={false}
                     value={selectedAssignee ?? null}
-                  >
-                    <div ref={assigneeComboboxAnchor}>
-                      <ComboboxInput
-                        aria-label="任务负责人"
-                        className="w-full"
-                        placeholder={membersLoading ? "正在加载" : "未指派"}
-                        showClear
-                      >
-                        {selectedAssignee && (
-                          <InputGroupAddon align="inline-start">
-                            <MemberAvatar member={selectedAssignee} />
-                          </InputGroupAddon>
-                        )}
-                      </ComboboxInput>
-                    </div>
-                    <ComboboxContent
-                      anchor={assigneeComboboxAnchor}
-                      container={assigneeComboboxPortal}
-                    >
-                      <ComboboxEmpty>没有匹配的项目成员</ComboboxEmpty>
-                      <ComboboxList>
-                        {(member: ClientProjectMember) => (
-                          <ComboboxItem key={member.id} value={member}>
-                            <MemberAvatar className="size-8" member={member} />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate">
-                                {member.displayName}
-                              </span>
-                              {member.email && (
-                                <span className="block truncate text-xs text-muted-foreground">
-                                  {member.email}
-                                </span>
-                              )}
-                            </span>
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
+                  />
                   {membersError && (
                     <p className="text-xs text-destructive">{membersError}</p>
                   )}
@@ -535,29 +481,6 @@ function DisabledUserInput({ user }: { user: ProjectTask["creator"] }) {
       </InputGroupAddon>
       <InputGroupInput aria-label="创建人" disabled value={displayName} />
     </InputGroup>
-  )
-}
-
-function MemberAvatar({
-  className = "size-6",
-  member,
-}: {
-  className?: string
-  member: ClientProjectMember
-}) {
-  const initial = Array.from(member.displayName.trim())[0]?.toUpperCase() ?? "?"
-
-  return (
-    <Avatar className={`${className} shrink-0 rounded-sm after:rounded-sm`}>
-      {member.avatar && (
-        <AvatarImage
-          alt={member.displayName}
-          className="rounded-sm"
-          src={member.avatar}
-        />
-      )}
-      <AvatarFallback className="rounded-sm">{initial}</AvatarFallback>
-    </Avatar>
   )
 }
 
@@ -687,34 +610,6 @@ function createTaskEditPatch(
     patch.title = form.title
   }
   return patch
-}
-
-function memberMatchesQuery(member: ClientProjectMember, query: string) {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  return [member.displayName, member.name, member.email].some((value) =>
-    value.toLocaleLowerCase().includes(normalizedQuery)
-  )
-}
-
-async function listAllProjectMembers(projectId: string) {
-  const members: ClientProjectMember[] = []
-  const seenCursors = new Set<string>()
-  let cursor: string | undefined
-
-  do {
-    const page = await listClientProjectMembers(projectId, {
-      cursor,
-      limit: 100,
-    })
-    members.push(...page.members)
-    if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
-      break
-    }
-    seenCursors.add(page.nextCursor)
-    cursor = page.nextCursor
-  } while (cursor)
-
-  return members
 }
 
 async function listAllProjectTaskLabels(

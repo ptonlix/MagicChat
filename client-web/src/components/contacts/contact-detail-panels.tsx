@@ -1,0 +1,268 @@
+import type { ReactNode } from "react"
+import {
+  Bot,
+  Loader2Icon,
+  Mail,
+  Phone,
+  UserPen,
+  UserRound,
+  UsersRound,
+} from "lucide-react"
+
+import { GroupAvatar } from "@/components/group-avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import type {
+  ContactApp,
+  ContactGroup,
+  ContactUser,
+} from "@/lib/client-data-api"
+import { formatContactPhone } from "@/lib/contact-format"
+import { cn } from "@/lib/utils"
+
+const CONTACT_DETAIL_PANEL_CLASS = "mt-30 w-full max-w-sm"
+
+export function AppDetailPanel({
+  app,
+  onStartConversation,
+  startingConversation,
+}: {
+  app: ContactApp
+  onStartConversation: () => void
+  startingConversation: boolean
+}) {
+  return (
+    <div
+      className={CONTACT_DETAIL_PANEL_CLASS}
+      data-testid="contact-detail-panel"
+    >
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Avatar
+            className="size-20 rounded-sm bg-muted after:rounded-sm"
+            data-testid="contact-detail-avatar"
+          >
+            {app.avatar && (
+              <AvatarImage
+                alt={app.name}
+                className="rounded-sm"
+                src={app.avatar}
+              />
+            )}
+            <AvatarFallback className="rounded-sm text-xl">
+              <Bot className="size-7" />
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="text-base font-medium">{app.name}</div>
+            {app.description && (
+              <div className="mt-1 text-sm text-muted-foreground">
+                {app.description}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-1 text-sm">
+          <ContactDetailRow
+            icon={<Bot className="size-4 text-muted-foreground" />}
+            label="类型"
+            value="应用"
+          />
+          <ContactDetailRow
+            icon={<UserRound className="size-4 text-muted-foreground" />}
+            label="状态"
+            value={app.online ? "在线" : "离线"}
+          />
+        </div>
+        <Button
+          className="w-full"
+          disabled={startingConversation}
+          onClick={onStartConversation}
+          type="button"
+        >
+          {startingConversation && (
+            <Loader2Icon aria-hidden="true" className="animate-spin" />
+          )}
+          发消息
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function GroupDetailPanel({
+  group,
+  onStartConversation,
+  startingConversation,
+}: {
+  group: ContactGroup
+  onStartConversation: () => void
+  startingConversation: boolean
+}) {
+  return (
+    <div
+      className={CONTACT_DETAIL_PANEL_CLASS}
+      data-testid="contact-detail-panel"
+    >
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <GroupAvatar
+            avatar={group.avatar}
+            className="size-20"
+            name={group.name}
+          />
+          <div>
+            <div className="text-base font-medium">{group.name}</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {group.memberCount} 人群聊
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-1 text-sm">
+          <ContactDetailRow
+            icon={<UsersRound className="size-4 text-muted-foreground" />}
+            label="类型"
+            value="群组"
+          />
+          <ContactDetailRow
+            icon={<UserRound className="size-4 text-muted-foreground" />}
+            label="状态"
+            value={group.joined ? "已加入" : "未加入"}
+          />
+        </div>
+        <Button
+          className="w-full"
+          disabled={startingConversation}
+          onClick={onStartConversation}
+          type="button"
+        >
+          {startingConversation && (
+            <Loader2Icon aria-hidden="true" className="animate-spin" />
+          )}
+          {group.joined ? "发消息" : "加入群聊"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function ContactDetailPanel({
+  canStartConversation,
+  contact,
+  onStartConversation,
+  startingConversation,
+}: {
+  canStartConversation: boolean
+  contact: ContactUser
+  onStartConversation: () => void
+  startingConversation: boolean
+}) {
+  const displayName = getContactDisplayName(contact)
+
+  return (
+    <div
+      className={CONTACT_DETAIL_PANEL_CLASS}
+      data-testid="contact-detail-panel"
+    >
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col items-center text-center">
+          <Avatar
+            className="size-20 rounded-sm bg-muted after:rounded-sm"
+            data-testid="contact-detail-avatar"
+          >
+            {contact.avatar && (
+              <AvatarImage
+                alt={displayName}
+                className="rounded-sm"
+                src={contact.avatar}
+              />
+            )}
+            <AvatarFallback className="rounded-sm text-xl">
+              {getContactInitial(displayName)}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+
+        <div className="grid gap-1 text-sm">
+          <ContactDetailRow
+            icon={<UserRound className="size-4 text-muted-foreground" />}
+            label="姓名"
+            value={contact.name}
+          />
+          <ContactDetailRow
+            icon={<UserPen className="size-4 text-muted-foreground" />}
+            label="昵称"
+            value={contact.nickname}
+          />
+          <ContactDetailRow
+            icon={<Mail className="size-4 text-muted-foreground" />}
+            label="邮箱"
+            value={contact.email}
+          />
+          <ContactDetailRow
+            icon={<Phone className="size-4 text-muted-foreground" />}
+            label="手机"
+            value={contact.phone ? formatContactPhone(contact.phone) : ""}
+          />
+        </div>
+        <Button
+          className="w-full"
+          disabled={startingConversation || !canStartConversation}
+          onClick={onStartConversation}
+          type="button"
+        >
+          {startingConversation && (
+            <Loader2Icon aria-hidden="true" className="animate-spin" />
+          )}
+          发消息
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function ContactEmptyState() {
+  return (
+    <div
+      className="flex flex-1 items-center justify-center self-stretch text-sm text-muted-foreground"
+      data-testid="contact-empty-state"
+    >
+      选择一个联系人查看详情
+    </div>
+  )
+}
+
+function ContactDetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+}) {
+  const hasValue = Boolean(value.trim())
+  const displayValue = hasValue ? value : "未设置"
+
+  return (
+    <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
+      {icon}
+      <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+      <span
+        className={cn("min-w-0 truncate", !hasValue && "text-muted-foreground")}
+      >
+        {displayValue}
+      </span>
+    </div>
+  )
+}
+
+function getContactDisplayName(contact: { name: string; nickname: string }) {
+  return contact.nickname || contact.name
+}
+
+function getContactInitial(name: string) {
+  return Array.from(name.trim())[0]?.toUpperCase() ?? "?"
+}

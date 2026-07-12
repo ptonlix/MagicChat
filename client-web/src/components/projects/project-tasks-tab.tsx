@@ -21,12 +21,12 @@ import { ProjectTaskBoardView } from "@/components/projects/project-task-board-v
 import { ProjectTaskCalendarView } from "@/components/projects/project-task-calendar-view"
 import { ProjectTaskGanttView } from "@/components/projects/project-task-gantt-view"
 import { ProjectTaskListView } from "@/components/projects/project-task-list-view"
+import { ProjectMemberAvatar } from "@/components/projects/project-member-avatar"
 import type {
   ProjectTask,
   ProjectTaskPriority,
   ProjectTaskStatus,
 } from "@/components/projects/project-types"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -39,10 +39,8 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import {
-  type ClientProjectMember,
-  listClientProjectMembers,
-} from "@/lib/project-data-api"
+import type { ClientProjectMember } from "@/lib/project-data-api"
+import { listAllClientProjectMembers } from "@/lib/project-members"
 import { listClientProjectTasks } from "@/lib/project-task-data-api"
 import { cn } from "@/lib/utils"
 
@@ -165,7 +163,7 @@ export function ProjectTasksTab({
   React.useEffect(() => {
     let active = true
 
-    void listAllProjectMembers(projectId)
+    void listAllClientProjectMembers(projectId)
       .then((nextMembers) => {
         if (active) {
           setMembers(nextMembers.filter((member) => member.status === "active"))
@@ -412,27 +410,6 @@ async function listAllProjectTasks(projectId: string, filters: TaskFilters) {
   return tasks
 }
 
-async function listAllProjectMembers(projectId: string) {
-  const members: ClientProjectMember[] = []
-  const seenCursors = new Set<string>()
-  let cursor: string | undefined
-
-  do {
-    const page = await listClientProjectMembers(projectId, {
-      cursor,
-      limit: 100,
-    })
-    members.push(...page.members)
-    if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
-      break
-    }
-    seenCursors.add(page.nextCursor)
-    cursor = page.nextCursor
-  } while (cursor)
-
-  return members
-}
-
 function StatusFilter({
   onValueChange,
   value,
@@ -585,7 +562,11 @@ function AssigneeFilter({
             }
             onSelect={(event) => event.preventDefault()}
           >
-            <MemberAvatar member={member} />
+            <ProjectMemberAvatar
+              className="size-5"
+              fallbackClassName="text-[10px]"
+              member={member}
+            />
             <span className="min-w-0 flex-1 truncate">
               {member.displayName}
             </span>
@@ -659,25 +640,6 @@ function FilterButton({
       </span>
       <ChevronDown data-icon="inline-end" />
     </Button>
-  )
-}
-
-function MemberAvatar({ member }: { member: ClientProjectMember }) {
-  const initial = Array.from(member.displayName.trim())[0]?.toUpperCase() ?? "?"
-
-  return (
-    <Avatar className="size-5 shrink-0 rounded-sm after:rounded-sm">
-      {member.avatar && (
-        <AvatarImage
-          alt={member.displayName}
-          className="rounded-sm"
-          src={member.avatar}
-        />
-      )}
-      <AvatarFallback className="rounded-sm text-[10px]">
-        {initial}
-      </AvatarFallback>
-    </Avatar>
   )
 }
 

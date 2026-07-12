@@ -1,0 +1,432 @@
+import { ClientDataRequestError, normalizeVisibility } from "./core"
+import type {
+  MessageDelegatedByResponse,
+  MessageReplyToResponse,
+  SystemEventUserRefResponse,
+  GroupMembersInvitedSystemEventBodyResponse,
+  GroupAvatarUpdatedSystemEventBodyResponse,
+  GroupVisibilityChangedSystemEventBodyResponse,
+  GroupMemberJoinedSystemEventBodyResponse,
+  GroupMemberLeftSystemEventBodyResponse,
+  GroupMemberRemovedSystemEventBodyResponse,
+  GroupNameUpdatedSystemEventBodyResponse,
+  MessageRevokedSystemEventBodyResponse,
+  MessageBodyResponse,
+  MessageResponse,
+  MessagePageResponse,
+  MarkConversationReadResponse,
+  TemporaryFileReadURLResponse,
+  ClientMessageDelegatedBy,
+  ClientMessageReplyTo,
+  ClientImageMessageBody,
+  ClientSystemEventUserRef,
+  ClientGroupMembersInvitedSystemEventBody,
+  ClientGroupAvatarUpdatedSystemEventBody,
+  ClientGroupVisibilityChangedSystemEventBody,
+  ClientGroupMemberJoinedSystemEventBody,
+  ClientGroupMemberLeftSystemEventBody,
+  ClientGroupMemberRemovedSystemEventBody,
+  ClientGroupNameUpdatedSystemEventBody,
+  ClientMessageRevokedSystemEventBody,
+  ClientMessageBody,
+  ClientMessage,
+  ClientMessagePage,
+  TemporaryFileReadURL,
+  MarkConversationReadResult,
+} from "./types"
+
+const temporaryFileReadURLCacheSafetyWindowMs = 5 * 60 * 1000
+
+export function normalizeMarkConversationReadResult(
+  result: MarkConversationReadResponse | undefined
+): MarkConversationReadResult {
+  if (
+    !result?.conversation_id ||
+    typeof result.last_read_seq !== "number" ||
+    typeof result.unread_count !== "number"
+  ) {
+    throw new ClientDataRequestError("标记会话已读响应格式不正确")
+  }
+
+  return {
+    conversationId: result.conversation_id,
+    lastReadSeq: result.last_read_seq,
+    unreadCount: result.unread_count,
+  }
+}
+
+export function normalizeMessage(
+  message: MessageResponse | undefined
+): ClientMessage {
+  const senderType = normalizeMessageSenderType(message?.sender?.type)
+  const senderId = message?.sender?.id ?? ""
+  const revokedAt = message?.revoked_at
+  if (
+    !message?.conversation_id ||
+    !message.created_at ||
+    !message.id ||
+    !message.sender ||
+    (senderType !== "system" && !senderId) ||
+    typeof message.seq !== "number" ||
+    (revokedAt !== undefined && typeof revokedAt !== "string")
+  ) {
+    throw new ClientDataRequestError("消息响应格式不正确")
+  }
+
+  const normalized: ClientMessage = {
+    body: revokedAt ? { type: "revoked" } : normalizeMessageBody(message.body),
+    clientMessageId: message.client_message_id ?? "",
+    conversationId: message.conversation_id,
+    createdAt: message.created_at,
+    delegatedBy: normalizeMessageDelegatedBy(message.delegated_by),
+    id: message.id,
+    replyTo: normalizeMessageReplyTo(message.reply_to),
+    sender: {
+      id: senderId,
+      type: senderType,
+    },
+    seq: message.seq,
+  }
+  if (message.reply_to_message_id) {
+    normalized.replyToMessageId = message.reply_to_message_id
+  }
+  if (revokedAt) {
+    normalized.revokedAt = revokedAt
+    if (message.revoked_by_user_id) {
+      normalized.revokedByUserId = message.revoked_by_user_id
+    }
+  }
+
+  return normalized
+}
+
+function normalizeMessageDelegatedBy(
+  delegatedBy: MessageDelegatedByResponse | null | undefined
+): ClientMessageDelegatedBy | undefined {
+  if (!delegatedBy) {
+    return undefined
+  }
+  if (
+    !delegatedBy.id ||
+    !delegatedBy.name ||
+    (delegatedBy.type !== "user" && delegatedBy.type !== "app")
+  ) {
+    throw new ClientDataRequestError("消息代发信息响应格式不正确")
+  }
+
+  return {
+    id: delegatedBy.id,
+    name: delegatedBy.name,
+    type: delegatedBy.type,
+  }
+}
+
+function normalizeMessageReplyTo(
+  replyTo: MessageReplyToResponse | null | undefined
+): ClientMessageReplyTo | undefined {
+  if (!replyTo) {
+    return undefined
+  }
+
+  const senderType = normalizeMessageSenderType(replyTo.sender?.type)
+  const senderId = replyTo.sender?.id ?? ""
+  if (
+    !replyTo.id ||
+    !replyTo.sender ||
+    (senderType !== "system" && !senderId) ||
+    typeof replyTo.sender.name !== "string" ||
+    typeof replyTo.seq !== "number" ||
+    typeof replyTo.summary !== "string"
+  ) {
+    throw new ClientDataRequestError("消息引用信息响应格式不正确")
+  }
+
+  return {
+    id: replyTo.id,
+    sender: {
+      id: senderId,
+      name: replyTo.sender.name,
+      type: senderType,
+    },
+    seq: replyTo.seq,
+    summary: replyTo.summary,
+  }
+}
+
+function normalizeMessageBody(
+  body: MessageBodyResponse | undefined
+): ClientMessageBody {
+  if (body?.type === "text" && typeof body.content === "string") {
+    return {
+      content: body.content,
+      type: "text",
+    }
+  }
+
+  if (body?.type === "markdown" && typeof body.content === "string") {
+    return {
+      content: body.content,
+      type: "markdown",
+    }
+  }
+
+  if (
+    body?.type === "link" &&
+    typeof body.url === "string" &&
+    typeof body.title === "string"
+  ) {
+    return {
+      title: body.title,
+      type: "link",
+      url: body.url,
+    }
+  }
+
+  if (
+    body?.type === "file" &&
+    typeof body.file_id === "string" &&
+    typeof body.name === "string" &&
+    typeof body.size_bytes === "number" &&
+    body.size_bytes >= 0
+  ) {
+    return {
+      fileId: body.file_id,
+      name: body.name,
+      sizeBytes: body.size_bytes,
+      type: "file",
+    }
+  }
+
+  if (body?.type === "image" && typeof body.file_id === "string") {
+    const normalizedImage: ClientImageMessageBody = {
+      fileId: body.file_id,
+      type: "image",
+    }
+
+    if (isPositiveFiniteNumber(body.width)) {
+      normalizedImage.width = body.width
+    }
+    if (isPositiveFiniteNumber(body.height)) {
+      normalizedImage.height = body.height
+    }
+
+    return normalizedImage
+  }
+
+  if (body?.type === "system_event") {
+    return normalizeSystemEventMessageBody(body)
+  }
+
+  throw new ClientDataRequestError("消息响应格式不正确")
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+}
+
+function normalizeSystemEventMessageBody(
+  body:
+    | GroupMembersInvitedSystemEventBodyResponse
+    | GroupAvatarUpdatedSystemEventBodyResponse
+    | GroupVisibilityChangedSystemEventBodyResponse
+    | GroupMemberJoinedSystemEventBodyResponse
+    | GroupMemberLeftSystemEventBodyResponse
+    | GroupMemberRemovedSystemEventBodyResponse
+    | GroupNameUpdatedSystemEventBodyResponse
+    | MessageRevokedSystemEventBodyResponse
+):
+  | ClientGroupMembersInvitedSystemEventBody
+  | ClientGroupAvatarUpdatedSystemEventBody
+  | ClientGroupVisibilityChangedSystemEventBody
+  | ClientGroupMemberJoinedSystemEventBody
+  | ClientGroupMemberLeftSystemEventBody
+  | ClientGroupMemberRemovedSystemEventBody
+  | ClientGroupNameUpdatedSystemEventBody
+  | ClientMessageRevokedSystemEventBody {
+  if (body.event === "message_revoked") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "message_revoked",
+      type: "system_event",
+    }
+  }
+
+  if (body.event === "group_avatar_updated") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_avatar_updated",
+      type: "system_event",
+    }
+  }
+
+  if (body.event === "group_visibility_changed") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_visibility_changed",
+      type: "system_event",
+      visibility: normalizeVisibility(body.visibility),
+    }
+  }
+
+  if (body.event === "group_member_joined") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_member_joined",
+      type: "system_event",
+    }
+  }
+
+  if (body.event === "group_member_left") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_member_left",
+      type: "system_event",
+    }
+  }
+
+  if (body.event === "group_member_removed") {
+    if (
+      !("actor" in body) ||
+      !isSystemEventUserRefResponse(body.actor) ||
+      !("target" in body) ||
+      !isSystemEventUserRefResponse(body.target)
+    ) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_member_removed",
+      target: normalizeSystemEventUserRef(body.target),
+      type: "system_event",
+    }
+  }
+
+  if (body.event === "group_name_updated") {
+    if (
+      !("actor" in body) ||
+      !isSystemEventUserRefResponse(body.actor) ||
+      typeof body.name !== "string"
+    ) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "group_name_updated",
+      name: body.name,
+      type: "system_event",
+    }
+  }
+
+  if (
+    body.event !== "group_members_invited" ||
+    !("inviter" in body) ||
+    !isSystemEventUserRefResponse(body.inviter) ||
+    !("invitees" in body) ||
+    !Array.isArray(body.invitees)
+  ) {
+    throw new ClientDataRequestError("消息响应格式不正确")
+  }
+
+  return {
+    event: "group_members_invited",
+    invitees: body.invitees.map(normalizeSystemEventUserRef),
+    inviter: normalizeSystemEventUserRef(body.inviter),
+    type: "system_event",
+  }
+}
+
+function normalizeSystemEventUserRef(
+  userRef: SystemEventUserRefResponse
+): ClientSystemEventUserRef {
+  if (!isSystemEventUserRefResponse(userRef)) {
+    throw new ClientDataRequestError("消息响应格式不正确")
+  }
+
+  return {
+    displayName: userRef.display_name,
+    id: userRef.id,
+  }
+}
+
+export function normalizeTemporaryFileReadURL(
+  item: TemporaryFileReadURLResponse
+): TemporaryFileReadURL {
+  if (!item.file_id || !item.url || !item.expires_at) {
+    throw new ClientDataRequestError("文件下载地址响应格式不正确")
+  }
+
+  return {
+    expiresAt: item.expires_at,
+    fileId: item.file_id,
+    url: item.url,
+  }
+}
+
+export function isTemporaryFileReadURLFresh(
+  item: TemporaryFileReadURL,
+  now: number
+) {
+  const expiresAt = Date.parse(item.expiresAt)
+
+  return (
+    Number.isFinite(expiresAt) &&
+    expiresAt - temporaryFileReadURLCacheSafetyWindowMs > now
+  )
+}
+
+function isSystemEventUserRefResponse(
+  userRef: SystemEventUserRefResponse | undefined
+): userRef is Required<SystemEventUserRefResponse> {
+  return Boolean(userRef?.id && userRef.display_name)
+}
+
+function normalizeMessageSenderType(type: string | undefined) {
+  if (type === "app" || type === "system") {
+    return type
+  }
+
+  return "user"
+}
+
+export function normalizeMessagePage(
+  page: MessagePageResponse | undefined
+): ClientMessagePage {
+  if (
+    !page ||
+    typeof page.limit !== "number" ||
+    typeof page.oldest_seq !== "number" ||
+    typeof page.newest_seq !== "number"
+  ) {
+    throw new ClientDataRequestError("消息列表响应格式不正确")
+  }
+
+  return {
+    hasMoreAfter: Boolean(page.has_more_after),
+    hasMoreBefore: Boolean(page.has_more_before),
+    limit: page.limit,
+    newestSeq: page.newest_seq,
+    oldestSeq: page.oldest_seq,
+  }
+}

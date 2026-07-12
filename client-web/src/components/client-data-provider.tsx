@@ -3,49 +3,38 @@ import { useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import {
-  addGroupConversationMembers as addGroupConversationMembersRequest,
   ClientDataRequestError,
-  createDirectConversation,
-  createGroupConversation as createGroupConversationRequest,
-  dissolveGroupConversation as dissolveGroupConversationRequest,
-  formatClientMessageBodySummary,
   getCurrentClientUser,
   isClientMessageInitiatedByUser,
-  joinGroupConversation as joinGroupConversationRequest,
-  leaveGroupConversation as leaveGroupConversationRequest,
   listClientContacts,
   listClientConversations,
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
-  openAppConversation as openAppConversationRequest,
-  removeGroupConversationMember as removeGroupConversationMemberRequest,
-  revokeConversationMessage as revokeConversationMessageRequest,
-  sendConversationFileMessage,
-  sendConversationImageMessage,
-  sendConversationLinkMessage,
-  sendConversationMarkdownMessage,
-  sendConversationTextMessage,
-  setGroupConversationPrivate as setGroupConversationPrivateRequest,
-  setGroupConversationPublic as setGroupConversationPublicRequest,
-  updateGroupConversationName as updateGroupConversationNameRequest,
-  uploadGroupConversationAvatar as uploadGroupConversationAvatarRequest,
   type ClientConversation,
   type ClientMessage,
-  type ClientMessagePage,
   type ClientUser,
   type ContactApp,
   type ContactGroup,
   type ContactUser,
-  type GroupConversationActionResult,
   type MarkConversationReadOptions,
 } from "@/lib/client-data-api"
 import {
   ClientDataContext,
   type ClientConversationMessageState,
   type ClientDataContextValue,
-  type SendConversationMessageOptions,
 } from "@/lib/client-data-context"
-import { createClientMessageId } from "@/lib/message-id"
+import {
+  createConversationMessageState,
+  getClientDataErrorMessage,
+  getMessageSummary,
+  getNewestMessageSeq,
+  mergeConversationMessages,
+  mergePageWithAfterResult,
+  mergePageWithBeforeResult,
+  messagePageLimit,
+  pinAppConversations,
+  updatePageWithMessage,
+} from "@/lib/client-data-state"
 import {
   createClientProject as createClientProjectRequest,
   listClientProjects,
@@ -54,21 +43,13 @@ import {
 } from "@/lib/project-data-api"
 import { Button } from "@/components/ui/button"
 import { ClientLoadingPage } from "@/components/client-loading-page"
+import { useConversationActions } from "@/hooks/use-conversation-actions"
+import { useConversationSenders } from "@/hooks/use-conversation-senders"
 
 type BootstrapState = "loading" | "ready" | "error"
 
 const minimumBootstrapLoadingMs = 1_000
-const messagePageLimit = 20
 const refreshIntervalMs = 15_000
-const emptyConversationMessageState: ClientConversationMessageState = {
-  error: null,
-  loaded: false,
-  loading: false,
-  loadingBefore: false,
-  messages: [],
-  page: null,
-  sending: false,
-}
 
 export function ClientDataProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -644,467 +625,45 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     }
   }, [syncAfterConversationMessages])
 
-  const sendConversationText = useCallback(
-    async (
-      conversationId: string,
-      content: string,
-      options: SendConversationMessageOptions = {}
-    ) => {
-      const trimmedContent = content.trim()
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || !trimmedContent || state?.sending) {
-        return null
-      }
+  const {
+    sendConversationFile,
+    sendConversationImage,
+    sendConversationLink,
+    sendConversationMarkdown,
+    sendConversationText,
+  } = useConversationSenders({
+    conversationMessageStatesRef,
+    mergeIncomingConversationMessage,
+    updateConversationMessageState,
+  })
 
-      const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationTextMessage(conversationId, {
-          clientMessageId,
-          content: trimmedContent,
-          replyToMessageId: options.replyToMessageId,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送消息失败"))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
-    },
-    [mergeIncomingConversationMessage, updateConversationMessageState]
-  )
-
-  const sendConversationMarkdown = useCallback(
-    async (
-      conversationId: string,
-      content: string,
-      options: SendConversationMessageOptions = {}
-    ) => {
-      const trimmedContent = content.trim()
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || !trimmedContent || state?.sending) {
-        return null
-      }
-
-      const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationMarkdownMessage(conversationId, {
-          clientMessageId,
-          content: trimmedContent,
-          replyToMessageId: options.replyToMessageId,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送富文本消息失败"))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
-    },
-    [mergeIncomingConversationMessage, updateConversationMessageState]
-  )
-
-  const sendConversationLink = useCallback(
-    async (
-      conversationId: string,
-      url: string,
-      options: SendConversationMessageOptions = {}
-    ) => {
-      const trimmedURL = url.trim()
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || !trimmedURL || state?.sending) {
-        return null
-      }
-
-      const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationLinkMessage(conversationId, {
-          clientMessageId,
-          replyToMessageId: options.replyToMessageId,
-          url: trimmedURL,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送链接失败"))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
-    },
-    [mergeIncomingConversationMessage, updateConversationMessageState]
-  )
-
-  const sendConversationFile = useCallback(
-    async (
-      conversationId: string,
-      file: File,
-      options: SendConversationMessageOptions = {}
-    ) => {
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || state?.sending) {
-        return null
-      }
-
-      const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationFileMessage(conversationId, {
-          clientMessageId,
-          file,
-          replyToMessageId: options.replyToMessageId,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送文件失败"))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
-    },
-    [mergeIncomingConversationMessage, updateConversationMessageState]
-  )
-
-  const sendConversationImage = useCallback(
-    async (
-      conversationId: string,
-      image: File,
-      options: SendConversationMessageOptions = {}
-    ) => {
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || state?.sending) {
-        return null
-      }
-
-      const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationImageMessage(conversationId, {
-          clientMessageId,
-          image,
-          replyToMessageId: options.replyToMessageId,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送图片失败"))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
-    },
-    [mergeIncomingConversationMessage, updateConversationMessageState]
-  )
-
-  const getConversationMessageState = useCallback(
-    (conversationId: string) => {
-      return (
-        conversationMessageStates[conversationId] ??
-        emptyConversationMessageState
-      )
-    },
-    [conversationMessageStates]
-  )
-
-  const getConversation = useCallback(
-    (conversationId: string) => {
-      return (
-        conversations.find(
-          (conversation) => conversation.id === conversationId
-        ) ?? null
-      )
-    },
-    [conversations]
-  )
-
-  const upsertConversation = useCallback((conversation: ClientConversation) => {
-    setConversations((currentConversations) => {
-      const currentConversation = currentConversations.find(
-        (item) => item.id === conversation.id
-      )
-      const nextConversation =
-        conversation.projects === undefined && currentConversation?.projects
-          ? { ...conversation, projects: currentConversation.projects }
-          : conversation
-
-      return pinAppConversations([
-        nextConversation,
-        ...currentConversations.filter((item) => item.id !== conversation.id),
-      ])
-    })
-  }, [])
-
-  const removeConversation = useCallback((conversationId: string) => {
-    setConversations((currentConversations) =>
-      currentConversations.filter(
-        (conversation) => conversation.id !== conversationId
-      )
-    )
-    setConversationMessageStates((currentStates) => {
-      const nextStates = { ...currentStates }
-      delete nextStates[conversationId]
-
-      return nextStates
-    })
-  }, [])
-
-  const openDirectConversation = useCallback(
-    async (userId: string) => {
-      try {
-        const conversation = await createDirectConversation(userId)
-        upsertConversation(conversation)
-        return conversation
-      } catch (error) {
-        throw handleError(error, "创建一对一会话失败")
-      }
-    },
-    [handleError, upsertConversation]
-  )
-
-  const openAppConversation = useCallback(
-    async (appId: string) => {
-      try {
-        const conversation = await openAppConversationRequest(appId)
-        upsertConversation(conversation)
-        return conversation
-      } catch (error) {
-        throw handleError(error, "创建应用会话失败")
-      }
-    },
-    [handleError, upsertConversation]
-  )
-
-  const createGroupConversation = useCallback(
-    async (name: string, memberIds: string[], appIds: string[] = []) => {
-      try {
-        const conversation = await createGroupConversationRequest({
-          appIds,
-          memberIds,
-          name,
-        })
-        upsertConversation(conversation)
-        return conversation
-      } catch (error) {
-        throw handleError(error, "创建群聊失败")
-      }
-    },
-    [handleError, upsertConversation]
-  )
-
-  const addGroupConversationMembers = useCallback(
-    async (
-      conversationId: string,
-      memberIds: string[],
-      appIds: string[] = []
-    ) => {
-      try {
-        const result = await addGroupConversationMembersRequest(
-          conversationId,
-          {
-            appIds,
-            memberIds,
-          }
-        )
-        upsertConversation(result.conversation)
-        if (result.message) {
-          mergeIncomingConversationMessage(result.message, { markLoaded: true })
-        }
-        return result.conversation
-      } catch (error) {
-        throw handleError(error, "添加群聊成员失败")
-      }
-    },
-    [handleError, mergeIncomingConversationMessage, upsertConversation]
-  )
-
-  const applyGroupConversationAction = useCallback(
-    async (
-      action: () => Promise<GroupConversationActionResult>,
-      fallbackMessage: string
-    ) => {
-      try {
-        const result = await action()
-        upsertConversation(result.conversation)
-        if (result.message) {
-          mergeIncomingConversationMessage(result.message, {
-            markLoaded: true,
-            updateList: false,
-          })
-        }
-        await refreshContacts()
-        return result.conversation
-      } catch (error) {
-        throw handleError(error, fallbackMessage)
-      }
-    },
-    [
-      handleError,
-      mergeIncomingConversationMessage,
-      refreshContacts,
-      upsertConversation,
-    ]
-  )
-
-  const joinGroupConversation = useCallback(
-    async (conversationId: string) =>
-      applyGroupConversationAction(
-        () => joinGroupConversationRequest(conversationId),
-        "加入群聊失败"
-      ),
-    [applyGroupConversationAction]
-  )
-
-  const setGroupConversationPublic = useCallback(
-    async (conversationId: string) =>
-      applyGroupConversationAction(
-        () => setGroupConversationPublicRequest(conversationId),
-        "设置公开群失败"
-      ),
-    [applyGroupConversationAction]
-  )
-
-  const setGroupConversationPrivate = useCallback(
-    async (conversationId: string) =>
-      applyGroupConversationAction(
-        () => setGroupConversationPrivateRequest(conversationId),
-        "取消公开群失败"
-      ),
-    [applyGroupConversationAction]
-  )
-
-  const updateGroupConversationName = useCallback(
-    async (conversationId: string, name: string) =>
-      applyGroupConversationAction(
-        () => updateGroupConversationNameRequest(conversationId, { name }),
-        "修改群聊名称失败"
-      ),
-    [applyGroupConversationAction]
-  )
-
-  const leaveGroupConversation = useCallback(
-    async (conversationId: string) => {
-      try {
-        await leaveGroupConversationRequest(conversationId)
-        removeConversation(conversationId)
-        navigate("/chat", { replace: true })
-        void refreshContacts().catch(() => undefined)
-      } catch (error) {
-        throw handleError(error, "退出群聊失败")
-      }
-    },
-    [handleError, navigate, refreshContacts, removeConversation]
-  )
-
-  const dissolveGroupConversation = useCallback(
-    async (conversationId: string) => {
-      try {
-        await dissolveGroupConversationRequest(conversationId)
-        removeConversation(conversationId)
-        navigate("/chat", { replace: true })
-        void refreshContacts().catch(() => undefined)
-      } catch (error) {
-        throw handleError(error, "解散群聊失败")
-      }
-    },
-    [handleError, navigate, refreshContacts, removeConversation]
-  )
-
-  const removeGroupConversationMember = useCallback(
-    async (
-      conversationId: string,
-      memberId: string,
-      memberType: "user" | "app" = "user"
-    ) =>
-      applyGroupConversationAction(
-        () =>
-          removeGroupConversationMemberRequest(
-            conversationId,
-            memberId,
-            memberType
-          ),
-        "移出群聊成员失败"
-      ),
-    [applyGroupConversationAction]
-  )
-
-  const updateGroupConversationAvatar = useCallback(
-    async (conversationId: string, file: File) => {
-      try {
-        const result = await uploadGroupConversationAvatarRequest(
-          conversationId,
-          file
-        )
-        upsertConversation(result.conversation)
-        mergeIncomingConversationMessage(result.message, { markLoaded: true })
-        return result.conversation
-      } catch (error) {
-        throw handleError(error, "上传群头像失败")
-      }
-    },
-    [handleError, mergeIncomingConversationMessage, upsertConversation]
-  )
-
-  const revokeConversationMessage = useCallback(
-    async (conversationId: string, messageId: string) => {
-      try {
-        const result = await revokeConversationMessageRequest(
-          conversationId,
-          messageId
-        )
-        mergeIncomingConversationMessage(result.message, {
-          markLoaded: true,
-          updateList: false,
-        })
-        mergeIncomingConversationMessage(result.systemMessage, {
-          markLoaded: true,
-        })
-      } catch (error) {
-        throw handleError(error, "撤回消息失败")
-      }
-    },
-    [handleError, mergeIncomingConversationMessage]
-  )
+  const {
+    addGroupConversationMembers,
+    createGroupConversation,
+    dissolveGroupConversation,
+    getConversation,
+    getConversationMessageState,
+    joinGroupConversation,
+    leaveGroupConversation,
+    openAppConversation,
+    openDirectConversation,
+    removeConversation,
+    removeGroupConversationMember,
+    revokeConversationMessage,
+    setGroupConversationPrivate,
+    setGroupConversationPublic,
+    updateGroupConversationAvatar,
+    updateGroupConversationName,
+  } = useConversationActions({
+    conversations,
+    conversationMessageStates,
+    handleError,
+    mergeIncomingConversationMessage,
+    navigate,
+    refreshContacts,
+    setConversationMessageStates,
+    setConversations,
+  })
 
   const bootstrap = useCallback(async () => {
     const minimumLoading = wait(minimumBootstrapLoadingMs)
@@ -1303,123 +862,6 @@ function wait(ms: number) {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function getMessageSummary(message: ClientMessage) {
-  return formatClientMessageBodySummary(message.body)
-}
-
-function createConversationMessageState(): ClientConversationMessageState {
-  return {
-    error: null,
-    loaded: false,
-    loading: false,
-    loadingBefore: false,
-    messages: [],
-    page: null,
-    sending: false,
-  }
-}
-
-function mergeConversationMessages(
-  currentMessages: ClientMessage[],
-  nextMessages: ClientMessage[]
-) {
-  const messagesById = new Map<string, ClientMessage>()
-
-  for (const message of currentMessages) {
-    messagesById.set(message.id, message)
-  }
-  for (const message of nextMessages) {
-    messagesById.set(message.id, message)
-  }
-
-  return Array.from(messagesById.values()).sort((messageA, messageB) => {
-    if (messageA.seq !== messageB.seq) {
-      return messageA.seq - messageB.seq
-    }
-
-    return messageA.createdAt.localeCompare(messageB.createdAt)
-  })
-}
-
-function updatePageWithMessage(
-  page: ClientMessagePage | null,
-  messages: ClientMessage[]
-): ClientMessagePage {
-  const firstMessage = messages[0]
-  const lastMessage = messages[messages.length - 1]
-
-  return {
-    hasMoreAfter: false,
-    hasMoreBefore: page?.hasMoreBefore ?? false,
-    limit: page?.limit ?? messagePageLimit,
-    newestSeq: lastMessage?.seq ?? 0,
-    oldestSeq: firstMessage?.seq ?? 0,
-  }
-}
-
-function mergePageWithBeforeResult(
-  currentPage: ClientMessagePage | null,
-  resultPage: ClientMessagePage,
-  messages: ClientMessage[]
-): ClientMessagePage {
-  const firstMessage = messages[0]
-  const lastMessage = messages[messages.length - 1]
-
-  return {
-    hasMoreAfter: currentPage?.hasMoreAfter ?? resultPage.hasMoreAfter,
-    hasMoreBefore: resultPage.hasMoreBefore,
-    limit: resultPage.limit,
-    newestSeq: lastMessage?.seq ?? currentPage?.newestSeq ?? 0,
-    oldestSeq: firstMessage?.seq ?? resultPage.oldestSeq,
-  }
-}
-
-function mergePageWithAfterResult(
-  currentPage: ClientMessagePage | null,
-  resultPage: ClientMessagePage,
-  messages: ClientMessage[]
-): ClientMessagePage {
-  const firstMessage = messages[0]
-  const lastMessage = messages[messages.length - 1]
-
-  return {
-    hasMoreAfter: resultPage.hasMoreAfter,
-    hasMoreBefore: currentPage?.hasMoreBefore ?? resultPage.hasMoreBefore,
-    limit: resultPage.limit,
-    newestSeq: lastMessage?.seq ?? resultPage.newestSeq,
-    oldestSeq: firstMessage?.seq ?? currentPage?.oldestSeq ?? 0,
-  }
-}
-
-function getNewestMessageSeq(state: ClientConversationMessageState) {
-  const lastMessage = state.messages[state.messages.length - 1]
-
-  return Math.max(state.page?.newestSeq ?? 0, lastMessage?.seq ?? 0)
-}
-
-function pinAppConversations(conversations: ClientConversation[]) {
-  const appConversations: ClientConversation[] = []
-  const otherConversations: ClientConversation[] = []
-
-  for (const conversation of conversations) {
-    if (conversation.type === "app") {
-      appConversations.push(conversation)
-    } else {
-      otherConversations.push(conversation)
-    }
-  }
-
-  return [...appConversations, ...otherConversations]
-}
-
-function getClientDataErrorMessage(error: unknown, fallbackMessage: string) {
-  if (error instanceof ClientDataRequestError) {
-    return error.message
-  }
-
-  return fallbackMessage
 }
 
 function ClientDataErrorPage({

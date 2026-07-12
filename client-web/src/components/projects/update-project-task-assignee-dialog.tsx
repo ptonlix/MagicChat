@@ -1,18 +1,9 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import { ProjectMemberCombobox } from "@/components/projects/project-member-combobox"
 import type { ProjectTask } from "@/components/projects/project-types"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  useComboboxAnchor,
-} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -21,12 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { InputGroupAddon } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  type ClientProjectMember,
-  listClientProjectMembers,
-} from "@/lib/project-data-api"
+import type { ClientProjectMember } from "@/lib/project-data-api"
+import { listAllClientProjectMembers } from "@/lib/project-members"
 import { updateClientProjectTask } from "@/lib/project-task-data-api"
 
 export function UpdateProjectTaskAssigneeDialog({
@@ -51,7 +39,6 @@ export function UpdateProjectTaskAssigneeDialog({
   const [loading, setLoading] = React.useState(true)
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
   const [saving, setSaving] = React.useState(false)
-  const anchor = useComboboxAnchor()
   const portal = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
@@ -60,7 +47,7 @@ export function UpdateProjectTaskAssigneeDialog({
     }
 
     let active = true
-    void listAllProjectMembers(projectId)
+    void listAllClientProjectMembers(projectId)
       .then((nextMembers) => {
         if (active) {
           setMembers(nextMembers.filter((member) => member.status === "active"))
@@ -141,51 +128,16 @@ export function UpdateProjectTaskAssigneeDialog({
           </DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
-          <Combobox<ClientProjectMember>
+          <ProjectMemberCombobox
             disabled={saving || loading}
-            filter={(member, query) => memberMatchesQuery(member, query)}
-            isItemEqualToValue={(member, value) => member.id === value.id}
-            itemToStringLabel={(member) => member.displayName}
-            itemToStringValue={(member) => member.id}
-            items={memberOptions}
+            loading={loading}
+            members={memberOptions}
             onValueChange={(member: ClientProjectMember | null) =>
               setAssigneeUserId(member?.id ?? "")
             }
+            portalContainer={portal}
             value={selectedAssignee ?? null}
-          >
-            <div ref={anchor}>
-              <ComboboxInput
-                aria-label="任务负责人"
-                className="w-full"
-                placeholder={loading ? "正在加载" : "未指派"}
-                showClear
-              >
-                {selectedAssignee && (
-                  <InputGroupAddon align="inline-start">
-                    <MemberAvatar member={selectedAssignee} />
-                  </InputGroupAddon>
-                )}
-              </ComboboxInput>
-            </div>
-            <ComboboxContent anchor={anchor} container={portal}>
-              <ComboboxEmpty>没有匹配的项目成员</ComboboxEmpty>
-              <ComboboxList>
-                {(member: ClientProjectMember) => (
-                  <ComboboxItem key={member.id} value={member}>
-                    <MemberAvatar className="size-8" member={member} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">
-                        {member.displayName}
-                      </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {member.email}
-                      </span>
-                    </span>
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <DialogFooter>
             <Button
@@ -208,29 +160,6 @@ export function UpdateProjectTaskAssigneeDialog({
   )
 }
 
-function MemberAvatar({
-  className = "size-6",
-  member,
-}: {
-  className?: string
-  member: ClientProjectMember
-}) {
-  const initial = Array.from(member.displayName.trim())[0]?.toUpperCase() ?? "?"
-
-  return (
-    <Avatar className={`${className} shrink-0 rounded-sm after:rounded-sm`}>
-      {member.avatar && (
-        <AvatarImage
-          alt={member.displayName}
-          className="rounded-sm"
-          src={member.avatar}
-        />
-      )}
-      <AvatarFallback className="rounded-sm">{initial}</AvatarFallback>
-    </Avatar>
-  )
-}
-
 function createFallbackMember(
   assignee: ProjectTask["assignee"]
 ): ClientProjectMember | null {
@@ -248,32 +177,4 @@ function createFallbackMember(
     sourceGroupIds: [],
     status: "active",
   }
-}
-
-function memberMatchesQuery(member: ClientProjectMember, query: string) {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  return [member.displayName, member.name, member.email].some((value) =>
-    value.toLocaleLowerCase().includes(normalizedQuery)
-  )
-}
-
-async function listAllProjectMembers(projectId: string) {
-  const members: ClientProjectMember[] = []
-  const seenCursors = new Set<string>()
-  let cursor: string | undefined
-
-  do {
-    const page = await listClientProjectMembers(projectId, {
-      cursor,
-      limit: 100,
-    })
-    members.push(...page.members)
-    if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
-      break
-    }
-    seenCursors.add(page.nextCursor)
-    cursor = page.nextCursor
-  } while (cursor)
-
-  return members
 }
