@@ -20,6 +20,7 @@ import type {
   SendConversationLinkMessageInput,
   SendConversationFileMessageInput,
   SendConversationImageMessageInput,
+  SendConversationVoiceMessageInput,
   TemporaryFileReadURL,
   MarkConversationReadOptions,
   MarkConversationReadResult,
@@ -265,6 +266,42 @@ export async function sendConversationImageMessage(
   return normalizeMessage(message)
 }
 
+export async function sendConversationVoiceMessage(
+  conversationId: string,
+  input: SendConversationVoiceMessageInput,
+  fetcher: ClientDataFetch = fetch
+) {
+  const formData = new FormData()
+  formData.set("client_message_id", input.clientMessageId)
+  formData.set("duration_ms", String(input.durationMS))
+  if (input.replyToMessageId) {
+    formData.set("reply_to_message_id", input.replyToMessageId)
+  }
+  formData.set("voice", input.voice, "voice-message.webm")
+
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/voices`,
+    {
+      body: formData,
+      credentials: "include",
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "发送语音失败")
+  }
+
+  const message = (
+    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
+  )?.data?.message
+
+  return normalizeMessage(message)
+}
+
 export async function revokeConversationMessage(
   conversationId: string,
   messageId: string,
@@ -491,6 +528,12 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
     return "[图片]"
   }
 
+  if (body.type === "voice") {
+    const summary = `[语音] ${formatVoiceMessageDuration(body.durationMS)}`
+
+    return body.transcript ? `${summary} - ${body.transcript}` : summary
+  }
+
   if (body.type === "revoked") {
     return "该消息已被撤回"
   }
@@ -530,6 +573,12 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
   return `${body.inviter.displayName} 邀请 ${body.invitees
     .map((invitee) => invitee.displayName)
     .join(",")} 加入群聊`
+}
+
+function formatVoiceMessageDuration(durationMS: number) {
+  const totalSeconds = Math.ceil(durationMS / 1_000)
+
+  return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`
 }
 
 function formatMarkdownMessageSummary(content: string) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 const maxTemporaryFileUploadBytes = 20 * 1024 * 1024
@@ -180,6 +181,51 @@ func (s *Server) readTemporaryFileURLs(c echo.Context) error {
 	return success(c, http.StatusOK, readTemporaryFileURLsResponse{
 		URLs: urls,
 	})
+}
+
+// redirectTemporaryFileContent godoc
+//
+// @Summary 访问临时文件内容
+// @Description 普通用户通过临时文件 ID 跳转到有效的临时访问地址，适用于浏览器原生媒体播放。
+// @Tags 客户端文件
+// @Param file_id path string true "临时文件 ID"
+// @Success 307
+// @Failure 400 {object} errorEnvelope
+// @Failure 401 {object} errorEnvelope
+// @Failure 404 {object} errorEnvelope
+// @Failure 500 {object} errorEnvelope
+// @Router /api/client/temporary-files/{file_id}/content [get]
+func (s *Server) redirectTemporaryFileContent(c echo.Context) error {
+	if _, ok := currentUser(c); !ok {
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+
+	fileIDs, err := normalizeTemporaryFileIDs([]string{c.Param("file_id")})
+	if err != nil {
+		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
+	}
+
+	var file store.TemporaryFile
+	if err := s.db.First(&file, "id = ?", fileIDs[0]).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return failure(c, http.StatusNotFound, "not_found", "临时文件不存在")
+		}
+		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+	}
+	if isTemporaryFileExpired(file, s.cfg.Storage.Lifecycle.TemporaryExpireDays, time.Now().UTC()) {
+		return failure(c, http.StatusNotFound, "not_found", "临时文件不存在")
+	}
+
+	storageClient, err := s.newObjectStoreClient(c.Request().Context())
+	if err != nil {
+		return failure(c, http.StatusInternalServerError, "internal_error", "临时文件存储未配置")
+	}
+	url, _, err := storageClient.PresignTemporaryReadURL(c.Request().Context(), file.ObjectKey)
+	if err != nil {
+		return failure(c, http.StatusInternalServerError, "internal_error", "生成临时文件访问地址失败")
+	}
+
+	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
 func (s *Server) newObjectStoreClient(ctx context.Context) (*objectstore.Client, error) {

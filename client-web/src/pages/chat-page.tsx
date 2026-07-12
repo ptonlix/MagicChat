@@ -15,6 +15,7 @@ import {
   emptyConversationDraft,
   type ConversationDraftMention,
 } from "@/lib/conversation-drafts"
+import type { VoiceMessageRecording } from "@/lib/voice-message"
 import {
   formatConversationMessageSummary,
   toConversationPanelMessage,
@@ -74,6 +75,7 @@ export function ChatPage() {
     sendConversationLink,
     sendConversationMarkdown,
     sendConversationText,
+    sendConversationVoice,
   } = useClientData()
   const {
     clearConversationDraft,
@@ -349,6 +351,23 @@ export function ChatPage() {
     return message
   }
 
+  async function sendVoiceMessage(voice: VoiceMessageRecording) {
+    if (!activeConversationId || activeMessageState?.sending) {
+      return null
+    }
+
+    const sendingConversationId = activeConversationId
+    const sendingReplyToMessageId = replyTarget?.id
+    const message = await sendConversationVoice(sendingConversationId, voice, {
+      replyToMessageId: sendingReplyToMessageId,
+    })
+    if (message) {
+      clearSentReplyTarget(sendingConversationId, sendingReplyToMessageId)
+    }
+
+    return message
+  }
+
   function selectConversation(conversationId: string) {
     flushDrafts()
     navigate(`/chat/${encodeURIComponent(conversationId)}`, { replace: true })
@@ -404,6 +423,7 @@ export function ChatPage() {
         onRichTextModeChange={setRichTextMode}
         onSendFile={sendFileMessage}
         onSendImage={sendImageMessage}
+        onSendVoice={sendVoiceMessage}
         onLoadBeforeMessages={loadBeforeMessages}
         onSendMessage={sendMessage}
         replyTarget={replyTarget}

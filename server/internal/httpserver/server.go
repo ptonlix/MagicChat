@@ -74,6 +74,7 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	client.POST("/me/avatar", server.uploadCurrentUserAvatar)
 	client.POST("/temporary-files", server.createTemporaryFile)
 	client.POST("/temporary-files/read-urls", server.readTemporaryFileURLs)
+	client.GET("/temporary-files/:file_id/content", server.redirectTemporaryFileContent)
 	client.GET("/contacts", server.listClientContacts)
 	client.GET("/contacts/users", server.listContactUsers)
 	client.GET("/projects", server.listProjects)
@@ -112,6 +113,7 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	client.POST("/conversations/:conversation_id/messages", server.createConversationMessage)
 	client.POST("/conversations/:conversation_id/messages/files", server.createConversationFileMessage)
 	client.POST("/conversations/:conversation_id/messages/images", server.createConversationImageMessage)
+	client.POST("/conversations/:conversation_id/messages/voices", server.createConversationVoiceMessage)
 	client.POST("/conversations/:conversation_id/messages/:message_id/revoke", server.revokeConversationMessage)
 	client.GET("/ws", server.clientWebSocket)
 

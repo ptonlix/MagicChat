@@ -166,6 +166,7 @@ function renderConversationPanel(
       onRichTextModeChange={vi.fn()}
       onSendFile={async () => null}
       onSendImage={async () => null}
+      onSendVoice={async () => null}
       onSendMessage={vi.fn()}
       replyTarget={null}
       richTextMode={false}

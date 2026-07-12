@@ -631,6 +631,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationLink,
     sendConversationMarkdown,
     sendConversationText,
+    sendConversationVoice,
   } = useConversationSenders({
     conversationMessageStatesRef,
     mergeIncomingConversationMessage,
@@ -842,6 +843,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationLink,
     sendConversationMarkdown,
     sendConversationText,
+    sendConversationVoice,
     setGroupConversationPrivate,
     setGroupConversationPublic,
     syncLoadedConversationMessages,

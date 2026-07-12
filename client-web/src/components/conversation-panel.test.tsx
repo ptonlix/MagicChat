@@ -32,6 +32,7 @@ describe("ConversationPanel", () => {
         onRichTextModeChange={vi.fn()}
         onSendFile={async () => null}
         onSendImage={async () => null}
+        onSendVoice={async () => null}
         onSendMessage={vi.fn()}
         replyTarget={null}
         richTextMode={false}
@@ -63,6 +64,7 @@ describe("ConversationPanel", () => {
         onRichTextModeChange={vi.fn()}
         onSendFile={async () => null}
         onSendImage={async () => null}
+        onSendVoice={async () => null}
         onSendMessage={vi.fn()}
         replyTarget={{
           author: "李四",
@@ -97,6 +99,7 @@ describe("ConversationPanel", () => {
         onRichTextModeChange={vi.fn()}
         onSendFile={async () => null}
         onSendImage={async () => null}
+        onSendVoice={async () => null}
         onSendMessage={onSendMessage}
         replyTarget={null}
         richTextMode={false}
@@ -164,6 +167,7 @@ describe("ConversationPanel", () => {
             onRichTextModeChange={vi.fn()}
             onSendFile={async () => null}
             onSendImage={async () => null}
+            onSendVoice={async () => null}
             onSendMessage={vi.fn()}
             replyTarget={null}
             richTextMode={false}

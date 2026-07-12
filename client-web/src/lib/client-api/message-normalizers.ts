@@ -19,6 +19,7 @@ import type {
   ClientMessageDelegatedBy,
   ClientMessageReplyTo,
   ClientImageMessageBody,
+  ClientVoiceMessageBody,
   ClientSystemEventUserRef,
   ClientGroupMembersInvitedSystemEventBody,
   ClientGroupAvatarUpdatedSystemEventBody,
@@ -211,6 +212,30 @@ function normalizeMessageBody(
     }
 
     return normalizedImage
+  }
+
+  if (
+    body?.type === "voice" &&
+    typeof body.file_id === "string" &&
+    typeof body.duration_ms === "number" &&
+    body.duration_ms > 0 &&
+    body.duration_ms <= 60_000 &&
+    typeof body.size_bytes === "number" &&
+    body.size_bytes > 0 &&
+    typeof body.content_type === "string" &&
+    body.content_type === "audio/webm"
+  ) {
+    const normalizedVoice: ClientVoiceMessageBody = {
+      contentType: body.content_type,
+      durationMS: body.duration_ms,
+      fileId: body.file_id,
+      sizeBytes: body.size_bytes,
+      transcript:
+        typeof body.transcript === "string" ? body.transcript.trim() : "",
+      type: "voice",
+    }
+
+    return normalizedVoice
   }
 
   if (body?.type === "system_event") {

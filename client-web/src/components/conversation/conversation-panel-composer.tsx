@@ -21,6 +21,7 @@ import {
   isAcceptedImageMessageFile,
 } from "@/lib/image-message"
 import type { ConversationDraftMention } from "@/lib/conversation-drafts"
+import type { VoiceMessageRecording } from "@/lib/voice-message"
 import {
   createDraftMentionTemplate,
   createMentionCandidates,
@@ -38,6 +39,9 @@ import {
   ExpressionPicker,
   type ExpressionItem,
 } from "@/components/expression-picker"
+import { SendVoiceMessageDialog } from "@/components/conversation/send-voice-message-dialog"
+import { SmartVoiceInputDialog } from "@/components/conversation/smart-voice-input-dialog"
+import { ConversationVoiceMenu } from "@/components/conversation/conversation-voice-menu"
 import { MarkdownIcon } from "@/components/icons/markdown-icon"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -70,6 +74,7 @@ export const ConversationPanelComposer = React.forwardRef<
     onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
     onSendFile: (file: File) => Promise<ClientMessage | null>
     onSendImage: (image: File) => Promise<ClientMessage | null>
+    onSendVoice: (voice: VoiceMessageRecording) => Promise<ClientMessage | null>
     onRichTextModeChange: (richTextMode: boolean) => void
     onSendMessage: (content?: string) => void
     richTextMode: boolean
@@ -86,6 +91,7 @@ export const ConversationPanelComposer = React.forwardRef<
     onDraftChange,
     onSendFile,
     onSendImage,
+    onSendVoice,
     onRichTextModeChange,
     onSendMessage,
     richTextMode,
@@ -103,6 +109,8 @@ export const ConversationPanelComposer = React.forwardRef<
   const [fileDialogOpen, setFileDialogOpen] = React.useState(false)
   const [imageDialogOpen, setImageDialogOpen] = React.useState(false)
   const [imagePreparing, setImagePreparing] = React.useState(false)
+  const [sendVoiceDialogOpen, setSendVoiceDialogOpen] = React.useState(false)
+  const [smartVoiceDialogOpen, setSmartVoiceDialogOpen] = React.useState(false)
   const [mentionTrigger, setMentionTrigger] =
     React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
@@ -385,6 +393,21 @@ export const ConversationPanelComposer = React.forwardRef<
 
   function handleImageButtonClick() {
     imageInputRef.current?.click()
+  }
+
+  function handleSmartVoiceInputAccept(transcript: string) {
+    const textarea = textareaRef.current
+
+    if (textarea) {
+      insertTextareaText(textarea, transcript, handleTextareaValueChange)
+    } else {
+      handleTextareaValueChange(draft + transcript)
+    }
+
+    setSmartVoiceDialogOpen(false)
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
   }
 
   function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -704,20 +727,26 @@ export const ConversationPanelComposer = React.forwardRef<
               <MarkdownIcon className="size-4" />
             </Toggle>
           </div>
-          <Button
-            type="button"
-            aria-label="发送消息"
-            className="shrink-0"
-            disabled={sending}
-            onClick={handleSendMessage}
-          >
-            {sending ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Send className="size-4" />
-            )}
-            <span aria-hidden="true">发送</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <ConversationVoiceMenu
+              disabled={sending}
+              onSendVoiceMessage={() => setSendVoiceDialogOpen(true)}
+              onSmartVoiceInput={() => setSmartVoiceDialogOpen(true)}
+            />
+            <Button
+              type="button"
+              aria-label="发送消息"
+              disabled={sending}
+              onClick={handleSendMessage}
+            >
+              {sending ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+              <span aria-hidden="true">发送</span>
+            </Button>
+          </div>
         </div>
       </div>
       <SendFileMessageDialog
@@ -735,6 +764,18 @@ export const ConversationPanelComposer = React.forwardRef<
         onOpenChange={handleImageDialogOpenChange}
         open={imageDialogOpen}
         sending={sending}
+      />
+      <SendVoiceMessageDialog
+        conversationName={conversation.name}
+        onConfirm={onSendVoice}
+        onOpenChange={setSendVoiceDialogOpen}
+        open={sendVoiceDialogOpen}
+        sending={sending}
+      />
+      <SmartVoiceInputDialog
+        onAccept={handleSmartVoiceInputAccept}
+        onOpenChange={setSmartVoiceDialogOpen}
+        open={smartVoiceDialogOpen}
       />
     </footer>
   )

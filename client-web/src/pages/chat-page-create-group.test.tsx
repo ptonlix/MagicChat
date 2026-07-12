@@ -135,6 +135,7 @@ function createClientDataValue(
     revokeConversationMessage: vi.fn(),
     sendConversationFile: vi.fn(),
     sendConversationImage: vi.fn(),
+    sendConversationVoice: vi.fn(),
     sendConversationLink: vi.fn(),
     sendConversationMarkdown: vi.fn(),
     sendConversationText: vi.fn(),

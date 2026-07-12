@@ -14,6 +14,7 @@ import type {
   ConversationPanelReplyTarget,
 } from "@/lib/conversation-panel-types"
 import { isAcceptedImageMessageMimeType } from "@/lib/image-message"
+import type { VoiceMessageRecording } from "@/lib/voice-message"
 import { ConversationPanelComposer } from "@/components/conversation/conversation-panel-composer"
 import { ConversationPanelHeader } from "@/components/conversation/conversation-panel-header"
 import { ConversationPanelHistory } from "@/components/conversation/conversation-panel-history"
@@ -49,6 +50,7 @@ type ConversationPanelProps = {
   onRevokeMessage: (message: ConversationPanelMessage) => void
   onSendFile: (file: File) => Promise<ClientMessage | null>
   onSendImage: (image: File) => Promise<ClientMessage | null>
+  onSendVoice: (voice: VoiceMessageRecording) => Promise<ClientMessage | null>
   onLoadBeforeMessages: () => void
   onRichTextModeChange: (richTextMode: boolean) => void
   onSendMessage: (content?: string) => void
@@ -75,6 +77,7 @@ export function ConversationPanel({
   onRevokeMessage,
   onSendFile,
   onSendImage,
+  onSendVoice,
   onLoadBeforeMessages,
   onRichTextModeChange,
   onSendMessage,
@@ -216,6 +219,7 @@ export function ConversationPanel({
             onDraftChange={onDraftChange}
             onSendFile={onSendFile}
             onSendImage={onSendImage}
+            onSendVoice={onSendVoice}
             onSendMessage={onSendMessage}
             onRichTextModeChange={onRichTextModeChange}
             richTextMode={richTextMode}

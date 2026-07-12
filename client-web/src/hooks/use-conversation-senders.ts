@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import {
   sendConversationFileMessage,
   sendConversationImageMessage,
+  sendConversationVoiceMessage,
   sendConversationLinkMessage,
   sendConversationMarkdownMessage,
   sendConversationTextMessage,
@@ -15,6 +16,7 @@ import type {
 } from "@/lib/client-data-context"
 import { getClientDataErrorMessage } from "@/lib/client-data-state"
 import { createClientMessageId } from "@/lib/message-id"
+import type { VoiceMessageRecording } from "@/lib/voice-message"
 
 export function useConversationSenders({
   conversationMessageStatesRef,
@@ -245,11 +247,55 @@ export function useConversationSenders({
     ]
   )
 
+  const sendConversationVoice = useCallback(
+    async (
+      conversationId: string,
+      voice: VoiceMessageRecording,
+      options: SendConversationMessageOptions = {}
+    ) => {
+      const state = conversationMessageStatesRef.current[conversationId]
+      if (!conversationId || state?.sending) {
+        return null
+      }
+
+      const clientMessageId = createClientMessageId()
+      updateConversationMessageState(conversationId, (currentState) => ({
+        ...currentState,
+        sending: true,
+      }))
+
+      try {
+        const message = await sendConversationVoiceMessage(conversationId, {
+          clientMessageId,
+          durationMS: voice.durationMS,
+          replyToMessageId: options.replyToMessageId,
+          voice: voice.blob,
+        })
+        mergeIncomingConversationMessage(message, { markLoaded: true })
+        return message
+      } catch (error: unknown) {
+        toast.error(getClientDataErrorMessage(error, "发送语音失败"))
+        return null
+      } finally {
+        updateConversationMessageState(conversationId, (currentState) => ({
+          ...currentState,
+          sending: false,
+        }))
+      }
+    },
+    [
+      conversationMessageStatesRef,
+      mergeIncomingConversationMessage,
+      updateConversationMessageState,
+    ]
+  )
+
   return {
     sendConversationFile,
     sendConversationImage,
     sendConversationLink,
     sendConversationMarkdown,
     sendConversationText,
+    sendConversationVoice,
   }
 }

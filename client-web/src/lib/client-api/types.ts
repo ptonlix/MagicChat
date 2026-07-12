@@ -211,6 +211,15 @@ export type ImageMessageBodyResponse = {
   width?: number
 }
 
+export type VoiceMessageBodyResponse = {
+  content_type?: string
+  duration_ms?: number
+  file_id?: string
+  size_bytes?: number
+  transcript?: string
+  type?: "voice"
+}
+
 export type SystemEventUserRefResponse = {
   display_name?: string
   id?: string
@@ -274,6 +283,7 @@ export type MessageBodyResponse =
   | LinkMessageBodyResponse
   | FileMessageBodyResponse
   | ImageMessageBodyResponse
+  | VoiceMessageBodyResponse
   | GroupMembersInvitedSystemEventBodyResponse
   | GroupAvatarUpdatedSystemEventBodyResponse
   | GroupVisibilityChangedSystemEventBodyResponse
@@ -493,6 +503,15 @@ export type ClientImageMessageBody = {
   width?: number
 }
 
+export type ClientVoiceMessageBody = {
+  contentType: string
+  durationMS: number
+  fileId: string
+  sizeBytes: number
+  transcript: string
+  type: "voice"
+}
+
 export type ClientRevokedMessageBody = {
   type: "revoked"
 }
@@ -560,6 +579,7 @@ export type ClientMessageBody =
   | ClientLinkMessageBody
   | ClientFileMessageBody
   | ClientImageMessageBody
+  | ClientVoiceMessageBody
   | ClientRevokedMessageBody
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
@@ -632,6 +652,13 @@ export type SendConversationImageMessageInput = {
   clientMessageId: string
   image: File
   replyToMessageId?: string
+}
+
+export type SendConversationVoiceMessageInput = {
+  clientMessageId: string
+  durationMS: number
+  replyToMessageId?: string
+  voice: Blob
 }
 
 export type TemporaryFileReadURL = {

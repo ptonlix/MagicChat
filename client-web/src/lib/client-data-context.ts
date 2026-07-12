@@ -15,6 +15,7 @@ import type {
   ClientProjectDetail,
   ClientProjectSummary,
 } from "@/lib/project-data-api"
+import type { VoiceMessageRecording } from "@/lib/voice-message"
 
 export type ClientConversationMessageState = {
   error: string | null
@@ -139,6 +140,11 @@ export type ClientDataContextValue = {
   sendConversationImage: (
     conversationId: string,
     image: File,
+    options?: SendConversationMessageOptions
+  ) => Promise<ClientMessage | null>
+  sendConversationVoice: (
+    conversationId: string,
+    voice: VoiceMessageRecording,
     options?: SendConversationMessageOptions
   ) => Promise<ClientMessage | null>
   syncLoadedConversationMessages: () => void

@@ -113,6 +113,59 @@ func TestClientCanReadTemporaryFileURLs(t *testing.T) {
 	}
 }
 
+func TestClientCanRedirectToTemporaryFileContent(t *testing.T) {
+	s3Server, _ := newFakeS3Server(t)
+	defer s3Server.Close()
+
+	server, db := newTemporaryFileTestRouter(t, s3Server.URL, "assets.example.test")
+	defer server.Close()
+
+	user := insertTestUser(t, db, "temporary-content@example.com", "Alice", store.UserStatusActive, time.Now().UTC())
+	temporaryFile := store.TemporaryFile{
+		ID:        uuid.NewString(),
+		ObjectKey: "temporary-files/2026/07/12/voice",
+		SizeBytes: 123,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.Create(&temporaryFile).Error; err != nil {
+		t.Fatalf("create temporary file: %v", err)
+	}
+
+	request, err := http.NewRequest(
+		http.MethodGet,
+		server.URL+"/api/client/temporary-files/"+temporaryFile.ID+"/content",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("create content request: %v", err)
+	}
+	request.AddCookie(loginAsUser(t, server, user.Email))
+	client := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("request temporary file content: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("content status = %d, want 307", response.StatusCode)
+	}
+	location, err := response.Location()
+	if err != nil {
+		t.Fatalf("parse redirect location: %v", err)
+	}
+	if location.Scheme != "https" || location.Host != "assets.example.test" {
+		t.Fatalf("redirect location = %s, want assets host", location.String())
+	}
+	if location.Path != "/mygod-temporary/"+temporaryFile.ObjectKey {
+		t.Fatalf("redirect path = %q, want temporary file path", location.Path)
+	}
+}
+
 func TestAppWebSocketTemporaryFilesReadURLsReturnsConversationFileURLs(t *testing.T) {
 	s3Server, _ := newFakeS3Server(t)
 	defer s3Server.Close()

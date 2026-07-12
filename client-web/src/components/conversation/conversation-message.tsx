@@ -17,6 +17,7 @@ import { MessageImage } from "@/components/message-image"
 import { MessageTextWithLinks } from "@/components/message-inline-link"
 import { MessageLink } from "@/components/message-link"
 import { MessageMarkdown } from "@/components/message-markdown"
+import { MessageVoice } from "@/components/message-voice"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { MessageActionMenu } from "@/components/message-action-menu"
@@ -138,8 +139,8 @@ export function MessageBubble({
             className={cn(
               "max-w-full rounded-md p-3 text-sm leading-relaxed shadow-xs",
               fromMe
-                ? "bg-teal-100 text-foreground hover:bg-teal-200/70 data-[state=open]:bg-teal-200/70 dark:bg-teal-950 hover:dark:bg-teal-900/70 dark:data-[state=open]:bg-teal-900/70"
-                : "bg-zinc-200/60 text-foreground hover:bg-zinc-200/80 data-[state=open]:bg-zinc-200 dark:bg-zinc-800/80 hover:dark:bg-zinc-800 dark:data-[state=open]:bg-zinc-800"
+                ? "bg-teal-100/60 text-foreground hover:bg-teal-100/80 data-[state=open]:bg-teal-100/80 dark:bg-teal-950/80 hover:dark:bg-teal-950 dark:data-[state=open]:bg-teal-950"
+                : "bg-zinc-100 text-foreground hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 dark:bg-zinc-800 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700"
             )}
             data-message-action-trigger
             onContextMenu={handleMessageContextMenu}
@@ -232,6 +233,8 @@ function getMessageCopyText(
     case "file":
       return message.body.name
     case "image":
+      return ""
+    case "voice":
       return ""
     case "revoked":
       return ""
@@ -340,6 +343,8 @@ function MessageBodyRenderer({
       return <MessageAttachment file={body} />
     case "image":
       return <MessageImage image={body} />
+    case "voice":
+      return <MessageVoice voice={body} />
     case "link":
       return <MessageLink link={body} />
     case "markdown":
