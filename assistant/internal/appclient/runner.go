@@ -3,7 +3,9 @@ package appclient
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,6 +59,7 @@ type conversationAgentRunner struct {
 	jobs             map[string]*conversationAgentJob
 	lastSeenSeq      map[string]int64
 	lastSeenSeqOrder []string
+	waiters          *conversationWaitRegistry
 }
 
 type conversationAgentJob struct {
@@ -65,6 +68,7 @@ type conversationAgentJob struct {
 	ctx            context.Context
 	lastSeenSeq    int64
 	running        bool
+	endRequested   bool
 	scope          builtintools.Scope
 	session        *agent.Session
 	sink           agent.OutputSink
@@ -80,6 +84,7 @@ func newConversationAgentRunner(ctx context.Context) *conversationAgentRunner {
 		idleTimeout: time.Hour,
 		jobs:        map[string]*conversationAgentJob{},
 		lastSeenSeq: map[string]int64{},
+		waiters:     newConversationWaitRegistry(),
 	}
 }
 
@@ -87,6 +92,8 @@ func (r *conversationAgentRunner) Start(ctx context.Context, key string, sink ag
 	if key == "" {
 		key = "unknown"
 	}
+	prepared.Scope.ConversationWaiter = r.waiters
+	prepared.Scope.ConversationEnder = conversationEnder{runner: r, key: key}
 	r.mu.Lock()
 	if prepared.MessageSeq > 0 && prepared.MessageSeq <= r.lastSeenSeq[key] {
 		r.mu.Unlock()
@@ -162,6 +169,106 @@ func (r *conversationAgentRunner) Start(ctx context.Context, key string, sink ag
 	return true
 }
 
+func (r *conversationAgentRunner) ClaimIncomingConversationMessage(conversationID string, seq int64, senderType string, senderID string) bool {
+	if r == nil || r.waiters == nil {
+		return false
+	}
+	return r.waiters.Claim(conversationID, seq, senderType, senderID)
+}
+
+type conversationEnder struct {
+	runner *conversationAgentRunner
+	key    string
+}
+
+func (r conversationEnder) RequestConversationEnd() {
+	if r.runner == nil {
+		return
+	}
+	r.runner.mu.Lock()
+	defer r.runner.mu.Unlock()
+	if job := r.runner.jobs[r.key]; job != nil {
+		job.endRequested = true
+	}
+}
+
+type conversationWaitRegistry struct {
+	mu      sync.Mutex
+	waiters map[string]*conversationWaitRegistration
+}
+
+type conversationWaitRegistration struct {
+	actorID        string
+	actorType      string
+	afterSeq       int64
+	conversationID string
+	registry       *conversationWaitRegistry
+	closed         bool
+}
+
+func newConversationWaitRegistry() *conversationWaitRegistry {
+	return &conversationWaitRegistry{waiters: map[string]*conversationWaitRegistration{}}
+}
+
+func (r *conversationWaitRegistry) RegisterConversationWait(conversationID string, afterSeq int64, actorType string, actorID string) (builtintools.ConversationWaitRegistration, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	actorType = strings.ToLower(strings.TrimSpace(actorType))
+	actorID = strings.TrimSpace(actorID)
+	if conversationID == "" || afterSeq <= 0 {
+		return nil, fmt.Errorf("conversation waiter requires conversation_id and after_seq")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.waiters[conversationID]; exists {
+		return nil, fmt.Errorf("conversation %q already has an active reply waiter", conversationID)
+	}
+	registration := &conversationWaitRegistration{
+		actorID:        actorID,
+		actorType:      actorType,
+		afterSeq:       afterSeq,
+		conversationID: conversationID,
+		registry:       r,
+	}
+	r.waiters[conversationID] = registration
+	return registration, nil
+}
+
+func (r *conversationWaitRegistry) Claim(conversationID string, seq int64, senderType string, senderID string) bool {
+	if r == nil || seq <= 0 {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	waiter := r.waiters[strings.TrimSpace(conversationID)]
+	if waiter == nil || seq <= waiter.afterSeq {
+		return false
+	}
+	senderType = strings.ToLower(strings.TrimSpace(senderType))
+	senderID = strings.TrimSpace(senderID)
+	if senderType != "user" && senderType != "app" {
+		return false
+	}
+	if waiter.actorType != "" && waiter.actorID != "" && senderType == waiter.actorType && senderID == waiter.actorID {
+		return false
+	}
+	return true
+}
+
+func (r *conversationWaitRegistration) Close() {
+	if r == nil || r.registry == nil {
+		return
+	}
+	r.registry.mu.Lock()
+	defer r.registry.mu.Unlock()
+	if r.closed {
+		return
+	}
+	r.closed = true
+	if r.registry.waiters[r.conversationID] == r {
+		delete(r.registry.waiters, r.conversationID)
+	}
+}
+
 func (r *conversationAgentRunner) recordSequenceLocked(key string, seq int64) {
 	if seq <= 0 || seq <= r.lastSeenSeq[key] {
 		return
@@ -213,6 +320,12 @@ func (r *conversationAgentRunner) runJob(key string, job *conversationAgentJob) 
 		current, ok := r.jobs[key]
 		if !ok || current != job {
 			r.mu.Unlock()
+			return
+		}
+		if job.endRequested {
+			delete(r.jobs, key)
+			r.mu.Unlock()
+			job.cancel()
 			return
 		}
 		if job.ctx.Err() == nil && job.session.HasPending() {

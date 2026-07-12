@@ -436,7 +436,7 @@ func TestNewToolRegistryIncludesBuiltinTools(t *testing.T) {
 	for _, tool := range registry.Tools() {
 		toolNames[tool.Name] = true
 	}
-	for _, toolName := range []string{"builtin__sleep", "builtin__read_file_urls"} {
+	for _, toolName := range []string{"builtin__help", "builtin__contacts", "builtin__conversations", "builtin__projects", "builtin__sleep", "builtin__get_attachments", "builtin__end_conversation"} {
 		if !toolNames[toolName] {
 			t.Fatalf("tools = %+v, want %s", registry.Tools(), toolName)
 		}
@@ -839,11 +839,15 @@ func TestHandleServerMessageProvidesBuiltinToolScope(t *testing.T) {
 		if len(request.AuthorizationCandidates) != 1 || request.AuthorizationCandidates[0].Ref != "auth_1" {
 			t.Fatalf("authorization candidates = %#v, want current trigger auth_1", request.AuthorizationCandidates)
 		}
-		_, err := builtintools.NewSource().CallTool(ctx, "send_as_user", json.RawMessage(`{
-			"authorization_ref":"auth_1",
-			"contact_id":"user-2",
-			"type":"markdown",
-			"content":"**收到**"
+		_, err := builtintools.NewSource().CallTool(ctx, "conversations", json.RawMessage(`{
+			"operation":"send",
+			"runas":{"type":"user","id":"user-1","authorization_ref":"auth_1"},
+			"arguments":{
+				"target_type":"user",
+				"contact_id":"user-2",
+				"type":"markdown",
+				"content":"**收到**"
+			}
 		}`))
 		return err
 	})
@@ -860,6 +864,35 @@ func TestHandleServerMessageProvidesBuiltinToolScope(t *testing.T) {
 	}
 	if toolPayload.Message.Type != "markdown" || toolPayload.Message.Content != "**收到**" {
 		t.Fatalf("tool payload message = %#v, want markdown", toolPayload.Message)
+	}
+}
+
+func TestHandleServerMessageLetsActiveWaiterClaimReply(t *testing.T) {
+	runner := newConversationAgentRunner(context.Background())
+	registration, err := runner.waiters.RegisterConversationWait("conversation-1", 10, "user", "user-2")
+	if err != nil {
+		t.Fatalf("RegisterConversationWait() error = %v", err)
+	}
+	defer registration.Close()
+	requester := appRequestFunc(func(context.Context, string, any) (json.RawMessage, error) {
+		t.Fatal("claimed reply should not trigger history or tool requests")
+		return nil, nil
+	})
+
+	handled := handleParsedServerMessage(
+		context.Background(),
+		testMessageCreatedEnvelope(t, "user-1", "message-11", 11, "收到"),
+		"assistant-app",
+		requester,
+		nil,
+		runner,
+		func(context.Context, envelope) error {
+			t.Fatal("claimed reply should not generate an immediate response")
+			return nil
+		},
+	)
+	if !handled {
+		t.Fatal("handleParsedServerMessage() = false, want claimed event handled")
 	}
 }
 
@@ -1036,7 +1069,8 @@ func TestConversationAuthorizationStoreKeepsLatestFiveRefs(t *testing.T) {
 		ref := fmt.Sprintf("auth_%d", i)
 		store.Add(preparedAuthorization{
 			Authorization: builtintools.Authorization{
-				ActorUserID:      fmt.Sprintf("user-%d", i),
+				ActorID:          fmt.Sprintf("user-%d", i),
+				ActorType:        "user",
 				TriggerMessageID: fmt.Sprintf("message-%d", i),
 			},
 			Candidate: agent.AuthorizationCandidate{
@@ -1061,6 +1095,33 @@ func TestConversationAuthorizationStoreKeepsLatestFiveRefs(t *testing.T) {
 	}
 	if candidates[0].Ref != "auth_2" || candidates[4].Ref != "auth_6" {
 		t.Fatalf("candidates = %#v, want auth_2..auth_6", candidates)
+	}
+}
+
+func TestAuthorizationForMessageSupportsUserAndAppActors(t *testing.T) {
+	for _, senderType := range []string{"user", "app"} {
+		t.Run(senderType, func(t *testing.T) {
+			got := authorizationForMessage(messageCreatedPayload{
+				Message: messagePayload{ID: "message-1", Seq: 7, Summary: "请执行"},
+				Sender:  senderPayload{ID: senderType + "-1", Name: "Actor", Type: senderType},
+			})
+			if got.Ref != "auth_7" {
+				t.Fatalf("ref = %q, want auth_7", got.Ref)
+			}
+			if got.Authorization.ActorType != senderType || got.Authorization.ActorID != senderType+"-1" || got.Authorization.TriggerMessageID != "message-1" {
+				t.Fatalf("authorization = %#v, want typed actor", got.Authorization)
+			}
+			if got.Candidate.SenderType != senderType || got.Candidate.SenderID != senderType+"-1" {
+				t.Fatalf("candidate = %#v, want typed sender", got.Candidate)
+			}
+		})
+	}
+
+	if got := authorizationForMessage(messageCreatedPayload{
+		Message: messagePayload{ID: "message-1", Seq: 7},
+		Sender:  senderPayload{ID: "system-1", Type: "system"},
+	}); got.Ref != "" {
+		t.Fatalf("system authorization = %#v, want empty", got)
 	}
 }
 
@@ -1129,7 +1190,8 @@ func preparedTextRun(conversationID string, messageID string, seq int64, content
 	return preparedAgentRun{
 		Authorization: preparedAuthorization{
 			Authorization: builtintools.Authorization{
-				ActorUserID:      "user-1",
+				ActorID:          "user-1",
+				ActorType:        "user",
 				TriggerMessageID: messageID,
 			},
 			Candidate: agent.AuthorizationCandidate{

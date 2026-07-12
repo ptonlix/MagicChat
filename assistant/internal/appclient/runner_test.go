@@ -2,12 +2,17 @@ package appclient
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"assistant/internal/agent"
+	"assistant/internal/builtintools"
 	"assistant/internal/llm"
+	"assistant/internal/mcpclient"
 )
 
 func TestConversationAgentRunnerSessionOutlivesTriggerContext(t *testing.T) {
@@ -42,6 +47,120 @@ func TestConversationAgentRunnerSessionOutlivesTriggerContext(t *testing.T) {
 
 	cancelRoot()
 	waitForSignal(t, canceled, "agent session to stop with process context")
+}
+
+func TestConversationAgentRunnerDropsSessionAfterConversationEnd(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runner := newConversationAgentRunner(ctx)
+	registry, err := mcpclient.NewRegistry(ctx, []mcpclient.Source{builtintools.NewSource()})
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	var mu sync.Mutex
+	var requests []llm.Request
+	assistantAgent := agent.New(llmModelFunc(func(_ context.Context, request llm.Request) (llm.Response, error) {
+		mu.Lock()
+		requests = append(requests, request)
+		requestNumber := len(requests)
+		mu.Unlock()
+		if requestNumber == 1 {
+			return llm.Response{Blocks: []llm.Block{{
+				Type:      llm.BlockTypeToolUse,
+				ToolUseID: "toolu_end",
+				ToolName:  "builtin__end_conversation",
+				ToolInput: json.RawMessage(`{}`),
+			}}}, nil
+		}
+		return llm.Response{Blocks: []llm.Block{{Type: llm.BlockTypeText, Text: "新会话"}}}, nil
+	}), agent.WithToolRegistry(registry))
+	endSent := make(chan struct{}, 1)
+	requester := appRequestFunc(func(_ context.Context, method string, payload any) (json.RawMessage, error) {
+		if method != methodMessageSend {
+			t.Fatalf("method = %q, want %s", method, methodMessageSend)
+		}
+		endSent <- struct{}{}
+		return json.RawMessage(`{"sent":true}`), nil
+	})
+	first := preparedTextRun("conversation-1", "message-1", 1, "第一条")
+	first.Scope.Requester = requester
+	runner.Start(ctx, "conversation-1", agent.OutputSinkFunc(func(context.Context, string) error { return nil }), assistantAgent, first)
+	waitForSignal(t, endSent, "end confirmation to send")
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		runner.mu.Lock()
+		_, exists := runner.jobs["conversation-1"]
+		runner.mu.Unlock()
+		if !exists {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("conversation session remained after end")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	output := make(chan struct{}, 1)
+	second := preparedTextRun("conversation-1", "message-2", 2, "第二条")
+	second.Scope.Requester = requester
+	runner.Start(ctx, "conversation-1", agent.OutputSinkFunc(func(context.Context, string) error {
+		output <- struct{}{}
+		return nil
+	}), assistantAgent, second)
+	waitForSignal(t, output, "new session response")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(requests) != 2 {
+		t.Fatalf("request count = %d, want 2", len(requests))
+	}
+	secondJSON, err := json.Marshal(requests[1].Messages)
+	if err != nil {
+		t.Fatalf("marshal second request: %v", err)
+	}
+	if strings.Contains(string(secondJSON), "第一条") || !strings.Contains(string(secondJSON), "第二条") {
+		t.Fatalf("second request messages = %s, want only new context", secondJSON)
+	}
+}
+
+func TestConversationWaitRegistryClaimsOnlyMatchingReplies(t *testing.T) {
+	registry := newConversationWaitRegistry()
+	registration, err := registry.RegisterConversationWait("conversation-1", 10, "user", "user-1")
+	if err != nil {
+		t.Fatalf("RegisterConversationWait() error = %v", err)
+	}
+	if registry.Claim("conversation-1", 10, "user", "user-2") {
+		t.Fatal("message at after_seq was claimed")
+	}
+	if registry.Claim("conversation-1", 11, "user", "user-1") {
+		t.Fatal("runas identity's own message was claimed")
+	}
+	if registry.Claim("conversation-1", 11, "system", "") {
+		t.Fatal("system message was claimed")
+	}
+	if !registry.Claim("conversation-1", 11, "user", "user-2") {
+		t.Fatal("new reply was not claimed")
+	}
+	if !registry.Claim("conversation-1", 12, "app", "app-2") {
+		t.Fatal("new app reply was not claimed")
+	}
+	registration.Close()
+	if registry.Claim("conversation-1", 13, "user", "user-2") {
+		t.Fatal("message was claimed after waiter closed")
+	}
+}
+
+func TestConversationWaitRegistryRejectsConcurrentWaiter(t *testing.T) {
+	registry := newConversationWaitRegistry()
+	registration, err := registry.RegisterConversationWait("conversation-1", 10, "user", "user-1")
+	if err != nil {
+		t.Fatalf("RegisterConversationWait() error = %v", err)
+	}
+	defer registration.Close()
+	if _, err := registry.RegisterConversationWait("conversation-1", 20, "user", "user-2"); err == nil {
+		t.Fatal("second waiter registration error = nil")
+	}
 }
 
 func TestConversationAgentRunnerIgnoresDuplicateSequence(t *testing.T) {

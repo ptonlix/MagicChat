@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/appregistry"
 	"app/internal/realtime"
 	"app/internal/store"
 
@@ -19,12 +20,20 @@ const (
 	appMethodMessageSend               = "message.send"
 	appMethodMessageSendAsUser         = "message.send_as_user"
 	appMethodContactsUsersList         = "contacts.users.list"
+	appMethodContactsAppsList          = "contacts.apps.list"
+	appMethodContactsGroupsList        = "contacts.groups.list"
 	appMethodConversationsList         = "conversations.list"
 	appMethodConversationMessagesList  = "conversation.messages.list"
 	appMethodConversationHistoryRead   = "conversation.history.read"
 	appMethodGroupConversationsList    = "group_conversations.list"
 	appMethodGroupConversationsCreate  = "group_conversations.create"
 	appMethodGroupMembersAdd           = "group_conversations.members.add"
+	appMethodProjectsList              = "projects.list"
+	appMethodProjectsCreate            = "projects.create"
+	appMethodProjectGroupsGrant        = "projects.groups.grant"
+	appMethodProjectTasksList          = "projects.tasks.list"
+	appMethodProjectTasksCreate        = "projects.tasks.create"
+	appMethodProjectTasksUpdate        = "projects.tasks.update"
 	appMethodTemporaryFilesReadURLs    = "temporary_files.read_urls"
 	appMethodEventsAck                 = "events.ack"
 	defaultAppConversationHistoryLimit = 30
@@ -98,11 +107,35 @@ type appAddGroupConversationMembersRequest struct {
 }
 
 type appListContactUsersRequest struct {
-	Keyword string `json:"keyword"`
+	Keyword string    `json:"keyword"`
+	RunAs   *appRunAs `json:"runas"`
 }
 
 type appListContactUsersResponse struct {
 	Contacts []contactUserResponse `json:"contacts"`
+	RunAs    appRunAsIdentity      `json:"runas"`
+}
+
+type appListContactAppsResponse struct {
+	Apps  []contactAppResponse `json:"apps"`
+	RunAs appRunAsIdentity     `json:"runas"`
+}
+
+type appListContactGroupsResponse struct {
+	Groups []contactGroupResponse `json:"groups"`
+	RunAs  appRunAsIdentity       `json:"runas"`
+}
+
+type appRunAs struct {
+	AuthorizationConversationID string `json:"authorization_conversation_id"`
+	ID                          string `json:"id"`
+	TriggerMessageID            string `json:"trigger_message_id"`
+	Type                        string `json:"type"`
+}
+
+type appRunAsIdentity struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
 }
 
 type appListConversationsRequest struct {
@@ -212,7 +245,19 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 		}
 		return realtime.NewResponse(request.ID, response)
 	case appMethodContactsUsersList:
-		response, err := s.handleAppListContactUsers(request)
+		response, err := s.handleAppListContactUsers(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodContactsAppsList:
+		response, err := s.handleAppListContactApps(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodContactsGroupsList:
+		response, err := s.handleAppListContactGroups(appID, request)
 		if err != nil {
 			return appRequestErrorResponse(request.ID, err)
 		}
@@ -249,6 +294,42 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 		return realtime.NewResponse(request.ID, response)
 	case appMethodGroupMembersAdd:
 		response, err := s.handleAppAddGroupConversationMembers(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodProjectsList:
+		response, err := s.handleAppListProjects(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodProjectsCreate:
+		response, err := s.handleAppCreateProject(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodProjectGroupsGrant:
+		response, err := s.handleAppGrantProjectGroup(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodProjectTasksList:
+		response, err := s.handleAppListProjectTasks(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodProjectTasksCreate:
+		response, err := s.handleAppCreateProjectTask(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodProjectTasksUpdate:
+		response, err := s.handleAppUpdateProjectTask(appID, request)
 		if err != nil {
 			return appRequestErrorResponse(request.ID, err)
 		}
@@ -651,12 +732,16 @@ func (s *Server) handleAppAddGroupConversationMembers(appID string, request real
 	}, nil
 }
 
-func (s *Server) handleAppListContactUsers(request realtime.Envelope) (appListContactUsersResponse, error) {
+func (s *Server) handleAppListContactUsers(appID string, request realtime.Envelope) (appListContactUsersResponse, error) {
 	var req appListContactUsersRequest
 	if len(request.Payload) > 0 {
 		if err := json.Unmarshal(request.Payload, &req); err != nil {
 			return appListContactUsersResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
 		}
+	}
+	runAs, err := s.resolveAppRunAs(appID, req.RunAs)
+	if err != nil {
+		return appListContactUsersResponse{}, err
 	}
 
 	contacts, err := s.loadContactUsers(strings.ToLower(strings.TrimSpace(req.Keyword)))
@@ -664,7 +749,94 @@ func (s *Server) handleAppListContactUsers(request realtime.Envelope) (appListCo
 		return appListContactUsersResponse{}, err
 	}
 
-	return appListContactUsersResponse{Contacts: contacts}, nil
+	return appListContactUsersResponse{Contacts: contacts, RunAs: runAs.identity()}, nil
+}
+
+func (s *Server) handleAppListContactApps(appID string, request realtime.Envelope) (appListContactAppsResponse, error) {
+	var req appListContactUsersRequest
+	if len(request.Payload) > 0 {
+		if err := json.Unmarshal(request.Payload, &req); err != nil {
+			return appListContactAppsResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+		}
+	}
+	runAs, err := s.resolveAppRunAs(appID, req.RunAs)
+	if err != nil {
+		return appListContactAppsResponse{}, err
+	}
+
+	apps, err := s.loadContactAppsForIdentity(runAs.Type, runAs.ID, strings.ToLower(strings.TrimSpace(req.Keyword)))
+	if err != nil {
+		return appListContactAppsResponse{}, err
+	}
+
+	return appListContactAppsResponse{Apps: apps, RunAs: runAs.identity()}, nil
+}
+
+func (s *Server) handleAppListContactGroups(appID string, request realtime.Envelope) (appListContactGroupsResponse, error) {
+	var req appListContactUsersRequest
+	if len(request.Payload) > 0 {
+		if err := json.Unmarshal(request.Payload, &req); err != nil {
+			return appListContactGroupsResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+		}
+	}
+	runAs, err := s.resolveAppRunAs(appID, req.RunAs)
+	if err != nil {
+		return appListContactGroupsResponse{}, err
+	}
+
+	groups, err := s.loadContactGroupsForIdentity(runAs.Type, runAs.ID, strings.ToLower(strings.TrimSpace(req.Keyword)))
+	if err != nil {
+		return appListContactGroupsResponse{}, err
+	}
+
+	return appListContactGroupsResponse{Groups: groups, RunAs: runAs.identity()}, nil
+}
+
+func (r appRunAs) identity() appRunAsIdentity {
+	return appRunAsIdentity{Type: r.Type, ID: r.ID}
+}
+
+func (s *Server) resolveAppRunAs(appID string, requested *appRunAs) (appRunAs, error) {
+	if requested == nil {
+		return appRunAs{}, newAppRequestFailure("invalid_request", "runas 用户身份不能为空")
+	}
+	if !appregistry.IsAIAssistantAppID(appID) {
+		return appRunAs{}, newAppRequestFailure("forbidden", "当前应用无权指定 runas 身份")
+	}
+
+	runAs := appRunAs{
+		AuthorizationConversationID: strings.TrimSpace(requested.AuthorizationConversationID),
+		ID:                          strings.TrimSpace(requested.ID),
+		TriggerMessageID:            strings.TrimSpace(requested.TriggerMessageID),
+		Type:                        strings.ToLower(strings.TrimSpace(requested.Type)),
+	}
+	if runAs.Type != store.MessageSenderTypeUser {
+		return appRunAs{}, newAppRequestFailure("invalid_request", "runas.type 必须是 user")
+	}
+	if _, err := uuid.Parse(runAs.ID); err != nil {
+		return appRunAs{}, newAppRequestFailure("invalid_request", "runas 身份 ID 格式错误")
+	}
+	if runAs.AuthorizationConversationID == "" {
+		return appRunAs{}, newAppRequestFailure("invalid_request", "runas 授权会话 ID 不能为空")
+	}
+	if err := s.requireAppRunAsTrigger(
+		appID,
+		runAs.Type,
+		runAs.ID,
+		runAs.TriggerMessageID,
+		runAs.AuthorizationConversationID,
+	); err != nil {
+		return appRunAs{}, err
+	}
+	var user store.User
+	err := s.db.First(&user, "id = ? AND status = ?", runAs.ID, store.UserStatusActive).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return appRunAs{}, newAppRequestFailure("not_found", "runas 用户不存在或不可用")
+	}
+	if err != nil {
+		return appRunAs{}, err
+	}
+	return appRunAs{Type: store.MessageSenderTypeUser, ID: user.ID}, nil
 }
 
 func (s *Server) handleAppListConversationMessages(appID string, request realtime.Envelope) (appListConversationMessagesResponse, error) {
@@ -951,13 +1123,29 @@ func (s *Server) findActiveAppActor(userID string) (store.User, error) {
 }
 
 func (s *Server) requireAppSendAsUserTrigger(appID string, actorUserID string, triggerMessageID string, authorizationConversationID string) error {
+	return s.requireAppRunAsTrigger(appID, store.MessageSenderTypeUser, actorUserID, triggerMessageID, authorizationConversationID)
+}
+
+func (s *Server) requireAppRunAsTrigger(appID string, actorType string, actorID string, triggerMessageID string, authorizationConversationID string) error {
+	actorType = strings.ToLower(strings.TrimSpace(actorType))
+	actorID = strings.TrimSpace(actorID)
+	triggerMessageID = strings.TrimSpace(triggerMessageID)
+	if actorType != store.MessageSenderTypeUser && actorType != store.MessageSenderTypeApp {
+		return newAppRequestFailure("invalid_request", "runas.type 必须是 user 或 app")
+	}
+	if _, err := uuid.Parse(actorID); err != nil {
+		return newAppRequestFailure("invalid_request", "runas 身份 ID 格式错误")
+	}
+	if _, err := uuid.Parse(triggerMessageID); err != nil {
+		return newAppRequestFailure("invalid_request", "runas 授权触发消息 ID 格式错误")
+	}
 	var trigger store.Message
 	err := s.db.First(
 		&trigger,
 		"id = ? AND sender_type = ? AND sender_id = ? AND deleted_at IS NULL",
 		triggerMessageID,
-		store.MessageSenderTypeUser,
-		actorUserID,
+		actorType,
+		actorID,
 	).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return newAppRequestFailure("forbidden", "触发消息无效")

@@ -78,6 +78,10 @@ type replyAgent interface {
 	Run(ctx context.Context, request agent.Request, sink agent.OutputSink) error
 }
 
+type incomingConversationMessageClaimer interface {
+	ClaimIncomingConversationMessage(conversationID string, seq int64, senderType string, senderID string) bool
+}
+
 type appRequester interface {
 	Request(ctx context.Context, method string, payload any) (json.RawMessage, error)
 }
@@ -514,6 +518,14 @@ func handleParsedServerMessage(ctx context.Context, message envelope, appID stri
 	if !isSupportedIncomingMessageType(body.Type) {
 		return true
 	}
+	if claimer, ok := runner.(incomingConversationMessageClaimer); ok && claimer.ClaimIncomingConversationMessage(
+		payload.Conversation.ID,
+		payload.Message.Seq,
+		payload.Sender.Type,
+		payload.Sender.ID,
+	) {
+		return true
+	}
 	if !shouldHandleIncomingMessage(appID, payload, body) {
 		return true
 	}
@@ -542,6 +554,7 @@ func handleParsedServerMessage(ctx context.Context, message envelope, appID stri
 		log.Printf("prepare agent run failed: %v", err)
 		return sendAgentFallback(ctx, sink) == nil
 	}
+	prepared.Scope.CurrentAppID = strings.TrimSpace(appID)
 	return runner.Start(ctx, payload.Conversation.ID, sink, assistantAgent, prepared)
 }
 
@@ -594,7 +607,8 @@ func prepareAgentRun(ctx context.Context, requester appRequester, payload messag
 }
 
 func authorizationForMessage(payload messageCreatedPayload) preparedAuthorization {
-	if payload.Sender.Type != "user" || payload.Sender.ID == "" || payload.Message.ID == "" {
+	senderType := strings.ToLower(strings.TrimSpace(payload.Sender.Type))
+	if (senderType != "user" && senderType != "app") || payload.Sender.ID == "" || payload.Message.ID == "" {
 		return preparedAuthorization{}
 	}
 	ref := fmt.Sprintf("auth_%d", payload.Message.Seq)
@@ -607,13 +621,15 @@ func authorizationForMessage(payload messageCreatedPayload) preparedAuthorizatio
 	}
 	return preparedAuthorization{
 		Authorization: builtintools.Authorization{
-			ActorUserID:      payload.Sender.ID,
+			ActorID:          payload.Sender.ID,
+			ActorType:        senderType,
 			TriggerMessageID: payload.Message.ID,
 		},
 		Candidate: agent.AuthorizationCandidate{
 			Ref:            ref,
 			SenderID:       payload.Sender.ID,
 			SenderName:     senderName,
+			SenderType:     senderType,
 			MessageSeq:     payload.Message.Seq,
 			MessageSummary: payload.Message.Summary,
 		},

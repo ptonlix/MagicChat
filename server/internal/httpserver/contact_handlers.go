@@ -142,14 +142,22 @@ func (s *Server) loadContactUsers(keyword string) ([]contactUserResponse, error)
 }
 
 func (s *Server) loadContactApps(currentUserID string, keyword string) ([]contactAppResponse, error) {
-	query := s.db.Model(&store.App{}).
-		Where("enabled = ?", true).
-		Where(
+	return s.loadContactAppsForIdentity(store.MessageSenderTypeUser, currentUserID, keyword)
+}
+
+func (s *Server) loadContactAppsForIdentity(identityType string, identityID string, keyword string) ([]contactAppResponse, error) {
+	query := s.db.Model(&store.App{}).Where("enabled = ?", true)
+	switch identityType {
+	case store.MessageSenderTypeApp:
+		query = query.Where("visibility = ? OR id = ?", store.AppVisibilityPublic, identityID)
+	default:
+		query = query.Where(
 			"visibility = ? OR (visibility = ? AND creator_user_id = ?)",
 			store.AppVisibilityPublic,
 			store.AppVisibilityCreator,
-			currentUserID,
+			identityID,
 		)
+	}
 	if keyword != "" {
 		query = query.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
@@ -168,14 +176,22 @@ func (s *Server) loadContactApps(currentUserID string, keyword string) ([]contac
 }
 
 func (s *Server) loadContactGroups(currentUserID string, keyword string) ([]contactGroupResponse, error) {
+	return s.loadContactGroupsForIdentity(store.MessageSenderTypeUser, currentUserID, keyword)
+}
+
+func (s *Server) loadContactGroupsForIdentity(identityType string, identityID string, keyword string) ([]contactGroupResponse, error) {
+	memberType := store.ConversationMemberTypeUser
+	if identityType == store.MessageSenderTypeApp {
+		memberType = store.ConversationMemberTypeApp
+	}
 	memberExistsSQL := "EXISTS (SELECT 1 FROM conversation_members cm WHERE cm.conversation_id = conversations.id AND cm.member_type = ? AND cm.member_id = ? AND cm.left_at IS NULL)"
 	query := s.db.Model(&store.Conversation{}).
 		Where("kind = ? AND status = ?", store.ConversationKindGroup, store.ConversationStatusActive).
 		Where(
 			"(visibility = ? OR "+memberExistsSQL+")",
 			store.ConversationVisibilityPublic,
-			store.ConversationMemberTypeUser,
-			currentUserID,
+			memberType,
+			identityID,
 		)
 	if keyword != "" {
 		query = query.Where("LOWER(name) LIKE ?", "%"+keyword+"%")
@@ -183,7 +199,7 @@ func (s *Server) loadContactGroups(currentUserID string, keyword string) ([]cont
 
 	var groups []store.Conversation
 	if err := query.
-		Order(gorm.Expr("CASE WHEN "+memberExistsSQL+" THEN 0 ELSE 1 END", store.ConversationMemberTypeUser, currentUserID)).
+		Order(gorm.Expr("CASE WHEN "+memberExistsSQL+" THEN 0 ELSE 1 END", memberType, identityID)).
 		Order("LOWER(name) ASC").
 		Order("id ASC").
 		Find(&groups).Error; err != nil {
@@ -194,7 +210,7 @@ func (s *Server) loadContactGroups(currentUserID string, keyword string) ([]cont
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
 	}
-	memberCounts, joinedGroupIDs, err := s.loadContactGroupMembership(currentUserID, groupIDs)
+	memberCounts, joinedGroupIDs, err := s.loadContactGroupMembership(identityType, identityID, groupIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +223,7 @@ func (s *Server) loadContactGroups(currentUserID string, keyword string) ([]cont
 	return responses, nil
 }
 
-func (s *Server) loadContactGroupMembership(currentUserID string, groupIDs []string) (map[string]int, map[string]bool, error) {
+func (s *Server) loadContactGroupMembership(identityType string, identityID string, groupIDs []string) (map[string]int, map[string]bool, error) {
 	memberCounts := make(map[string]int, len(groupIDs))
 	joinedGroupIDs := make(map[string]bool, len(groupIDs))
 	if len(groupIDs) == 0 {
@@ -231,8 +247,12 @@ func (s *Server) loadContactGroupMembership(currentUserID string, groupIDs []str
 	}
 
 	var joinedMembers []store.ConversationMember
+	memberType := store.ConversationMemberTypeUser
+	if identityType == store.MessageSenderTypeApp {
+		memberType = store.ConversationMemberTypeApp
+	}
 	if err := s.db.
-		Where("conversation_id IN ? AND member_type = ? AND member_id = ? AND left_at IS NULL", groupIDs, store.ConversationMemberTypeUser, currentUserID).
+		Where("conversation_id IN ? AND member_type = ? AND member_id = ? AND left_at IS NULL", groupIDs, memberType, identityID).
 		Find(&joinedMembers).Error; err != nil {
 		return nil, nil, err
 	}

@@ -421,6 +421,22 @@ func insertTestAppConversationLink(t *testing.T, db *gorm.DB, appID string, user
 	}
 }
 
+func insertTestAppConversationMember(t *testing.T, db *gorm.DB, appID string, conversationID string, now time.Time) {
+	t.Helper()
+
+	member := store.ConversationMember{
+		ConversationID:        conversationID,
+		MemberType:            store.ConversationMemberTypeApp,
+		MemberID:              appID,
+		Role:                  store.ConversationMemberRoleMember,
+		JoinedAt:              now,
+		HistoryVisibleFromSeq: 1,
+	}
+	if err := db.Create(&member).Error; err != nil {
+		t.Fatalf("create test app conversation member: %v", err)
+	}
+}
+
 func setTestConversationMemberLastReadSeq(t *testing.T, db *gorm.DB, conversationID string, memberID string, lastReadSeq int64) {
 	t.Helper()
 
@@ -449,6 +465,10 @@ func getTestConversationMemberLastReadSeq(t *testing.T, db *gorm.DB, conversatio
 }
 
 func insertTestMessage(t *testing.T, db *gorm.DB, conversationID string, senderID string, seq int64, content string, createdAt time.Time) store.Message {
+	return insertTestMessageFromSender(t, db, conversationID, store.MessageSenderTypeUser, senderID, seq, content, createdAt)
+}
+
+func insertTestMessageFromSender(t *testing.T, db *gorm.DB, conversationID string, senderType string, senderID string, seq int64, content string, createdAt time.Time) store.Message {
 	t.Helper()
 
 	clientMessageID := fmt.Sprintf("client-message-%03d", seq)
@@ -457,7 +477,7 @@ func insertTestMessage(t *testing.T, db *gorm.DB, conversationID string, senderI
 		ID:              uuid.NewString(),
 		ConversationID:  conversationID,
 		Seq:             seq,
-		SenderType:      store.MessageSenderTypeUser,
+		SenderType:      senderType,
 		SenderID:        &senderID,
 		ClientMessageID: &clientMessageID,
 		Body:            body,
@@ -1941,15 +1961,18 @@ func TestAppWebSocketContactsUsersListReturnsActiveUsersOnly(t *testing.T) {
 	}
 	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
 	_ = insertTestUser(t, db, "disabled@example.com", "Disabled", store.UserStatusDisabled, now)
-	app := insertTestApp(t, db, store.App{
-		Name:             "Echo App",
-		Enabled:          true,
-		Visibility:       store.AppVisibilityPublic,
-		ConnectionSecret: "echo-app-secret",
-		CreatedAt:        now,
-		UpdatedAt:        now,
+	agentAppID := appregistry.AIAssistantAppID
+	authorizationConversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Contacts users authorization",
+		now:             now,
 	})
-	appConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	insertTestAppConversationMember(t, db, agentAppID, authorizationConversation.ID, now)
+	userTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeUser, alice.ID, 1, "查询用户", now)
+	runAs := map[string]any{"type": "user", "id": alice.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID}
+	appConn := dialAppWebSocket(t, server, agentAppID, "test-ai-assistant-secret")
 
 	response := sendAppRequest(t, appConn, realtime.Envelope{
 		V:      realtime.ProtocolVersion,
@@ -1958,6 +1981,7 @@ func TestAppWebSocketContactsUsersListReturnsActiveUsersOnly(t *testing.T) {
 		Method: appMethodContactsUsersList,
 		Payload: mustMarshalPayloadForTest(t, map[string]any{
 			"keyword": "ali",
+			"runas":   runAs,
 		}),
 	})
 	var payload map[string]any
@@ -1984,7 +2008,7 @@ func TestAppWebSocketContactsUsersListReturnsActiveUsersOnly(t *testing.T) {
 		Kind:    realtime.KindRequest,
 		ID:      "app-contacts-all-request",
 		Method:  appMethodContactsUsersList,
-		Payload: mustMarshalPayloadForTest(t, map[string]any{}),
+		Payload: mustMarshalPayloadForTest(t, map[string]any{"runas": runAs}),
 	})
 	if err := json.Unmarshal(response.Payload, &payload); err != nil {
 		t.Fatalf("unmarshal all contacts response: %v", err)
@@ -2000,6 +2024,459 @@ func TestAppWebSocketContactsUsersListReturnsActiveUsersOnly(t *testing.T) {
 	}
 	if !contactIDs[alice.ID] || !contactIDs[bob.ID] {
 		t.Fatalf("contact ids = %#v, want alice and bob", contactIDs)
+	}
+}
+
+func TestAppWebSocketContactsUsersListRequiresAuthorizedUserIdentity(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+	user := insertTestUser(t, db, "runas-user@example.com", "RunAs User", store.UserStatusActive, now)
+	agentApp := store.App{
+		ID:               appregistry.AIAssistantAppID,
+		ConnectionSecret: "test-ai-assistant-secret",
+	}
+	otherApp := insertTestApp(t, db, store.App{
+		Name:             "Other App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "other-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	authorizationConversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: user.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{user.ID},
+		name:            "Contacts authorization",
+		now:             now,
+	})
+	insertTestAppConversationMember(t, db, agentApp.ID, authorizationConversation.ID, now)
+	insertTestAppConversationMember(t, db, otherApp.ID, authorizationConversation.ID, now)
+	userTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeUser, user.ID, 1, "查询通讯录", now)
+	appTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeApp, otherApp.ID, 2, "查询通讯录", now.Add(time.Second))
+	appConn := dialAppWebSocket(t, server, agentApp.ID, agentApp.ConnectionSecret)
+
+	tests := []struct {
+		name    string
+		runAs   any
+		wantRun appRunAsIdentity
+	}{
+		{name: "user", runAs: map[string]any{"type": "user", "id": user.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID}, wantRun: appRunAsIdentity{Type: store.MessageSenderTypeUser, ID: user.ID}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := map[string]any{"keyword": "runas"}
+			if tt.runAs != nil {
+				payload["runas"] = tt.runAs
+			}
+			response := sendAppRequest(t, appConn, realtime.Envelope{
+				V:       realtime.ProtocolVersion,
+				Kind:    realtime.KindRequest,
+				ID:      "contacts-runas-" + strings.ReplaceAll(tt.name, " ", "-"),
+				Method:  appMethodContactsUsersList,
+				Payload: mustMarshalPayloadForTest(t, payload),
+			})
+			var got appListContactUsersResponse
+			if err := json.Unmarshal(response.Payload, &got); err != nil {
+				t.Fatalf("unmarshal contacts response: %v", err)
+			}
+			if got.RunAs != tt.wantRun {
+				t.Fatalf("runas = %#v, want %#v", got.RunAs, tt.wantRun)
+			}
+			if strings.Contains(string(response.Payload), "trigger_message_id") || strings.Contains(string(response.Payload), "authorization_conversation_id") {
+				t.Fatalf("response payload leaked runas authorization proof: %s", response.Payload)
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name     string
+		runAs    map[string]any
+		wantCode string
+	}{
+		{
+			name: "app identity",
+			runAs: map[string]any{
+				"type":                          "app",
+				"id":                            otherApp.ID,
+				"trigger_message_id":            appTrigger.ID,
+				"authorization_conversation_id": authorizationConversation.ID,
+			},
+			wantCode: "invalid_request",
+		},
+		{
+			name: "missing trigger proof",
+			runAs: map[string]any{
+				"type":                          "user",
+				"id":                            user.ID,
+				"authorization_conversation_id": authorizationConversation.ID,
+			},
+			wantCode: "invalid_request",
+		},
+		{
+			name: "trigger actor mismatch",
+			runAs: map[string]any{
+				"type":                          "user",
+				"id":                            user.ID,
+				"trigger_message_id":            appTrigger.ID,
+				"authorization_conversation_id": authorizationConversation.ID,
+			},
+			wantCode: "forbidden",
+		},
+		{
+			name: "authorization conversation mismatch",
+			runAs: map[string]any{
+				"type":                          "user",
+				"id":                            user.ID,
+				"trigger_message_id":            userTrigger.ID,
+				"authorization_conversation_id": uuid.NewString(),
+			},
+			wantCode: "forbidden",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			response := sendRawAppRequest(t, appConn, realtime.Envelope{
+				V:       realtime.ProtocolVersion,
+				Kind:    realtime.KindRequest,
+				ID:      "contacts-authorization-" + strings.ReplaceAll(tt.name, " ", "-"),
+				Method:  appMethodContactsUsersList,
+				Payload: mustMarshalPayloadForTest(t, map[string]any{"runas": tt.runAs}),
+			})
+			if response.OK == nil || *response.OK || response.Error == nil || response.Error.Code != tt.wantCode {
+				t.Fatalf("response = %#v, want %s", response, tt.wantCode)
+			}
+		})
+	}
+	response := sendRawAppRequest(t, appConn, realtime.Envelope{
+		V:       realtime.ProtocolVersion,
+		Kind:    realtime.KindRequest,
+		ID:      "contacts-runas-required",
+		Method:  appMethodContactsUsersList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{}),
+	})
+	if response.OK == nil || *response.OK || response.Error == nil || response.Error.Code != "invalid_request" {
+		t.Fatalf("response = %#v, want required user runas", response)
+	}
+
+	regularAppConn := dialAppWebSocket(t, server, otherApp.ID, otherApp.ConnectionSecret)
+	response = sendRawAppRequest(t, regularAppConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "contacts-runas-forbidden",
+		Method: appMethodContactsUsersList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"runas": map[string]any{"type": "user", "id": user.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+		}),
+	})
+	if response.OK == nil || *response.OK || response.Error == nil || response.Error.Code != "forbidden" {
+		t.Fatalf("response = %#v, want forbidden runas delegation", response)
+	}
+}
+
+func TestAppWebSocketContactsAppsListFiltersByRunAsIdentity(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "contacts-apps-alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "contacts-apps-bob@example.com", "Bob", store.UserStatusActive, now)
+	aliceID := alice.ID
+	bobID := bob.ID
+	publicApp := insertTestApp(t, db, store.App{
+		Name:             "Public Helper",
+		Description:      "Public search target",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "contacts-public-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	aliceApp := insertTestApp(t, db, store.App{
+		Name:             "Alice Private Helper",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		CreatorUserID:    &aliceID,
+		ConnectionSecret: "contacts-alice-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	bobApp := insertTestApp(t, db, store.App{
+		Name:             "Bob Private Helper",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		CreatorUserID:    &bobID,
+		ConnectionSecret: "contacts-bob-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	_ = insertTestApp(t, db, store.App{
+		Name:             "Disabled Public Helper",
+		Enabled:          false,
+		Visibility:       store.AppVisibilityPublic,
+		ConnectionSecret: "contacts-disabled-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+
+	agentAppID := appregistry.AIAssistantAppID
+	authorizationConversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Contacts apps authorization",
+		now:             now,
+	})
+	insertTestAppConversationMember(t, db, agentAppID, authorizationConversation.ID, now)
+	insertTestAppConversationMember(t, db, aliceApp.ID, authorizationConversation.ID, now)
+	userTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeUser, alice.ID, 1, "查询应用", now)
+	appTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeApp, aliceApp.ID, 2, "查询应用", now.Add(time.Second))
+	appConn := dialAppWebSocket(t, server, agentAppID, "test-ai-assistant-secret")
+	tests := []struct {
+		name        string
+		runAs       any
+		wantPresent []string
+		wantAbsent  []string
+	}{
+		{
+			name:        "user sees creator apps",
+			runAs:       map[string]any{"type": "user", "id": alice.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+			wantPresent: []string{publicApp.ID, aliceApp.ID},
+			wantAbsent:  []string{bobApp.ID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := map[string]any{}
+			if tt.runAs != nil {
+				payload["runas"] = tt.runAs
+			}
+			response := sendAppRequest(t, appConn, realtime.Envelope{
+				V:       realtime.ProtocolVersion,
+				Kind:    realtime.KindRequest,
+				ID:      "contacts-apps-" + strings.ReplaceAll(tt.name, " ", "-"),
+				Method:  appMethodContactsAppsList,
+				Payload: mustMarshalPayloadForTest(t, payload),
+			})
+			var got appListContactAppsResponse
+			if err := json.Unmarshal(response.Payload, &got); err != nil {
+				t.Fatalf("unmarshal contacts apps response: %v", err)
+			}
+			appIDs := make(map[string]bool, len(got.Apps))
+			for _, app := range got.Apps {
+				appIDs[app.ID] = true
+				if app.Type != store.MessageSenderTypeApp {
+					t.Fatalf("app = %#v, want type app", app)
+				}
+			}
+			for _, appID := range tt.wantPresent {
+				if !appIDs[appID] {
+					t.Fatalf("app ids = %#v, want %s", appIDs, appID)
+				}
+			}
+			for _, appID := range tt.wantAbsent {
+				if appIDs[appID] {
+					t.Fatalf("app ids = %#v, do not want %s", appIDs, appID)
+				}
+			}
+		})
+	}
+
+	response := sendAppRequest(t, appConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "contacts-apps-keyword",
+		Method: appMethodContactsAppsList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"keyword": "alice private",
+			"runas":   map[string]any{"type": "user", "id": alice.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+		}),
+	})
+	var filtered appListContactAppsResponse
+	if err := json.Unmarshal(response.Payload, &filtered); err != nil {
+		t.Fatalf("unmarshal filtered contacts apps response: %v", err)
+	}
+	if len(filtered.Apps) != 1 || filtered.Apps[0].ID != aliceApp.ID {
+		t.Fatalf("apps = %#v, want only Alice app", filtered.Apps)
+	}
+	response = sendRawAppRequest(t, appConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "contacts-apps-reject-app-runas",
+		Method: appMethodContactsAppsList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"runas": map[string]any{"type": "app", "id": aliceApp.ID, "trigger_message_id": appTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+		}),
+	})
+	if response.OK == nil || *response.OK || response.Error == nil || response.Error.Code != "invalid_request" {
+		t.Fatalf("response = %#v, want app runas rejection", response)
+	}
+}
+
+func TestAppWebSocketContactsGroupsListFiltersByRunAsIdentity(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "contacts-groups-alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "contacts-groups-bob@example.com", "Bob", store.UserStatusActive, now)
+	aliceApp := insertTestApp(t, db, store.App{
+		Name:             "Alice Group App",
+		Enabled:          true,
+		Visibility:       store.AppVisibilityCreator,
+		CreatorUserID:    &alice.ID,
+		ConnectionSecret: "contacts-groups-app-secret",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	agentAppID := appregistry.AIAssistantAppID
+	publicGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Visible Public Group",
+		now:             now,
+		visibility:      store.ConversationVisibilityPublic,
+	})
+	alicePrivateGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Alice Private Group",
+		now:             now,
+	})
+	appPrivateGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: bob.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{bob.ID},
+		name:            "App Private Group",
+		now:             now,
+	})
+	insertTestAppConversationMember(t, db, aliceApp.ID, appPrivateGroup.ID, now)
+	agentPrivateGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: bob.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{bob.ID},
+		name:            "Agent Private Group",
+		now:             now,
+	})
+	insertTestAppConversationMember(t, db, agentAppID, agentPrivateGroup.ID, now)
+	hiddenPrivateGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: bob.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{bob.ID},
+		name:            "Hidden Private Group",
+		now:             now,
+	})
+	dissolvedGroup := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Dissolved Public Group",
+		now:             now,
+		visibility:      store.ConversationVisibilityPublic,
+	})
+	if err := db.Model(&dissolvedGroup).Update("status", store.ConversationStatusDissolved).Error; err != nil {
+		t.Fatalf("dissolve group: %v", err)
+	}
+
+	authorizationConversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindGroup,
+		memberIDs:       []string{alice.ID},
+		name:            "Contacts groups authorization",
+		now:             now,
+	})
+	insertTestAppConversationMember(t, db, agentAppID, authorizationConversation.ID, now)
+	insertTestAppConversationMember(t, db, aliceApp.ID, authorizationConversation.ID, now)
+	userTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeUser, alice.ID, 1, "查询群聊", now)
+	appTrigger := insertTestMessageFromSender(t, db, authorizationConversation.ID, store.MessageSenderTypeApp, aliceApp.ID, 2, "查询群聊", now.Add(time.Second))
+	appConn := dialAppWebSocket(t, server, agentAppID, "test-ai-assistant-secret")
+
+	tests := []struct {
+		name        string
+		runAs       any
+		wantPresent []string
+		wantAbsent  []string
+	}{
+		{
+			name:        "user sees joined private",
+			runAs:       map[string]any{"type": "user", "id": alice.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+			wantPresent: []string{publicGroup.ID, alicePrivateGroup.ID},
+			wantAbsent:  []string{appPrivateGroup.ID, agentPrivateGroup.ID, hiddenPrivateGroup.ID, dissolvedGroup.ID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := map[string]any{}
+			if tt.runAs != nil {
+				payload["runas"] = tt.runAs
+			}
+			response := sendAppRequest(t, appConn, realtime.Envelope{
+				V:       realtime.ProtocolVersion,
+				Kind:    realtime.KindRequest,
+				ID:      "contacts-groups-" + strings.ReplaceAll(tt.name, " ", "-"),
+				Method:  appMethodContactsGroupsList,
+				Payload: mustMarshalPayloadForTest(t, payload),
+			})
+			var got appListContactGroupsResponse
+			if err := json.Unmarshal(response.Payload, &got); err != nil {
+				t.Fatalf("unmarshal contacts groups response: %v", err)
+			}
+			groups := make(map[string]contactGroupResponse, len(got.Groups))
+			for _, group := range got.Groups {
+				groups[group.ID] = group
+				if group.Type != store.ConversationKindGroup {
+					t.Fatalf("group = %#v, want type group", group)
+				}
+			}
+			for _, groupID := range tt.wantPresent {
+				if _, ok := groups[groupID]; !ok {
+					t.Fatalf("groups = %#v, want %s", groups, groupID)
+				}
+			}
+			for _, groupID := range tt.wantAbsent {
+				if _, ok := groups[groupID]; ok {
+					t.Fatalf("groups = %#v, do not want %s", groups, groupID)
+				}
+			}
+			for _, groupID := range tt.wantPresent[1:] {
+				if !groups[groupID].Joined {
+					t.Fatalf("group = %#v, want joined private group", groups[groupID])
+				}
+			}
+		})
+	}
+
+	response := sendAppRequest(t, appConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "contacts-groups-keyword",
+		Method: appMethodContactsGroupsList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"keyword": "alice private",
+			"runas":   map[string]any{"type": "user", "id": alice.ID, "trigger_message_id": userTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+		}),
+	})
+	var filtered appListContactGroupsResponse
+	if err := json.Unmarshal(response.Payload, &filtered); err != nil {
+		t.Fatalf("unmarshal filtered contacts groups response: %v", err)
+	}
+	if len(filtered.Groups) != 1 || filtered.Groups[0].ID != alicePrivateGroup.ID {
+		t.Fatalf("groups = %#v, want only Alice private group", filtered.Groups)
+	}
+	response = sendRawAppRequest(t, appConn, realtime.Envelope{
+		V:      realtime.ProtocolVersion,
+		Kind:   realtime.KindRequest,
+		ID:     "contacts-groups-reject-app-runas",
+		Method: appMethodContactsGroupsList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"runas": map[string]any{"type": "app", "id": aliceApp.ID, "trigger_message_id": appTrigger.ID, "authorization_conversation_id": authorizationConversation.ID},
+		}),
+	})
+	if response.OK == nil || *response.OK || response.Error == nil || response.Error.Code != "invalid_request" {
+		t.Fatalf("response = %#v, want app runas rejection", response)
 	}
 }
 

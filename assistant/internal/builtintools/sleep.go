@@ -14,15 +14,23 @@ import (
 const (
 	sourceName                    = "builtin"
 	sleepToolName                 = "sleep"
+	getAttachmentsToolName        = "get_attachments"
+	endConversationToolName       = "end_conversation"
 	contactsToolName              = "contacts"
-	recentConversationsToolName   = "recent_conversations"
-	readHistoryToolName           = "read_history"
-	replyToolName                 = "reply"
-	sendAsUserToolName            = "send_as_user"
-	createGroupToolName           = "create_group"
-	addGroupMembersToolName       = "add_group_members"
-	readFileURLsToolName          = "read_file_urls"
+	conversationsToolName         = "conversations"
+	contactsOperationSearchUsers  = "search_users"
+	contactsOperationSearchApps   = "search_apps"
+	contactsOperationSearchGroups = "search_groups"
+	conversationsOperationSearch  = "search"
+	conversationsOperationRead    = "read_history"
+	conversationsOperationReply   = "reply"
+	conversationsOperationSend    = "send"
+	conversationsOperationWait    = "wait_for_reply"
+	conversationsOperationCreate  = "create_group"
+	conversationsOperationAdd     = "add_members"
 	methodContactsUsersList       = "contacts.users.list"
+	methodContactsAppsList        = "contacts.apps.list"
+	methodContactsGroupsList      = "contacts.groups.list"
 	methodConversationsList       = "conversations.list"
 	methodConversationHistoryRead = "conversation.history.read"
 	methodGroupConversationsList  = "group_conversations.list"
@@ -33,6 +41,10 @@ const (
 	methodTemporaryFilesReadURLs  = "temporary_files.read_urls"
 	minSleepSeconds               = 5
 	maxSleepSeconds               = 30
+	minWaitForReplySeconds        = 5
+	maxWaitForReplySeconds        = 60
+	waitForReplyPollSeconds       = 5
+	waitForReplyMessageLimit      = 30
 	defaultSleepUnit              = time.Second
 	messageTypeText               = "text"
 	messageTypeMarkdown           = "markdown"
@@ -48,7 +60,8 @@ type AppRequester interface {
 }
 
 type Authorization struct {
-	ActorUserID      string
+	ActorID          string
+	ActorType        string
 	TriggerMessageID string
 }
 
@@ -62,10 +75,25 @@ func (f AuthorizationResolverFunc) ResolveAuthorization(ref string) (Authorizati
 	return f(ref)
 }
 
+type ConversationWaitRegistration interface {
+	Close()
+}
+
+type ConversationWaitRegistrar interface {
+	RegisterConversationWait(conversationID string, afterSeq int64, actorType string, actorID string) (ConversationWaitRegistration, error)
+}
+
+type ConversationEnder interface {
+	RequestConversationEnd()
+}
+
 type Scope struct {
 	AuthorizationResolver AuthorizationResolver
+	ConversationWaiter    ConversationWaitRegistrar
+	ConversationEnder     ConversationEnder
 	ConversationID        string
 	ConversationType      string
+	CurrentAppID          string
 	CurrentUserID         string
 	Requester             AppRequester
 	TriggerMessageID      string
@@ -80,7 +108,43 @@ type sleepInput struct {
 }
 
 type contactsInput struct {
+	Operation string          `json:"operation"`
+	Arguments json.RawMessage `json:"arguments"`
+	RunAs     *runAsInput     `json:"runas,omitempty"`
+}
+
+type conversationsInput struct {
+	Operation string          `json:"operation"`
+	Arguments json.RawMessage `json:"arguments"`
+	RunAs     *runAsInput     `json:"runas,omitempty"`
+}
+
+type waitForReplyArguments struct {
+	ConversationID string `json:"conversation_id"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+	AfterSeq       int64  `json:"after_seq"`
+}
+
+type contactsSearchArguments struct {
 	Keyword string `json:"keyword"`
+}
+
+type contactsSearchPayload struct {
+	Keyword string        `json:"keyword"`
+	RunAs   *runAsPayload `json:"runas,omitempty"`
+}
+
+type runAsInput struct {
+	AuthorizationRef string `json:"authorization_ref"`
+	ID               string `json:"id"`
+	Type             string `json:"type"`
+}
+
+type runAsPayload struct {
+	AuthorizationConversationID string `json:"authorization_conversation_id"`
+	ID                          string `json:"id"`
+	TriggerMessageID            string `json:"trigger_message_id"`
+	Type                        string `json:"type"`
 }
 
 type recentConversationsInput struct {
@@ -177,6 +241,18 @@ type readHistoryPayload struct {
 	UserID                      string `json:"user_id,omitempty"`
 }
 
+type conversationHistoryEnvelope struct {
+	Messages []json.RawMessage `json:"messages"`
+}
+
+type conversationHistoryMessageMetadata struct {
+	Sender struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+	} `json:"sender"`
+	Seq int64 `json:"seq"`
+}
+
 type createGroupPayload struct {
 	ActorUserID                 string   `json:"actor_user_id"`
 	AuthorizationConversationID string   `json:"authorization_conversation_id,omitempty"`
@@ -238,87 +314,7 @@ func (s *Source) SourceName() string {
 }
 
 func (s *Source) ListTools(ctx context.Context) ([]mcpclient.Tool, error) {
-	return []mcpclient.Tool{
-		{
-			Name:        sleepToolName,
-			Description: "等待 5 到 30 秒，常用于等待异步任务完成、外部工具结果同步、文件处理、后台状态变化，或配合查询工具轮询。seconds 小于 5、缺失或不合法按 5 秒处理，大于 30 时按 30 秒处理。不用于普通回复、拖延回复或无目的等待。",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"seconds": map[string]any{
-						"type":        "number",
-						"description": "等待秒数。最小 5，最大 30；缺失或不合法按 5 秒处理，超出范围会被自动截断。",
-						"minimum":     minSleepSeconds,
-						"maximum":     maxSleepSeconds,
-					},
-				},
-			},
-		},
-		{
-			Name:        contactsToolName,
-			Description: "查询可发送消息的联系人，只返回 active 用户，不包含 app 和群。需要找人或确认联系人 ID 时使用。",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"keyword": map[string]any{
-						"type":        "string",
-						"description": "可选搜索词，按姓名、昵称、邮箱、手机号搜索；为空返回全部联系人。",
-					},
-				},
-			},
-		},
-		{
-			Name:        recentConversationsToolName,
-			Description: "查询授权用户最近使用的会话，返回私聊、群聊、应用会话。需要 authorization_ref，且只能使用当前上下文 authorization_candidates 提供的 ref。可用于确认会话 ID、会话类型、成员数量和最近活动时间；返回字段包括 type、conversation_id、name、member_count、last_active_at。keyword 按会话名称，或私聊对象的姓名、昵称搜索，不查消息内容；limit 默认 20，最大 100。",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"authorization_ref"},
-				"properties": map[string]any{
-					"authorization_ref": authorizationRefSchema(),
-					"keyword": map[string]any{
-						"type":        "string",
-						"description": "可选搜索词，按会话名称，或私聊对象的姓名、昵称搜索；不传或为空返回所有最近会话。",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "可选返回数量。不传默认 20，最大 100。",
-						"minimum":     1,
-						"maximum":     100,
-					},
-				},
-			},
-		},
-		{
-			Name:        readHistoryToolName,
-			Description: "读取授权用户有权限访问的聊天记录。需要 authorization_ref，且只能使用当前上下文 authorization_candidates 提供的 ref。conversation_id、user_id、app_id 三选一：conversation_id 读取指定会话，user_id 读取和该用户的私聊，app_id 读取和该应用的会话。before_seq 不传表示读取最新消息，传入时读取 seq 小于 before_seq 的更早消息；limit 默认 20，最大 100。图片和附件只返回 file_id，需要真实 URL 时再调用 read_file_urls。",
-			InputSchema: readHistoryInputSchema(),
-		},
-		{
-			Name:        replyToolName,
-			Description: "回复当前触发 assistant 的会话。只能发回当前会话，不能指定联系人；需要回复当前用户或当前群时使用。支持 text、markdown、image、file。image 的 content 必须是可下载 URL。file 必须提供 name，不要猜文件名；已有可下载文件用 url，assistant 生成的小文件用 content，url/content 只能二选一；没有明确文件名时先追问。",
-			InputSchema: messageInputSchema(false),
-		},
-		{
-			Name:        sendAsUserToolName,
-			Description: "以授权用户的身份发送到私聊或已有群聊。需要 authorization_ref，且只能使用当前上下文 authorization_candidates 提供的 ref；只有对应授权消息明确要求“替我发给某人/以我的身份发给某人”或“替我发到某个已有群聊”时才能使用。target_type=user 时 contact_id 必须来自 contacts，target_type=group 时 conversation_id 必须来自 recent_conversations。目标群聊不明确、查到多个相似群或没有查到时先追问，不要猜 conversation_id。不要用它回复当前会话；回复当前会话必须用 reply。不要用它创建群聊或拉人进群。发送 file 时必须提供 name，不要猜文件名；已有可下载文件用 url，assistant 生成的小文件用 content；没有明确文件名时先追问。",
-			InputSchema: messageInputSchema(true),
-		},
-		{
-			Name:        createGroupToolName,
-			Description: "以授权用户的身份创建新群聊。需要 authorization_ref，且只能使用当前上下文 authorization_candidates 提供的 ref；只在对应授权消息明确要求创建新群聊、建群、拉一个新群时使用。不要用它发送消息、不要用它回复当前会话、不要用它总结或查询已有群聊、不要用它给已有群聊加人；已有群聊加人应使用 add_group_members。成员 ID 必须来自 contacts 工具返回的用户联系人；联系人身份不明确、群名不明确、成员列表不明确时先追问。授权用户会自动成为群主，不要把授权用户放进 member_ids。",
-			InputSchema: createGroupInputSchema(),
-		},
-		{
-			Name:        addGroupMembersToolName,
-			Description: "以授权用户的身份把成员加入已有群聊。需要 authorization_ref，且只能使用当前上下文 authorization_candidates 提供的 ref；只在对应授权消息明确要求把人加入已有群聊、拉人进群、邀请成员进群时使用。不要用它创建群聊、不要用它发送消息、不要用它回复当前会话；创建新群聊应使用 create_group。成员 ID 必须来自 contacts 工具返回的用户联系人。当前会话是目标群聊时可以省略 conversation_id；如果当前会话不是目标群聊，或目标群聊不明确、成员身份不明确时先追问。",
-			InputSchema: addGroupMembersInputSchema(),
-		},
-		{
-			Name:        readFileURLsToolName,
-			Description: "按需把当前消息或历史消息里的 file_id 换成临时可访问 URL。只需要 file_id，不需要会话 ID；只有确实需要读取图片或附件内容时使用。历史消息默认只提供 file_id。支持一次传多个 file_id，部分失败时会在 errors 返回，不影响已成功获取的 URL。",
-			InputSchema: readFileURLsInputSchema(),
-		},
-	}, nil
+	return s.listedTools(), nil
 }
 
 func (s *Source) CallTool(ctx context.Context, name string, input json.RawMessage) (mcpclient.ToolResult, error) {
@@ -327,27 +323,58 @@ func (s *Source) CallTool(ctx context.Context, name string, input json.RawMessag
 	}
 
 	switch name {
+	case helpToolName:
+		return s.callHelp(ctx, input)
 	case sleepToolName:
 		return s.callSleep(ctx, input)
+	case getAttachmentsToolName:
+		return callReadFileURLs(ctx, input)
+	case endConversationToolName:
+		return callEndConversation(ctx, input)
 	case contactsToolName:
 		return callContacts(ctx, input)
-	case recentConversationsToolName:
-		return callRecentConversations(ctx, input)
-	case readHistoryToolName:
-		return callReadHistory(ctx, input)
-	case replyToolName:
-		return callReply(ctx, input)
-	case sendAsUserToolName:
-		return callSendAsUser(ctx, input)
-	case createGroupToolName:
-		return callCreateGroup(ctx, input)
-	case addGroupMembersToolName:
-		return callAddGroupMembers(ctx, input)
-	case readFileURLsToolName:
-		return callReadFileURLs(ctx, input)
+	case conversationsToolName:
+		return s.callConversations(ctx, input)
+	case projectsToolName:
+		return callProjects(ctx, input)
 	default:
 		return mcpclient.ToolResult{}, fmt.Errorf("unknown builtin tool %q", name)
 	}
+}
+
+func callEndConversation(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
+	if len(input) > 0 && string(input) != "null" {
+		var properties map[string]json.RawMessage
+		if err := json.Unmarshal(input, &properties); err != nil {
+			return mcpclient.ToolResult{}, fmt.Errorf("parse end_conversation input: %w", err)
+		}
+		if len(properties) > 0 {
+			return mcpclient.ToolResult{}, fmt.Errorf("end_conversation does not accept arguments")
+		}
+	}
+	scope, err := requireScope(ctx)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	if strings.TrimSpace(scope.ConversationID) == "" || strings.TrimSpace(scope.ConversationType) == "" {
+		return mcpclient.ToolResult{}, fmt.Errorf("current conversation scope is missing")
+	}
+	if _, err := requestTool(ctx, scope.Requester, methodMessageSend, sendMessagePayload{
+		Target: sendMessageTargetPayload{
+			Type:           strings.TrimSpace(scope.ConversationType),
+			ConversationID: strings.TrimSpace(scope.ConversationID),
+		},
+		Message: scopedMessagePayload{
+			Type:    messageTypeText,
+			Content: "已结束",
+		},
+	}); err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	if scope.ConversationEnder != nil {
+		scope.ConversationEnder.RequestConversationEnd()
+	}
+	return mcpclient.ToolResult{Content: "已结束", Final: true}, nil
 }
 
 func (s *Source) callSleep(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
@@ -362,21 +389,345 @@ func (s *Source) callSleep(ctx context.Context, input json.RawMessage) (mcpclien
 	return mcpclient.ToolResult{Content: fmt.Sprintf("slept %s", formatSeconds(seconds))}, nil
 }
 
-func callContacts(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
+func (s *Source) callConversations(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
+	var parsed conversationsInput
+	if err := json.Unmarshal(input, &parsed); err != nil {
+		return mcpclient.ToolResult{}, fmt.Errorf("parse conversations input: %w", err)
+	}
+	parsed.Operation = strings.ToLower(strings.TrimSpace(parsed.Operation))
+	if parsed.Operation == "" {
+		return mcpclient.ToolResult{}, fmt.Errorf("operation is required; use help to inspect supported operations")
+	}
+
+	switch parsed.Operation {
+	case conversationsOperationReply:
+		if parsed.RunAs != nil {
+			return mcpclient.ToolResult{}, fmt.Errorf("runas is not supported for reply; use send for delegated sending")
+		}
+		return callReply(ctx, parsed.Arguments)
+	case conversationsOperationWait:
+		return s.callWaitForReply(ctx, parsed)
+	case conversationsOperationSearch, conversationsOperationRead, conversationsOperationSend, conversationsOperationCreate, conversationsOperationAdd:
+		legacyInput, err := conversationLegacyUserInput(ctx, parsed)
+		if err != nil {
+			return mcpclient.ToolResult{}, err
+		}
+		switch parsed.Operation {
+		case conversationsOperationSearch:
+			return callRecentConversations(ctx, legacyInput)
+		case conversationsOperationRead:
+			return callReadHistory(ctx, legacyInput)
+		case conversationsOperationSend:
+			return callSendAsUser(ctx, legacyInput)
+		case conversationsOperationCreate:
+			return callCreateGroup(ctx, legacyInput)
+		default:
+			return callAddGroupMembers(ctx, legacyInput)
+		}
+	default:
+		return mcpclient.ToolResult{}, fmt.Errorf("unsupported conversations operation %q; use help to inspect supported operations", parsed.Operation)
+	}
+}
+
+func conversationLegacyUserInput(ctx context.Context, input conversationsInput) (json.RawMessage, error) {
+	scope, err := requireScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if input.RunAs == nil {
+		return nil, fmt.Errorf("runas is required for conversations operation %q", input.Operation)
+	}
+	authorization, err := authorizedRunAs(scope, input.RunAs)
+	if err != nil {
+		return nil, err
+	}
+	if authorization.ActorType != "user" {
+		return nil, fmt.Errorf("conversations operation %q currently requires a user runas identity", input.Operation)
+	}
+
+	arguments := map[string]any{}
+	if len(input.Arguments) > 0 && string(input.Arguments) != "null" {
+		if err := json.Unmarshal(input.Arguments, &arguments); err != nil {
+			return nil, fmt.Errorf("parse conversations %s arguments: %w", input.Operation, err)
+		}
+	}
+	arguments["authorization_ref"] = strings.TrimSpace(input.RunAs.AuthorizationRef)
+	raw, err := json.Marshal(arguments)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func authorizedRunAs(scope Scope, input *runAsInput) (Authorization, error) {
+	if input == nil {
+		return Authorization{}, fmt.Errorf("runas is required")
+	}
+	runAsType := strings.ToLower(strings.TrimSpace(input.Type))
+	runAsID := strings.TrimSpace(input.ID)
+	if runAsType != "user" {
+		return Authorization{}, fmt.Errorf("runas.type must be user")
+	}
+	if runAsID == "" {
+		return Authorization{}, fmt.Errorf("runas.id is required")
+	}
+	authorization, err := requireAuthorization(scope, input.AuthorizationRef)
+	if err != nil {
+		return Authorization{}, err
+	}
+	if authorization.ActorType != runAsType || authorization.ActorID != runAsID {
+		return Authorization{}, fmt.Errorf("authorization_ref does not authorize runas identity")
+	}
+	return authorization, nil
+}
+
+func (s *Source) callWaitForReply(ctx context.Context, input conversationsInput) (mcpclient.ToolResult, error) {
 	scope, err := requireScope(ctx)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
+	var arguments waitForReplyArguments
+	if err := json.Unmarshal(input.Arguments, &arguments); err != nil {
+		return mcpclient.ToolResult{}, fmt.Errorf("parse conversations wait_for_reply arguments: %w", err)
+	}
+	arguments.ConversationID = strings.TrimSpace(arguments.ConversationID)
+	if arguments.ConversationID == "" {
+		return mcpclient.ToolResult{}, fmt.Errorf("conversation_id is required")
+	}
+	if arguments.AfterSeq <= 0 {
+		return mcpclient.ToolResult{}, fmt.Errorf("after_seq must be a positive integer")
+	}
+	if arguments.TimeoutSeconds < minWaitForReplySeconds || arguments.TimeoutSeconds > maxWaitForReplySeconds {
+		return mcpclient.ToolResult{}, fmt.Errorf("timeout_seconds must be between %d and %d", minWaitForReplySeconds, maxWaitForReplySeconds)
+	}
 
+	actor, err := authorizedRunAs(scope, input.RunAs)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+
+	if scope.ConversationWaiter != nil {
+		registration, err := scope.ConversationWaiter.RegisterConversationWait(
+			arguments.ConversationID,
+			arguments.AfterSeq,
+			actor.ActorType,
+			actor.ActorID,
+		)
+		if err != nil {
+			return mcpclient.ToolResult{}, err
+		}
+		defer registration.Close()
+	}
+
+	waitedSeconds := 0
+	latestSeq := arguments.AfterSeq
+	for {
+		messages, err := latestConversationMessages(ctx, scope, input.RunAs, actor, arguments.ConversationID, waitForReplyMessageLimit)
+		if err != nil {
+			return mcpclient.ToolResult{}, err
+		}
+		latestSeq, err = latestMessageSequence(messages)
+		if err != nil {
+			return mcpclient.ToolResult{}, err
+		}
+		replies, err := conversationRepliesAfter(messages, arguments.AfterSeq, actor)
+		if err != nil {
+			return mcpclient.ToolResult{}, err
+		}
+		if len(replies) > 0 {
+			return jsonToolResult(map[string]any{
+				"status":          "replied",
+				"replied":         true,
+				"conversation_id": arguments.ConversationID,
+				"after_seq":       arguments.AfterSeq,
+				"latest_seq":      latestSeq,
+				"waited_seconds":  waitedSeconds,
+				"messages":        replies,
+			})
+		}
+		if waitedSeconds >= arguments.TimeoutSeconds {
+			break
+		}
+
+		waitSeconds := waitForReplyPollSeconds
+		if remaining := arguments.TimeoutSeconds - waitedSeconds; remaining < waitSeconds {
+			waitSeconds = remaining
+		}
+		if err := s.sleep(ctx, time.Duration(waitSeconds)*time.Second); err != nil {
+			return mcpclient.ToolResult{}, err
+		}
+		waitedSeconds += waitSeconds
+	}
+
+	return jsonToolResult(map[string]any{
+		"status":          "timeout",
+		"replied":         false,
+		"conversation_id": arguments.ConversationID,
+		"after_seq":       arguments.AfterSeq,
+		"latest_seq":      latestSeq,
+		"waited_seconds":  waitedSeconds,
+		"messages":        []json.RawMessage{},
+		"message":         "等待超时，会话中没有检测到新的回复。",
+	})
+}
+
+func latestConversationMessages(ctx context.Context, scope Scope, _ *runAsInput, actor Authorization, conversationID string, limit int) ([]json.RawMessage, error) {
+	raw, err := scope.Requester.Request(ctx, methodConversationHistoryRead, readHistoryPayload{
+		ActorUserID:                 actor.ActorID,
+		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		ConversationID:              conversationID,
+		Limit:                       limit,
+		TriggerMessageID:            actor.TriggerMessageID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var response conversationHistoryEnvelope
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return nil, fmt.Errorf("parse conversation history response: %w", err)
+	}
+	return response.Messages, nil
+}
+
+func latestMessageSequence(messages []json.RawMessage) (int64, error) {
+	var latest int64
+	for _, raw := range messages {
+		var message conversationHistoryMessageMetadata
+		if err := json.Unmarshal(raw, &message); err != nil {
+			return 0, fmt.Errorf("parse conversation message: %w", err)
+		}
+		if message.Seq > latest {
+			latest = message.Seq
+		}
+	}
+	return latest, nil
+}
+
+func conversationRepliesAfter(messages []json.RawMessage, baselineSeq int64, actor Authorization) ([]json.RawMessage, error) {
+	replies := make([]json.RawMessage, 0, len(messages))
+	for _, raw := range messages {
+		var message conversationHistoryMessageMetadata
+		if err := json.Unmarshal(raw, &message); err != nil {
+			return nil, fmt.Errorf("parse conversation message: %w", err)
+		}
+		if message.Seq <= baselineSeq {
+			continue
+		}
+		senderType := strings.ToLower(strings.TrimSpace(message.Sender.Type))
+		senderID := strings.TrimSpace(message.Sender.ID)
+		if senderType != "user" && senderType != "app" {
+			continue
+		}
+		if actor.ActorType != "" && senderType == actor.ActorType && senderID == actor.ActorID {
+			continue
+		}
+		replies = append(replies, raw)
+	}
+	if len(replies) > waitForReplyMessageLimit {
+		replies = replies[len(replies)-waitForReplyMessageLimit:]
+	}
+	return replies, nil
+}
+
+func callContacts(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
 	var parsed contactsInput
 	if len(input) > 0 {
 		if err := json.Unmarshal(input, &parsed); err != nil {
 			return mcpclient.ToolResult{}, fmt.Errorf("parse contacts input: %w", err)
 		}
 	}
-	return requestTool(ctx, scope.Requester, methodContactsUsersList, contactsInput{
-		Keyword: strings.TrimSpace(parsed.Keyword),
+	operation := strings.ToLower(strings.TrimSpace(parsed.Operation))
+	if operation == "" {
+		return mcpclient.ToolResult{}, fmt.Errorf("operation is required; use help to inspect supported operations")
+	}
+
+	switch operation {
+	case contactsOperationSearchUsers:
+		return searchContacts(ctx, parsed, methodContactsUsersList)
+	case contactsOperationSearchApps:
+		return searchContacts(ctx, parsed, methodContactsAppsList)
+	case contactsOperationSearchGroups:
+		return searchContacts(ctx, parsed, methodContactsGroupsList)
+	default:
+		return mcpclient.ToolResult{}, fmt.Errorf("unsupported contacts operation %q; use help to inspect supported operations", parsed.Operation)
+	}
+}
+
+func searchContacts(ctx context.Context, input contactsInput, method string) (mcpclient.ToolResult, error) {
+	arguments := contactsSearchArguments{}
+	if len(input.Arguments) > 0 && string(input.Arguments) != "null" {
+		if err := json.Unmarshal(input.Arguments, &arguments); err != nil {
+			return mcpclient.ToolResult{}, fmt.Errorf("parse contacts search arguments: %w", err)
+		}
+	}
+	scope, err := requireScope(ctx)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	runAs, err := resolveRunAs(scope, input.RunAs)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	return requestTool(ctx, scope.Requester, method, contactsSearchPayload{
+		Keyword: strings.TrimSpace(arguments.Keyword),
+		RunAs:   runAs,
 	})
+}
+
+func resolveRunAs(scope Scope, input *runAsInput) (*runAsPayload, error) {
+	if input == nil {
+		return nil, fmt.Errorf("runas is required")
+	}
+
+	runAs := runAsInput{
+		AuthorizationRef: strings.TrimSpace(input.AuthorizationRef),
+		ID:               strings.TrimSpace(input.ID),
+		Type:             strings.ToLower(strings.TrimSpace(input.Type)),
+	}
+	if runAs.Type != "user" {
+		return nil, fmt.Errorf("runas.type must be user")
+	}
+	if runAs.ID == "" {
+		return nil, fmt.Errorf("runas.id is required")
+	}
+	authorization, err := requireAuthorization(scope, runAs.AuthorizationRef)
+	if err != nil {
+		return nil, err
+	}
+	if authorization.ActorType != runAs.Type || authorization.ActorID != runAs.ID {
+		return nil, fmt.Errorf("authorization_ref does not authorize runas identity")
+	}
+
+	return &runAsPayload{
+		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		ID:                          runAs.ID,
+		TriggerMessageID:            authorization.TriggerMessageID,
+		Type:                        runAs.Type,
+	}, nil
+}
+
+func runAsInputSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "必填授权用户执行身份；type 必须为 user，id 和 authorization_ref 必须与当前授权候选完全匹配。",
+		"required":    []string{"type", "id", "authorization_ref"},
+		"properties": map[string]any{
+			"type": map[string]any{
+				"type":        "string",
+				"enum":        []string{"user"},
+				"description": "执行身份类型，固定为 user。",
+			},
+			"id": map[string]any{
+				"type":        "string",
+				"description": "用户 ID；必须来自可信上下文，不要猜测。",
+			},
+			"authorization_ref": map[string]any{
+				"type":        "string",
+				"description": "授权引用，只能从当前上下文 authorization_candidates 中选择；对应候选的 sender_type 和 sender_id 必须分别匹配 runas.type 和 runas.id。",
+			},
+		},
+		"additionalProperties": false,
+	}
 }
 
 func callRecentConversations(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
@@ -388,16 +739,16 @@ func callRecentConversations(ctx context.Context, input json.RawMessage) (mcpcli
 	var parsed recentConversationsInput
 	if len(input) > 0 {
 		if err := json.Unmarshal(input, &parsed); err != nil {
-			return mcpclient.ToolResult{}, fmt.Errorf("parse recent_conversations input: %w", err)
+			return mcpclient.ToolResult{}, fmt.Errorf("parse conversations search input: %w", err)
 		}
 	}
-	auth, err := requireAuthorization(scope, parsed.AuthorizationRef)
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
 
 	return requestTool(ctx, scope.Requester, methodConversationsList, recentConversationsPayload{
-		ActorUserID:                 auth.ActorUserID,
+		ActorUserID:                 auth.ActorID,
 		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
 		Keyword:                     strings.TrimSpace(parsed.Keyword),
 		Limit:                       parsed.Limit,
@@ -414,15 +765,15 @@ func callReadHistory(ctx context.Context, input json.RawMessage) (mcpclient.Tool
 	var parsed readHistoryInput
 	if len(input) > 0 {
 		if err := json.Unmarshal(input, &parsed); err != nil {
-			return mcpclient.ToolResult{}, fmt.Errorf("parse read_history input: %w", err)
+			return mcpclient.ToolResult{}, fmt.Errorf("parse conversations read_history input: %w", err)
 		}
 	}
-	auth, err := requireAuthorization(scope, parsed.AuthorizationRef)
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
 	payload := readHistoryPayload{
-		ActorUserID:                 auth.ActorUserID,
+		ActorUserID:                 auth.ActorID,
 		AppID:                       strings.TrimSpace(parsed.AppID),
 		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
 		BeforeSeq:                   parsed.BeforeSeq,
@@ -489,13 +840,13 @@ func callSendAsUser(ctx context.Context, input json.RawMessage) (mcpclient.ToolR
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
-	auth, err := requireAuthorization(scope, parsed.AuthorizationRef)
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
 
 	return requestTool(ctx, scope.Requester, methodMessageSendAsUser, sendAsUserPayload{
-		ActorUserID:                 auth.ActorUserID,
+		ActorUserID:                 auth.ActorID,
 		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
 		Target:                      target,
 		TargetUserID:                targetUserID,
@@ -512,9 +863,9 @@ func callCreateGroup(ctx context.Context, input json.RawMessage) (mcpclient.Tool
 
 	var parsed createGroupInput
 	if err := json.Unmarshal(input, &parsed); err != nil {
-		return mcpclient.ToolResult{}, fmt.Errorf("parse create_group input: %w", err)
+		return mcpclient.ToolResult{}, fmt.Errorf("parse conversations create_group input: %w", err)
 	}
-	auth, err := requireAuthorization(scope, parsed.AuthorizationRef)
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
@@ -528,7 +879,7 @@ func callCreateGroup(ctx context.Context, input json.RawMessage) (mcpclient.Tool
 	}
 
 	return requestTool(ctx, scope.Requester, methodCreateGroup, createGroupPayload{
-		ActorUserID:                 auth.ActorUserID,
+		ActorUserID:                 auth.ActorID,
 		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
 		TriggerMessageID:            auth.TriggerMessageID,
 		Name:                        name,
@@ -544,9 +895,9 @@ func callAddGroupMembers(ctx context.Context, input json.RawMessage) (mcpclient.
 
 	var parsed addGroupMembersInput
 	if err := json.Unmarshal(input, &parsed); err != nil {
-		return mcpclient.ToolResult{}, fmt.Errorf("parse add_group_members input: %w", err)
+		return mcpclient.ToolResult{}, fmt.Errorf("parse conversations add_members input: %w", err)
 	}
-	auth, err := requireAuthorization(scope, parsed.AuthorizationRef)
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
@@ -563,7 +914,7 @@ func callAddGroupMembers(ctx context.Context, input json.RawMessage) (mcpclient.
 	}
 
 	return requestTool(ctx, scope.Requester, methodAddGroupMembers, addGroupMembersPayload{
-		ActorUserID:                 auth.ActorUserID,
+		ActorUserID:                 auth.ActorID,
 		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
 		ConversationID:              conversationID,
 		TriggerMessageID:            auth.TriggerMessageID,
@@ -597,7 +948,7 @@ func callReadFileURLs(ctx context.Context, input json.RawMessage) (mcpclient.Too
 func parseReadFileURLsInput(input json.RawMessage) ([]string, error) {
 	var parsed readFileURLsInput
 	if err := json.Unmarshal(input, &parsed); err != nil {
-		return nil, fmt.Errorf("parse read_file_urls input: %w", err)
+		return nil, fmt.Errorf("parse get_attachments input: %w", err)
 	}
 	fileIDs := make([]string, 0, len(parsed.FileIDs))
 	seen := map[string]struct{}{}
@@ -674,7 +1025,8 @@ func requireAuthorization(scope Scope, authorizationRef string) (Authorization, 
 			return Authorization{}, err
 		}
 		return Authorization{
-			ActorUserID:      actorUserID,
+			ActorID:          actorUserID,
+			ActorType:        "user",
 			TriggerMessageID: triggerMessageID,
 		}, nil
 	}
@@ -687,10 +1039,23 @@ func requireAuthorization(scope Scope, authorizationRef string) (Authorization, 
 	if !ok {
 		return Authorization{}, fmt.Errorf("authorization_ref is invalid")
 	}
-	authorization.ActorUserID = strings.TrimSpace(authorization.ActorUserID)
+	authorization.ActorID = strings.TrimSpace(authorization.ActorID)
+	authorization.ActorType = strings.ToLower(strings.TrimSpace(authorization.ActorType))
 	authorization.TriggerMessageID = strings.TrimSpace(authorization.TriggerMessageID)
-	if authorization.ActorUserID == "" || authorization.TriggerMessageID == "" {
+	if (authorization.ActorType != "user" && authorization.ActorType != "app") || authorization.ActorID == "" || authorization.TriggerMessageID == "" {
 		return Authorization{}, fmt.Errorf("authorization_ref is invalid")
+	}
+
+	return authorization, nil
+}
+
+func requireUserAuthorization(scope Scope, authorizationRef string) (Authorization, error) {
+	authorization, err := requireAuthorization(scope, authorizationRef)
+	if err != nil {
+		return Authorization{}, err
+	}
+	if authorization.ActorType != "user" {
+		return Authorization{}, fmt.Errorf("authorization_ref does not authorize a user")
 	}
 
 	return authorization, nil
@@ -821,7 +1186,7 @@ func parseSendAsUserInput(input json.RawMessage) (scopedMessagePayload, sendAsUs
 
 	var parsed messageInput
 	if err := json.Unmarshal(input, &parsed); err != nil {
-		return scopedMessagePayload{}, sendAsUserTarget{}, "", fmt.Errorf("parse send_as_user input: %w", err)
+		return scopedMessagePayload{}, sendAsUserTarget{}, "", fmt.Errorf("parse conversations send input: %w", err)
 	}
 	targetType := strings.TrimSpace(parsed.TargetType)
 	contactID := strings.TrimSpace(parsed.ContactID)
@@ -852,134 +1217,6 @@ func parseSendAsUserInput(input json.RawMessage) (scopedMessagePayload, sendAsUs
 	}
 }
 
-func messageInputSchema(requireContact bool) map[string]any {
-	required := []string{"type"}
-	properties := map[string]any{
-		"type": map[string]any{
-			"type":        "string",
-			"enum":        []string{messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile},
-			"description": "消息类型。text/markdown 的 content 是文本；image 的 content 是可下载 URL；file 必须显式提供 name，并在 url 或 content 中二选一。",
-		},
-		"content": map[string]any{
-			"type":        "string",
-			"description": "text/markdown 时为消息内容；image 时为可下载 URL；file 且没有 url 时为 assistant 生成的小文件内容，受 64KiB 内联文件内容上限约束。",
-		},
-		"name": map[string]any{
-			"type":        "string",
-			"description": "type=file 时必填，必须是用户明确指定的文件名，不能包含路径；没有明确文件名时先追问，不要猜文件名。",
-		},
-		"url": map[string]any{
-			"type":        "string",
-			"description": "type=file 且已有可下载文件时使用；与 content 只能二选一。",
-		},
-	}
-	if requireContact {
-		required = append([]string{"authorization_ref", "target_type"}, required...)
-		properties["authorization_ref"] = authorizationRefSchema()
-		properties["target_type"] = map[string]any{
-			"type":        "string",
-			"enum":        []string{"user", "group"},
-			"description": "发送目标类型。user 表示私聊联系人；group 表示已有群聊。",
-		}
-		properties["contact_id"] = map[string]any{
-			"type":        "string",
-			"description": "target_type=user 时必填，目标联系人用户 ID，必须来自 contacts 工具返回的用户联系人。",
-		}
-		properties["conversation_id"] = map[string]any{
-			"type":        "string",
-			"description": "target_type=group 时必填，目标已有群聊 ID，必须来自 recent_conversations 工具返回的群聊。",
-		}
-	}
-
-	return map[string]any{
-		"type":       "object",
-		"required":   required,
-		"properties": properties,
-	}
-}
-
-func readHistoryInputSchema() map[string]any {
-	return map[string]any{
-		"type":     "object",
-		"required": []string{"authorization_ref"},
-		"properties": map[string]any{
-			"authorization_ref": authorizationRefSchema(),
-			"conversation_id": map[string]any{
-				"type":        "string",
-				"description": "可选，会话 ID。与 user_id、app_id 三选一；用于读取指定会话的历史。",
-			},
-			"user_id": map[string]any{
-				"type":        "string",
-				"description": "可选，联系人用户 ID。与 conversation_id、app_id 三选一；用于读取当前触发用户和该用户的私聊历史。",
-			},
-			"app_id": map[string]any{
-				"type":        "string",
-				"description": "可选，应用 ID。与 conversation_id、user_id 三选一；用于读取当前触发用户和该应用的会话历史。",
-			},
-			"before_seq": map[string]any{
-				"type":        "integer",
-				"description": "可选。读取 seq 小于 before_seq 的更早消息；不传表示读取最新消息。",
-				"minimum":     1,
-			},
-			"limit": map[string]any{
-				"type":        "integer",
-				"description": "可选返回数量。不传默认 20，最大 100。",
-				"minimum":     1,
-				"maximum":     100,
-			},
-		},
-	}
-}
-
-func createGroupInputSchema() map[string]any {
-	return map[string]any{
-		"type":     "object",
-		"required": []string{"authorization_ref", "name", "member_ids"},
-		"properties": map[string]any{
-			"authorization_ref": authorizationRefSchema(),
-			"name": map[string]any{
-				"type":        "string",
-				"description": "新群聊名称。只有用户明确给出或能从请求中明确推断群名时填写；不明确时先追问。",
-			},
-			"member_ids": map[string]any{
-				"type":        "array",
-				"description": "新群聊成员用户 ID 列表，必须来自 contacts 工具返回的联系人。不要包含当前触发用户；联系人重名、身份不明确或没有查到时先追问，不要猜 ID。",
-				"items": map[string]any{
-					"type": "string",
-				},
-			},
-		},
-	}
-}
-
-func addGroupMembersInputSchema() map[string]any {
-	return map[string]any{
-		"type":     "object",
-		"required": []string{"authorization_ref", "member_ids"},
-		"properties": map[string]any{
-			"authorization_ref": authorizationRefSchema(),
-			"conversation_id": map[string]any{
-				"type":        "string",
-				"description": "目标已有群聊 ID。当前会话是目标群聊时可省略；当前会话不是目标群聊或目标群聊不明确时先追问，不要猜测。",
-			},
-			"member_ids": map[string]any{
-				"type":        "array",
-				"description": "要拉入已有群聊的用户 ID 列表，必须来自 contacts 工具返回的联系人。联系人重名、身份不明确或没有查到时先追问，不要猜 ID。",
-				"items": map[string]any{
-					"type": "string",
-				},
-			},
-		},
-	}
-}
-
-func authorizationRefSchema() map[string]any {
-	return map[string]any{
-		"type":        "string",
-		"description": "必填，授权来源，只能填写当前上下文 authorization_candidates 中提供的 authorization_ref，不能编造或填写真实消息 ID。",
-	}
-}
-
 func readFileURLsInputSchema() map[string]any {
 	return map[string]any{
 		"type":     "object",
@@ -987,12 +1224,16 @@ func readFileURLsInputSchema() map[string]any {
 		"properties": map[string]any{
 			"file_ids": map[string]any{
 				"type":        "array",
+				"minItems":    1,
+				"uniqueItems": true,
 				"description": "当前消息或历史消息里的 file_id 列表。只有需要查看图片或附件内容时传入；可一次传多个。",
 				"items": map[string]any{
-					"type": "string",
+					"type":      "string",
+					"minLength": 1,
 				},
 			},
 		},
+		"additionalProperties": false,
 	}
 }
 
