@@ -36,6 +36,23 @@ export const projectTaskStatusDetails = {
   { label: string; softClassName: string; solidClassName: string }
 >
 
+export function getProjectTaskBlockClassName(status: ProjectTaskStatus) {
+  return projectTaskStatusDetails[status].solidClassName
+}
+
+export function getProjectTaskBlockHoverClassName(status: ProjectTaskStatus) {
+  switch (status) {
+    case "todo":
+      return "hover:bg-amber-700 hover:text-white dark:hover:bg-amber-600 dark:hover:text-white"
+    case "in_progress":
+      return "hover:bg-sky-700 hover:text-white dark:hover:bg-sky-600 dark:hover:text-white"
+    case "done":
+      return "hover:bg-emerald-700 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white"
+    case "canceled":
+      return "hover:bg-stone-600 hover:text-white dark:hover:bg-stone-500 dark:hover:text-white"
+  }
+}
+
 export const projectTaskPriorityLabels = {
   1: "低",
   2: "中",

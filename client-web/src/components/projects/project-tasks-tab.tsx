@@ -267,7 +267,7 @@ export function ProjectTasksTab({
                 重新加载
               </Button>
             </div>
-          ) : activeView === "board" ? (
+          ) : activeView === "board" || activeView === "gantt" ? (
             <TaskViewContent
               activeView={activeView}
               emptyMessage={

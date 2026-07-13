@@ -12,8 +12,9 @@ import {
   differenceInCalendarDays,
   formatDateKey,
   formatShortDate,
+  getProjectTaskBlockClassName,
+  getProjectTaskBlockHoverClassName,
   getProjectTaskDateRange,
-  projectTaskStatusDetails,
 } from "@/components/projects/project-task-view-utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,9 @@ import { cn } from "@/lib/utils"
 
 const taskColumnWidth = 240
 const minimumTimelineDays = 21
+const dailyCellWidth = 48
+const weeklyCellWidth = 96
+const minimumTaskWidth = 48
 
 type Timeline = {
   cellWidth: number
@@ -68,16 +72,16 @@ export function ProjectTaskGanttView({
     : null
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {tasks.length === 0 ? (
-        <div className="flex min-h-80 items-center justify-center text-sm text-muted-foreground">
+        <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
           {emptyMessage}
         </div>
       ) : (
-        <div className="grid gap-4">
+        <>
           {unscheduledTasks.length > 0 && (
             <Collapsible
-              className="overflow-hidden rounded-md border bg-background shadow-xs"
+              className="shrink-0 overflow-hidden rounded-md border bg-background shadow-xs"
               defaultOpen
             >
               <CollapsibleTrigger asChild>
@@ -127,14 +131,14 @@ export function ProjectTaskGanttView({
             </Collapsible>
           )}
           {timeline && (
-            <section className="overflow-hidden rounded-md border bg-background shadow-xs">
-              <div className="flex min-w-0">
+            <section className="min-h-0 flex-1 overflow-auto rounded-md border bg-background shadow-xs">
+              <div className="flex w-max min-w-full">
                 <GanttTaskColumn
                   onOpenTask={setActiveTask}
                   tasks={scheduledTasks}
                   timeline={timeline}
                 />
-                <div className="min-w-0 flex-1 overflow-x-auto">
+                <div className="min-w-0 flex-1">
                   <div
                     className="relative"
                     style={{
@@ -143,10 +147,7 @@ export function ProjectTaskGanttView({
                   >
                     <GanttTimelineHeader timeline={timeline} />
                     <div className="relative">
-                      <TimelineBackground
-                        rowCount={scheduledTasks.length}
-                        timeline={timeline}
-                      />
+                      <TimelineBackground timeline={timeline} />
                       {scheduledTasks.map(({ range, task }) => (
                         <GanttTimelineTaskRow
                           key={task.id}
@@ -162,7 +163,7 @@ export function ProjectTaskGanttView({
               </div>
             </section>
           )}
-        </div>
+        </>
       )}
       {activeTask && (
         <ProjectTaskDetailsDialog
@@ -177,7 +178,7 @@ export function ProjectTaskGanttView({
           task={activeTask}
         />
       )}
-    </>
+    </div>
   )
 }
 
@@ -195,13 +196,13 @@ function GanttTaskColumn({
 }) {
   return (
     <div
-      className="shrink-0 border-r bg-background"
+      className="sticky left-0 z-30 shrink-0 border-r bg-background"
       style={{ width: taskColumnWidth }}
     >
-      <div className="flex h-8 items-center border-b px-3 text-xs font-medium">
+      <div className="sticky top-0 z-20 flex h-8 items-center border-b bg-background px-3 text-xs font-medium">
         任务
       </div>
-      <div className="flex h-8 items-center border-b px-3 text-[11px] text-muted-foreground">
+      <div className="sticky top-8 z-20 flex h-8 items-center border-b bg-background px-3 text-[11px] text-muted-foreground">
         {formatShortDate(timeline.start)} - {formatShortDate(timeline.end)}
       </div>
       {tasks.map(({ range, task }) => (
@@ -221,11 +222,11 @@ function GanttTimelineHeader({ timeline }: { timeline: Timeline }) {
   const todayKey = formatDateKey(new Date())
 
   return (
-    <div className="sticky top-0 z-20 border-b bg-background">
+    <div className="sticky top-0 z-20 bg-background">
       <div className="flex h-8 border-b">
         {monthGroups.map((group) => (
           <div
-            className="shrink-0 border-r px-2 py-1.5 text-xs font-medium"
+            className="shrink-0 truncate border-r px-2 py-1.5 text-xs font-medium"
             key={group.key}
             style={{ width: group.unitCount * timeline.cellWidth }}
           >
@@ -233,7 +234,7 @@ function GanttTimelineHeader({ timeline }: { timeline: Timeline }) {
           </div>
         ))}
       </div>
-      <div className="flex h-8">
+      <div className="flex h-8 border-b">
         {timeline.units.map((date) => (
           <div
             className={cn(
@@ -252,10 +253,8 @@ function GanttTimelineHeader({ timeline }: { timeline: Timeline }) {
 }
 
 function TimelineBackground({
-  rowCount,
   timeline,
 }: {
-  rowCount: number
   timeline: Timeline
 }) {
   const today = new Date()
@@ -291,14 +290,6 @@ function TimelineBackground({
           }}
         />
       )}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(to bottom, transparent calc(100% - 1px), var(--border) calc(100% - 1px))",
-          backgroundSize: `100% calc(100% / ${rowCount})`,
-        }}
-      />
     </div>
   )
 }
@@ -358,20 +349,18 @@ function GanttTimelineTaskRow({
   const duration = differenceInCalendarDays(range.end, range.start) + 1
   const left = (startOffset / timeline.unitDays) * timeline.cellWidth + 4
   const width = Math.max(
-    24,
+    minimumTaskWidth,
     (duration / timeline.unitDays) * timeline.cellWidth - 8
   )
-  const compact = width < 48
 
   return (
     <div className="relative h-13 border-b last:border-b-0">
       <button
         aria-label={`查看任务详情：${task.title}`}
         className={cn(
-          "absolute top-2.5 z-10 flex h-8 cursor-pointer items-center overflow-hidden rounded-sm text-left text-xs font-medium shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
-          compact ? "gap-0 px-1" : "gap-1.5 px-2",
-          projectTaskStatusDetails[task.status].solidClassName,
-          getGanttTaskHoverClassName(task.status)
+          "absolute top-2.5 z-10 flex h-8 cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-2 text-left text-xs font-medium shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+          getProjectTaskBlockClassName(task.status),
+          getProjectTaskBlockHoverClassName(task.status)
         )}
         onClick={onOpen}
         style={{ left, width }}
@@ -384,25 +373,10 @@ function GanttTimelineTaskRow({
             className="size-4 bg-muted"
           />
         )}
-        {(!compact || !task.assignee) && (
-          <span className="min-w-0 truncate">{task.title}</span>
-        )}
+        <span className="min-w-0 truncate">{task.title}</span>
       </button>
     </div>
   )
-}
-
-function getGanttTaskHoverClassName(status: ProjectTask["status"]) {
-  switch (status) {
-    case "in_progress":
-      return "hover:bg-sky-200 hover:text-sky-600 dark:hover:bg-sky-900 dark:hover:text-sky-400"
-    case "done":
-      return "hover:bg-emerald-200 hover:text-emerald-600 dark:hover:bg-emerald-900 dark:hover:text-emerald-400"
-    case "canceled":
-      return "hover:bg-stone-200 hover:text-stone-600 dark:hover:bg-stone-900 dark:hover:text-stone-400"
-    default:
-      return "hover:bg-amber-200 hover:text-amber-600 dark:hover:bg-amber-900 dark:hover:text-amber-400"
-  }
 }
 
 function isPastTimelineUnit(date: Date, timeline: Timeline, todayKey: string) {
@@ -427,7 +401,7 @@ function createTimeline(ranges: Array<{ end: Date; start: Date }>): Timeline {
 
   const totalDays = differenceInCalendarDays(end, start) + 1
   const unitDays = totalDays > 180 ? 7 : 1
-  const cellWidth = unitDays === 1 ? 34 : 58
+  const cellWidth = unitDays === 1 ? dailyCellWidth : weeklyCellWidth
   const unitCount = Math.ceil(totalDays / unitDays)
   const units = Array.from({ length: unitCount }, (_, index) =>
     addCalendarDays(start, index * unitDays)
@@ -451,7 +425,7 @@ function getMonthGroups(timeline: Timeline) {
     } else {
       groups.push({
         key,
-        label: `${date.getFullYear()}年${date.getMonth() + 1}月`,
+        label: `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`,
         unitCount: 1,
       })
     }

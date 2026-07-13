@@ -165,7 +165,7 @@ function TaskItem({
               ))}
             </span>
           </ItemTitle>
-          <ItemDescription>
+          <ItemDescription className="line-clamp-1">
             {task.description || "暂无细节描述"}
           </ItemDescription>
         </ItemContent>

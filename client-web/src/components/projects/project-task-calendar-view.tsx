@@ -10,8 +10,9 @@ import {
 import {
   addCalendarDays,
   formatDateKey,
+  getProjectTaskBlockClassName,
+  getProjectTaskBlockHoverClassName,
   getProjectTaskDateRange,
-  projectTaskStatusDetails,
 } from "@/components/projects/project-task-view-utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,12 @@ import {
 import { cn } from "@/lib/utils"
 
 const weekdayLabels = ["一", "二", "三", "四", "五", "六", "日"]
+const calendarTaskStatusOrder = {
+  todo: 0,
+  in_progress: 1,
+  done: 2,
+  canceled: 3,
+} satisfies Record<ProjectTask["status"], number>
 
 export function ProjectTaskCalendarView({
   emptyMessage = "暂无任务",
@@ -197,21 +204,26 @@ export function ProjectTaskCalendarView({
                           "min-h-16 border-r border-b p-1.5 last:border-r-0",
                           index % 7 === 6 && "border-r-0",
                           index >= 35 && "border-b-0",
-                          !isCurrentMonth && "bg-muted/20",
-                          isPast && "bg-muted text-muted-foreground"
+                          !isToday &&
+                            (!isCurrentMonth || isPast) &&
+                            "text-muted-foreground",
+                          isPast && "bg-muted",
+                          isToday && "bg-foreground/10"
                         )}
                         key={dateKey}
                       >
-                        <div className="mb-1 flex h-6 items-center">
+                        <div className="mb-2 flex h-6 items-center">
                           <time
                             className={cn(
                               "flex h-6 items-center justify-center rounded-md px-1.5 text-xs tabular-nums",
-                              !isCurrentMonth && "text-muted-foreground",
-                              isToday && "bg-foreground text-background"
+                              !isCurrentMonth &&
+                                !isToday &&
+                                "text-muted-foreground"
                             )}
                             dateTime={dateKey}
                           >
                             {date.getMonth() + 1} 月 {date.getDate()} 日
+                            {isToday && " - 今天"}
                           </time>
                         </div>
                         <div className="grid gap-1">
@@ -219,7 +231,6 @@ export function ProjectTaskCalendarView({
                             <CalendarTask
                               key={task.id}
                               onOpen={() => setActiveTask(task)}
-                              past={isPast}
                               task={task}
                             />
                           ))}
@@ -313,21 +324,18 @@ function UnscheduledCalendarTasks({
 
 function CalendarTask({
   onOpen,
-  past,
   task,
 }: {
   onOpen: () => void
-  past: boolean
   task: ProjectTask
 }) {
   return (
     <button
       aria-label={`查看任务详情：${task.title}`}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm border px-1.5 py-1 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
-        projectTaskStatusDetails[task.status].softClassName,
-        past && "text-muted-foreground dark:text-muted-foreground",
-        getCalendarTaskHoverClassName(task.status)
+        "flex h-8 w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+        getProjectTaskBlockClassName(task.status),
+        getProjectTaskBlockHoverClassName(task.status)
       )}
       onClick={onOpen}
       title={task.title}
@@ -354,19 +362,6 @@ function getProjectTaskStatusColor(status: ProjectTask["status"]) {
       return "text-stone-500"
     default:
       return "text-amber-600"
-  }
-}
-
-function getCalendarTaskHoverClassName(status: ProjectTask["status"]) {
-  switch (status) {
-    case "in_progress":
-      return "hover:bg-sky-200 hover:text-sky-600 dark:hover:bg-sky-900 dark:hover:text-sky-400"
-    case "done":
-      return "hover:bg-emerald-200 hover:text-emerald-600 dark:hover:bg-emerald-900 dark:hover:text-emerald-400"
-    case "canceled":
-      return "hover:bg-stone-200 hover:text-stone-600 dark:hover:bg-stone-900 dark:hover:text-stone-400"
-    default:
-      return "hover:bg-amber-200 hover:text-amber-600 dark:hover:bg-amber-900 dark:hover:text-amber-400"
   }
 }
 
@@ -401,7 +396,10 @@ function getTasksByDate(tasks: ProjectTask[], calendarDays: Date[]) {
   for (const dateTasks of result.values()) {
     dateTasks.sort((left, right) => {
       if (left.status !== right.status) {
-        return left.status.localeCompare(right.status)
+        return (
+          calendarTaskStatusOrder[left.status] -
+          calendarTaskStatusOrder[right.status]
+        )
       }
       return right.priority - left.priority
     })
