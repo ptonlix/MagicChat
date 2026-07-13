@@ -152,14 +152,27 @@ type appListConversationsResponse struct {
 }
 
 type appListConversationMessagesRequest struct {
-	BeforeOrEqualSeq int64  `json:"before_or_equal_seq"`
-	ConversationID   string `json:"conversation_id"`
-	Limit            int    `json:"limit"`
+	BeforeOrEqualSeq int64     `json:"before_or_equal_seq"`
+	ConversationID   string    `json:"conversation_id"`
+	Limit            int       `json:"limit"`
+	RunAs            *appRunAs `json:"runas"`
 }
 
 type appListConversationMessagesResponse struct {
-	Limit    int                                    `json:"limit"`
-	Messages []appConversationHistoryMessagePayload `json:"messages"`
+	Limit          int                                    `json:"limit"`
+	Messages       []appConversationHistoryMessagePayload `json:"messages"`
+	ProjectContext *appConversationProjectContext         `json:"project_context,omitempty"`
+}
+
+type appConversationProjectContext struct {
+	ConversationProjects []appConversationProjectContextProject `json:"conversation_projects"`
+	PersonalProject      *appConversationProjectContextProject  `json:"personal_project"`
+}
+
+type appConversationProjectContextProject struct {
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
 }
 
 type appReadConversationHistoryRequest struct {
@@ -854,6 +867,21 @@ func (s *Server) handleAppListConversationMessages(appID string, request realtim
 	if err != nil {
 		return appListConversationMessagesResponse{}, err
 	}
+	var projectContext *appConversationProjectContext
+	if req.RunAs != nil {
+		if strings.TrimSpace(req.RunAs.AuthorizationConversationID) != req.ConversationID {
+			return appListConversationMessagesResponse{}, newAppRequestFailure("forbidden", "项目上下文授权会话不匹配")
+		}
+		runAs, err := s.resolveAppRunAs(appID, req.RunAs)
+		if err != nil {
+			return appListConversationMessagesResponse{}, err
+		}
+		loaded, err := s.loadAppConversationProjectContext(req.ConversationID, runAs.ID)
+		if err != nil {
+			return appListConversationMessagesResponse{}, err
+		}
+		projectContext = &loaded
+	}
 	visibleFromSeq := member.HistoryVisibleFromSeq
 	if visibleFromSeq < 1 {
 		visibleFromSeq = 1
@@ -875,9 +903,53 @@ func (s *Server) handleAppListConversationMessages(appID string, request realtim
 	}
 
 	return appListConversationMessagesResponse{
-		Limit:    req.Limit,
-		Messages: payloads,
+		Limit:          req.Limit,
+		Messages:       payloads,
+		ProjectContext: projectContext,
 	}, nil
+}
+
+func (s *Server) loadAppConversationProjectContext(conversationID string, userID string) (appConversationProjectContext, error) {
+	result := appConversationProjectContext{
+		ConversationProjects: []appConversationProjectContextProject{},
+	}
+
+	var personal store.Project
+	err := s.db.
+		Select("id", "name", "description").
+		Where("owner_user_id = ? AND is_personal = ?", userID, true).
+		First(&personal).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return appConversationProjectContext{}, err
+	}
+	if err == nil {
+		result.PersonalProject = &appConversationProjectContextProject{
+			Description: personal.Description,
+			ID:          personal.ID,
+			Name:        personal.Name,
+		}
+	}
+
+	var projects []store.Project
+	if err := s.db.
+		Model(&store.Project{}).
+		Select("projects.id", "projects.name", "projects.description").
+		Joins("JOIN project_groups pg ON pg.project_id = projects.id").
+		Where("pg.conversation_id = ?", conversationID).
+		Order("projects.updated_at DESC").
+		Order("projects.id DESC").
+		Find(&projects).Error; err != nil {
+		return appConversationProjectContext{}, err
+	}
+	for _, project := range projects {
+		result.ConversationProjects = append(result.ConversationProjects, appConversationProjectContextProject{
+			Description: project.Description,
+			ID:          project.ID,
+			Name:        project.Name,
+		})
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleAppReadConversationHistory(appID string, request realtime.Envelope) (appReadConversationHistoryResponse, error) {

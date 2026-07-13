@@ -81,6 +81,14 @@ func TestAgentBuildsSystemPromptAndUserContext(t *testing.T) {
 				Summary:    "回复预计今天下午完成",
 			},
 		},
+		ProjectContext: &ProjectContext{
+			PersonalProject: &ProjectContextProject{
+				ID: "project-personal", Name: "个人工作区",
+			},
+			ConversationProjects: []ProjectContextProject{
+				{ID: "project-group", Name: "Dianbao", Description: "当前群关联项目"},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Reply() error = %v", err)
@@ -148,6 +156,17 @@ func TestAgentBuildsSystemPromptAndUserContext(t *testing.T) {
 				URL    string `json:"url"`
 			} `json:"body"`
 		} `json:"messages"`
+		ProjectContext struct {
+			PersonalProject struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"personal_project"`
+			ConversationProjects []struct {
+				Description string `json:"description"`
+				ID          string `json:"id"`
+				Name        string `json:"name"`
+			} `json:"conversation_projects"`
+		} `json:"project_context"`
 	}
 	if err := json.Unmarshal([]byte(contextMessage.Content), &contextPayload); err != nil {
 		t.Fatalf("unmarshal context JSON: %v; content=%q", err, contextMessage.Content)
@@ -194,6 +213,12 @@ func TestAgentBuildsSystemPromptAndUserContext(t *testing.T) {
 	if contextPayload.Messages[1].SenderName != "女菩萨" {
 		t.Fatalf("second sender = %q, want 女菩萨", contextPayload.Messages[1].SenderName)
 	}
+	if contextPayload.ProjectContext.PersonalProject.ID != "project-personal" || contextPayload.ProjectContext.PersonalProject.Name != "个人工作区" {
+		t.Fatalf("personal project context = %#v", contextPayload.ProjectContext.PersonalProject)
+	}
+	if len(contextPayload.ProjectContext.ConversationProjects) != 1 || contextPayload.ProjectContext.ConversationProjects[0].ID != "project-group" {
+		t.Fatalf("conversation project context = %#v", contextPayload.ProjectContext.ConversationProjects)
+	}
 
 	currentMessage := gotRequest.Messages[1]
 	if currentMessage.Role != "user" {
@@ -221,12 +246,24 @@ func TestDefaultSystemPromptDescribesBuiltinToolUsage(t *testing.T) {
 		"Agent 自身身份",
 		"conversations",
 		"projects",
+		"project_context",
+		"personal_project",
+		"conversation_projects",
+		"不是权限边界",
 		"search_projects",
 		"search_tasks",
 		"expected_updated_at",
 		"{(@user/用户UUID)}",
 		"{(@app/应用UUID)}",
 		"{(@user/all)}",
+		"常用站内链接",
+		"/chat/{conversation_id}",
+		"/contacts/user/{user_id}",
+		"/contacts/app/{app_id}",
+		"/contacts/group/{conversation_id}",
+		"/projects/{project_id}",
+		"当前客户端没有任务独立链接",
+		"不要猜测部署域名",
 		"会话类型",
 		"成员数量",
 		"私聊对象",
@@ -516,6 +553,9 @@ func TestAgentSessionAppendsNewInstructionBeforeNextTurn(t *testing.T) {
 				MessageID: "message-2",
 				Sender:    Sender{ID: "user-1", Name: "Alice", Type: "user"},
 				Content:   "第二条补充",
+				ProjectContext: &ProjectContext{
+					ConversationProjects: []ProjectContextProject{{ID: "project-second", Name: "第二轮项目"}},
+				},
 			}); err != nil {
 				t.Fatalf("Append() error = %v", err)
 			}
@@ -550,6 +590,9 @@ func TestAgentSessionAppendsNewInstructionBeforeNextTurn(t *testing.T) {
 	}
 	if !strings.Contains(string(secondRequestJSON), "第二条补充") {
 		t.Fatalf("second request messages = %s, want appended instruction", secondRequestJSON)
+	}
+	if !strings.Contains(string(secondRequestJSON), "project-second") || !strings.Contains(string(secondRequestJSON), "project_context") {
+		t.Fatalf("second request messages = %s, want refreshed project context", secondRequestJSON)
 	}
 	if strings.Index(string(secondRequestJSON), "toolu_1") > strings.Index(string(secondRequestJSON), "第二条补充") {
 		t.Fatalf("second request messages = %s, want appended instruction after tool result", secondRequestJSON)

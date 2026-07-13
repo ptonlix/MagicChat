@@ -150,13 +150,33 @@ type senderPayload struct {
 }
 
 type appListConversationMessagesRequestPayload struct {
-	BeforeOrEqualSeq int64  `json:"before_or_equal_seq"`
-	ConversationID   string `json:"conversation_id"`
-	Limit            int    `json:"limit"`
+	BeforeOrEqualSeq int64                   `json:"before_or_equal_seq"`
+	ConversationID   string                  `json:"conversation_id"`
+	Limit            int                     `json:"limit"`
+	RunAs            *appRunAsRequestPayload `json:"runas,omitempty"`
 }
 
 type appListConversationMessagesResponsePayload struct {
-	Messages []historyMessagePayload `json:"messages"`
+	Messages       []historyMessagePayload `json:"messages"`
+	ProjectContext *projectContextPayload  `json:"project_context,omitempty"`
+}
+
+type appRunAsRequestPayload struct {
+	AuthorizationConversationID string `json:"authorization_conversation_id"`
+	ID                          string `json:"id"`
+	TriggerMessageID            string `json:"trigger_message_id"`
+	Type                        string `json:"type"`
+}
+
+type projectContextPayload struct {
+	ConversationProjects []projectContextProjectPayload `json:"conversation_projects"`
+	PersonalProject      *projectContextProjectPayload  `json:"personal_project"`
+}
+
+type projectContextProjectPayload struct {
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
 }
 
 type readTemporaryFileURLsRequestPayload struct {
@@ -559,9 +579,10 @@ func handleParsedServerMessage(ctx context.Context, message envelope, appID stri
 }
 
 func prepareAgentRun(ctx context.Context, requester appRequester, payload messageCreatedPayload, body messageBody, senderName string) (preparedAgentRun, error) {
-	historyMessages, err := loadConversationHistoryMessages(ctx, requester, payload)
+	authorization := authorizationForMessage(payload)
+	conversationContext, err := loadConversationContext(ctx, requester, payload, authorization)
 	if err != nil {
-		return preparedAgentRun{}, fmt.Errorf("load conversation history: %w", err)
+		return preparedAgentRun{}, fmt.Errorf("load conversation context: %w", err)
 	}
 	fileURLs, err := readTemporaryFileURLsForMessage(ctx, requester, body)
 	if err != nil {
@@ -571,11 +592,10 @@ func prepareAgentRun(ctx context.Context, requester appRequester, payload messag
 	if err != nil {
 		return preparedAgentRun{}, fmt.Errorf("prepare agent message content: %w", err)
 	}
-	history, err := buildAgentHistory(payload.Message.ID, historyMessages)
+	history, err := buildAgentHistory(payload.Message.ID, conversationContext.Messages)
 	if err != nil {
 		return preparedAgentRun{}, fmt.Errorf("prepare conversation history: %w", err)
 	}
-	authorization := authorizationForMessage(payload)
 
 	return preparedAgentRun{
 		Authorization: authorization,
@@ -593,10 +613,11 @@ func prepareAgentRun(ctx context.Context, requester appRequester, payload messag
 				Name:  senderName,
 				Type:  payload.Sender.Type,
 			},
-			MessageID:   payload.Message.ID,
-			Content:     content,
-			CurrentTime: time.Now().UTC(),
-			History:     history,
+			MessageID:      payload.Message.ID,
+			Content:        content,
+			CurrentTime:    time.Now().UTC(),
+			History:        history,
+			ProjectContext: buildAgentProjectContext(conversationContext.ProjectContext),
 		},
 		Scope: builtintools.Scope{
 			ConversationID:   payload.Conversation.ID,
@@ -798,22 +819,56 @@ func temporaryFileURLForBody(body messageBody, fileURLs map[string]temporaryFile
 	return readURL, true
 }
 
-func loadConversationHistoryMessages(ctx context.Context, requester appRequester, payload messageCreatedPayload) ([]historyMessagePayload, error) {
+func loadConversationContext(ctx context.Context, requester appRequester, payload messageCreatedPayload, authorization preparedAuthorization) (appListConversationMessagesResponsePayload, error) {
+	var runAs *appRunAsRequestPayload
+	if authorization.Authorization.ActorType == "user" {
+		runAs = &appRunAsRequestPayload{
+			AuthorizationConversationID: payload.Conversation.ID,
+			ID:                          authorization.Authorization.ActorID,
+			TriggerMessageID:            authorization.Authorization.TriggerMessageID,
+			Type:                        authorization.Authorization.ActorType,
+		}
+	}
 	raw, err := requester.Request(ctx, methodConversationMessagesList, appListConversationMessagesRequestPayload{
 		BeforeOrEqualSeq: payload.Message.Seq,
 		ConversationID:   payload.Conversation.ID,
 		Limit:            defaultConversationContextLimit,
+		RunAs:            runAs,
 	})
 	if err != nil {
-		return nil, err
+		return appListConversationMessagesResponsePayload{}, err
 	}
 
 	var response appListConversationMessagesResponsePayload
 	if err := json.Unmarshal(raw, &response); err != nil {
-		return nil, err
+		return appListConversationMessagesResponsePayload{}, err
 	}
 
-	return response.Messages, nil
+	return response, nil
+}
+
+func buildAgentProjectContext(projectContext *projectContextPayload) *agent.ProjectContext {
+	if projectContext == nil {
+		return nil
+	}
+	result := &agent.ProjectContext{
+		ConversationProjects: make([]agent.ProjectContextProject, 0, len(projectContext.ConversationProjects)),
+	}
+	if projectContext.PersonalProject != nil {
+		result.PersonalProject = &agent.ProjectContextProject{
+			Description: projectContext.PersonalProject.Description,
+			ID:          projectContext.PersonalProject.ID,
+			Name:        projectContext.PersonalProject.Name,
+		}
+	}
+	for _, project := range projectContext.ConversationProjects {
+		result.ConversationProjects = append(result.ConversationProjects, agent.ProjectContextProject{
+			Description: project.Description,
+			ID:          project.ID,
+			Name:        project.Name,
+		})
+	}
+	return result
 }
 
 func buildAgentHistory(currentMessageID string, messages []historyMessagePayload) ([]agent.HistoryMessage, error) {

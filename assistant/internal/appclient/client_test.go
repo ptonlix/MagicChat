@@ -161,6 +161,12 @@ func TestHandleServerMessageSendsLLMReply(t *testing.T) {
 			t.Fatalf("unmarshal history request payload: %v", err)
 		}
 		return json.Marshal(appListConversationMessagesResponsePayload{
+			ProjectContext: &projectContextPayload{
+				PersonalProject: &projectContextProjectPayload{ID: "project-personal", Name: "个人工作区"},
+				ConversationProjects: []projectContextProjectPayload{
+					{ID: "project-group", Name: "Dianbao", Description: "当前群项目"},
+				},
+			},
 			Messages: []historyMessagePayload{
 				{
 					CreatedAt: time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC),
@@ -220,6 +226,9 @@ func TestHandleServerMessageSendsLLMReply(t *testing.T) {
 	if historyPayload.Limit != 30 {
 		t.Fatalf("history limit = %d, want 30", historyPayload.Limit)
 	}
+	if historyPayload.RunAs == nil || historyPayload.RunAs.Type != "user" || historyPayload.RunAs.ID != "user-1" || historyPayload.RunAs.TriggerMessageID != "message-1" || historyPayload.RunAs.AuthorizationConversationID != "conversation-1" {
+		t.Fatalf("history runas = %#v, want current user trigger", historyPayload.RunAs)
+	}
 	if len(agentRequests) != 1 {
 		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
 	}
@@ -253,6 +262,12 @@ func TestHandleServerMessageSendsLLMReply(t *testing.T) {
 	}
 	if len(agentRequest.History) != 2 {
 		t.Fatalf("agent history count = %d, want 2", len(agentRequest.History))
+	}
+	if agentRequest.ProjectContext == nil || agentRequest.ProjectContext.PersonalProject == nil || agentRequest.ProjectContext.PersonalProject.ID != "project-personal" {
+		t.Fatalf("agent project context = %#v, want personal project", agentRequest.ProjectContext)
+	}
+	if len(agentRequest.ProjectContext.ConversationProjects) != 1 || agentRequest.ProjectContext.ConversationProjects[0].ID != "project-group" {
+		t.Fatalf("agent conversation projects = %#v, want group project", agentRequest.ProjectContext.ConversationProjects)
 	}
 	if agentRequest.History[0].Summary != "之前问了部署时间" {
 		t.Fatalf("first history summary = %q, want previous summary", agentRequest.History[0].Summary)

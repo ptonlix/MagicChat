@@ -188,7 +188,7 @@ func projectsCapabilitySpec() capabilitySpec {
 		Operations: []operationSpec{
 			{
 				Name:            projectsOperationSearchProjects,
-				Description:     "查询授权用户可访问的个人项目和协作项目。keyword 按项目名称和描述匹配；limit 默认 50，最大 100；cursor 用于继续分页。返回项目 ID、名称、描述、所有者、当前用户角色、群数、成员数、任务状态统计和更新时间。",
+				Description:     "查询授权用户可访问的个人项目和协作项目。conversation_context.project_context 只是当前语境的优先候选，不是完整清单；需要查找其中未列出的项目时使用本操作。keyword 按项目名称和描述匹配；limit 默认 50，最大 100；cursor 用于继续分页。返回项目 ID、名称、描述、所有者、当前用户角色、群数、成员数、任务状态统计和更新时间。",
 				InputSchema:     projectOperationInputSchema(projectsOperationSearchProjects, searchProjectsArgumentsSchema()),
 				ToolName:        projectsToolName,
 				ToolDescription: toolDescription,
@@ -204,7 +204,7 @@ func projectsCapabilitySpec() capabilitySpec {
 			},
 			{
 				Name:            projectsOperationGrantGroupAccess,
-				Description:     "将授权用户拥有的普通项目授权给一个 active 群聊。授权用户必须是项目所有者且仍是目标群成员；个人项目不能授权。conversation_id 使用 contacts.search_groups 返回的群聊 ID。重复授权保持成功，并返回 already_granted。",
+				Description:     "将授权用户拥有的普通项目授权给一个 active 群聊。授权用户必须是项目所有者且仍是目标群成员；个人项目不能授权。当前可信会话是目标群时可直接使用 conversation.id，其他群使用 contacts.search_groups 返回的群聊 ID。重复授权保持成功，并返回 already_granted。",
 				InputSchema:     projectOperationInputSchema(projectsOperationGrantGroupAccess, grantGroupAccessArgumentsSchema()),
 				ToolName:        projectsToolName,
 				ToolDescription: toolDescription,
@@ -212,7 +212,7 @@ func projectsCapabilitySpec() capabilitySpec {
 			},
 			{
 				Name:            projectsOperationSearchTasks,
-				Description:     "查询授权用户有权访问的指定项目任务。支持标题/描述关键词、状态、优先级、负责人、标签、开始日期和截止日期范围筛选；limit 默认 50，最大 100。返回任务详情、负责人、创建人、updated_at 和分页游标。",
+				Description:     "查询授权用户有权访问的指定项目任务。project_id 可直接使用可信 project_context 中的候选；否则先查询项目。支持标题/描述关键词、状态、优先级、负责人、标签、开始日期和截止日期范围筛选；limit 默认 50，最大 100。返回任务详情、负责人、创建人、updated_at 和分页游标。",
 				InputSchema:     projectOperationInputSchema(projectsOperationSearchTasks, searchTasksArgumentsSchema()),
 				ToolName:        projectsToolName,
 				ToolDescription: toolDescription,
@@ -220,7 +220,7 @@ func projectsCapabilitySpec() capabilitySpec {
 			},
 			{
 				Name:            projectsOperationCreateTask,
-				Description:     "以授权用户身份在其有权访问的项目中创建任务。title 必填；status 默认 todo，priority 默认 2；负责人必须是有项目访问权的 active 用户。返回创建后的完整任务。",
+				Description:     "以授权用户身份在其有权访问的项目中创建任务。project_id 可直接使用按系统项目选择规则确定的可信 project_context 候选；否则先查询项目。title 必填；status 默认 todo，priority 默认 2；负责人必须是有项目访问权的 active 用户。返回创建后的完整任务。",
 				InputSchema:     projectOperationInputSchema(projectsOperationCreateTask, createTaskArgumentsSchema()),
 				ToolName:        projectsToolName,
 				ToolDescription: toolDescription,
