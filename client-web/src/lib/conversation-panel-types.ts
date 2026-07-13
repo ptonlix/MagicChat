@@ -18,6 +18,13 @@ export type ConversationPanelMessage = {
   senderUserId: string | null
 }
 
+export type ConversationPanelMessageSelection = {
+  active: boolean
+  selectedMessageIds: ReadonlySet<string>
+}
+
+export type ConversationPanelForwardMode = "separate" | "merged"
+
 export type ConversationPanelAppProfile = {
   avatar: string
   description: string

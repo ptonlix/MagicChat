@@ -97,11 +97,26 @@ definitions:
         example: app
         type: string
     type: object
+  httpserver.contactGroupAvatarMemberResponse:
+    properties:
+      avatar:
+        type: string
+      name:
+        type: string
+      nickname:
+        type: string
+      role:
+        type: string
+    type: object
   httpserver.contactGroupResponse:
     properties:
       avatar:
         example: /assets/avatars/groups/07.webp
         type: string
+      avatar_members:
+        items:
+          $ref: '#/definitions/httpserver.contactGroupAvatarMemberResponse'
+        type: array
       id:
         example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
         type: string
@@ -433,6 +448,88 @@ definitions:
         example: false
         type: boolean
     type: object
+  httpserver.externalContactGroupResponse:
+    properties:
+      channel:
+        type: string
+      contacts:
+        items:
+          $ref: '#/definitions/httpserver.externalContactResponse'
+        type: array
+      id:
+        type: string
+      last_sync_at:
+        type: string
+      last_sync_error:
+        type: string
+      last_sync_error_at:
+        type: string
+      name:
+        type: string
+      online:
+        type: boolean
+      remote_account_id:
+        type: string
+    type: object
+  httpserver.externalContactResponse:
+    properties:
+      avatar:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: string
+      remote_contact_id:
+        type: string
+      type:
+        type: string
+    type: object
+  httpserver.forwardMessagesRequest:
+    properties:
+      client_forward_id:
+        type: string
+      message_ids:
+        items:
+          type: string
+        type: array
+      mode:
+        type: string
+      target_conversation_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  httpserver.forwardMessagesResponse:
+    properties:
+      failed_count:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/httpserver.forwardMessagesTargetResult'
+        type: array
+      sent_count:
+        type: integer
+    type: object
+  httpserver.forwardMessagesTargetError:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  httpserver.forwardMessagesTargetResult:
+    properties:
+      conversation_id:
+        type: string
+      error:
+        $ref: '#/definitions/httpserver.forwardMessagesTargetError'
+      messages:
+        items:
+          $ref: '#/definitions/httpserver.messageResponse'
+        type: array
+      status:
+        type: string
+    type: object
   httpserver.groupConversationResponse:
     properties:
       avatar:
@@ -527,6 +624,10 @@ definitions:
       apps:
         items:
           $ref: '#/definitions/httpserver.contactAppResponse'
+        type: array
+      external_contact_groups:
+        items:
+          $ref: '#/definitions/httpserver.externalContactGroupResponse'
         type: array
       groups:
         items:
@@ -2670,6 +2771,62 @@ paths:
           schema:
             $ref: '#/definitions/httpserver.errorEnvelope'
       summary: 发送文件消息
+      tags:
+      - 客户端消息
+  /api/client/conversations/{conversation_id}/messages/forward:
+    post:
+      consumes:
+      - application/json
+      description: 将同一源会话中的一条或多条可见消息逐条或合并转发到多个目标会话。目标会话之间允许部分成功。
+      parameters:
+      - description: 源会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      - description: 转发请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpserver.forwardMessagesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpserver.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/httpserver.forwardMessagesResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpserver.errorEnvelope'
+      summary: 转发会话消息
       tags:
       - 客户端消息
   /api/client/conversations/{conversation_id}/messages/images:

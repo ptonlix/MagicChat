@@ -5,12 +5,15 @@ import { toast } from "sonner"
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import { useClientData } from "@/lib/client-data-context"
 import { useConversationDrafts } from "@/hooks/use-conversation-drafts"
+import { useMessageSelection } from "@/hooks/use-message-selection"
 import {
+  forwardConversationMessages,
   type ClientConversation,
   type ClientMessage,
   type ContactApp,
   type ContactUser,
 } from "@/lib/client-data-api"
+import { createClientMessageId } from "@/lib/message-id"
 import {
   emptyConversationDraft,
   type ConversationDraftMention,
@@ -21,14 +24,23 @@ import {
   toConversationPanelMessage,
 } from "@/lib/conversation-message-presenter"
 import { CreateGroupConversationDialog } from "@/components/conversation/create-group-conversation-dialog"
+import { ForwardMessageDialog } from "@/components/conversation/forward-message-dialog"
 import { ConversationSidebar } from "@/components/conversation/conversation-sidebar"
 import {
   ConversationPanel,
+  type ConversationPanelForwardMode,
   type ConversationPanelMessage,
 } from "@/components/conversation-panel"
 import { SidebarProvider } from "@/components/ui/sidebar"
 
 const emptyClientMessages: ClientMessage[] = []
+
+type ForwardOperation = {
+  clientForwardId: string
+  messageIds: string[]
+  mode: ConversationPanelForwardMode
+  sourceConversationId: string
+}
 
 function normalizeSingleLinkMessageURL(content: string) {
   const value = content.trim()
@@ -69,6 +81,7 @@ export function ChatPage() {
     loadBeforeConversationMessages,
     markConversationRead,
     me,
+    mergeIncomingConversationMessage,
     revokeConversationMessage,
     sendConversationFile,
     sendConversationImage,
@@ -86,6 +99,8 @@ export function ChatPage() {
   const [richTextMode, setRichTextMode] = React.useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] =
     React.useState(false)
+  const [forwardOperation, setForwardOperation] =
+    React.useState<ForwardOperation | null>(null)
   const requestedConversationId = conversationId ?? ""
 
   const activeConversation = React.useMemo(
@@ -95,6 +110,7 @@ export function ChatPage() {
   )
 
   const activeConversationId = activeConversation?.id ?? ""
+  const messageSelection = useMessageSelection(activeConversationId)
   const activeDraft = drafts[activeConversationId] ?? emptyConversationDraft
   const draft = activeDraft.text
   const replyTarget = activeDraft.replyTarget
@@ -174,6 +190,25 @@ export function ChatPage() {
       contactsById,
       me,
     ]
+  )
+  const selectedClientMessages = React.useMemo(
+    () =>
+      activeClientMessages.filter(
+        (message) =>
+          messageSelection.selectedMessageIds.has(message.id) &&
+          message.body.type !== "revoked" &&
+          message.body.type !== "system_event"
+      ),
+    [activeClientMessages, messageSelection.selectedMessageIds]
+  )
+  const visibleMessageSelection = React.useMemo(
+    () => ({
+      active: messageSelection.active,
+      selectedMessageIds: new Set(
+        selectedClientMessages.map((message) => message.id)
+      ),
+    }),
+    [messageSelection.active, selectedClientMessages]
   )
 
   const setDraft = React.useCallback(
@@ -273,6 +308,89 @@ export function ChatPage() {
     },
     [activeConversationId, revokeConversationMessage]
   )
+
+  const openForwardOperation = React.useCallback(
+    (messages: ClientMessage[], mode: ConversationPanelForwardMode) => {
+      if (!activeConversationId || messages.length === 0) {
+        return
+      }
+      if (mode === "merged" && messages.length < 2) {
+        return
+      }
+
+      setForwardOperation({
+        clientForwardId: createClientMessageId(),
+        messageIds: messages.map((message) => message.id),
+        mode,
+        sourceConversationId: activeConversationId,
+      })
+    },
+    [activeConversationId]
+  )
+
+  const forwardSingleMessage = React.useCallback(
+    (message: ConversationPanelMessage) => {
+      const clientMessage = activeClientMessagesById.get(message.id)
+      if (clientMessage) {
+        openForwardOperation([clientMessage], "separate")
+      }
+    },
+    [activeClientMessagesById, openForwardOperation]
+  )
+
+  const startMessageSelection = React.useCallback(
+    (message: ConversationPanelMessage) => messageSelection.start(message.id),
+    [messageSelection]
+  )
+
+  const toggleMessageSelection = React.useCallback(
+    (message: ConversationPanelMessage) => {
+      const selected = messageSelection.selectedMessageIds.has(message.id)
+      if (
+        !selected &&
+        messageSelection.selectedMessageIds.size >=
+          messageSelection.maxSelectedMessages
+      ) {
+        toast.warning(
+          `一次最多选择 ${messageSelection.maxSelectedMessages} 条消息`
+        )
+        return
+      }
+      messageSelection.toggle(message.id)
+    },
+    [messageSelection]
+  )
+
+  const forwardSelectedMessages = React.useCallback(
+    (mode: ConversationPanelForwardMode) => {
+      openForwardOperation(selectedClientMessages, mode)
+    },
+    [openForwardOperation, selectedClientMessages]
+  )
+
+  async function submitForwardOperation(targetConversationIds: string[]) {
+    if (!forwardOperation) {
+      throw new Error("转发操作不存在")
+    }
+    const result = await forwardConversationMessages(
+      forwardOperation.sourceConversationId,
+      {
+        clientForwardId: forwardOperation.clientForwardId,
+        messageIds: forwardOperation.messageIds,
+        mode: forwardOperation.mode,
+        targetConversationIds,
+      }
+    )
+    for (const target of result.results) {
+      if (target.status !== "sent") {
+        continue
+      }
+      for (const message of target.messages) {
+        mergeIncomingConversationMessage(message)
+      }
+    }
+    return result
+  }
 
   function clearSentReplyTarget(
     conversationId: string,
@@ -415,9 +533,13 @@ export function ChatPage() {
         historyLoadingBefore={Boolean(activeMessageState?.loadingBefore)}
         mentionLabelResolver={activeMentionLabelResolver}
         messages={activeMessages}
+        messageSelection={visibleMessageSelection}
+        onCancelMessageSelection={messageSelection.cancel}
         onCancelReply={clearReplyTarget}
         onDraftBlur={flushDrafts}
         onDraftChange={setDraft}
+        onForwardMessage={forwardSingleMessage}
+        onForwardSelectedMessages={forwardSelectedMessages}
         onReplyToMessage={replyToMessage}
         onRevokeMessage={revokeMessage}
         onRichTextModeChange={setRichTextMode}
@@ -426,6 +548,8 @@ export function ChatPage() {
         onSendVoice={sendVoiceMessage}
         onLoadBeforeMessages={loadBeforeMessages}
         onSendMessage={sendMessage}
+        onStartMessageSelection={startMessageSelection}
+        onToggleMessageSelection={toggleMessageSelection}
         replyTarget={replyTarget}
         richTextMode={richTextMode}
         sending={Boolean(activeMessageState?.sending)}
@@ -438,6 +562,21 @@ export function ChatPage() {
         onCreate={startGroupConversation}
         onOpenChange={setCreateGroupDialogOpen}
       />
+      {forwardOperation && (
+        <ForwardMessageDialog
+          conversations={conversations}
+          currentConversationId={forwardOperation.sourceConversationId}
+          messageCount={forwardOperation.messageIds.length}
+          onComplete={messageSelection.cancel}
+          onForward={submitForwardOperation}
+          onOpenChange={(open) => {
+            if (!open) {
+              setForwardOperation(null)
+            }
+          }}
+          open
+        />
+      )}
     </SidebarProvider>
   )
 }

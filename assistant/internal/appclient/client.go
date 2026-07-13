@@ -124,11 +124,25 @@ type messagePayload struct {
 }
 
 type messageBody struct {
-	Content   string `json:"content"`
-	FileID    string `json:"file_id"`
-	Name      string `json:"name"`
-	SizeBytes int64  `json:"size_bytes"`
-	Type      string `json:"type"`
+	Content    string                     `json:"content"`
+	DurationMS int                        `json:"duration_ms"`
+	FileID     string                     `json:"file_id"`
+	ItemCount  int                        `json:"item_count"`
+	Items      []forwardBundleItemPayload `json:"items"`
+	Name       string                     `json:"name"`
+	SizeBytes  int64                      `json:"size_bytes"`
+	Title      string                     `json:"title"`
+	Transcript string                     `json:"transcript"`
+	Type       string                     `json:"type"`
+	URL        string                     `json:"url"`
+}
+
+type forwardBundleItemPayload struct {
+	Body       messageBody `json:"body"`
+	SenderName string      `json:"sender_name"`
+	SenderType string      `json:"sender_type"`
+	SentAt     time.Time   `json:"sent_at"`
+	Summary    string      `json:"summary"`
 }
 
 type sendMessageRequestPayload struct {
@@ -660,7 +674,7 @@ func authorizationForMessage(payload messageCreatedPayload) preparedAuthorizatio
 
 func isSupportedIncomingMessageType(messageType string) bool {
 	switch messageType {
-	case "text", "markdown", "image", "file":
+	case "text", "markdown", "image", "file", "link", "voice", "forward_bundle":
 		return true
 	default:
 		return false
@@ -716,6 +730,37 @@ func buildAgentMessageContent(body messageBody, fileURLs map[string]temporaryFil
 			content += "\n临时访问地址：未获取到"
 		}
 		return content, nil
+	case "link":
+		title := strings.TrimSpace(body.Title)
+		if title == "" {
+			title = "链接"
+		}
+		return fmt.Sprintf("用户发送了一个链接。\n标题：%s\n地址：%s", title, body.URL), nil
+	case "voice":
+		content := fmt.Sprintf("用户发送了一条语音消息。\n时长：%d 毫秒\n文件 ID：%s", body.DurationMS, body.FileID)
+		if transcript := strings.TrimSpace(body.Transcript); transcript != "" {
+			content += "\n转写内容：" + transcript
+		}
+		if readURL, ok := temporaryFileURLForBody(body, fileURLs); ok {
+			content += "\n临时访问地址：" + readURL.URL
+		} else {
+			content += "\n临时访问地址：未获取到"
+		}
+		return content, nil
+	case "forward_bundle":
+		if len(body.Items) == 0 {
+			return "", errors.New("forward bundle is empty")
+		}
+		var content strings.Builder
+		fmt.Fprintf(&content, "用户转发了一组聊天记录，共 %d 条：", len(body.Items))
+		for index, item := range body.Items {
+			itemContent, err := buildAgentMessageContent(item.Body, fileURLs)
+			if err != nil {
+				return "", fmt.Errorf("forward bundle item %d: %w", index+1, err)
+			}
+			fmt.Fprintf(&content, "\n\n%d. %s（%s）\n%s", index+1, item.SenderName, item.SentAt.Format(time.RFC3339), itemContent)
+		}
+		return content.String(), nil
 	default:
 		return "", fmt.Errorf("unsupported message type %q", body.Type)
 	}
@@ -748,11 +793,17 @@ func collectTemporaryFileIDs(body messageBody) ([]string, error) {
 
 func collectTemporaryFileIDFromBody(body messageBody, add func(string)) error {
 	switch body.Type {
-	case "image", "file":
+	case "image", "file", "voice":
 		if body.FileID == "" {
 			return nil
 		}
 		add(body.FileID)
+	case "forward_bundle":
+		for _, item := range body.Items {
+			if err := collectTemporaryFileIDFromBody(item.Body, add); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -914,7 +965,6 @@ func buildHistoryMessageBody(raw json.RawMessage) (json.RawMessage, error) {
 	case "image", "file":
 		delete(fields, "url")
 	}
-
 	body, err := json.Marshal(fields)
 	if err != nil {
 		return nil, err

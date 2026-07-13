@@ -20,6 +20,8 @@ import type {
   ClientMessageReplyTo,
   ClientImageMessageBody,
   ClientVoiceMessageBody,
+  ClientForwardBundleMessageBody,
+  ClientForwardableMessageBody,
   ClientSystemEventUserRef,
   ClientGroupMembersInvitedSystemEventBody,
   ClientGroupAvatarUpdatedSystemEventBody,
@@ -37,6 +39,8 @@ import type {
 } from "./types"
 
 const temporaryFileReadURLCacheSafetyWindowMs = 5 * 60 * 1000
+const maxForwardBundleDepth = 5
+const maxForwardBundleLeafCount = 50
 
 export function normalizeMarkConversationReadResult(
   result: MarkConversationReadResponse | undefined
@@ -155,7 +159,8 @@ function normalizeMessageReplyTo(
 }
 
 function normalizeMessageBody(
-  body: MessageBodyResponse | undefined
+  body: MessageBodyResponse | undefined,
+  forwardBundleDepth = 0
 ): ClientMessageBody {
   if (body?.type === "text" && typeof body.content === "string") {
     return {
@@ -238,11 +243,86 @@ function normalizeMessageBody(
     return normalizedVoice
   }
 
+  if (
+    body?.type === "forward_bundle" &&
+    forwardBundleDepth < maxForwardBundleDepth &&
+    typeof body.item_count === "number" &&
+    body.item_count > 0 &&
+    body.item_count <= maxForwardBundleLeafCount &&
+    Array.isArray(body.items) &&
+    body.items.length === body.item_count
+  ) {
+    const normalizedBundle: ClientForwardBundleMessageBody = {
+      itemCount: body.item_count,
+      items: body.items.map((item) => {
+        if (
+          !item ||
+          !item.sender_name?.trim() ||
+          (item.sender_type !== "user" && item.sender_type !== "app") ||
+          !item.sent_at ||
+          typeof item.summary !== "string"
+        ) {
+          throw new ClientDataRequestError("消息响应格式不正确")
+        }
+
+        const normalizedBody = normalizeMessageBody(
+          item.body,
+          forwardBundleDepth + 1
+        )
+        if (!isForwardableMessageBody(normalizedBody)) {
+          throw new ClientDataRequestError("消息响应格式不正确")
+        }
+
+        return {
+          body: normalizedBody,
+          senderName: item.sender_name,
+          senderType: item.sender_type,
+          sentAt: item.sent_at,
+          summary: item.summary,
+        }
+      }),
+      type: "forward_bundle",
+    }
+
+    if (
+      countForwardBundleLeaves(normalizedBundle) > maxForwardBundleLeafCount
+    ) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return normalizedBundle
+  }
+
   if (body?.type === "system_event") {
     return normalizeSystemEventMessageBody(body)
   }
 
   throw new ClientDataRequestError("消息响应格式不正确")
+}
+
+function isForwardableMessageBody(
+  body: ClientMessageBody
+): body is ClientForwardableMessageBody {
+  return (
+    body.type === "text" ||
+    body.type === "markdown" ||
+    body.type === "link" ||
+    body.type === "file" ||
+    body.type === "image" ||
+    body.type === "voice" ||
+    body.type === "forward_bundle"
+  )
+}
+
+function countForwardBundleLeaves(body: ClientForwardableMessageBody): number {
+  if (body.type !== "forward_bundle") {
+    return 1
+  }
+
+  return body.items.reduce(
+    (count, item) => count + countForwardBundleLeaves(item.body),
+    0
+  )
 }
 
 function isPositiveFiniteNumber(value: unknown): value is number {

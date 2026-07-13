@@ -1,6 +1,6 @@
 import * as React from "react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
-import { Copy, Forward, Reply, Undo2 } from "lucide-react"
+import { Copy, Forward, ListChecks, Reply, Undo2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -9,6 +9,8 @@ type MessageActionMenuProps = {
   canRevoke?: boolean
   copyDisabled?: boolean
   onCopy?: () => void
+  onForward?: () => void
+  onMultiSelect?: () => void
   onReply?: () => void
   onRevoke?: () => void
 }
@@ -17,6 +19,7 @@ const messageActions = [
   { label: "复制", icon: Copy, type: "copy" },
   { label: "回复", icon: Reply, type: "reply" },
   { label: "转发", icon: Forward, type: "forward" },
+  { label: "多选", icon: ListChecks, type: "multi-select" },
 ] as const
 
 export function MessageActionMenu({
@@ -24,6 +27,8 @@ export function MessageActionMenu({
   children,
   copyDisabled = false,
   onCopy,
+  onForward,
+  onMultiSelect,
   onReply,
   onRevoke,
 }: MessageActionMenuProps) {
@@ -45,14 +50,24 @@ export function MessageActionMenu({
         >
           {messageActions.map((action) => (
             <MessageActionMenuItem
-              disabled={action.type === "copy" ? copyDisabled : false}
+              disabled={
+                action.type === "copy"
+                  ? copyDisabled
+                  : action.type === "forward"
+                    ? !onForward
+                    : action.type === "multi-select"
+                      ? !onMultiSelect
+                      : false
+              }
               key={action.label}
               onSelect={
                 action.type === "copy"
                   ? onCopy
                   : action.type === "reply"
                     ? onReply
-                    : undefined
+                    : action.type === "forward"
+                      ? onForward
+                      : onMultiSelect
               }
             >
               <action.icon aria-hidden="true" className="size-4" />

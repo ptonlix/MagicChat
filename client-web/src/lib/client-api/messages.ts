@@ -3,6 +3,7 @@ import type {
   ClientDataFetch,
   ClientDataSuccessEnvelope,
   ClientDataErrorEnvelope,
+  ForwardConversationMessagesResponse,
   ListConversationMessagesResponse,
   CreateMessageResponse,
   RevokeConversationMessageResponse,
@@ -24,6 +25,8 @@ import type {
   TemporaryFileReadURL,
   MarkConversationReadOptions,
   MarkConversationReadResult,
+  ForwardConversationMessagesInput,
+  ForwardConversationMessagesResult,
 } from "./types"
 import {
   isTemporaryFileReadURLFresh,
@@ -79,6 +82,86 @@ export async function listConversationMessages(
   return {
     messages: data.messages.map(normalizeMessage),
     page: normalizeMessagePage(data.page),
+  }
+}
+
+export async function forwardConversationMessages(
+  sourceConversationId: string,
+  input: ForwardConversationMessagesInput,
+  fetcher: ClientDataFetch = fetch
+): Promise<ForwardConversationMessagesResult> {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(sourceConversationId)}/messages/forward`,
+    {
+      body: JSON.stringify({
+        client_forward_id: input.clientForwardId,
+        message_ids: input.messageIds,
+        mode: input.mode,
+        target_conversation_ids: input.targetConversationIds,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<ForwardConversationMessagesResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "转发消息失败")
+  }
+
+  const data = (
+    payload as
+      ClientDataSuccessEnvelope<ForwardConversationMessagesResponse> | undefined
+  )?.data
+  if (
+    typeof data?.sent_count !== "number" ||
+    typeof data.failed_count !== "number" ||
+    !Array.isArray(data.results)
+  ) {
+    throw new ClientDataRequestError("转发消息响应格式不正确")
+  }
+
+  return {
+    failedCount: data.failed_count,
+    results: data.results.map((result) => {
+      if (
+        !result.conversation_id ||
+        (result.status !== "sent" && result.status !== "failed")
+      ) {
+        throw new ClientDataRequestError("转发消息响应格式不正确")
+      }
+
+      if (result.status === "sent") {
+        if (!Array.isArray(result.messages)) {
+          throw new ClientDataRequestError("转发消息响应格式不正确")
+        }
+        return {
+          conversationId: result.conversation_id,
+          messages: result.messages.map(normalizeMessage),
+          status: "sent" as const,
+        }
+      }
+
+      if (!result.error?.code || !result.error.message) {
+        throw new ClientDataRequestError("转发消息响应格式不正确")
+      }
+      return {
+        conversationId: result.conversation_id,
+        error: {
+          code: result.error.code,
+          message: result.error.message,
+        },
+        messages: [],
+        status: "failed" as const,
+      }
+    }),
+    sentCount: data.sent_count,
   }
 }
 
@@ -534,6 +617,11 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
     return body.transcript ? `${summary} - ${body.transcript}` : summary
   }
 
+  if (body.type === "forward_bundle") {
+    const preview = truncateForwardBundleSummary(body.items[0]?.summary ?? "")
+    return `[聊天记录] ${body.itemCount} 条 - ${preview || "消息"}`
+  }
+
   if (body.type === "revoked") {
     return "该消息已被撤回"
   }
@@ -573,6 +661,15 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
   return `${body.inviter.displayName} 邀请 ${body.invitees
     .map((invitee) => invitee.displayName)
     .join(",")} 加入群聊`
+}
+
+function truncateForwardBundleSummary(content: string) {
+  const characters = Array.from(content.trim())
+  if (characters.length <= 100) {
+    return characters.join("")
+  }
+
+  return `${characters.slice(0, 100).join("").trim()}…`
 }
 
 function formatVoiceMessageDuration(durationMS: number) {

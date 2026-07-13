@@ -3185,6 +3185,95 @@
                 }
             }
         },
+        "/api/client/conversations/{conversation_id}/messages/forward": {
+            "post": {
+                "description": "将同一源会话中的一条或多条可见消息逐条或合并转发到多个目标会话。目标会话之间允许部分成功。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端消息"
+                ],
+                "summary": "转发会话消息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "源会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "转发请求",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.forwardMessagesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.forwardMessagesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/conversations/{conversation_id}/messages/images": {
             "post": {
                 "description": "普通用户上传 WebP 图片并发送为会话图片消息。图片写入 temporary bucket，消息 body 只保存 file_id。",
@@ -5548,12 +5637,35 @@
                 }
             }
         },
+        "httpserver.contactGroupAvatarMemberResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
         "httpserver.contactGroupResponse": {
             "type": "object",
             "properties": {
                 "avatar": {
                     "type": "string",
                     "example": "/assets/avatars/groups/07.webp"
+                },
+                "avatar_members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.contactGroupAvatarMemberResponse"
+                    }
                 },
                 "id": {
                     "type": "string",
@@ -6027,6 +6139,132 @@
                 }
             }
         },
+        "httpserver.externalContactGroupResponse": {
+            "type": "object",
+            "properties": {
+                "channel": {
+                    "type": "string"
+                },
+                "contacts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.externalContactResponse"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_sync_at": {
+                    "type": "string"
+                },
+                "last_sync_error": {
+                    "type": "string"
+                },
+                "last_sync_error_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "online": {
+                    "type": "boolean"
+                },
+                "remote_account_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.externalContactResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "remote_contact_id": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.forwardMessagesRequest": {
+            "type": "object",
+            "properties": {
+                "client_forward_id": {
+                    "type": "string"
+                },
+                "message_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "target_conversation_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "httpserver.forwardMessagesResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.forwardMessagesTargetResult"
+                    }
+                },
+                "sent_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "httpserver.forwardMessagesTargetError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.forwardMessagesTargetResult": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string"
+                },
+                "error": {
+                    "$ref": "#/definitions/httpserver.forwardMessagesTargetError"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.messageResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "httpserver.groupConversationResponse": {
             "type": "object",
             "properties": {
@@ -6159,6 +6397,12 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/httpserver.contactAppResponse"
+                    }
+                },
+                "external_contact_groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.externalContactGroupResponse"
                     }
                 },
                 "groups": {

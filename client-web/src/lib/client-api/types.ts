@@ -220,6 +220,29 @@ export type VoiceMessageBodyResponse = {
   type?: "voice"
 }
 
+export type ForwardBundleItemBodyResponse =
+  | TextMessageBodyResponse
+  | MarkdownMessageBodyResponse
+  | LinkMessageBodyResponse
+  | FileMessageBodyResponse
+  | ImageMessageBodyResponse
+  | VoiceMessageBodyResponse
+  | ForwardBundleMessageBodyResponse
+
+export type ForwardBundleItemResponse = {
+  body?: ForwardBundleItemBodyResponse
+  sender_name?: string
+  sender_type?: string
+  sent_at?: string
+  summary?: string
+}
+
+export type ForwardBundleMessageBodyResponse = {
+  item_count?: number
+  items?: ForwardBundleItemResponse[]
+  type?: "forward_bundle"
+}
+
 export type SystemEventUserRefResponse = {
   display_name?: string
   id?: string
@@ -284,6 +307,7 @@ export type MessageBodyResponse =
   | FileMessageBodyResponse
   | ImageMessageBodyResponse
   | VoiceMessageBodyResponse
+  | ForwardBundleMessageBodyResponse
   | GroupMembersInvitedSystemEventBodyResponse
   | GroupAvatarUpdatedSystemEventBodyResponse
   | GroupVisibilityChangedSystemEventBodyResponse
@@ -323,6 +347,24 @@ export type ListConversationMessagesResponse = {
 
 export type CreateMessageResponse = {
   message?: MessageResponse
+}
+
+export type ForwardMessagesTargetErrorResponse = {
+  code?: string
+  message?: string
+}
+
+export type ForwardMessagesTargetResultResponse = {
+  conversation_id?: string
+  error?: ForwardMessagesTargetErrorResponse | null
+  messages?: MessageResponse[]
+  status?: string
+}
+
+export type ForwardConversationMessagesResponse = {
+  failed_count?: number
+  results?: ForwardMessagesTargetResultResponse[]
+  sent_count?: number
 }
 
 export type RevokeConversationMessageResponse = {
@@ -512,6 +554,29 @@ export type ClientVoiceMessageBody = {
   type: "voice"
 }
 
+export type ClientForwardableMessageBody =
+  | ClientTextMessageBody
+  | ClientMarkdownMessageBody
+  | ClientLinkMessageBody
+  | ClientFileMessageBody
+  | ClientImageMessageBody
+  | ClientVoiceMessageBody
+  | ClientForwardBundleMessageBody
+
+export type ClientForwardBundleItem = {
+  body: ClientForwardableMessageBody
+  senderName: string
+  senderType: "user" | "app"
+  sentAt: string
+  summary: string
+}
+
+export type ClientForwardBundleMessageBody = {
+  itemCount: number
+  items: ClientForwardBundleItem[]
+  type: "forward_bundle"
+}
+
 export type ClientRevokedMessageBody = {
   type: "revoked"
 }
@@ -580,6 +645,7 @@ export type ClientMessageBody =
   | ClientFileMessageBody
   | ClientImageMessageBody
   | ClientVoiceMessageBody
+  | ClientForwardBundleMessageBody
   | ClientRevokedMessageBody
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
@@ -659,6 +725,29 @@ export type SendConversationVoiceMessageInput = {
   durationMS: number
   replyToMessageId?: string
   voice: Blob
+}
+
+export type ForwardConversationMessagesInput = {
+  clientForwardId: string
+  messageIds: string[]
+  mode: "separate" | "merged"
+  targetConversationIds: string[]
+}
+
+export type ForwardConversationMessagesTargetResult = {
+  conversationId: string
+  error?: {
+    code: string
+    message: string
+  }
+  messages: ClientMessage[]
+  status: "sent" | "failed"
+}
+
+export type ForwardConversationMessagesResult = {
+  failedCount: number
+  results: ForwardConversationMessagesTargetResult[]
+  sentCount: number
 }
 
 export type TemporaryFileReadURL = {

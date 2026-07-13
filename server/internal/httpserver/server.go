@@ -111,6 +111,7 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	client.POST("/conversations/:conversation_id/read", server.markConversationRead)
 	client.GET("/conversations/:conversation_id/messages", server.listConversationMessages)
 	client.POST("/conversations/:conversation_id/messages", server.createConversationMessage)
+	client.POST("/conversations/:conversation_id/messages/forward", server.forwardConversationMessages)
 	client.POST("/conversations/:conversation_id/messages/files", server.createConversationFileMessage)
 	client.POST("/conversations/:conversation_id/messages/images", server.createConversationImageMessage)
 	client.POST("/conversations/:conversation_id/messages/voices", server.createConversationVoiceMessage)

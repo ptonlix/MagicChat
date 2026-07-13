@@ -17,6 +17,7 @@ import {
 import type {
   ConversationPanelMentionTarget,
   ConversationPanelMessage,
+  ConversationPanelMessageSelection,
 } from "@/lib/conversation-panel-types"
 
 export function ConversationPanelHistory({
@@ -27,10 +28,14 @@ export function ConversationPanelHistory({
   loadingBefore,
   mentionLabelResolver,
   messages,
+  messageSelection,
+  onForwardMessage,
   onLoadBeforeMessages,
+  onStartMessageSelection,
   onInsertMention,
   onReplyToMessage,
   onRevokeMessage,
+  onToggleMessageSelection,
 }: {
   conversation: ClientConversation
   currentUserId: string
@@ -39,10 +44,14 @@ export function ConversationPanelHistory({
   loadingBefore: boolean
   mentionLabelResolver: MentionLabelResolver
   messages: ConversationPanelMessage[]
+  messageSelection?: ConversationPanelMessageSelection
+  onForwardMessage?: (message: ConversationPanelMessage) => void
   onLoadBeforeMessages: () => void
+  onStartMessageSelection?: (message: ConversationPanelMessage) => void
   onInsertMention: (target: ConversationPanelMentionTarget) => void
   onReplyToMessage: (message: ConversationPanelMessage) => void
   onRevokeMessage: (message: ConversationPanelMessage) => void
+  onToggleMessageSelection?: (message: ConversationPanelMessage) => void
 }) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const previousConversationIdRef = React.useRef<string | null>(null)
@@ -198,9 +207,21 @@ export function ConversationPanelHistory({
               conversation={conversation}
               currentUserId={currentUserId}
               mentionLabelResolver={mentionLabelResolver}
+              onForward={
+                message.body.type !== "revoked" ? onForwardMessage : undefined
+              }
               onInsertMention={onInsertMention}
+              onMultiSelect={
+                message.body.type !== "revoked"
+                  ? onStartMessageSelection
+                  : undefined
+              }
               onReply={onReplyToMessage}
               onRevoke={onRevokeMessage}
+              onToggleSelected={onToggleMessageSelection}
+              selectable={message.body.type !== "revoked"}
+              selected={messageSelection?.selectedMessageIds.has(message.id)}
+              selectionMode={messageSelection?.active}
             />
           )
         )}

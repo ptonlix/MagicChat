@@ -9,8 +9,10 @@ import type { MentionLabelResolver } from "@/lib/message-mentions"
 import type { ConversationDraftMention } from "@/lib/conversation-drafts"
 import type {
   ConversationPanelComposerHandle,
+  ConversationPanelForwardMode,
   ConversationPanelMentionTarget,
   ConversationPanelMessage,
+  ConversationPanelMessageSelection,
   ConversationPanelReplyTarget,
 } from "@/lib/conversation-panel-types"
 import { isAcceptedImageMessageMimeType } from "@/lib/image-message"
@@ -18,12 +20,15 @@ import type { VoiceMessageRecording } from "@/lib/voice-message"
 import { ConversationPanelComposer } from "@/components/conversation/conversation-panel-composer"
 import { ConversationPanelHeader } from "@/components/conversation/conversation-panel-header"
 import { ConversationPanelHistory } from "@/components/conversation/conversation-panel-history"
+import { MessageSelectionToolbar } from "@/components/conversation/message-selection-toolbar"
 
 export type {
   ConversationPanelAppProfile,
   ConversationPanelComposerHandle,
+  ConversationPanelForwardMode,
   ConversationPanelMentionTarget,
   ConversationPanelMessage,
+  ConversationPanelMessageSelection,
   ConversationPanelReplyTarget,
 } from "@/lib/conversation-panel-types"
 
@@ -43,8 +48,12 @@ type ConversationPanelProps = {
   historyLoadingBefore: boolean
   mentionLabelResolver?: MentionLabelResolver
   messages: ConversationPanelMessage[]
+  messageSelection?: ConversationPanelMessageSelection
+  onCancelMessageSelection?: () => void
   onDraftBlur?: () => void
   onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
+  onForwardMessage?: (message: ConversationPanelMessage) => void
+  onForwardSelectedMessages?: (mode: ConversationPanelForwardMode) => void
   onCancelReply: () => void
   onReplyToMessage: (message: ConversationPanelMessage) => void
   onRevokeMessage: (message: ConversationPanelMessage) => void
@@ -54,6 +63,8 @@ type ConversationPanelProps = {
   onLoadBeforeMessages: () => void
   onRichTextModeChange: (richTextMode: boolean) => void
   onSendMessage: (content?: string) => void
+  onStartMessageSelection?: (message: ConversationPanelMessage) => void
+  onToggleMessageSelection?: (message: ConversationPanelMessage) => void
   replyTarget: ConversationPanelReplyTarget | null
   richTextMode: boolean
   sending: boolean
@@ -70,8 +81,12 @@ export function ConversationPanel({
   historyLoadingBefore,
   mentionLabelResolver = fallbackMentionLabelResolver,
   messages,
+  messageSelection,
+  onCancelMessageSelection,
   onDraftBlur,
   onDraftChange,
+  onForwardMessage,
+  onForwardSelectedMessages,
   onCancelReply,
   onReplyToMessage,
   onRevokeMessage,
@@ -81,6 +96,8 @@ export function ConversationPanel({
   onLoadBeforeMessages,
   onRichTextModeChange,
   onSendMessage,
+  onStartMessageSelection,
+  onToggleMessageSelection,
   replyTarget,
   richTextMode,
   sending,
@@ -127,9 +144,10 @@ export function ConversationPanel({
     }
 
     event.preventDefault()
-    event.dataTransfer.dropEffect = conversation && !sending ? "copy" : "none"
+    event.dataTransfer.dropEffect =
+      conversation && !sending && !messageSelection?.active ? "copy" : "none"
 
-    if (!conversation || sending) {
+    if (!conversation || sending || messageSelection?.active) {
       return
     }
 
@@ -143,7 +161,8 @@ export function ConversationPanel({
     }
 
     event.preventDefault()
-    event.dataTransfer.dropEffect = conversation && !sending ? "copy" : "none"
+    event.dataTransfer.dropEffect =
+      conversation && !sending && !messageSelection?.active ? "copy" : "none"
   }
 
   function handlePanelDragLeave(event: React.DragEvent<HTMLElement>) {
@@ -169,7 +188,7 @@ export function ConversationPanel({
 
     resetFileDrag()
 
-    if (!conversation || sending || !file) {
+    if (!conversation || sending || messageSelection?.active || !file) {
       return
     }
 
@@ -202,29 +221,41 @@ export function ConversationPanel({
             loadingBefore={historyLoadingBefore}
             currentUserId={currentUserId}
             mentionLabelResolver={mentionLabelResolver}
+            messageSelection={messageSelection}
             messages={messages}
+            onForwardMessage={onForwardMessage}
             onLoadBeforeMessages={onLoadBeforeMessages}
+            onStartMessageSelection={onStartMessageSelection}
             onInsertMention={insertComposerMention}
             onReplyToMessage={handleReplyToMessage}
             onRevokeMessage={onRevokeMessage}
+            onToggleMessageSelection={onToggleMessageSelection}
           />
-          <ConversationPanelComposer
-            ref={composerRef}
-            conversation={conversation}
-            draft={draft}
-            draftMentions={draftMentions}
-            replyTarget={replyTarget}
-            onCancelReply={onCancelReply}
-            onDraftBlur={onDraftBlur}
-            onDraftChange={onDraftChange}
-            onSendFile={onSendFile}
-            onSendImage={onSendImage}
-            onSendVoice={onSendVoice}
-            onSendMessage={onSendMessage}
-            onRichTextModeChange={onRichTextModeChange}
-            richTextMode={richTextMode}
-            sending={sending}
-          />
+          {messageSelection?.active ? (
+            <MessageSelectionToolbar
+              onCancel={() => onCancelMessageSelection?.()}
+              onForward={(mode) => onForwardSelectedMessages?.(mode)}
+              selectedCount={messageSelection.selectedMessageIds.size}
+            />
+          ) : (
+            <ConversationPanelComposer
+              ref={composerRef}
+              conversation={conversation}
+              draft={draft}
+              draftMentions={draftMentions}
+              replyTarget={replyTarget}
+              onCancelReply={onCancelReply}
+              onDraftBlur={onDraftBlur}
+              onDraftChange={onDraftChange}
+              onSendFile={onSendFile}
+              onSendImage={onSendImage}
+              onSendVoice={onSendVoice}
+              onSendMessage={onSendMessage}
+              onRichTextModeChange={onRichTextModeChange}
+              richTextMode={richTextMode}
+              sending={sending}
+            />
+          )}
         </>
       ) : (
         <ConversationPanelEmptyState />

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { MessagesSquare } from "lucide-react"
 import { toast } from "sonner"
 import { getAvatarInitial } from "@/lib/avatar"
 import { cn } from "@/lib/utils"
@@ -20,6 +21,14 @@ import { MessageMarkdown } from "@/components/message-markdown"
 import { MessageVoice } from "@/components/message-voice"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { MessageActionMenu } from "@/components/message-action-menu"
 import { UserProfilePopover } from "@/components/user-profile-popover"
 import type {
@@ -59,16 +68,28 @@ export function MessageBubble({
   currentUserId,
   mentionLabelResolver,
   onInsertMention,
+  onForward,
+  onMultiSelect,
   onReply,
   onRevoke,
+  onToggleSelected,
+  selectable = true,
+  selected = false,
+  selectionMode = false,
 }: {
   message: ConversationPanelMessage
   conversation: ClientConversation
   currentUserId: string
   mentionLabelResolver: MentionLabelResolver
   onInsertMention: (target: ConversationPanelMentionTarget) => void
+  onForward?: (message: ConversationPanelMessage) => void
+  onMultiSelect?: (message: ConversationPanelMessage) => void
   onReply: (message: ConversationPanelMessage) => void
   onRevoke: (message: ConversationPanelMessage) => void
+  onToggleSelected?: (message: ConversationPanelMessage) => void
+  selectable?: boolean
+  selected?: boolean
+  selectionMode?: boolean
 }) {
   const fromMe = message.role === "me"
   const fallback = fromMe ? "我" : getAvatarInitial(conversation.name)
@@ -104,71 +125,121 @@ export function MessageBubble({
     onInsertMention(message.mentionTarget)
   }
 
+  function handleSelectionClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!selectionMode || !selectable || !onToggleSelected) {
+      return
+    }
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-slot=checkbox]")
+    ) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    onToggleSelected(message)
+  }
+
+  const messageBody = (
+    <div
+      className={cn(
+        "max-w-full rounded-md p-3 text-sm leading-relaxed shadow-xs",
+        fromMe
+          ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
+          : "bg-zinc-100 text-foreground dark:bg-zinc-800",
+        !selectionMode &&
+          (fromMe
+            ? "hover:bg-teal-100/80 data-[state=open]:bg-teal-100/80 hover:dark:bg-teal-950 dark:data-[state=open]:bg-teal-950"
+            : "hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700")
+      )}
+      data-message-action-trigger={!selectionMode ? "" : undefined}
+      onContextMenu={!selectionMode ? handleMessageContextMenu : undefined}
+      ref={bubbleRef}
+    >
+      {message.replyTo && <MessageReplyReference replyTo={message.replyTo} />}
+      <MessageBodyRenderer
+        body={message.body}
+        currentUserId={currentUserId}
+        mentionLabelResolver={mentionLabelResolver}
+      />
+    </div>
+  )
+
   return (
-    <div className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}>
-      {!fromMe && <MessageAvatar fallback={fallback} message={message} />}
-      <div
-        className={cn(
-          "flex max-w-[min(70%,64rem)] flex-col gap-1",
-          fromMe ? "items-end" : "items-start"
-        )}
-      >
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {canInsertAuthorMention ? (
-            <button
-              className="cursor-pointer p-0 text-muted-foreground transition-colors hover:text-sky-500"
-              onClick={handleAuthorMentionClick}
-              onMouseDown={(event) => event.preventDefault()}
-              type="button"
-            >
-              {message.author}
-            </button>
-          ) : (
-            <span>{message.author}</span>
-          )}
-          <span>{message.time}</span>
-        </div>
-        <MessageActionMenu
-          canRevoke={message.canRevoke}
-          copyDisabled={!copyText}
-          onCopy={handleCopyMessage}
-          onReply={() => onReply(message)}
-          onRevoke={() => onRevoke(message)}
-        >
-          <div
-            className={cn(
-              "max-w-full rounded-md p-3 text-sm leading-relaxed shadow-xs",
-              fromMe
-                ? "bg-teal-100/60 text-foreground hover:bg-teal-100/80 data-[state=open]:bg-teal-100/80 dark:bg-teal-950/80 hover:dark:bg-teal-950 dark:data-[state=open]:bg-teal-950"
-                : "bg-zinc-100 text-foreground hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 dark:bg-zinc-800 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700"
-            )}
-            data-message-action-trigger
-            onContextMenu={handleMessageContextMenu}
-            ref={bubbleRef}
-          >
-            {message.replyTo && (
-              <MessageReplyReference replyTo={message.replyTo} />
-            )}
-            <MessageBodyRenderer
-              body={message.body}
-              currentUserId={currentUserId}
-              mentionLabelResolver={mentionLabelResolver}
-            />
-          </div>
-        </MessageActionMenu>
-        {message.delegatedByName && (
-          <div className="text-xs text-muted-foreground">
-            由 {message.delegatedByName} 代发
-          </div>
-        )}
-      </div>
-      {fromMe && (
-        <MessageAvatar
-          fallback="我"
-          fallbackClassName="bg-primary text-primary-foreground"
-          message={message}
+    <div
+      className={cn(
+        "relative rounded-md transition-colors",
+        selectionMode && "px-3 py-2 pl-11",
+        selected && "bg-primary/5"
+      )}
+      data-message-selection-row
+      onClickCapture={handleSelectionClick}
+    >
+      {selectionMode && (
+        <Checkbox
+          aria-label={`${selected ? "取消选择" : "选择"}${message.author}的消息`}
+          checked={selected}
+          className="absolute top-4 left-3"
+          disabled={!selectable}
+          onCheckedChange={() => onToggleSelected?.(message)}
         />
       )}
+      <div
+        className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}
+      >
+        {!fromMe && <MessageAvatar fallback={fallback} message={message} />}
+        <div
+          className={cn(
+            "flex max-w-[min(70%,64rem)] flex-col gap-1",
+            fromMe ? "items-end" : "items-start"
+          )}
+        >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {canInsertAuthorMention && !selectionMode ? (
+              <button
+                className="cursor-pointer p-0 text-muted-foreground transition-colors hover:text-sky-500"
+                onClick={handleAuthorMentionClick}
+                onMouseDown={(event) => event.preventDefault()}
+                type="button"
+              >
+                {message.author}
+              </button>
+            ) : (
+              <span>{message.author}</span>
+            )}
+            <span>{message.time}</span>
+          </div>
+          {selectionMode ? (
+            messageBody
+          ) : (
+            <MessageActionMenu
+              canRevoke={message.canRevoke}
+              copyDisabled={!copyText}
+              onCopy={handleCopyMessage}
+              onForward={onForward ? () => onForward(message) : undefined}
+              onMultiSelect={
+                onMultiSelect ? () => onMultiSelect(message) : undefined
+              }
+              onReply={() => onReply(message)}
+              onRevoke={() => onRevoke(message)}
+            >
+              {messageBody}
+            </MessageActionMenu>
+          )}
+          {message.delegatedByName && (
+            <div className="text-xs text-muted-foreground">
+              由 {message.delegatedByName} 代发
+            </div>
+          )}
+        </div>
+        {fromMe && (
+          <MessageAvatar
+            fallback="我"
+            fallbackClassName="bg-primary text-primary-foreground"
+            message={message}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -246,6 +317,8 @@ function getMessageCopyText(
         message.body.content,
         mentionLabelResolver
       )
+    case "forward_bundle":
+      return formatClientMessageBodySummary(message.body)
     case "system_event":
       return formatClientMessageBodySummary(message.body)
   }
@@ -363,11 +436,120 @@ function MessageBodyRenderer({
           mentionLabelResolver={mentionLabelResolver}
         />
       )
+    case "forward_bundle":
+      return (
+        <ForwardBundleMessage
+          body={body}
+          currentUserId={currentUserId}
+          mentionLabelResolver={mentionLabelResolver}
+        />
+      )
     case "revoked":
       return <span className="text-muted-foreground">该消息已被撤回</span>
     case "system_event":
       return <span>{formatClientMessageBodySummary(body)}</span>
   }
+}
+
+function ForwardBundleMessage({
+  body,
+  currentUserId,
+  mentionLabelResolver,
+}: {
+  body: Extract<ConversationPanelMessage["body"], { type: "forward_bundle" }>
+  currentUserId: string
+  mentionLabelResolver: MentionLabelResolver
+}) {
+  const summary = formatClientMessageBodySummary(body)
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          className="flex w-72 max-w-full cursor-pointer items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          type="button"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background/70 text-muted-foreground">
+            <MessagesSquare aria-hidden="true" className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">聊天记录</span>
+            <span className="block max-w-80 truncate text-xs text-muted-foreground">
+              {summary}
+            </span>
+          </span>
+        </button>
+      </DialogTrigger>
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-h-[80vh] grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden sm:max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle>聊天记录</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 overflow-y-auto overscroll-contain rounded-md border px-4">
+          {body.items.map((item, index) => (
+            <div
+              className="border-b py-4 last:border-b-0"
+              key={`${item.sentAt}-${index}`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span className="truncate font-medium text-foreground/80">
+                  {item.senderName}
+                </span>
+                <span className="shrink-0">
+                  {formatForwardBundleItemTime(item.sentAt)}
+                </span>
+              </div>
+              <ForwardBundleItemBody
+                body={item.body}
+                currentUserId={currentUserId}
+                mentionLabelResolver={mentionLabelResolver}
+              />
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ForwardBundleItemBody({
+  body,
+  currentUserId,
+  mentionLabelResolver,
+}: {
+  body: ConversationPanelMessage["body"]
+  currentUserId: string
+  mentionLabelResolver: MentionLabelResolver
+}) {
+  return (
+    <div
+      className="w-full rounded-md bg-zinc-100 p-3 dark:bg-zinc-800"
+      data-forward-bundle-item-body
+    >
+      <MessageBodyRenderer
+        body={body}
+        currentUserId={currentUserId}
+        mentionLabelResolver={mentionLabelResolver}
+      />
+    </div>
+  )
+}
+
+function formatForwardBundleItemTime(sentAt: string) {
+  const date = new Date(sentAt)
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+  const dateText = new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+  }).format(date)
+  const timeText = new Intl.DateTimeFormat("zh-CN", {
+    timeStyle: "short",
+  }).format(date)
+
+  return `${dateText} ${timeText}`
 }
 
 function TextMessageBody({
