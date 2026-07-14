@@ -18,6 +18,7 @@ import (
 	"assistant/internal/config"
 	"assistant/internal/llm"
 	"assistant/internal/mcpclient"
+	"assistant/internal/networktools"
 
 	"github.com/gorilla/websocket"
 )
@@ -241,8 +242,9 @@ func newToolRegistry(ctx context.Context, servers []config.MCPServerConfig) (*mc
 		return nil, nil, err
 	}
 
-	sources := make([]mcpclient.Source, 0, len(mcpSources)+1)
+	sources := make([]mcpclient.Source, 0, len(mcpSources)+2)
 	sources = append(sources, builtintools.NewSource())
+	sources = append(sources, networktools.NewSource())
 	sources = append(sources, mcpSources...)
 
 	registry, err := mcpclient.NewRegistry(ctx, sources)

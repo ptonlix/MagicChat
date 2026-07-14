@@ -451,7 +451,7 @@ func TestNewToolRegistryIncludesBuiltinTools(t *testing.T) {
 	for _, tool := range registry.Tools() {
 		toolNames[tool.Name] = true
 	}
-	for _, toolName := range []string{"builtin__help", "builtin__contacts", "builtin__conversations", "builtin__projects", "builtin__sleep", "builtin__get_attachments", "builtin__end_conversation"} {
+	for _, toolName := range []string{"builtin__help", "builtin__contacts", "builtin__conversations", "builtin__projects", "builtin__sleep", "builtin__get_attachments", "builtin__end_conversation", "builtin__http_client", "builtin__mysql_query", "builtin__postgresql_query"} {
 		if !toolNames[toolName] {
 			t.Fatalf("tools = %+v, want %s", registry.Tools(), toolName)
 		}
