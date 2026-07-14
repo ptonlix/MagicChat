@@ -22,6 +22,7 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00007_legacy_placeholder.sql",
 		"00008_add_app_event_outbox.sql",
 		"00009_add_projects_and_tasks.sql",
+		"00010_restore_third_party_login.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -29,6 +30,30 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
+	}
+}
+
+func TestRestoreThirdPartyLoginMigrationDefinesSchema(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00010_restore_third_party_login.sql")
+	if err != nil {
+		t.Fatalf("read third-party login restore migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+
+	for _, required := range []string{
+		"-- +goose up",
+		"create table if not exists third_party_login_providers",
+		"create unique index if not exists third_party_login_providers_key_unique",
+		"create table if not exists third_party_login_states",
+		"create table if not exists third_party_accounts",
+		"external_user_id text not null",
+		"user_id uuid not null references users(id) on delete cascade",
+		"-- +goose down",
+		"select 1",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("third-party login restore migration missing %q", required)
 		}
 	}
 }
@@ -173,6 +198,22 @@ func TestInitialSchemaMigrationDefinesBaseSchema(t *testing.T) {
 		"constraint app_settings_singleton_check check (id = 1)",
 		"'mygod'",
 		"'长亭科技'",
+		"create table third_party_login_providers",
+		"key text not null",
+		"type text not null",
+		"client_secret text not null",
+		"scopes jsonb not null default '[\"openid\",\"email\",\"profile\"]'",
+		"config jsonb not null default '{}'",
+		"constraint third_party_login_providers_type_check check (type in ('dingtalk', 'wecom', 'feishu', 'github', 'google', 'oidc'))",
+		"create unique index third_party_login_providers_key_unique on third_party_login_providers (key)",
+		"create table third_party_login_states",
+		"state_hash text primary key",
+		"code_verifier text not null",
+		"redirect_path text not null",
+		"create table third_party_accounts",
+		"external_user_id text not null",
+		"profile jsonb not null default '{}'",
+		"constraint third_party_accounts_provider_external_unique unique (provider_id, external_user_id)",
 		"create table conversations",
 		"created_by_user_id uuid not null references users(id) on delete restrict",
 		"avatar text not null default ''",

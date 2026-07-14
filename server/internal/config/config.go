@@ -17,7 +17,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Addr string `yaml:"addr"`
+	Addr           string `yaml:"addr"`
+	ClientHostname string `yaml:"-"`
+	AdminHostname  string `yaml:"-"`
 }
 
 type DatabaseConfig struct {
@@ -82,7 +84,7 @@ func Load() (Config, error) {
 	if strings.TrimSpace(cfg.Admin.Password) == "" {
 		return Config{}, fmt.Errorf("admin.password is required")
 	}
-	if err := normalizeAssetsHostname(&cfg.Storage); err != nil {
+	if err := normalizePublicHostnames(&cfg); err != nil {
 		return Config{}, err
 	}
 	if err := normalizeAppsConfig(&cfg.Apps); err != nil {
@@ -95,10 +97,22 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-func normalizeAssetsHostname(cfg *StorageConfig) error {
-	cfg.AssetsHostname = strings.TrimSpace(firstNonEmptyEnv("ASSETS_HOSTNAME"))
+func normalizePublicHostnames(cfg *Config) error {
+	cfg.Server.ClientHostname = strings.TrimSpace(firstNonEmptyEnv("CLIENT_HOSTNAME"))
+	cfg.Server.AdminHostname = strings.TrimSpace(firstNonEmptyEnv("ADMIN_HOSTNAME"))
+	cfg.Storage.AssetsHostname = strings.TrimSpace(firstNonEmptyEnv("ASSETS_HOSTNAME"))
 
-	return validateHostnameEnv("ASSETS_HOSTNAME", cfg.AssetsHostname)
+	if err := validateHostnameEnv("CLIENT_HOSTNAME", cfg.Server.ClientHostname); err != nil {
+		return err
+	}
+	if err := validateHostnameEnv("ADMIN_HOSTNAME", cfg.Server.AdminHostname); err != nil {
+		return err
+	}
+	if err := validateHostnameEnv("ASSETS_HOSTNAME", cfg.Storage.AssetsHostname); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func validateHostnameEnv(name string, value string) error {

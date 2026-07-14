@@ -23,15 +23,57 @@ type InfoSettingsResponse = {
   organization_name?: string
 }
 
+type ThirdPartyLoginProviderResponse = {
+  callback_url?: string
+  client_id?: string
+  client_secret?: string
+  config?: Record<string, unknown>
+  enabled?: boolean
+  id?: string
+  key?: string
+  name?: string
+  scopes?: string[]
+  sort_order?: number
+  type?: ThirdPartyLoginProviderType
+}
+
 export type InfoSettings = {
   appName: string
   organizationName: string
+}
+
+export type ThirdPartyLoginProviderType =
+  | "dingtalk"
+  | "feishu"
+  | "github"
+  | "google"
+  | "oidc"
+  | "wecom"
+
+export type ThirdPartyLoginProvider = {
+  callbackUrl: string
+  clientId: string
+  clientSecret: string
+  config: Record<string, string>
+  enabled: boolean
+  id: string
+  key: string
+  name: string
+  scopes: string[]
+  sortOrder: number
+  type: ThirdPartyLoginProviderType
 }
 
 export type UpdateInfoSettingsInput = {
   appName: string
   organizationName: string
 }
+
+export type ThirdPartyLoginProviderInput = Omit<
+  ThirdPartyLoginProvider,
+  "callbackUrl" | "enabled" | "id" | "key" | "sortOrder"
+>
+export type ThirdPartyLoginProviderMoveDirection = "down" | "up"
 
 export class AdminSettingsRequestError extends Error {
   code?: string
@@ -97,6 +139,205 @@ export async function updateInfoSettings(
   return normalizeInfoSettings(data)
 }
 
+export async function listThirdPartyLoginProviders(
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher("/api/admin/third-party/providers", {
+    credentials: "include",
+    method: "GET",
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{
+        providers?: ThirdPartyLoginProviderResponse[]
+      }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "加载第三方登录方式失败")
+  }
+
+  const providers = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{
+          providers?: ThirdPartyLoginProviderResponse[]
+        }>
+      | undefined
+  )?.data?.providers
+
+  return normalizeThirdPartyLoginProviderList(providers)
+}
+
+export async function createThirdPartyLoginProvider(
+  input: ThirdPartyLoginProviderInput,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return saveThirdPartyLoginProvider(
+    "/api/admin/third-party/providers",
+    "POST",
+    input,
+    fetcher
+  )
+}
+
+export async function updateThirdPartyLoginProvider(
+  id: string,
+  input: ThirdPartyLoginProviderInput,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return saveThirdPartyLoginProvider(
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}`,
+    "PUT",
+    input,
+    fetcher
+  )
+}
+
+export async function deleteThirdPartyLoginProvider(
+  id: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher(
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}`,
+    {
+      credentials: "include",
+      method: "DELETE",
+    }
+  )
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<Record<string, never>>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "删除第三方登录方式失败")
+  }
+}
+
+export async function enableThirdPartyLoginProvider(
+  id: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return updateThirdPartyLoginProviderStatus(id, "enable", fetcher)
+}
+
+export async function disableThirdPartyLoginProvider(
+  id: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  return updateThirdPartyLoginProviderStatus(id, "disable", fetcher)
+}
+
+export async function moveThirdPartyLoginProvider(
+  id: string,
+  direction: ThirdPartyLoginProviderMoveDirection,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher(
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}/move`,
+    {
+      body: JSON.stringify({
+        direction,
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{
+        providers?: ThirdPartyLoginProviderResponse[]
+      }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "移动第三方登录方式失败")
+  }
+
+  const providers = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{
+          providers?: ThirdPartyLoginProviderResponse[]
+        }>
+      | undefined
+  )?.data?.providers
+
+  return normalizeThirdPartyLoginProviderList(providers)
+}
+
+async function saveThirdPartyLoginProvider(
+  path: string,
+  method: "POST" | "PUT",
+  input: ThirdPartyLoginProviderInput,
+  fetcher: AdminSettingsFetch
+) {
+  const response = await fetcher(path, {
+    body: JSON.stringify(toThirdPartyLoginProviderRequest(input)),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method,
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{
+        provider?: ThirdPartyLoginProviderResponse
+      }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "保存第三方登录方式失败")
+  }
+
+  const provider = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{
+          provider?: ThirdPartyLoginProviderResponse
+        }>
+      | undefined
+  )?.data?.provider
+
+  return normalizeThirdPartyLoginProvider(provider)
+}
+
+async function updateThirdPartyLoginProviderStatus(
+  id: string,
+  action: "disable" | "enable",
+  fetcher: AdminSettingsFetch
+) {
+  const response = await fetcher(
+    `/api/admin/third-party/providers/${encodeURIComponent(id)}/${action}`,
+    {
+      credentials: "include",
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<{
+        provider?: ThirdPartyLoginProviderResponse
+      }>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "更新第三方登录方式状态失败")
+  }
+
+  const provider = (
+    payload as
+      | AdminSettingsSuccessEnvelope<{
+          provider?: ThirdPartyLoginProviderResponse
+        }>
+      | undefined
+  )?.data?.provider
+
+  return normalizeThirdPartyLoginProvider(provider)
+}
+
 function createRequestError(
   payload:
     | AdminSettingsErrorEnvelope
@@ -128,6 +369,73 @@ function normalizeInfoSettings(
   }
 }
 
+function normalizeThirdPartyLoginProviderList(
+  providers: ThirdPartyLoginProviderResponse[] | undefined
+) {
+  if (!Array.isArray(providers)) {
+    throw new AdminSettingsRequestError("第三方登录方式响应格式不正确")
+  }
+
+  return providers.map(normalizeThirdPartyLoginProvider)
+}
+
+function normalizeThirdPartyLoginProvider(
+  provider: ThirdPartyLoginProviderResponse | undefined
+): ThirdPartyLoginProvider {
+  if (
+    !provider?.id ||
+    !provider.name ||
+    !provider.key ||
+    !provider.callback_url ||
+    !provider.type ||
+    typeof provider.enabled !== "boolean" ||
+    !provider.client_id ||
+    !provider.client_secret ||
+    !Array.isArray(provider.scopes) ||
+    typeof provider.sort_order !== "number"
+  ) {
+    throw new AdminSettingsRequestError("第三方登录方式响应格式不正确")
+  }
+
+  return {
+    callbackUrl: provider.callback_url,
+    clientId: provider.client_id,
+    clientSecret: provider.client_secret,
+    config: normalizeStringRecord(provider.config ?? {}),
+    enabled: provider.enabled,
+    id: provider.id,
+    key: provider.key,
+    name: provider.name,
+    scopes: provider.scopes,
+    sortOrder: provider.sort_order,
+    type: provider.type,
+  }
+}
+
+function normalizeStringRecord(record: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : String(value ?? ""),
+    ])
+  )
+}
+
+function toThirdPartyLoginProviderRequest(input: ThirdPartyLoginProviderInput) {
+  return {
+    client_id: input.clientId.trim(),
+    client_secret: input.clientSecret.trim(),
+    config: Object.fromEntries(
+      Object.entries(input.config)
+        .map(([key, value]) => [key, value.trim()])
+        .filter(([, value]) => value !== "")
+    ),
+    name: input.name.trim(),
+    scopes: input.scopes.map((scope) => scope.trim()).filter(Boolean),
+    type: input.type,
+  }
+}
+
 async function readJson<T>(response: Response): Promise<T | undefined> {
   const contentType = response.headers.get("content-type")
 
@@ -137,3 +445,25 @@ async function readJson<T>(response: Response): Promise<T | undefined> {
 
   return response.json() as Promise<T>
 }
+
+export type OIDCProvider = ThirdPartyLoginProvider
+export type OIDCProviderInput = ThirdPartyLoginProviderInput
+export type OIDCProviderMoveDirection = ThirdPartyLoginProviderMoveDirection
+export const createOIDCProvider = createThirdPartyLoginProvider
+export const deleteOIDCProvider = deleteThirdPartyLoginProvider
+export const disableOIDCProvider = disableThirdPartyLoginProvider
+export const enableOIDCProvider = enableThirdPartyLoginProvider
+export const listOIDCProviders = listThirdPartyLoginProviders
+export const moveOIDCProvider = moveThirdPartyLoginProvider
+export const updateOIDCProvider = updateThirdPartyLoginProvider
+export type ThirdPartyProvider = ThirdPartyLoginProvider
+export type ThirdPartyProviderInput = ThirdPartyLoginProviderInput
+export type ThirdPartyProviderMoveDirection =
+  ThirdPartyLoginProviderMoveDirection
+export const createThirdPartyProvider = createThirdPartyLoginProvider
+export const deleteThirdPartyProvider = deleteThirdPartyLoginProvider
+export const disableThirdPartyProvider = disableThirdPartyLoginProvider
+export const enableThirdPartyProvider = enableThirdPartyLoginProvider
+export const listThirdPartyProviders = listThirdPartyLoginProviders
+export const moveThirdPartyProvider = moveThirdPartyLoginProvider
+export const updateThirdPartyProvider = updateThirdPartyLoginProvider
