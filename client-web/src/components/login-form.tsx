@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useState, type FormEvent } from "react"
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -26,15 +26,11 @@ const rememberedLoginStorageKey = "client-web:remembered-login"
 type RememberedLoginCredentials = LoginCredentials
 
 export function LoginForm({
-  children,
   className,
   onLogin,
-  submitVariant = "default",
   ...props
 }: React.ComponentProps<"div"> & {
-  children?: ReactNode
   onLogin?: (credentials: LoginCredentials) => Promise<void> | void
-  submitVariant?: "default" | "outline"
 }) {
   const [rememberedCredentials] = useState(readRememberedLoginCredentials)
   const [account, setAccount] = useState(rememberedCredentials?.account ?? "")
@@ -131,11 +127,7 @@ export function LoginForm({
                 <Label htmlFor="remember-credentials">记住账号密码</Label>
               </div>
               <Field>
-                <Button
-                  disabled={pending}
-                  type="submit"
-                  variant={submitVariant}
-                >
+                <Button disabled={pending} type="submit">
                   {pending && (
                     <Loader2Icon aria-hidden="true" className="animate-spin" />
                   )}
@@ -144,7 +136,6 @@ export function LoginForm({
               </Field>
             </FieldGroup>
           </form>
-          {children}
         </CardContent>
       </Card>
     </div>

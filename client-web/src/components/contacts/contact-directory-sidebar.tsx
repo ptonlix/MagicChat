@@ -1,6 +1,13 @@
-import type { MouseEvent, ReactNode } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react"
 import {
   Bot,
+  ChevronRight,
   Loader2Icon,
   MessageCircle,
   RefreshCw,
@@ -19,7 +26,13 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   Sidebar,
   SidebarContent,
@@ -47,6 +60,7 @@ export function ContactDirectorySidebar({
   contactsRefreshing,
   currentUserId,
   groups,
+  organizationName,
   onActiveTabChange,
   onKeywordChange,
   onRefresh,
@@ -64,6 +78,7 @@ export function ContactDirectorySidebar({
   contactsRefreshing: boolean
   currentUserId: string
   groups: ContactGroup[]
+  organizationName: string
   onActiveTabChange: (tab: DirectoryTab) => void
   onKeywordChange: (keyword: string) => void
   onRefresh: () => void
@@ -74,6 +89,10 @@ export function ContactDirectorySidebar({
   openingDirectoryItemKey: string
 }) {
   const activeTabLabel = getDirectoryTabLabel(activeTab)
+  const joinedGroups = groups.filter((group) => group.joined)
+  const publicGroups = groups.filter(
+    (group) => !group.joined && group.visibility === "public"
+  )
 
   return (
     <Sidebar className="border-r bg-background" collapsible="none">
@@ -120,34 +139,39 @@ export function ContactDirectorySidebar({
         </div>
         <TabsContent className="min-h-0 flex-1" value="user">
           <SidebarContent className="h-full">
-            <DirectoryList ariaLabel="联系人列表">
-              {contacts.map((contact) => (
-                <ContactListItem
-                  key={contact.id}
-                  contact={contact}
-                  canStartConversation={contact.id !== currentUserId}
-                  size="sm"
-                  selected={isDirectorySelection(
-                    activeSelection,
-                    "user",
-                    contact.id
-                  )}
-                  onSelect={() =>
-                    onSelect({ id: contact.id, type: "user" })
-                  }
-                  onStartConversation={() =>
-                    onStartContactConversation(contact)
-                  }
-                  startingConversation={
-                    openingDirectoryItemKey ===
-                    directoryItemKey("user", contact.id)
-                  }
-                />
-              ))}
-              {contacts.length === 0 && (
-                <DirectoryEmptyState label="联系人" />
-              )}
-            </DirectoryList>
+            <DirectorySectionCollapsible
+              defaultOpen={contacts.length > 0}
+              forceOpen={Boolean(activeKeyword.trim())}
+              count={contacts.length}
+              title={organizationName}
+            >
+              <DirectoryList ariaLabel={`${organizationName} 联系人列表`}>
+                {contacts.map((contact) => (
+                  <ContactListItem
+                    key={contact.id}
+                    contact={contact}
+                    canStartConversation={contact.id !== currentUserId}
+                    size="sm"
+                    selected={isDirectorySelection(
+                      activeSelection,
+                      "user",
+                      contact.id
+                    )}
+                    onSelect={() => onSelect({ id: contact.id, type: "user" })}
+                    onStartConversation={() =>
+                      onStartContactConversation(contact)
+                    }
+                    startingConversation={
+                      openingDirectoryItemKey ===
+                      directoryItemKey("user", contact.id)
+                    }
+                  />
+                ))}
+                {contacts.length === 0 && (
+                  <DirectoryEmptyState label={`${organizationName}联系人`} />
+                )}
+              </DirectoryList>
+            </DirectorySectionCollapsible>
           </SidebarContent>
         </TabsContent>
         <TabsContent className="min-h-0 flex-1" value="app">
@@ -175,26 +199,37 @@ export function ContactDirectorySidebar({
         </TabsContent>
         <TabsContent className="min-h-0 flex-1" value="group">
           <SidebarContent className="h-full">
-            <DirectoryList ariaLabel="群组列表">
-              {groups.map((group) => (
-                <GroupListItem
-                  key={group.id}
-                  group={group}
-                  selected={isDirectorySelection(
-                    activeSelection,
-                    "group",
-                    group.id
-                  )}
-                  onSelect={() => onSelect({ id: group.id, type: "group" })}
-                  onStartConversation={() => onStartGroupConversation(group)}
-                  startingConversation={
-                    openingDirectoryItemKey ===
-                    directoryItemKey("group", group.id)
-                  }
-                />
-              ))}
-              {groups.length === 0 && <DirectoryEmptyState label="群组" />}
-            </DirectoryList>
+            <DirectorySectionCollapsible
+              count={joinedGroups.length}
+              defaultOpen={joinedGroups.length > 0}
+              forceOpen={Boolean(activeKeyword.trim())}
+              title="我加入的"
+            >
+              <GroupDirectoryList
+                activeSelection={activeSelection}
+                ariaLabel="我加入的群组列表"
+                groups={joinedGroups}
+                onSelect={onSelect}
+                onStartGroupConversation={onStartGroupConversation}
+                openingDirectoryItemKey={openingDirectoryItemKey}
+              />
+            </DirectorySectionCollapsible>
+
+            <DirectorySectionCollapsible
+              count={publicGroups.length}
+              defaultOpen={publicGroups.length > 0}
+              forceOpen={Boolean(activeKeyword.trim())}
+              title="公开群组"
+            >
+              <GroupDirectoryList
+                activeSelection={activeSelection}
+                ariaLabel="公开群组列表"
+                groups={publicGroups}
+                onSelect={onSelect}
+                onStartGroupConversation={onStartGroupConversation}
+                openingDirectoryItemKey={openingDirectoryItemKey}
+              />
+            </DirectorySectionCollapsible>
           </SidebarContent>
         </TabsContent>
       </Tabs>
@@ -213,6 +248,106 @@ function DirectoryList({
     <SidebarMenu aria-label={ariaLabel} className="px-2 pb-3" role="listbox">
       {children}
     </SidebarMenu>
+  )
+}
+
+function DirectorySectionCollapsible({
+  children,
+  count,
+  defaultOpen = false,
+  forceOpen = false,
+  title,
+}: {
+  children: ReactNode
+  count: number
+  defaultOpen?: boolean
+  forceOpen?: boolean
+  title: string
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const previousCount = useRef(count)
+  const visible = forceOpen || open
+
+  useEffect(() => {
+    if (forceOpen) {
+      return
+    }
+
+    const lastCount = previousCount.current
+    previousCount.current = count
+    if (lastCount === 0 && count > 0) {
+      setOpen(true)
+    } else if (lastCount > 0 && count === 0) {
+      setOpen(false)
+    }
+  }, [count, forceOpen])
+
+  return (
+    <Collapsible
+      className="mx-4 overflow-hidden rounded-md border"
+      onOpenChange={(nextOpen) => {
+        if (!forceOpen) {
+          setOpen(nextOpen)
+        }
+      }}
+      open={visible}
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          aria-label={title}
+          className="w-full justify-between rounded-none px-4 hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
+          size="lg"
+          type="button"
+          variant="ghost"
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <ChevronRight
+              className={cn(
+                "size-4 shrink-0 transition-transform",
+                visible && "rotate-90"
+              )}
+            />
+            <span className="truncate">{title}</span>
+          </span>
+          <Badge variant="secondary">{count}</Badge>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{children}</CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+function GroupDirectoryList({
+  activeSelection,
+  ariaLabel,
+  groups,
+  onSelect,
+  onStartGroupConversation,
+  openingDirectoryItemKey,
+}: {
+  activeSelection: DirectorySelection | null
+  ariaLabel: string
+  groups: ContactGroup[]
+  onSelect: (selection: DirectorySelection) => void
+  onStartGroupConversation: (group: ContactGroup) => void
+  openingDirectoryItemKey: string
+}) {
+  return (
+    <DirectoryList ariaLabel={ariaLabel}>
+      {groups.map((group) => (
+        <GroupListItem
+          key={group.id}
+          group={group}
+          selected={isDirectorySelection(activeSelection, "group", group.id)}
+          onSelect={() => onSelect({ id: group.id, type: "group" })}
+          onStartConversation={() => onStartGroupConversation(group)}
+          startingConversation={
+            openingDirectoryItemKey === directoryItemKey("group", group.id)
+          }
+        />
+      ))}
+      {groups.length === 0 && <DirectoryEmptyState label={ariaLabel} />}
+    </DirectoryList>
   )
 }
 
@@ -289,6 +424,7 @@ function GroupListItem({
         <GroupAvatar
           avatar={group.avatar}
           className="size-8"
+          members={group.avatarMembers}
           name={group.name}
         />
       }
@@ -322,8 +458,7 @@ function ContactListItem({
 
   return (
     <DirectoryListItem
-      actionDisabled={!canStartConversation}
-      actionLabel={`与 ${title} 对话`}
+      actionLabel={canStartConversation ? `与 ${title} 对话` : undefined}
       actionLoading={startingConversation}
       media={
         <Avatar
@@ -343,7 +478,7 @@ function ContactListItem({
           <ContactAvatarBadge online={contact.online} />
         </Avatar>
       }
-      onAction={onStartConversation}
+      onAction={canStartConversation ? onStartConversation : undefined}
       onSelect={onSelect}
       selected={selected}
       size={size}
@@ -353,9 +488,9 @@ function ContactListItem({
 }
 
 function DirectoryListItem({
-  actionDisabled,
+  actionDisabled = false,
   actionLabel,
-  actionLoading,
+  actionLoading = false,
   media,
   onAction,
   onSelect,
@@ -363,11 +498,11 @@ function DirectoryListItem({
   size = "sm",
   title,
 }: {
-  actionDisabled: boolean
-  actionLabel: string
-  actionLoading: boolean
+  actionDisabled?: boolean
+  actionLabel?: string
+  actionLoading?: boolean
   media: ReactNode
-  onAction: () => void
+  onAction?: () => void
   onSelect: () => void
   selected: boolean
   size?: "default" | "sm"
@@ -375,7 +510,7 @@ function DirectoryListItem({
 }) {
   function handleActionClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
-    if (!actionDisabled) {
+    if (!actionDisabled && onAction) {
       onAction()
     }
   }
@@ -386,7 +521,8 @@ function DirectoryListItem({
         aria-label={title}
         aria-selected={selected}
         className={cn(
-          "gap-2.5 pr-8 data-active:bg-foreground/10 data-active:hover:bg-foreground/10",
+          "gap-2.5 data-active:bg-foreground/10 data-active:hover:bg-foreground/10",
+          onAction && "pr-8",
           size === "sm" ? "h-11" : "h-12"
         )}
         isActive={selected}
@@ -400,20 +536,22 @@ function DirectoryListItem({
           <span className="min-w-0 truncate">{title}</span>
         </span>
       </SidebarMenuButton>
-      <SidebarMenuAction
-        aria-label={actionLabel}
-        className="right-2 size-6 disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-3"
-        disabled={actionLoading || actionDisabled}
-        onClick={handleActionClick}
-        showOnHover={!selected}
-        type="button"
-      >
-        {actionLoading ? (
-          <Loader2Icon aria-hidden="true" className="animate-spin" />
-        ) : (
-          <MessageCircle />
-        )}
-      </SidebarMenuAction>
+      {onAction && actionLabel && (
+        <SidebarMenuAction
+          aria-label={actionLabel}
+          className="right-2 size-6 disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-3"
+          disabled={actionLoading || actionDisabled}
+          onClick={handleActionClick}
+          showOnHover={!selected}
+          type="button"
+        >
+          {actionLoading ? (
+            <Loader2Icon aria-hidden="true" className="animate-spin" />
+          ) : (
+            <MessageCircle />
+          )}
+        </SidebarMenuAction>
+      )}
     </SidebarMenuItem>
   )
 }

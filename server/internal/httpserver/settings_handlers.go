@@ -14,15 +14,9 @@ import (
 )
 
 type infoSettingsResponse struct {
-	AppName             string                             `json:"app_name" example:"MyGod"`
-	Authenticated       *bool                              `json:"authenticated,omitempty" example:"false"`
-	OrganizationName    string                             `json:"organization_name" example:"长亭科技"`
-	ThirdPartyProviders []publicThirdPartyProviderResponse `json:"third_party_providers"`
-}
-
-type publicThirdPartyProviderResponse struct {
-	Key  string `json:"key" example:"company-sso"`
-	Name string `json:"name" example:"企业 SSO"`
+	AppName          string `json:"app_name" example:"MyGod"`
+	Authenticated    *bool  `json:"authenticated,omitempty" example:"false"`
+	OrganizationName string `json:"organization_name" example:"长亭科技"`
 }
 
 type updateInfoSettingsRequest struct {
@@ -44,16 +38,12 @@ func (s *Server) clientInfo(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
-	providers, err := s.listPublicThirdPartyProviders()
-	if err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
-	}
 	authenticated, err := s.isClientInfoRequestAuthenticated(c)
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 
-	return success(c, http.StatusOK, newClientInfoSettingsResponse(settings, providers, authenticated))
+	return success(c, http.StatusOK, newClientInfoSettingsResponse(settings, authenticated))
 }
 
 // getInfoSettings godoc
@@ -72,7 +62,7 @@ func (s *Server) getInfoSettings(c echo.Context) error {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
 
-	return success(c, http.StatusOK, newInfoSettingsResponse(settings, nil))
+	return success(c, http.StatusOK, newInfoSettingsResponse(settings))
 }
 
 // updateInfoSettings godoc
@@ -117,7 +107,7 @@ func (s *Server) updateInfoSettings(c echo.Context) error {
 	settings.AppName = appName
 	settings.OrganizationName = organizationName
 
-	return success(c, http.StatusOK, newInfoSettingsResponse(settings, nil))
+	return success(c, http.StatusOK, newInfoSettingsResponse(settings))
 }
 
 func (s *Server) getOrCreateAppSettings() (store.AppSettings, error) {
@@ -151,27 +141,6 @@ func (s *Server) getOrCreateAppSettings() (store.AppSettings, error) {
 	return settings, nil
 }
 
-func (s *Server) listPublicThirdPartyProviders() ([]publicThirdPartyProviderResponse, error) {
-	var providers []store.ThirdPartyLoginProvider
-	if err := s.db.
-		Where("enabled = ?", true).
-		Order("sort_order ASC").
-		Order("name ASC").
-		Find(&providers).Error; err != nil {
-		return nil, err
-	}
-
-	responses := make([]publicThirdPartyProviderResponse, 0, len(providers))
-	for _, provider := range providers {
-		responses = append(responses, publicThirdPartyProviderResponse{
-			Key:  provider.Key,
-			Name: provider.Name,
-		})
-	}
-
-	return responses, nil
-}
-
 func (s *Server) isClientInfoRequestAuthenticated(c echo.Context) (bool, error) {
 	cookie, err := c.Cookie(userSessionCookieName)
 	if err != nil || cookie.Value == "" {
@@ -194,20 +163,15 @@ func (s *Server) isClientInfoRequestAuthenticated(c echo.Context) (bool, error) 
 	return session.User.Status == store.UserStatusActive, nil
 }
 
-func newInfoSettingsResponse(settings store.AppSettings, providers []publicThirdPartyProviderResponse) infoSettingsResponse {
-	if providers == nil {
-		providers = []publicThirdPartyProviderResponse{}
-	}
-
+func newInfoSettingsResponse(settings store.AppSettings) infoSettingsResponse {
 	return infoSettingsResponse{
-		AppName:             settings.AppName,
-		OrganizationName:    settings.OrganizationName,
-		ThirdPartyProviders: providers,
+		AppName:          settings.AppName,
+		OrganizationName: settings.OrganizationName,
 	}
 }
 
-func newClientInfoSettingsResponse(settings store.AppSettings, providers []publicThirdPartyProviderResponse, authenticated bool) infoSettingsResponse {
-	response := newInfoSettingsResponse(settings, providers)
+func newClientInfoSettingsResponse(settings store.AppSettings, authenticated bool) infoSettingsResponse {
+	response := newInfoSettingsResponse(settings)
 	response.Authenticated = &authenticated
 
 	return response

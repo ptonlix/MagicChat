@@ -23,12 +23,14 @@ import type {
   ContactGroup,
   ContactUser,
 } from "@/lib/client-data-api"
+import { useAppInfo } from "@/lib/app-info-context"
 import { useClientData } from "@/lib/client-data-context"
 import { formatContactPhone } from "@/lib/contact-format"
 import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { cn } from "@/lib/utils"
 
 export function ContactsPage() {
+  const { organizationName } = useAppInfo()
   const {
     contactApps,
     contactGroups,
@@ -206,9 +208,10 @@ export function ContactsPage() {
         contactsRefreshing={contactsRefreshing}
         currentUserId={me.id}
         groups={filteredGroups}
+        organizationName={organizationName}
         onActiveTabChange={updateActiveTab}
         onKeywordChange={updateActiveKeyword}
-        onRefresh={() => void refreshContacts()}
+        onRefresh={() => void refreshContacts().catch(() => undefined)}
         onSelect={selectDirectoryItem}
         onStartAppConversation={(app) => void startAppConversation(app)}
         onStartContactConversation={(contact) =>

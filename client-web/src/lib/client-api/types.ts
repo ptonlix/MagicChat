@@ -70,12 +70,20 @@ export type ContactAppResponse = {
 
 export type ContactGroupResponse = {
   avatar?: string
+  avatar_members?: ContactGroupAvatarMemberResponse[]
   id?: string
   joined?: boolean
   member_count?: number
   name?: string
   type?: string
   visibility?: string
+}
+
+export type ContactGroupAvatarMemberResponse = {
+  avatar?: string
+  name?: string
+  nickname?: string
+  role?: string
 }
 
 export type ConversationResponse = {
@@ -440,12 +448,20 @@ export type ContactApp = {
 
 export type ContactGroup = {
   avatar: string
+  avatarMembers: ContactGroupAvatarMember[]
   id: string
   joined: boolean
   memberCount: number
   name: string
   type: "group"
   visibility: "private" | "public"
+}
+
+export type ContactGroupAvatarMember = {
+  avatar: string
+  name: string
+  nickname: string
+  role: "owner" | "admin" | "member"
 }
 
 export type ClientContacts = {

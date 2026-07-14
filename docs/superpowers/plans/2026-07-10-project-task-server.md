@@ -23,7 +23,6 @@
 - Create `server/internal/httpserver/task_handlers_test.go`: task API, validation, authorization, filtering, and pagination coverage.
 - Modify `server/internal/httpserver/server.go`: register project and task routes.
 - Modify `server/internal/httpserver/auth_handlers.go`: create an admin-created user's personal workspace in the same transaction.
-- Modify `server/internal/httpserver/third_party_client_handlers.go`: create a first-login user's personal workspace in the existing transaction.
 - Modify `server/internal/httpserver/conversation_handlers.go`: accept `project_ids`, create links atomically with a group, and remove links when dissolving a group.
 - Modify `server/internal/httpserver/conversation_handlers_test.go`: group-create project binding, rollback, and dissolution tests.
 - Regenerate `api-docs/docs.go`, `api-docs/swagger.json`, and `api-docs/swagger.yaml` from handler annotations.
@@ -135,13 +134,12 @@ git commit -m "feat: add project and task schema"
 
 **Files:**
 - Modify: `server/internal/httpserver/auth_handlers.go`
-- Modify: `server/internal/httpserver/third_party_client_handlers.go`
 - Create: `server/internal/httpserver/project_handlers.go`
 - Create: `server/internal/httpserver/project_handlers_test.go`
 
 - [ ] **Step 1: Write failing personal workspace tests**
 
-Add tests that create a user through `POST /api/admin/users` and through first-time third-party login, then query the database:
+Add tests that create a user through `POST /api/admin/users`, then query the database:
 
 ```go
 var projects []store.Project
@@ -175,18 +173,18 @@ func createPersonalProject(db *gorm.DB, user store.User, now time.Time) error {
 }
 ```
 
-Wrap admin user creation in `s.db.Transaction`, and call the helper immediately after `tx.Create(&user)`. Call it in the existing third-party first-login transaction after user insertion and before account insertion.
+Wrap admin user creation in `s.db.Transaction`, and call the helper immediately after `tx.Create(&user)`.
 
 - [ ] **Step 4: Run focused and auth tests and verify GREEN**
 
-Run: `cd server && go test ./internal/httpserver -run 'PersonalWorkspace|CreateUser|ThirdParty' -count=1`
+Run: `cd server && go test ./internal/httpserver -run 'PersonalWorkspace|CreateUser' -count=1`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commit personal workspace provisioning**
 
 ```bash
-git add server/internal/httpserver/auth_handlers.go server/internal/httpserver/third_party_client_handlers.go server/internal/httpserver/project_handlers.go server/internal/httpserver/project_handlers_test.go
+git add server/internal/httpserver/auth_handlers.go server/internal/httpserver/project_handlers.go server/internal/httpserver/project_handlers_test.go
 git commit -m "feat: provision personal workspaces"
 ```
 
@@ -459,7 +457,7 @@ Expected: exit 0 and generated docs include `/api/client/projects` and `/api/cli
 
 - [ ] **Step 3: Run formatting and all backend tests**
 
-Run: `cd server && gofmt -w internal/store/models.go internal/httpserver/server.go internal/httpserver/project_handlers.go internal/httpserver/project_handlers_test.go internal/httpserver/task_handlers.go internal/httpserver/task_handlers_test.go internal/httpserver/auth_handlers.go internal/httpserver/third_party_client_handlers.go internal/httpserver/conversation_handlers.go internal/httpserver/conversation_handlers_test.go`
+Run: `cd server && gofmt -w internal/store/models.go internal/httpserver/server.go internal/httpserver/project_handlers.go internal/httpserver/project_handlers_test.go internal/httpserver/task_handlers.go internal/httpserver/task_handlers_test.go internal/httpserver/auth_handlers.go internal/httpserver/conversation_handlers.go internal/httpserver/conversation_handlers_test.go`
 
 Run: `cd server && go test ./...`
 

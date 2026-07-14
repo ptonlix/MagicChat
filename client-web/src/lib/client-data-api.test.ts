@@ -80,11 +80,19 @@ describe("client data API", () => {
               {
                 avatar: "",
                 id: "group-1",
-                joined: false,
-                member_count: 8,
-                name: "公开群",
+                joined: true,
+                member_count: 1,
+                avatar_members: [
+                  {
+                    avatar: "/assets/avatars/builtin/03.webp",
+                    name: "Bob Li",
+                    nickname: "",
+                    role: "member",
+                  },
+                ],
+                name: "已加入群",
                 type: "group",
-                visibility: "public",
+                visibility: "private",
               },
             ],
             users: [
@@ -125,12 +133,20 @@ describe("client data API", () => {
       groups: [
         {
           avatar: "",
+          avatarMembers: [
+            {
+              avatar: "/assets/avatars/builtin/03.webp",
+              name: "Bob Li",
+              nickname: "",
+              role: "member",
+            },
+          ],
           id: "group-1",
-          joined: false,
-          memberCount: 8,
-          name: "公开群",
+          joined: true,
+          memberCount: 1,
+          name: "已加入群",
           type: "group",
-          visibility: "public",
+          visibility: "private",
         },
       ],
       users: [

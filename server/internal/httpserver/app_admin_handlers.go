@@ -296,13 +296,13 @@ func (s *Server) updateAdminAppEnabled(c echo.Context, enabled bool) error {
 }
 
 func (s *Server) findAdminApp(c echo.Context) (store.App, bool, error) {
-	id, err := parseUUIDParam(c, "id", "应用 ID 格式错误")
-	if err != nil {
-		return store.App{}, false, err
+	id := strings.TrimSpace(c.Param("id"))
+	if _, err := uuid.Parse(id); err != nil {
+		return store.App{}, false, failure(c, http.StatusBadRequest, "invalid_request", "应用 ID 格式错误")
 	}
 
 	var app store.App
-	err = s.db.First(&app, "id = ?", id).Error
+	err := s.db.First(&app, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		if appregistry.IsAIAssistantAppID(id) {
 			app, err = appregistry.EnsureAIAssistantApp(s.db, s.cfg.Apps)

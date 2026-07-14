@@ -110,6 +110,7 @@ export function GroupDetailPanel({
           <GroupAvatar
             avatar={group.avatar}
             className="size-20"
+            members={group.avatarMembers}
             name={group.name}
           />
           <div>
@@ -207,17 +208,19 @@ export function ContactDetailPanel({
             value={contact.phone ? formatContactPhone(contact.phone) : ""}
           />
         </div>
-        <Button
-          className="w-full"
-          disabled={startingConversation || !canStartConversation}
-          onClick={onStartConversation}
-          type="button"
-        >
-          {startingConversation && (
-            <Loader2Icon aria-hidden="true" className="animate-spin" />
-          )}
-          发消息
-        </Button>
+        {canStartConversation && (
+          <Button
+            className="w-full"
+            disabled={startingConversation}
+            onClick={onStartConversation}
+            type="button"
+          >
+            {startingConversation && (
+              <Loader2Icon aria-hidden="true" className="animate-spin" />
+            )}
+            发消息
+          </Button>
+        )}
       </div>
     </div>
   )

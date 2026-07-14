@@ -574,6 +574,5 @@ POST /api/client/auth/login
 - Cookie `Secure` 策略配置。
 - 多管理员。
 - 角色权限。
-- 企业 SSO。
 
 这些能力不进入当前实现范围。

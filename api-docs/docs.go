@@ -681,459 +681,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/admin/third-party/providers": {
-            "get": {
-                "description": "管理员读取已配置的第三方登录方式，包含 Client Secret。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "列出第三方登录方式",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.listThirdPartyProvidersResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "管理员创建一个普通用户可用的第三方登录方式。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "创建第三方登录方式",
-                "parameters": [
-                    {
-                        "description": "第三方登录方式",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.thirdPartyProviderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/third-party/providers/{id}": {
-            "put": {
-                "description": "管理员更新一个第三方登录方式。Client Secret 每次更新都需要提交完整值。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "更新第三方登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "第三方登录方式",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.thirdPartyProviderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "管理员删除一个第三方登录方式。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "删除第三方登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.successEnvelope"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/third-party/providers/{id}/disable": {
-            "post": {
-                "description": "管理员禁用一个第三方登录方式。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "禁用第三方登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/third-party/providers/{id}/enable": {
-            "post": {
-                "description": "管理员启用一个第三方登录方式。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "启用第三方登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.thirdPartyProviderEnvelope"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/admin/third-party/providers/{id}/move": {
-            "post": {
-                "description": "管理员将一个第三方登录方式上移或下移，服务端会重新归一化所有登录方式的排序值。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "管理员第三方登录"
-                ],
-                "summary": "移动第三方登录方式",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "移动方向",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.thirdPartyProviderMoveRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/httpserver.listThirdPartyProvidersResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
         "/api/admin/users": {
             "get": {
                 "description": "管理员列出普通用户。keyword 会同时搜索邮箱、名称、昵称和手机号；sort 仅支持 email、created_at、status；order 仅支持 asc、desc。",
@@ -1612,126 +1159,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/httpserver.successEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/client/auth/third-party/{key}/callback": {
-            "get": {
-                "description": "处理第三方登录回调，创建或关联普通用户并写入用户登录 Session。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "客户端认证"
-                ],
-                "summary": "完成第三方登录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 Key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "第三方授权码",
-                        "name": "code",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "第三方登录状态",
-                        "name": "state",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "302": {
-                        "description": "Found"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/client/auth/third-party/{key}/start": {
-            "get": {
-                "description": "根据登录方式 Key 创建第三方登录状态，并重定向到第三方授权地址。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "客户端认证"
-                ],
-                "summary": "发起第三方登录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "第三方登录方式 Key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "登录成功后的站内跳转路径",
-                        "name": "redirect",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "302": {
-                        "description": "Found"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
                         }
                     },
                     "500": {
@@ -3179,6 +2606,95 @@ const docTemplate = `{
                     },
                     "413": {
                         "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/conversations/{conversation_id}/messages/forward": {
+            "post": {
+                "description": "将同一源会话中的一条或多条可见消息逐条或合并转发到多个目标会话。目标会话之间允许部分成功。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端消息"
+                ],
+                "summary": "转发会话消息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "源会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "转发请求",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.forwardMessagesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httpserver.forwardMessagesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/httpserver.errorEnvelope"
                         }
@@ -5555,12 +5071,35 @@ const docTemplate = `{
                 }
             }
         },
+        "httpserver.contactGroupAvatarMemberResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
         "httpserver.contactGroupResponse": {
             "type": "object",
             "properties": {
                 "avatar": {
                     "type": "string",
                     "example": "/assets/avatars/groups/07.webp"
+                },
+                "avatar_members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.contactGroupAvatarMemberResponse"
+                    }
                 },
                 "id": {
                     "type": "string",
@@ -6034,6 +5573,77 @@ const docTemplate = `{
                 }
             }
         },
+        "httpserver.forwardMessagesRequest": {
+            "type": "object",
+            "properties": {
+                "client_forward_id": {
+                    "type": "string"
+                },
+                "message_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "target_conversation_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "httpserver.forwardMessagesResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.forwardMessagesTargetResult"
+                    }
+                },
+                "sent_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "httpserver.forwardMessagesTargetError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpserver.forwardMessagesTargetResult": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string"
+                },
+                "error": {
+                    "$ref": "#/definitions/httpserver.forwardMessagesTargetError"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpserver.messageResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "httpserver.groupConversationResponse": {
             "type": "object",
             "properties": {
@@ -6127,12 +5737,6 @@ const docTemplate = `{
                 "organization_name": {
                     "type": "string",
                     "example": "长亭科技"
-                },
-                "third_party_providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.publicThirdPartyProviderResponse"
-                    }
                 }
             }
         },
@@ -6240,17 +5844,6 @@ const docTemplate = `{
                 "oldest_seq": {
                     "type": "integer",
                     "example": 101
-                }
-            }
-        },
-        "httpserver.listThirdPartyProvidersResponse": {
-            "type": "object",
-            "properties": {
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.thirdPartyProviderResponse"
-                    }
                 }
             }
         },
@@ -6650,19 +6243,6 @@ const docTemplate = `{
                 }
             }
         },
-        "httpserver.publicThirdPartyProviderResponse": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string",
-                    "example": "company-sso"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "企业 SSO"
-                }
-            }
-        },
         "httpserver.readTemporaryFileURLsRequest": {
             "type": "object",
             "properties": {
@@ -6825,91 +6405,6 @@ const docTemplate = `{
                 "size_bytes": {
                     "type": "integer",
                     "example": 123456
-                }
-            }
-        },
-        "httpserver.thirdPartyProviderEnvelope": {
-            "type": "object",
-            "properties": {
-                "provider": {
-                    "$ref": "#/definitions/httpserver.thirdPartyProviderResponse"
-                }
-            }
-        },
-        "httpserver.thirdPartyProviderMoveRequest": {
-            "type": "object",
-            "properties": {
-                "direction": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.thirdPartyProviderRequest": {
-            "type": "object",
-            "properties": {
-                "client_id": {
-                    "type": "string"
-                },
-                "client_secret": {
-                    "type": "string"
-                },
-                "config": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "name": {
-                    "type": "string"
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.thirdPartyProviderResponse": {
-            "type": "object",
-            "properties": {
-                "callback_url": {
-                    "type": "string"
-                },
-                "client_id": {
-                    "type": "string"
-                },
-                "client_secret": {
-                    "type": "string"
-                },
-                "config": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "sort_order": {
-                    "type": "integer"
-                },
-                "type": {
-                    "type": "string"
                 }
             }
         },

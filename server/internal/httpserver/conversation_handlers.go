@@ -3330,10 +3330,8 @@ func loadVisibleGroupApps(db *gorm.DB, currentUserID string, appIDs []string) ([
 
 func (s *Server) loadConversationListMembers(conversationIDs []string) (map[string][]store.ConversationMember, map[string]store.User, map[string]store.App, error) {
 	membersByConversationID := make(map[string][]store.ConversationMember, len(conversationIDs))
-	usersByID := make(map[string]store.User)
-	appsByID := make(map[string]store.App)
 	if len(conversationIDs) == 0 {
-		return membersByConversationID, usersByID, appsByID, nil
+		return membersByConversationID, map[string]store.User{}, map[string]store.App{}, nil
 	}
 
 	var members []store.ConversationMember
@@ -3345,10 +3343,22 @@ func (s *Server) loadConversationListMembers(conversationIDs []string) (map[stri
 		return nil, nil, nil, err
 	}
 
+	for _, member := range members {
+		membersByConversationID[member.ConversationID] = append(membersByConversationID[member.ConversationID], member)
+	}
+	usersByID, appsByID, err := s.loadConversationMemberIdentities(members)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return membersByConversationID, usersByID, appsByID, nil
+}
+
+func (s *Server) loadConversationMemberIdentities(members []store.ConversationMember) (map[string]store.User, map[string]store.App, error) {
+	usersByID := make(map[string]store.User)
+	appsByID := make(map[string]store.App)
 	userIDSet := make(map[string]struct{})
 	appIDSet := make(map[string]struct{})
 	for _, member := range members {
-		membersByConversationID[member.ConversationID] = append(membersByConversationID[member.ConversationID], member)
 		switch member.MemberType {
 		case store.ConversationMemberTypeUser:
 			userIDSet[member.MemberID] = struct{}{}
@@ -3364,7 +3374,7 @@ func (s *Server) loadConversationListMembers(conversationIDs []string) (map[stri
 	if len(userIDs) > 0 {
 		var users []store.User
 		if err := s.db.Where("id IN ?", userIDs).Find(&users).Error; err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		for _, user := range users {
 			usersByID[user.ID] = user
@@ -3378,14 +3388,14 @@ func (s *Server) loadConversationListMembers(conversationIDs []string) (map[stri
 	if len(appIDs) > 0 {
 		var apps []store.App
 		if err := s.db.Unscoped().Where("id IN ?", appIDs).Find(&apps).Error; err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		for _, app := range apps {
 			appsByID[app.ID] = app
 		}
 	}
 
-	return membersByConversationID, usersByID, appsByID, nil
+	return usersByID, appsByID, nil
 }
 
 func newConversationListItemResponse(

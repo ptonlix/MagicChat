@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"sort"
 	"strings"
 
 	"app/internal/appregistry"
@@ -21,13 +22,21 @@ type contactAppResponse struct {
 }
 
 type contactGroupResponse struct {
-	Avatar      string `json:"avatar" example:"/assets/avatars/groups/07.webp"`
-	ID          string `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
-	Joined      bool   `json:"joined" example:"false"`
-	MemberCount int    `json:"member_count" example:"8"`
-	Name        string `json:"name" example:"IM探索"`
-	Type        string `json:"type" example:"group"`
-	Visibility  string `json:"visibility" example:"public"`
+	Avatar        string                             `json:"avatar" example:"/assets/avatars/groups/07.webp"`
+	AvatarMembers []contactGroupAvatarMemberResponse `json:"avatar_members,omitempty"`
+	ID            string                             `json:"id" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
+	Joined        bool                               `json:"joined" example:"false"`
+	MemberCount   int                                `json:"member_count" example:"8"`
+	Name          string                             `json:"name" example:"IM探索"`
+	Type          string                             `json:"type" example:"group"`
+	Visibility    string                             `json:"visibility" example:"public"`
+}
+
+type contactGroupAvatarMemberResponse struct {
+	Avatar   string `json:"avatar"`
+	Name     string `json:"name"`
+	Nickname string `json:"nickname"`
+	Role     string `json:"role"`
 }
 
 type contactUserResponse struct {
@@ -85,7 +94,6 @@ func (s *Server) listClientContacts(c echo.Context) error {
 	if err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
 	}
-
 	return success(c, http.StatusOK, listClientContactsResponse{
 		Apps:   apps,
 		Groups: groups,
@@ -214,13 +222,63 @@ func (s *Server) loadContactGroupsForIdentity(identityType string, identityID st
 	if err != nil {
 		return nil, err
 	}
+	joinedGroupIDList := make([]string, 0, len(joinedGroupIDs))
+	for _, group := range groups {
+		if joinedGroupIDs[group.ID] {
+			joinedGroupIDList = append(joinedGroupIDList, group.ID)
+		}
+	}
+	avatarMembersByGroupID, err := s.loadContactGroupAvatarMembers(joinedGroupIDList)
+	if err != nil {
+		return nil, err
+	}
 
 	responses := make([]contactGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		responses = append(responses, newContactGroupResponse(group, memberCounts[group.ID], joinedGroupIDs[group.ID]))
+		joined := joinedGroupIDs[group.ID]
+		avatarMembers := avatarMembersByGroupID[group.ID]
+		responses = append(responses, newContactGroupResponse(group, memberCounts[group.ID], joined, avatarMembers))
 	}
 
 	return responses, nil
+}
+
+func (s *Server) loadContactGroupAvatarMembers(groupIDs []string) (map[string][]contactGroupAvatarMemberResponse, error) {
+	responsesByGroupID := make(map[string][]contactGroupAvatarMemberResponse, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return responsesByGroupID, nil
+	}
+
+	rankedMembers := s.db.Model(&store.ConversationMember{}).
+		Select(`conversation_members.*, ROW_NUMBER() OVER (
+			PARTITION BY conversation_id
+			ORDER BY CASE role WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END,
+			joined_at ASC, member_type ASC, member_id ASC
+		) AS avatar_rank`, store.ConversationMemberRoleOwner, store.ConversationMemberRoleAdmin).
+		Where("conversation_id IN ? AND left_at IS NULL", groupIDs)
+	var members []store.ConversationMember
+	if err := s.db.
+		Table("(?) AS ranked_members", rankedMembers).
+		Where("avatar_rank <= 4").
+		Order("conversation_id ASC").
+		Order("avatar_rank ASC").
+		Scan(&members).Error; err != nil {
+		return nil, err
+	}
+
+	usersByID, appsByID, err := s.loadConversationMemberIdentities(members)
+	if err != nil {
+		return nil, err
+	}
+	membersByGroupID := make(map[string][]store.ConversationMember, len(groupIDs))
+	for _, member := range members {
+		membersByGroupID[member.ConversationID] = append(membersByGroupID[member.ConversationID], member)
+	}
+	for groupID, groupMembers := range membersByGroupID {
+		memberResponses := newConversationMemberResponses(groupMembers, usersByID, appsByID)
+		responsesByGroupID[groupID] = newContactGroupAvatarMemberResponses(memberResponses)
+	}
+	return responsesByGroupID, nil
 }
 
 func (s *Server) loadContactGroupMembership(identityType string, identityID string, groupIDs []string) (map[string]int, map[string]bool, error) {
@@ -274,15 +332,48 @@ func (s *Server) newContactAppResponse(app store.App) contactAppResponse {
 	}
 }
 
-func newContactGroupResponse(group store.Conversation, memberCount int, joined bool) contactGroupResponse {
+func newContactGroupResponse(group store.Conversation, memberCount int, joined bool, avatarMembers []contactGroupAvatarMemberResponse) contactGroupResponse {
 	return contactGroupResponse{
-		Avatar:      group.Avatar,
-		ID:          group.ID,
-		Joined:      joined,
-		MemberCount: memberCount,
-		Name:        group.Name,
-		Type:        "group",
-		Visibility:  group.Visibility,
+		Avatar:        group.Avatar,
+		AvatarMembers: avatarMembers,
+		ID:            group.ID,
+		Joined:        joined,
+		MemberCount:   memberCount,
+		Name:          group.Name,
+		Type:          "group",
+		Visibility:    group.Visibility,
+	}
+}
+
+func newContactGroupAvatarMemberResponses(members []conversationMemberResponse) []contactGroupAvatarMemberResponse {
+	ordered := append([]conversationMemberResponse(nil), members...)
+	sort.SliceStable(ordered, func(left int, right int) bool {
+		return contactGroupAvatarMemberRoleRank(ordered[left].Role) < contactGroupAvatarMemberRoleRank(ordered[right].Role)
+	})
+	if len(ordered) > 4 {
+		ordered = ordered[:4]
+	}
+
+	responses := make([]contactGroupAvatarMemberResponse, 0, len(ordered))
+	for _, member := range ordered {
+		responses = append(responses, contactGroupAvatarMemberResponse{
+			Avatar:   member.Avatar,
+			Name:     member.Name,
+			Nickname: member.Nickname,
+			Role:     member.Role,
+		})
+	}
+	return responses
+}
+
+func contactGroupAvatarMemberRoleRank(role string) int {
+	switch role {
+	case store.ConversationMemberRoleOwner:
+		return 0
+	case store.ConversationMemberRoleAdmin:
+		return 1
+	default:
+		return 2
 	}
 }
 

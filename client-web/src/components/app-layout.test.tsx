@@ -97,9 +97,6 @@ describe("AppLayout", () => {
     expect(
       screen.getByRole("menuitem", { name: /个人资料/ })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole("menuitem", { name: /第三方账号/ })
-    ).toBeInTheDocument()
     expect(screen.getByRole("menuitem", { name: /^设置$/ })).toBeInTheDocument()
 
     await user.click(screen.getByRole("menuitem", { name: /个人资料/ }))

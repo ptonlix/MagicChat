@@ -20,6 +20,7 @@ import type {
   ContactUser,
   ContactApp,
   ContactGroup,
+  ContactGroupAvatarMember,
 } from "./types"
 
 export async function getCurrentClientUser(fetcher: ClientDataFetch = fetch) {
@@ -196,11 +197,32 @@ function normalizeContactGroup(
 
   return {
     avatar: group.avatar ?? "",
+    avatarMembers: (group.avatar_members ?? []).map(
+      normalizeContactGroupAvatarMember
+    ),
     id: group.id,
     joined: Boolean(group.joined),
     memberCount: group.member_count ?? 0,
     name: group.name,
     type: "group",
     visibility: normalizeVisibility(group.visibility),
+  }
+}
+
+function normalizeContactGroupAvatarMember(
+  member:
+    NonNullable<ContactGroupResponse["avatar_members"]>[number] | undefined
+): ContactGroupAvatarMember {
+  if (!member?.name) {
+    throw new ClientDataRequestError("通讯录群头像成员响应格式不正确")
+  }
+  return {
+    avatar: member.avatar ?? "",
+    name: member.name,
+    nickname: member.nickname ?? "",
+    role:
+      member.role === "owner" || member.role === "admin"
+        ? member.role
+        : ("member" as const),
   }
 }

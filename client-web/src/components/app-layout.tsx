@@ -1,7 +1,6 @@
 import {
   BriefcaseBusiness,
   CircleUserRound,
-  KeyRound,
   Loader2Icon,
   LogOut,
   MessageCircleMore,
@@ -213,10 +212,6 @@ function UserAvatarMenu({
           <DropdownMenuItem onSelect={() => setProfileOpen(true)}>
             <UserRound className="size-4" />
             个人资料
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <KeyRound className="size-4" />
-            第三方账号
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
             <Settings className="size-4" />

@@ -58,8 +58,6 @@ services:
         condition: service_started
     environment:
       CONFIG: /app/config/config.yaml
-      CLIENT_HOSTNAME: ${CLIENT_HOSTNAME:-client.localhost}
-      ADMIN_HOSTNAME: ${ADMIN_HOSTNAME:-admin.localhost}
       ASSETS_HOSTNAME: ${ASSETS_HOSTNAME:-assets.localhost}
       MYGOD_AI_ASSISTANT_SECRET: ${MYGOD_AI_ASSISTANT_SECRET:-change-me}
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-mygod}

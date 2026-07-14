@@ -22,7 +22,7 @@ admin:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 
 	cfg, err := Load()
 	if err != nil {
@@ -46,7 +46,7 @@ admin:
 	}
 }
 
-func TestLoadReadsPublicHostnamesFromEnvironment(t *testing.T) {
+func TestLoadReadsAssetsHostnameFromEnvironment(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	content := []byte(`
@@ -61,8 +61,6 @@ admin:
 	}
 
 	t.Setenv("CONFIG", path)
-	t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-	t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
 	t.Setenv("ASSETS_HOSTNAME", "assets.example.com")
 	t.Setenv("MYGOD_AI_ASSISTANT_SECRET", "env-ai-assistant-secret")
 
@@ -71,12 +69,6 @@ admin:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Server.ClientHostname != "client.example.com" {
-		t.Fatalf("Server.ClientHostname = %q, want client.example.com", cfg.Server.ClientHostname)
-	}
-	if cfg.Server.AdminHostname != "admin.example.com" {
-		t.Fatalf("Server.AdminHostname = %q, want admin.example.com", cfg.Server.AdminHostname)
-	}
 	if cfg.Storage.AssetsHostname != "assets.example.com" {
 		t.Fatalf("Storage.AssetsHostname = %q, want assets.example.com", cfg.Storage.AssetsHostname)
 	}
@@ -102,8 +94,6 @@ apps:
 	}
 
 	t.Setenv("CONFIG", path)
-	t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-	t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
 	t.Setenv("ASSETS_HOSTNAME", "assets.example.com")
 
 	cfg, err := Load()
@@ -131,8 +121,6 @@ admin:
 	}
 
 	t.Setenv("CONFIG", path)
-	t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-	t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
 	t.Setenv("ASSETS_HOSTNAME", "assets.example.com")
 
 	_, err := Load()
@@ -141,51 +129,6 @@ admin:
 	}
 	if !strings.Contains(err.Error(), "apps.ai_assistant_secret") {
 		t.Fatalf("Load() error = %q, want apps.ai_assistant_secret", err.Error())
-	}
-}
-
-func TestLoadRejectsMissingPublicHostnames(t *testing.T) {
-	for _, input := range []struct {
-		name       string
-		missingEnv string
-	}{
-		{name: "client", missingEnv: "CLIENT_HOSTNAME"},
-		{name: "admin", missingEnv: "ADMIN_HOSTNAME"},
-		{name: "assets", missingEnv: "ASSETS_HOSTNAME"},
-	} {
-		t.Run(input.name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, "config.yaml")
-			content := []byte(`
-database:
-  dsn: "postgres://app:app@localhost:5432/app?sslmode=disable"
-admin:
-  password: "secret-admin-password"
-`)
-
-			if err := os.WriteFile(path, content, 0o600); err != nil {
-				t.Fatal(err)
-			}
-
-			t.Setenv("CONFIG", path)
-			if input.missingEnv != "CLIENT_HOSTNAME" {
-				t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-			}
-			if input.missingEnv != "ADMIN_HOSTNAME" {
-				t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
-			}
-			if input.missingEnv != "ASSETS_HOSTNAME" {
-				t.Setenv("ASSETS_HOSTNAME", "assets.example.com")
-			}
-
-			_, err := Load()
-			if err == nil {
-				t.Fatalf("Load() error = nil, want missing %s error", input.missingEnv)
-			}
-			if !strings.Contains(err.Error(), input.missingEnv) {
-				t.Fatalf("Load() error = %q, want %s", err.Error(), input.missingEnv)
-			}
-		})
 	}
 }
 
@@ -214,7 +157,7 @@ storage:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 
 	cfg, err := Load()
 	if err != nil {
@@ -269,7 +212,7 @@ storage:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 	t.Setenv("RUSTFS_ACCESS_KEY", "env-access-key")
 	t.Setenv("RUSTFS_SECRET_KEY", "env-secret-key")
 
@@ -310,8 +253,6 @@ storage:
 	}
 
 	t.Setenv("CONFIG", path)
-	t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-	t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
 	t.Setenv("MYGOD_AI_ASSISTANT_SECRET", "test-ai-assistant-secret")
 
 	_, err := Load()
@@ -323,14 +264,12 @@ storage:
 	}
 }
 
-func TestLoadRejectsInvalidPublicHostnames(t *testing.T) {
+func TestLoadRejectsInvalidAssetsHostname(t *testing.T) {
 	for _, input := range []struct {
 		name         string
 		invalidEnv   string
 		invalidValue string
 	}{
-		{name: "client scheme", invalidEnv: "CLIENT_HOSTNAME", invalidValue: "https://client.example.com"},
-		{name: "admin query", invalidEnv: "ADMIN_HOSTNAME", invalidValue: "admin.example.com?tenant=1"},
 		{name: "assets fragment", invalidEnv: "ASSETS_HOSTNAME", invalidValue: "assets.example.com#public"},
 	} {
 		t.Run(input.name, func(t *testing.T) {
@@ -357,8 +296,6 @@ storage:
 			}
 
 			t.Setenv("CONFIG", path)
-			t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-			t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
 			t.Setenv("ASSETS_HOSTNAME", "assets.example.com")
 			t.Setenv("MYGOD_AI_ASSISTANT_SECRET", "test-ai-assistant-secret")
 			t.Setenv(input.invalidEnv, input.invalidValue)
@@ -389,7 +326,7 @@ admin:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 
 	_, err := Load()
 	if err == nil {
@@ -415,7 +352,7 @@ admin:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 
 	_, err := Load()
 	if err == nil {
@@ -448,7 +385,7 @@ storage:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 
 	_, err := Load()
 	if err == nil {
@@ -480,7 +417,7 @@ storage:
 	}
 
 	t.Setenv("CONFIG", path)
-	setRequiredPublicHostnames(t)
+	setRequiredEnvironment(t)
 	t.Setenv("RUSTFS_ACCESS_KEY", "")
 	t.Setenv("RUSTFS_SECRET_KEY", "")
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
@@ -495,11 +432,9 @@ storage:
 	}
 }
 
-func setRequiredPublicHostnames(t *testing.T) {
+func setRequiredEnvironment(t *testing.T) {
 	t.Helper()
 
-	t.Setenv("CLIENT_HOSTNAME", "client.example.com")
-	t.Setenv("ADMIN_HOSTNAME", "admin.example.com")
 	t.Setenv("ASSETS_HOSTNAME", "assets.example.com")
 	t.Setenv("MYGOD_AI_ASSISTANT_SECRET", "test-ai-assistant-secret")
 }
