@@ -1,6 +1,7 @@
-import { Plus, Search } from "lucide-react"
+import { Plus } from "lucide-react"
 
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
+import { ConversationSearchPopover } from "@/components/conversation/conversation-search-popover"
 import { GroupAvatar } from "@/components/group-avatar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +16,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -68,6 +68,20 @@ export function ConversationSidebar({
     event.preventDefault()
   }
 
+  function getSearchConversationDescription(
+    conversation: ClientConversation
+  ) {
+    return getConversationListDescription(
+      conversation,
+      createConversationMentionLabelResolver({
+        appsById,
+        contactsById,
+        conversation,
+        currentUser,
+      })
+    )
+  }
+
   return (
     <Sidebar className="border-r bg-background" collapsible="none">
       <SidebarHeader className="gap-0 p-0">
@@ -93,15 +107,12 @@ export function ConversationSidebar({
           </DropdownMenu>
         </div>
         <div className="px-4 pb-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-            <SidebarInput
-              aria-label="搜索消息"
-              className="pl-8"
-              placeholder="搜索"
-              type="search"
-            />
-          </div>
+          <ConversationSearchPopover
+            conversations={conversations}
+            currentUserId={currentUser.id}
+            getConversationDescription={getSearchConversationDescription}
+            onSelectConversation={onSelectConversation}
+          />
         </div>
       </SidebarHeader>
       <SidebarContent onContextMenu={handleConversationListContextMenu}>

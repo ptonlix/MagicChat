@@ -3,13 +3,19 @@ import { pinyin } from "pinyin-pro"
 export function createPinyinSearchText(
   values: Array<string | null | undefined>
 ) {
+  return createPinyinSearchTokens(values).join(" ")
+}
+
+export function createPinyinSearchTokens(
+  values: Array<string | null | undefined>
+) {
   const tokens = new Set<string>()
 
   for (const value of values) {
     addSearchToken(tokens, value)
   }
 
-  return Array.from(tokens).join(" ")
+  return Array.from(tokens)
 }
 
 export function normalizePinyinSearchQuery(value: string) {
@@ -29,10 +35,13 @@ function addSearchToken(tokens: Set<string>, value: string | null | undefined) {
     return
   }
 
-  addPinyinToken(
-    tokens,
-    pinyin(rawValue, { toneType: "none", type: "array" }).join("")
-  )
+  const fullPinyin = pinyin(rawValue, {
+    toneType: "none",
+    type: "array",
+  })
+
+  addPinyinToken(tokens, fullPinyin.join(""))
+  addPinyinToken(tokens, fullPinyin.join(" "), true)
   addPinyinToken(
     tokens,
     pinyin(rawValue, {
@@ -43,8 +52,14 @@ function addSearchToken(tokens: Set<string>, value: string | null | undefined) {
   )
 }
 
-function addPinyinToken(tokens: Set<string>, value: string) {
-  const normalizedValue = normalizeSearchToken(value)
+function addPinyinToken(
+  tokens: Set<string>,
+  value: string,
+  preserveSpaces = false
+) {
+  const normalizedValue = preserveSpaces
+    ? value.trim().toLowerCase().replace(/\s+/g, " ")
+    : normalizeSearchToken(value)
   if (!normalizedValue) {
     return
   }

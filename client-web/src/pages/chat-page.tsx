@@ -15,6 +15,11 @@ import {
 } from "@/lib/client-data-api"
 import { createClientMessageId } from "@/lib/message-id"
 import {
+  clearLastConversationId,
+  readLastConversationId,
+  writeLastConversationId,
+} from "@/lib/last-conversation"
+import {
   emptyConversationDraft,
   type ConversationDraftMention,
 } from "@/lib/conversation-drafts"
@@ -102,11 +107,20 @@ export function ChatPage() {
   const [forwardOperation, setForwardOperation] =
     React.useState<ForwardOperation | null>(null)
   const requestedConversationId = conversationId ?? ""
+  const storedConversationId = React.useMemo(
+    () => (requestedConversationId ? "" : readLastConversationId(me.id)),
+    [me.id, requestedConversationId]
+  )
+  const storedConversation = storedConversationId
+    ? getConversation(storedConversationId)
+    : null
+  const resolvedConversationId =
+    requestedConversationId || storedConversation?.id || ""
 
   const activeConversation = React.useMemo(
     () =>
-      requestedConversationId ? getConversation(requestedConversationId) : null,
-    [getConversation, requestedConversationId]
+      resolvedConversationId ? getConversation(resolvedConversationId) : null,
+    [getConversation, resolvedConversationId]
   )
 
   const activeConversationId = activeConversation?.id ?? ""
@@ -210,6 +224,33 @@ export function ChatPage() {
     }),
     [messageSelection.active, selectedClientMessages]
   )
+
+  React.useEffect(() => {
+    if (requestedConversationId || !storedConversationId) {
+      return
+    }
+
+    if (!storedConversation) {
+      clearLastConversationId(me.id)
+      return
+    }
+
+    navigate(`/chat/${encodeURIComponent(storedConversation.id)}`, {
+      replace: true,
+    })
+  }, [
+    me.id,
+    navigate,
+    requestedConversationId,
+    storedConversation,
+    storedConversationId,
+  ])
+
+  React.useEffect(() => {
+    if (activeConversationId) {
+      writeLastConversationId(me.id, activeConversationId)
+    }
+  }, [activeConversationId, me.id])
 
   const setDraft = React.useCallback(
     (nextDraft: string, nextMentions: ConversationDraftMention[]) => {
