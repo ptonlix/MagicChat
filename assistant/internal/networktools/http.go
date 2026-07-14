@@ -44,14 +44,15 @@ type httpClientResult struct {
 
 func newHTTPClient(guard *publicnet.Guard) *http.Client {
 	transport := &http.Transport{
-		DialContext:           guard.DialContext,
-		DisableCompression:    false,
-		ForceAttemptHTTP2:     true,
-		IdleConnTimeout:       30 * time.Second,
-		MaxIdleConns:          20,
-		MaxIdleConnsPerHost:   2,
-		ResponseHeaderTimeout: 15 * time.Second,
-		TLSHandshakeTimeout:   5 * time.Second,
+		DialContext:            guard.DialContext,
+		DisableCompression:     false,
+		ForceAttemptHTTP2:      true,
+		IdleConnTimeout:        30 * time.Second,
+		MaxIdleConns:           20,
+		MaxIdleConnsPerHost:    2,
+		MaxResponseHeaderBytes: maxHTTPResponseBodyBytes,
+		ResponseHeaderTimeout:  15 * time.Second,
+		TLSHandshakeTimeout:    5 * time.Second,
 	}
 	return &http.Client{
 		Transport: transport,
@@ -75,7 +76,9 @@ func (s *Source) callHTTPClient(ctx context.Context, raw json.RawMessage) (mcpcl
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
-	if err := s.guard.ValidateHost(ctx, host); err != nil {
+	requestCtx, cancel := context.WithTimeout(ctx, httpRequestTimeout)
+	defer cancel()
+	if err := s.guard.ValidateHost(requestCtx, host); err != nil {
 		return mcpclient.ToolResult{}, err
 	}
 
@@ -86,8 +89,6 @@ func (s *Source) callHTTPClient(ctx context.Context, raw json.RawMessage) (mcpcl
 		}
 		body = strings.NewReader(*input.Body)
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, httpRequestTimeout)
-	defer cancel()
 	request, err := http.NewRequestWithContext(requestCtx, method, normalizedURL, body)
 	if err != nil {
 		return mcpclient.ToolResult{}, fmt.Errorf("create HTTP request: %w", err)

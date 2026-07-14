@@ -142,3 +142,24 @@ func TestHTTPClientTruncatesLargeResponse(t *testing.T) {
 		t.Fatalf("response length/truncated = %d/%v", len(response.Body), response.Truncated)
 	}
 }
+
+func TestNewHTTPClientKeepsOutboundSafetyControls(t *testing.T) {
+	client := newHTTPClient(publicnet.NewGuard())
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("HTTP transport type = %T, want *http.Transport", client.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("HTTP transport proxy must be disabled")
+	}
+	if transport.MaxResponseHeaderBytes != maxHTTPResponseBodyBytes {
+		t.Fatalf("MaxResponseHeaderBytes = %d, want %d", transport.MaxResponseHeaderBytes, maxHTTPResponseBodyBytes)
+	}
+	redirectRequest, err := http.NewRequest(http.MethodGet, "https://example.com/next", nil)
+	if err != nil {
+		t.Fatalf("create redirect request: %v", err)
+	}
+	if err := client.CheckRedirect(redirectRequest, nil); err != http.ErrUseLastResponse {
+		t.Fatalf("CheckRedirect() error = %v, want http.ErrUseLastResponse", err)
+	}
+}

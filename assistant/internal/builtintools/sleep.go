@@ -861,7 +861,7 @@ func callReply(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult
 	if err != nil {
 		return mcpclient.ToolResult{}, err
 	}
-	result.Final = true
+	result.Final = message.Type != messageTypeChart
 
 	return result, nil
 }

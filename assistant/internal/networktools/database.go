@@ -2,7 +2,6 @@ package networktools
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -16,9 +15,11 @@ import (
 )
 
 const (
-	databaseQueryTimeout  = 10 * time.Second
-	maxDatabaseQueryBytes = 100 * 1024
-	maxDatabaseResultRows = 100
+	databaseQueryTimeout   = 10 * time.Second
+	maxDatabaseQueryBytes  = 100 * 1024
+	maxDatabaseResultRows  = 100
+	maxDatabaseResultBytes = 1024 * 1024
+	databaseResultOverhead = 256
 )
 
 type databaseConnectionInput struct {
@@ -60,15 +61,15 @@ func (s *Source) callDatabaseQuery(
 	if err := normalizeDatabaseInput(&input, defaultPort); err != nil {
 		return mcpclient.ToolResult{}, err
 	}
-	if err := s.guard.ValidateHost(ctx, input.Connection.Host); err != nil {
+	queryCtx, cancel := context.WithTimeout(ctx, databaseQueryTimeout)
+	defer cancel()
+	if err := s.guard.ValidateHost(queryCtx, input.Connection.Host); err != nil {
 		return mcpclient.ToolResult{}, err
 	}
 	if err := validateReadOnlyQuery(input.Query); err != nil {
 		return mcpclient.ToolResult{}, err
 	}
 
-	queryCtx, cancel := context.WithTimeout(ctx, databaseQueryTimeout)
-	defer cancel()
 	result, err := run(queryCtx, s.guard, input)
 	if err != nil {
 		return mcpclient.ToolResult{}, err
@@ -83,7 +84,7 @@ func normalizeDatabaseInput(input *databaseQueryInput, defaultPort int) error {
 	input.Connection.TLSMode = strings.ToLower(strings.TrimSpace(input.Connection.TLSMode))
 	input.Query = strings.TrimSpace(input.Query)
 
-	if input.Connection.Host == "" || strings.ContainsAny(input.Connection.Host, "/\\\x00\r\n") {
+	if input.Connection.Host == "" || len(input.Connection.Host) > 253 || strings.ContainsAny(input.Connection.Host, "/\\\x00\r\n") {
 		return fmt.Errorf("database host is invalid")
 	}
 	if input.Connection.Port == 0 {
@@ -92,13 +93,13 @@ func normalizeDatabaseInput(input *databaseQueryInput, defaultPort int) error {
 	if input.Connection.Port < 1 || input.Connection.Port > 65535 {
 		return fmt.Errorf("database port is invalid")
 	}
-	if input.Connection.Database == "" || strings.ContainsAny(input.Connection.Database, "\x00\r\n/") {
+	if input.Connection.Database == "" || len(input.Connection.Database) > 255 || strings.ContainsAny(input.Connection.Database, "\x00\r\n/") {
 		return fmt.Errorf("database name is invalid")
 	}
-	if input.Connection.Username == "" || strings.ContainsAny(input.Connection.Username, "\x00\r\n") {
+	if input.Connection.Username == "" || len(input.Connection.Username) > 255 || strings.ContainsRune(input.Connection.Username, '\x00') {
 		return fmt.Errorf("database username is invalid")
 	}
-	if strings.ContainsAny(input.Connection.Password, "\x00\r\n") {
+	if len(input.Connection.Password) > 4096 || strings.ContainsRune(input.Connection.Password, '\x00') {
 		return fmt.Errorf("database password is invalid")
 	}
 	if input.Connection.TLSMode == "" {
@@ -117,13 +118,36 @@ func validateReadOnlyQuery(query string) error {
 	if !isSingleSQLStatement(query) {
 		return fmt.Errorf("database query must contain exactly one statement")
 	}
+	if containsExecutableSQLComment(query) {
+		return fmt.Errorf("database query must not contain executable comments")
+	}
 	keyword := firstSQLKeyword(query)
 	switch keyword {
-	case "select", "with", "show", "describe", "desc", "explain":
-		return nil
+	case "select", "show", "describe", "desc":
+	case "with":
+		for _, word := range sqlWords(query) {
+			switch word {
+			case "insert", "update", "delete", "merge", "replace":
+				return fmt.Errorf("database query must be read-only")
+			}
+		}
+	case "explain":
+		for _, word := range sqlWords(query) {
+			switch word {
+			case "insert", "update", "delete", "merge", "replace", "create", "execute", "declare", "refresh", "call", "copy":
+				return fmt.Errorf("database query must be read-only")
+			}
+		}
 	default:
 		return fmt.Errorf("database query must be read-only")
 	}
+	words := sqlWords(query)
+	for index := 0; index+1 < len(words); index++ {
+		if words[index] == "into" && (words[index+1] == "outfile" || words[index+1] == "dumpfile") {
+			return fmt.Errorf("database query must not write files")
+		}
+	}
+	return nil
 }
 
 func firstSQLKeyword(query string) string {
@@ -153,7 +177,7 @@ func findSQLSemicolon(query string) int {
 		case '\'', '"', '`':
 			index = skipSQLQuoted(query, index, query[index])
 		case '-':
-			if index+1 < len(query) && query[index+1] == '-' {
+			if isSQLDashCommentStart(query, index) {
 				index = skipSQLLineComment(query, index+2)
 			} else {
 				index++
@@ -188,7 +212,7 @@ func skipSQLSpaceAndComments(query string, start int) int {
 			index++
 			continue
 		}
-		if index+1 < len(query) && query[index] == '-' && query[index+1] == '-' {
+		if isSQLDashCommentStart(query, index) {
 			index = skipSQLLineComment(query, index+2)
 			continue
 		}
@@ -230,6 +254,13 @@ func skipSQLLineComment(query string, start int) int {
 	return len(query)
 }
 
+func isSQLDashCommentStart(query string, index int) bool {
+	if index < 0 || index+1 >= len(query) || query[index] != '-' || query[index+1] != '-' {
+		return false
+	}
+	return index+2 == len(query) || query[index+2] <= ' '
+}
+
 func skipSQLBlockComment(query string, start int) int {
 	depth := 1
 	for index := start; index < len(query)-1; index++ {
@@ -251,8 +282,10 @@ func skipSQLBlockComment(query string, start int) int {
 
 func skipPostgreSQLDollarQuote(query string, start int) int {
 	endTag := start + 1
-	for endTag < len(query) && (query[endTag] == '_' || query[endTag] >= 'a' && query[endTag] <= 'z' ||
-		query[endTag] >= 'A' && query[endTag] <= 'Z' || query[endTag] >= '0' && query[endTag] <= '9') {
+	if endTag < len(query) && query[endTag] != '$' && !isSQLIdentifierStartByte(query[endTag]) {
+		return start
+	}
+	for endTag < len(query) && (isSQLIdentifierStartByte(query[endTag]) || query[endTag] >= '0' && query[endTag] <= '9') {
 		endTag++
 	}
 	if endTag >= len(query) || query[endTag] != '$' {
@@ -265,11 +298,112 @@ func skipPostgreSQLDollarQuote(query string, start int) int {
 	return len(query)
 }
 
-func collectDatabaseRows(rows *sql.Rows) (databaseQueryResult, error) {
+func containsExecutableSQLComment(query string) bool {
+	for index := 0; index < len(query); {
+		switch query[index] {
+		case '\'', '"', '`':
+			index = skipSQLQuoted(query, index, query[index])
+		case '$':
+			if end := skipPostgreSQLDollarQuote(query, index); end > index {
+				index = end
+			} else {
+				index++
+			}
+		case '/':
+			if index+2 < len(query) && query[index+1] == '*' {
+				if query[index+2] == '!' ||
+					(index+3 < len(query) && (query[index+2] == 'M' || query[index+2] == 'm') && query[index+3] == '!') {
+					return true
+				}
+				index = skipSQLBlockComment(query, index+2)
+			} else {
+				index++
+			}
+		case '-':
+			if isSQLDashCommentStart(query, index) {
+				index = skipSQLLineComment(query, index+2)
+			} else {
+				index++
+			}
+		case '#':
+			index = skipSQLLineComment(query, index+1)
+		default:
+			index++
+		}
+	}
+	return false
+}
+
+func sqlWords(query string) []string {
+	words := make([]string, 0, 16)
+	for index := 0; index < len(query); {
+		switch query[index] {
+		case '\'', '"', '`':
+			index = skipSQLQuoted(query, index, query[index])
+		case '-':
+			if isSQLDashCommentStart(query, index) {
+				index = skipSQLLineComment(query, index+2)
+			} else {
+				index++
+			}
+		case '#':
+			index = skipSQLLineComment(query, index+1)
+		case '/':
+			if index+1 < len(query) && query[index+1] == '*' {
+				index = skipSQLBlockComment(query, index+2)
+			} else {
+				index++
+			}
+		case '$':
+			if end := skipPostgreSQLDollarQuote(query, index); end > index {
+				index = end
+			} else {
+				index++
+			}
+		default:
+			if !isSQLWordByte(query[index]) {
+				index++
+				continue
+			}
+			start := index
+			for index < len(query) && isSQLWordByte(query[index]) {
+				index++
+			}
+			words = append(words, strings.ToLower(query[start:index]))
+		}
+	}
+	return words
+}
+
+func isSQLWordByte(character byte) bool {
+	return isSQLIdentifierStartByte(character) || character >= '0' && character <= '9'
+}
+
+func isSQLIdentifierStartByte(character byte) bool {
+	return character == '_' || character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z'
+}
+
+type databaseRows interface {
+	Close() error
+	Columns() ([]string, error)
+	Err() error
+	Next() bool
+	Scan(...any) error
+}
+
+func collectDatabaseRows(rows databaseRows) (databaseQueryResult, error) {
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
 		return databaseQueryResult{}, err
+	}
+	encodedColumns, err := json.Marshal(columns)
+	if err != nil {
+		return databaseQueryResult{}, fmt.Errorf("encode database columns: %w", err)
+	}
+	resultBytes := len(encodedColumns) + databaseResultOverhead
+	if resultBytes > maxDatabaseResultBytes {
+		return databaseQueryResult{}, databaseResultTooLargeError()
 	}
 	result := databaseQueryResult{
 		Columns: columns,
@@ -291,6 +425,17 @@ func collectDatabaseRows(rows *sql.Rows) (databaseQueryResult, error) {
 		for index, value := range values {
 			values[index] = normalizeDatabaseValue(value)
 		}
+		if databaseRowRawBytes(values) > maxDatabaseResultBytes {
+			return databaseQueryResult{}, databaseResultTooLargeError()
+		}
+		encodedRow, err := json.Marshal(values)
+		if err != nil {
+			return databaseQueryResult{}, fmt.Errorf("encode database row: %w", err)
+		}
+		resultBytes += len(encodedRow) + 1
+		if resultBytes > maxDatabaseResultBytes {
+			return databaseQueryResult{}, databaseResultTooLargeError()
+		}
 		result.Rows = append(result.Rows, values)
 	}
 	if err := rows.Err(); err != nil {
@@ -298,6 +443,26 @@ func collectDatabaseRows(rows *sql.Rows) (databaseQueryResult, error) {
 	}
 	result.RowCount = len(result.Rows)
 	return result, nil
+}
+
+func databaseRowRawBytes(values []any) int {
+	total := 0
+	for _, value := range values {
+		switch typed := value.(type) {
+		case string:
+			total += len(typed)
+		case []byte:
+			total += len(typed)
+		}
+		if total > maxDatabaseResultBytes {
+			return total
+		}
+	}
+	return total
+}
+
+func databaseResultTooLargeError() error {
+	return fmt.Errorf("database query result exceeds %d bytes; select fewer columns or smaller values", maxDatabaseResultBytes)
 }
 
 func normalizeDatabaseValue(value any) any {

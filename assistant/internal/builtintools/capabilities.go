@@ -126,7 +126,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "回复当前触发 Assistant 的会话。支持 text、markdown、image、file、自定义 card 和 chart；不要默认使用 text/markdown。主要内容是一个内部联系人及其联系方式、应用、群聊、项目或任务时，尽量改用 reply_entity_card；主要内容是可信数字的趋势、比较、分布、占比、排名、统计或多维评分时，即使用户没有明确要求图表，也尽量使用 chart。chart 支持 line、bar、pie、radar，必须提供 16 字以内标题、对应类型的 data 和 128 字以内纯文本 description；只要数据中的数字有单位，就必须在 description 中明确说明单位，统计范围和数据来源也写入 description。单个孤立数字、数据不完整、复杂表格、多个对象清单或以解释为主时再使用 text/markdown。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，指定对象必须是当前会话成员；image 使用可下载 URL，file 使用显式文件名以及 url 或小文本 content；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
+				Description:     "回复当前触发 Assistant 的会话。支持 text、markdown、image、file、自定义 card 和 chart；不要默认使用 text/markdown。主要内容是一个内部联系人及其联系方式、应用、群聊、项目或任务时，尽量改用 reply_entity_card；分析、对比、趋势、分布、占比、排名、统计或多维评分中存在至少两项可信且可比较的数字，并且可视化更直观时，即使用户没有明确要求图表，也优先使用 chart。chart 支持 line、bar、pie、radar，必须提供 16 字以内标题、对应类型的 data 和 128 字以内纯文本 description；数字有金额、人数、百分比、时长等有助于理解的单位时，建议在 description 中自然说明，没有单位时无需机械填写。每条 chart 只包含一个图表，但图表只是分析过程中的普通消息，不代表回复结束；复杂分析可多次调用本操作发送多个互补图表，最后再用 text/markdown 给出综合结论。单个孤立数字、数据不完整、复杂表格、多个对象清单或以解释为主时再使用 text/markdown。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，指定对象必须是当前会话成员；image 使用可下载 URL，file 使用显式文件名以及 url 或小文本 content；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
 				Example:         conversationExample(conversationsOperationReply, map[string]any{"type": "text", "content": "收到"}),
 				InputSchema:     conversationOperationInputSchema(conversationsOperationReply, messageArgumentsSchema(false), false, false),
 				Name:            conversationsOperationReply,
@@ -144,7 +144,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "以授权用户身份向私聊联系人或已有群聊发送消息。target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id；支持 text、markdown、image、file、自定义 card 和 chart，不要默认使用 text/markdown。主要内容是一个内部联系人及其联系方式、应用、群聊、项目或任务时，尽量改用 send_entity_card；主要内容是可信数字的趋势、比较、分布、占比、排名、统计或多维评分时，即使用户没有明确要求图表，也尽量使用 chart。chart 支持 line、bar、pie、radar，必须提供 16 字以内标题、对应类型的 data 和 128 字以内纯文本 description；只要数据中的数字有单位，就必须在 description 中明确说明单位，统计范围和数据来源也写入 description。单个孤立数字、数据不完整、复杂表格、多个对象清单或以解释为主时再使用 text/markdown。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，UUID 必须可信且指定对象必须是目标会话成员；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
+				Description:     "以授权用户身份向私聊联系人或已有群聊发送消息。target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id；支持 text、markdown、image、file、自定义 card 和 chart，不要默认使用 text/markdown。主要内容是一个内部联系人及其联系方式、应用、群聊、项目或任务时，尽量改用 send_entity_card；分析、对比、趋势、分布、占比、排名、统计或多维评分中存在至少两项可信且可比较的数字，并且可视化更直观时，即使用户没有明确要求图表，也优先使用 chart。chart 支持 line、bar、pie、radar，必须提供 16 字以内标题、对应类型的 data 和 128 字以内纯文本 description；数字有金额、人数、百分比、时长等有助于理解的单位时，建议在 description 中自然说明，没有单位时无需机械填写。每条 chart 只包含一个图表；复杂分析可多次发送多个互补图表，并补充综合结论。单个孤立数字、数据不完整、复杂表格、多个对象清单或以解释为主时再使用 text/markdown。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，UUID 必须可信且指定对象必须是目标会话成员；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
 				InputSchema:     conversationUserOperationInputSchema(conversationsOperationSend, messageArgumentsSchema(true), true),
 				Name:            conversationsOperationSend,
 				ToolDescription: toolDescription,
@@ -557,7 +557,7 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 		"name":        map[string]any{"type": "string", "minLength": 1, "maxLength": 255},
 		"url":         map[string]any{"type": "string", "minLength": 1, "maxLength": 2048, "description": "文件消息的下载地址，或卡片消息的跳转地址。卡片仅允许以 / 开头的站内路径或明确以 http://、https:// 开头的外链；禁止 javascript:、data:、//host、反斜杠和包含空白的地址。"},
 		"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": 240, "description": "卡片或图表消息标题；chart 的限制以对应分支为准。"},
-		"description": map[string]any{"type": "string", "minLength": 1, "maxLength": 2000, "description": "卡片或图表消息说明；必须使用纯文本，不支持 Markdown。chart 数据中的数字有单位时，必须在 description 中明确说明单位；其他限制以对应分支为准。"},
+		"description": map[string]any{"type": "string", "minLength": 1, "maxLength": 2000, "description": "卡片或图表消息说明；必须使用纯文本，不支持 Markdown。chart 数据中的数字有金额、人数、百分比、时长等有助于理解的单位时，建议在 description 中自然说明；没有单位时无需机械填写。其他限制以对应分支为准。"},
 		"chart_type":  map[string]any{"type": "string", "enum": []string{"line", "bar", "pie", "radar"}, "description": "图表子类型：折线图 line、条形图 bar、饼图 pie、雷达图 radar。"},
 		"data":        map[string]any{"type": "object", "description": "图表数据；结构由 chart_type 决定。"},
 	}
@@ -603,7 +603,7 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 				"properties": map[string]any{
 					"type":        map[string]any{"enum": []string{messageTypeChart}},
 					"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": maxChartMessageTitleRunes},
-					"description": map[string]any{"type": "string", "minLength": 1, "maxLength": maxChartMessageDescriptionRunes, "description": "图表底部说明，必须是纯文本；只要数据中的数字有单位，就必须在这里明确说明单位，统计范围和数据来源也写在这里。"},
+					"description": map[string]any{"type": "string", "minLength": 1, "maxLength": maxChartMessageDescriptionRunes, "description": "图表底部说明，必须是纯文本；数字有金额、人数、百分比、时长等有助于理解的单位时，建议在这里自然说明，没有单位时无需机械填写。统计范围、简要结论和数据来源也可写在这里。"},
 				},
 				"required": []string{"type", "chart_type", "title", "data", "description"},
 				"oneOf":    chartMessageVariantsSchema(),

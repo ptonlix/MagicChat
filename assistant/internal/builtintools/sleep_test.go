@@ -299,7 +299,7 @@ func TestMessageToolMetadataDocumentsSupportedMessageTypes(t *testing.T) {
 	source := NewSource()
 	for _, operation := range []string{conversationsOperationReply, conversationsOperationSend} {
 		description, schema := helpOperationForTest(t, source, operation)
-		for _, snippet := range []string{"text", "markdown", "image", "file", "card", "不要默认使用 text/markdown", "即使用户没有明确要求图表", "趋势、比较、分布、占比、排名、统计或多维评分", "单个孤立数字"} {
+		for _, snippet := range []string{"text", "markdown", "image", "file", "card", "不要默认使用 text/markdown", "即使用户没有明确要求图表", "分析、对比、趋势、分布、占比、排名、统计或多维评分", "单个孤立数字"} {
 			if !strings.Contains(description, snippet) {
 				t.Fatalf("%s description = %q, want to contain %q", operation, description, snippet)
 			}
@@ -1418,8 +1418,12 @@ func TestReplyToolCallsMessageSendForSupportedCharts(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal chart input: %v", err)
 			}
-			if _, err := callReply(ctx, input); err != nil {
+			result, err := callReply(ctx, input)
+			if err != nil {
 				t.Fatalf("CallTool() error = %v", err)
+			}
+			if result.Final {
+				t.Fatal("chart reply result.Final = true, want false so analysis can continue")
 			}
 			var payload struct {
 				Message scopedMessagePayload `json:"message"`
@@ -1431,6 +1435,33 @@ func TestReplyToolCallsMessageSendForSupportedCharts(t *testing.T) {
 				t.Fatalf("message = %#v, want %s chart", payload.Message, testCase.chartType)
 			}
 		})
+	}
+}
+
+func TestReplyToolKeepsTextFinal(t *testing.T) {
+	ctx := WithScope(context.Background(), Scope{
+		ConversationID:   "conversation-1",
+		ConversationType: "app",
+		Requester:        &fakeRequester{},
+	})
+	result, err := callReply(ctx, json.RawMessage(`{"type":"text","content":"综合结论"}`))
+	if err != nil {
+		t.Fatalf("callReply() error = %v", err)
+	}
+	if !result.Final {
+		t.Fatal("text reply result.Final = false, want true")
+	}
+}
+
+func TestChartMessageDoesNotRequireExplicitUnit(t *testing.T) {
+	_, err := parseChartMessageInput(messageInput{
+		ChartType:   "line",
+		Data:        json.RawMessage(`{"labels":["周一","周二"],"series":[{"name":"数量","values":[12,18]}]}`),
+		Description: "按自然日统计",
+		Title:       "消息趋势",
+	})
+	if err != nil {
+		t.Fatalf("parseChartMessageInput() error = %v, unit guidance must not be enforced", err)
 	}
 }
 
@@ -1683,9 +1714,16 @@ func TestConversationMessageHelpDescribesChartSchema(t *testing.T) {
 	source := NewSource()
 	for _, operation := range []string{conversationsOperationReply, conversationsOperationSend} {
 		description, schema := helpOperationForTest(t, source, operation)
-		for _, snippet := range []string{"chart", "line", "bar", "pie", "radar", "16", "128", "数字有单位", "必须在 description 中明确说明单位"} {
+		for _, snippet := range []string{"chart", "line", "bar", "pie", "radar", "16", "128", "至少两项可信且可比较的数字", "多个互补图表", "建议在 description 中自然说明", "没有单位时无需机械填写"} {
 			if !strings.Contains(description, snippet) {
 				t.Fatalf("%s description = %q, want %q", operation, description, snippet)
+			}
+		}
+		if operation == conversationsOperationReply {
+			for _, snippet := range []string{"图表只是分析过程中的普通消息", "不代表回复结束", "最后再用 text/markdown 给出综合结论"} {
+				if !strings.Contains(description, snippet) {
+					t.Fatalf("%s description = %q, want %q", operation, description, snippet)
+				}
 			}
 		}
 		arguments := schema["properties"].(map[string]any)["arguments"].(map[string]any)
@@ -1696,7 +1734,7 @@ func TestConversationMessageHelpDescribesChartSchema(t *testing.T) {
 			}
 		}
 		descriptionField := properties["description"].(map[string]any)["description"].(string)
-		for _, snippet := range []string{"数字有单位", "必须在 description 中明确说明单位"} {
+		for _, snippet := range []string{"建议在 description 中自然说明", "没有单位时无需机械填写"} {
 			if !strings.Contains(descriptionField, snippet) {
 				t.Fatalf("%s description field = %q, want %q", operation, descriptionField, snippet)
 			}

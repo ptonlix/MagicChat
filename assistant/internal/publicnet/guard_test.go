@@ -37,6 +37,8 @@ func TestIsPublicAddr(t *testing.T) {
 		{address: "fc00::1"},
 		{address: "fe80::1"},
 		{address: "2001:db8::1"},
+		{address: "3ffe::1"},
+		{address: "3fff::1"},
 		{address: "::ffff:127.0.0.1"},
 	}
 	for _, test := range tests {

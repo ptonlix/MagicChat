@@ -3,6 +3,7 @@ package networktools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -109,11 +110,93 @@ func TestValidateReadOnlyQuery(t *testing.T) {
 		"CREATE TABLE demo(id int)",
 		"SET transaction_read_only = off",
 		"SELECT 1; SELECT 2",
+		"WITH removed AS (DELETE FROM users RETURNING id) SELECT * FROM removed",
+		"EXPLAIN ANALYZE DELETE FROM users",
+		"EXPLAIN ANALYZE CREATE TABLE copied AS SELECT * FROM users",
+		"SELECT * FROM users INTO/**/OUTFILE '/tmp/users.csv'",
+		"SELECT * FROM users /*! INTO OUTFILE '/tmp/users.csv' */",
+		"SELECT * FROM users /*M! INTO DUMPFILE '/tmp/users.bin' */",
+		"SELECT 1--x INTO/**/OUTFILE '/tmp/users.csv' FROM users",
 	}
 	for _, query := range rejected {
 		if err := validateReadOnlyQuery(query); err == nil {
 			t.Errorf("validateReadOnlyQuery(%q) error = nil", query)
 		}
+	}
+}
+
+func TestValidateReadOnlyQueryAllowsExecutableCommentMarkersInLiterals(t *testing.T) {
+	for _, query := range []string{
+		"SELECT '/*! not a comment */' AS value",
+		"SELECT $$/*M! not a comment */$$ AS value",
+		"SELECT 1 -- /*! harmless inside a line comment */",
+	} {
+		if err := validateReadOnlyQuery(query); err != nil {
+			t.Errorf("validateReadOnlyQuery(%q) error = %v", query, err)
+		}
+	}
+}
+
+type fakeDatabaseRows struct {
+	columns []string
+	current int
+	err     error
+	rows    [][]any
+}
+
+func (r *fakeDatabaseRows) Close() error               { return nil }
+func (r *fakeDatabaseRows) Columns() ([]string, error) { return r.columns, nil }
+func (r *fakeDatabaseRows) Err() error                 { return r.err }
+func (r *fakeDatabaseRows) Next() bool {
+	if r.current+1 >= len(r.rows) {
+		return false
+	}
+	r.current++
+	return true
+}
+func (r *fakeDatabaseRows) Scan(destinations ...any) error {
+	if r.current < 0 || r.current >= len(r.rows) {
+		return fmt.Errorf("no current row")
+	}
+	if len(destinations) != len(r.rows[r.current]) {
+		return fmt.Errorf("destination count mismatch")
+	}
+	for index := range destinations {
+		value, ok := destinations[index].(*any)
+		if !ok {
+			return fmt.Errorf("destination %d is not *any", index)
+		}
+		*value = r.rows[r.current][index]
+	}
+	return nil
+}
+
+func TestCollectDatabaseRowsReturnsAtMostOneHundredRows(t *testing.T) {
+	rows := make([][]any, maxDatabaseResultRows+1)
+	for index := range rows {
+		rows[index] = []any{int64(index)}
+	}
+	result, err := collectDatabaseRows(&fakeDatabaseRows{
+		columns: []string{"id"},
+		current: -1,
+		rows:    rows,
+	})
+	if err != nil {
+		t.Fatalf("collectDatabaseRows() error = %v", err)
+	}
+	if result.RowCount != maxDatabaseResultRows || len(result.Rows) != maxDatabaseResultRows || !result.Truncated {
+		t.Fatalf("result rows/count/truncated = %d/%d/%v", len(result.Rows), result.RowCount, result.Truncated)
+	}
+}
+
+func TestCollectDatabaseRowsRejectsOversizedValue(t *testing.T) {
+	_, err := collectDatabaseRows(&fakeDatabaseRows{
+		columns: []string{"payload"},
+		current: -1,
+		rows:    [][]any{{strings.Repeat("x", maxDatabaseResultBytes+1)}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "select fewer columns or smaller values") {
+		t.Fatalf("collectDatabaseRows() error = %v, want result size rejection", err)
 	}
 }
 

@@ -155,4 +155,6 @@ var nonPublicPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2001::/23"),
 	netip.MustParsePrefix("2001:db8::/32"),
 	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("3ffe::/16"),
+	netip.MustParsePrefix("3fff::/20"),
 }
