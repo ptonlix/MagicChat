@@ -20,6 +20,7 @@ import type {
   SendConversationMarkdownMessageInput,
   SendConversationLinkMessageInput,
   SendConversationCardMessageInput,
+  SendConversationChartMessageInput,
   SendConversationEntityCardMessageInput,
   SendConversationFileMessageInput,
   SendConversationImageMessageInput,
@@ -312,6 +313,47 @@ export async function sendConversationCardMessage(
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "发送卡片失败")
+  }
+
+  const message = (
+    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
+  )?.data?.message
+
+  return normalizeMessage(message)
+}
+
+export async function sendConversationChartMessage(
+  conversationId: string,
+  input: SendConversationChartMessageInput,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      body: JSON.stringify({
+        client_message_id: input.clientMessageId,
+        reply_to_message_id: input.replyToMessageId,
+        body: {
+          chart_type: input.chart.chartType,
+          data: input.chart.data,
+          description: input.chart.description,
+          title: input.chart.title,
+          type: "chart",
+        },
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "发送图表失败")
   }
 
   const message = (
@@ -686,6 +728,10 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
 
   if (body.type === "card") {
     return `[卡片] ${body.title}`
+  }
+
+  if (body.type === "chart") {
+    return `[图表] ${body.title}`
   }
 
   if (body.type === "file") {

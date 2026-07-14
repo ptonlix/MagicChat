@@ -1713,7 +1713,7 @@ func (s *Server) prepareAppSendMessageBodyForUser(ctx context.Context, userID st
 			Body:     body,
 			Finalize: finalizeNormalizedMessageBody,
 		}, nil
-	case messageTypeText, messageTypeMarkdown, messageTypeLink, messageTypeCard:
+	case messageTypeText, messageTypeMarkdown, messageTypeLink, messageTypeCard, messageTypeChart:
 		body, err := normalizeAppSendMessageBody(ctx, raw)
 		if err != nil {
 			return preparedAppSendMessageBody{}, err

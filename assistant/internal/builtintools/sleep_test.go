@@ -299,7 +299,7 @@ func TestMessageToolMetadataDocumentsSupportedMessageTypes(t *testing.T) {
 	source := NewSource()
 	for _, operation := range []string{conversationsOperationReply, conversationsOperationSend} {
 		description, schema := helpOperationForTest(t, source, operation)
-		for _, snippet := range []string{"text", "markdown", "image", "file", "card"} {
+		for _, snippet := range []string{"text", "markdown", "image", "file", "card", "不要默认使用 text/markdown", "即使用户没有明确要求图表", "趋势、比较、分布、占比、排名、统计或多维评分", "单个孤立数字"} {
 			if !strings.Contains(description, snippet) {
 				t.Fatalf("%s description = %q, want to contain %q", operation, description, snippet)
 			}
@@ -332,7 +332,7 @@ func TestEntityCardToolMetadataUsesObjectReferences(t *testing.T) {
 	source := NewSource()
 	for _, operation := range []string{conversationsOperationReplyEntityCard, conversationsOperationSendEntityCard} {
 		description, schema := helpOperationForTest(t, source, operation)
-		for _, snippet := range []string{"user", "app", "group", "project", "task", "Server"} {
+		for _, snippet := range []string{"user", "app", "group", "project", "task", "Server", "尽量使用本操作", "不要把对象资料降级为 text/markdown"} {
 			if !strings.Contains(description, snippet) {
 				t.Fatalf("%s description = %q, want %q", operation, description, snippet)
 			}
@@ -1389,6 +1389,70 @@ func TestReplyToolRejectsIncompleteCard(t *testing.T) {
 	}
 }
 
+func TestReplyToolCallsMessageSendForSupportedCharts(t *testing.T) {
+	testCases := []struct {
+		chartType string
+		data      any
+	}{
+		{"line", map[string]any{"labels": []string{"周一", "周二"}, "series": []any{map[string]any{"name": "数量", "values": []any{12, 18}}}}},
+		{"bar", map[string]any{"direction": "vertical", "mode": "grouped", "labels": []string{"一月"}, "series": []any{map[string]any{"name": "数量", "values": []any{12}}}}},
+		{"pie", map[string]any{"items": []any{map[string]any{"name": "待办", "value": 12}, map[string]any{"name": "完成", "value": 8}}}},
+		{"radar", map[string]any{"axes": []any{map[string]any{"name": "进度", "max": 100}, map[string]any{"name": "质量", "max": 100}, map[string]any{"name": "协作", "max": 100}}, "series": []any{map[string]any{"name": "本周", "values": []any{80, 92, 76}}}}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.chartType, func(t *testing.T) {
+			requester := &fakeRequester{}
+			ctx := WithScope(context.Background(), Scope{
+				ConversationID:   "conversation-1",
+				ConversationType: "app",
+				Requester:        requester,
+			})
+			input, err := json.Marshal(map[string]any{
+				"type":        messageTypeChart,
+				"chart_type":  testCase.chartType,
+				"title":       "项目趋势",
+				"data":        testCase.data,
+				"description": "单位：个，按自然日统计",
+			})
+			if err != nil {
+				t.Fatalf("marshal chart input: %v", err)
+			}
+			if _, err := callReply(ctx, input); err != nil {
+				t.Fatalf("CallTool() error = %v", err)
+			}
+			var payload struct {
+				Message scopedMessagePayload `json:"message"`
+			}
+			if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+				t.Fatalf("unmarshal payload: %v", err)
+			}
+			if payload.Message.Type != messageTypeChart || payload.Message.ChartType != testCase.chartType || payload.Message.Title != "项目趋势" || len(payload.Message.Data) == 0 {
+				t.Fatalf("message = %#v, want %s chart", payload.Message, testCase.chartType)
+			}
+		})
+	}
+}
+
+func TestReplyToolRejectsInvalidChartEnvelope(t *testing.T) {
+	ctx := WithScope(context.Background(), Scope{
+		ConversationID:   "conversation-1",
+		ConversationType: "app",
+		Requester:        &fakeRequester{},
+	})
+	for _, input := range []string{
+		`{"type":"chart","chart_type":"area","title":"趋势","description":"说明","data":{"labels":[]}}`,
+		`{"type":"chart","chart_type":"line","description":"说明","data":{"labels":[]}}`,
+		`{"type":"chart","chart_type":"line","title":"趋势","data":{"labels":[]}}`,
+		`{"type":"chart","chart_type":"line","title":"这是一个超过十六个字符的图表消息标题","description":"说明","data":{"labels":[]}}`,
+		`{"type":"chart","chart_type":"line","title":"趋势","description":"说明","data":null}`,
+	} {
+		if _, err := callReply(ctx, json.RawMessage(input)); err == nil {
+			t.Fatalf("CallTool(%s) error = nil, want invalid chart error", input)
+		}
+	}
+}
+
 func TestReplyEntityCardUsesAuthorizedUserForResolutionAndAgentForSending(t *testing.T) {
 	requester := &fakeRequester{}
 	source := NewSource()
@@ -1577,6 +1641,88 @@ func TestSendAsUserToolCallsMessageSendAsUserForCard(t *testing.T) {
 	}
 	if payload.Message.Type != messageTypeCard || payload.Message.URL != "/projects/project-1?taskId=task-1" {
 		t.Fatalf("message = %#v, want card message", payload.Message)
+	}
+}
+
+func TestSendAsUserToolCallsMessageSendAsUserForChart(t *testing.T) {
+	requester := &fakeRequester{}
+	ctx := WithScope(context.Background(), Scope{
+		CurrentUserID:    "user-1",
+		Requester:        requester,
+		TriggerMessageID: "message-1",
+	})
+
+	_, err := callSendAsUser(ctx, json.RawMessage(`{
+		"target_type":"group",
+		"conversation_id":"conversation-2",
+		"type":"chart",
+		"chart_type":"bar",
+		"title":"任务对比",
+		"description":"单位：个，按月份统计",
+		"data":{"direction":"horizontal","mode":"stacked","labels":["一月"],"series":[{"name":"新增","values":[12]}]}
+	}`))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	var payload struct {
+		Message scopedMessagePayload `json:"message"`
+		Target  sendAsUserTarget     `json:"target"`
+	}
+	if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.Target.Type != "group" || payload.Target.ConversationID != "conversation-2" {
+		t.Fatalf("target = %#v, want group conversation", payload.Target)
+	}
+	if payload.Message.Type != messageTypeChart || payload.Message.ChartType != "bar" || len(payload.Message.Data) == 0 {
+		t.Fatalf("message = %#v, want bar chart", payload.Message)
+	}
+}
+
+func TestConversationMessageHelpDescribesChartSchema(t *testing.T) {
+	source := NewSource()
+	for _, operation := range []string{conversationsOperationReply, conversationsOperationSend} {
+		description, schema := helpOperationForTest(t, source, operation)
+		for _, snippet := range []string{"chart", "line", "bar", "pie", "radar", "16", "128", "数字有单位", "必须在 description 中明确说明单位"} {
+			if !strings.Contains(description, snippet) {
+				t.Fatalf("%s description = %q, want %q", operation, description, snippet)
+			}
+		}
+		arguments := schema["properties"].(map[string]any)["arguments"].(map[string]any)
+		properties := arguments["properties"].(map[string]any)
+		for _, property := range []string{"chart_type", "title", "data", "description"} {
+			if _, ok := properties[property]; !ok {
+				t.Fatalf("%s chart schema missing %s", operation, property)
+			}
+		}
+		descriptionField := properties["description"].(map[string]any)["description"].(string)
+		for _, snippet := range []string{"数字有单位", "必须在 description 中明确说明单位"} {
+			if !strings.Contains(descriptionField, snippet) {
+				t.Fatalf("%s description field = %q, want %q", operation, descriptionField, snippet)
+			}
+		}
+	}
+}
+
+func TestChartMessageSchemaLimitsNumericValues(t *testing.T) {
+	pieItems := chartPieDataSchema()["properties"].(map[string]any)["items"].(map[string]any)
+	pieValue := pieItems["items"].(map[string]any)["properties"].(map[string]any)["value"].(map[string]any)
+	if pieValue["maximum"] != maxChartMessageValue {
+		t.Fatalf("pie value schema = %#v", pieValue)
+	}
+
+	lineSeries := chartSeriesListSchema(2, 100, true)
+	lineValues := lineSeries["items"].(map[string]any)["properties"].(map[string]any)["values"].(map[string]any)
+	lineNumber := lineValues["items"].(map[string]any)["anyOf"].([]any)[0].(map[string]any)
+	if lineNumber["minimum"] != -maxChartMessageValue || lineNumber["maximum"] != maxChartMessageValue {
+		t.Fatalf("line value schema = %#v", lineNumber)
+	}
+
+	radarSeries := chartSeriesListSchema(3, 12, false)
+	radarValues := radarSeries["items"].(map[string]any)["properties"].(map[string]any)["values"].(map[string]any)
+	radarNumber := radarValues["items"].(map[string]any)
+	if radarNumber["minimum"] != 0 || radarNumber["maximum"] != maxChartMessageValue {
+		t.Fatalf("radar value schema = %#v", radarNumber)
 	}
 }
 

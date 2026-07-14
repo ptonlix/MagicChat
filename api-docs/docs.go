@@ -2408,7 +2408,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "普通用户向自己参与的会话发送 text、markdown、link、card，或通过 entity_card 对象引用生成卡片消息，client_message_id 用于重试幂等。",
+                "description": "普通用户向自己参与的会话发送 text、markdown、link、card、chart，或通过 entity_card 对象引用生成卡片消息，client_message_id 用于重试幂等。",
                 "consumes": [
                     "application/json"
                 ],
@@ -2494,6 +2494,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/httpserver.errorEnvelope"
                         }

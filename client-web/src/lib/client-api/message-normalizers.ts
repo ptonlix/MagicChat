@@ -1,4 +1,5 @@
 import { ClientDataRequestError, normalizeVisibility } from "./core"
+import { normalizeChartMessageBody } from "./chart-message-normalizer"
 import type {
   MessageDelegatedByResponse,
   MessageReplyToResponse,
@@ -214,6 +215,10 @@ function normalizeMessageBody(
     }
   }
 
+  if (body?.type === "chart") {
+    return normalizeChartMessageBody(body)
+  }
+
   if (
     body?.type === "file" &&
     typeof body.file_id === "string" &&
@@ -334,6 +339,7 @@ function isForwardableMessageBody(
     body.type === "markdown" ||
     body.type === "link" ||
     body.type === "card" ||
+    body.type === "chart" ||
     body.type === "file" ||
     body.type === "image" ||
     body.type === "voice" ||

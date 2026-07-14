@@ -92,7 +92,7 @@ func contactsCapabilitySpec() capabilitySpec {
 }
 
 func conversationsCapabilitySpec() capabilitySpec {
-	toolDescription := "统一会话管理能力。支持查询会话、读取历史、回复当前会话、授权用户代发、发送固定格式内部对象卡片、等待新回复、创建群聊和添加成员；具体 operation 和参数通过全局 help 查询。"
+	toolDescription := "统一会话管理能力。支持查询会话、读取历史、回复当前会话、授权用户代发、发送固定格式内部对象卡片和图表消息、等待新回复、创建群聊和添加成员。回复或代发时不要默认使用 text：主要内容是单个内部对象时尽量使用实体卡片，可信数字适合呈现趋势、比较、分布、占比、排名或多维评分时尽量使用图表；具体 operation 和参数通过全局 help 查询。"
 	toolSchema := capabilityToolInputSchema([]string{
 		conversationsOperationSearch,
 		conversationsOperationRead,
@@ -105,7 +105,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 		conversationsOperationAdd,
 	}, conversationPublicRunAsInputSchema())
 	return capabilitySpec{
-		Description: "提供最近会话查询、聊天历史读取、当前会话回复、授权用户代发、内部对象卡片发送、等待会话新回复，以及群聊创建和成员添加。操作统一通过 conversations 工具执行；需要授权用户身份的操作在顶层传 runas。",
+		Description: "提供最近会话查询、聊天历史读取、当前会话回复、授权用户代发、内部对象卡片和图表消息发送、等待会话新回复，以及群聊创建和成员添加。回复或代发时不要习惯性选择 text：单个内部对象作为主要内容时尽量发实体卡片，可信数字适合可视化时尽量发图表。操作统一通过 conversations 工具执行；需要授权用户身份的操作在顶层传 runas。",
 		Name:        capabilityConversations,
 		Summary:     "管理会话、消息和群聊，并等待新回复。",
 		Operations: []operationSpec{
@@ -126,7 +126,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "回复当前触发 Assistant 的会话。支持 text、markdown、image、file 和自定义 card；内部的联系人、应用、群聊、项目、任务使用 reply_entity_card。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，指定对象必须是当前会话成员；image 使用可下载 URL，file 使用显式文件名以及 url 或小文本 content；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
+				Description:     "回复当前触发 Assistant 的会话。支持 text、markdown、image、file、自定义 card 和 chart；不要默认使用 text/markdown。主要内容是一个内部联系人及其联系方式、应用、群聊、项目或任务时，尽量改用 reply_entity_card；主要内容是可信数字的趋势、比较、分布、占比、排名、统计或多维评分时，即使用户没有明确要求图表，也尽量使用 chart。chart 支持 line、bar、pie、radar，必须提供 16 字以内标题、对应类型的 data 和 128 字以内纯文本 description；只要数据中的数字有单位，就必须在 description 中明确说明单位，统计范围和数据来源也写入 description。单个孤立数字、数据不完整、复杂表格、多个对象清单或以解释为主时再使用 text/markdown。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，指定对象必须是当前会话成员；image 使用可下载 URL，file 使用显式文件名以及 url 或小文本 content；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
 				Example:         conversationExample(conversationsOperationReply, map[string]any{"type": "text", "content": "收到"}),
 				InputSchema:     conversationOperationInputSchema(conversationsOperationReply, messageArgumentsSchema(false), false, false),
 				Name:            conversationsOperationReply,
@@ -135,7 +135,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "把一个内部对象以固定格式卡片回复到当前触发 Assistant 的会话。entity_type 支持 user、app、group、project、task；只传可信的 entity_id，Server 会查询实时对象、检查授权用户权限，并统一生成标题、纯文本说明和站内链接。适合发送联系人、应用、群聊、项目或任务；不要自行拼装这些对象的通用 card。",
+				Description:     "把一个内部对象以固定格式卡片回复到当前触发 Assistant 的会话。当用户要查看、获取或分享某一个联系人及其联系方式、应用、群聊、项目或任务，或者操作完成后需要交付该对象时，尽量使用本操作，不要把对象资料降级为 text/markdown。entity_type 支持 user、app、group、project、task；只传可信的 entity_id，Server 会查询实时对象、检查授权用户权限，并统一生成标题、纯文本说明和站内链接。不要自行拼装这些对象的通用 card。",
 				Example:         conversationExample(conversationsOperationReplyEntityCard, map[string]any{"entity_type": "task", "entity_id": "task-id"}),
 				InputSchema:     conversationUserOperationInputSchema(conversationsOperationReplyEntityCard, entityCardArgumentsSchema(false), true),
 				Name:            conversationsOperationReplyEntityCard,
@@ -144,7 +144,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "以授权用户身份向私聊联系人或已有群聊发送消息。target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id；支持 text、markdown、image、file 和自定义 card，内部的联系人、应用、群聊、项目、任务使用 send_entity_card。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，UUID 必须可信且指定对象必须是目标会话成员；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
+				Description:     "以授权用户身份向私聊联系人或已有群聊发送消息。target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id；支持 text、markdown、image、file、自定义 card 和 chart，不要默认使用 text/markdown。主要内容是一个内部联系人及其联系方式、应用、群聊、项目或任务时，尽量改用 send_entity_card；主要内容是可信数字的趋势、比较、分布、占比、排名、统计或多维评分时，即使用户没有明确要求图表，也尽量使用 chart。chart 支持 line、bar、pie、radar，必须提供 16 字以内标题、对应类型的 data 和 128 字以内纯文本 description；只要数据中的数字有单位，就必须在 description 中明确说明单位，统计范围和数据来源也写入 description。单个孤立数字、数据不完整、复杂表格、多个对象清单或以解释为主时再使用 text/markdown。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，UUID 必须可信且指定对象必须是目标会话成员；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
 				InputSchema:     conversationUserOperationInputSchema(conversationsOperationSend, messageArgumentsSchema(true), true),
 				Name:            conversationsOperationSend,
 				ToolDescription: toolDescription,
@@ -152,7 +152,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "以授权用户身份把一个内部对象的固定格式卡片发送给私聊联系人或已有群聊。entity_type 支持 user、app、group、project、task；target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id。Server 根据可信 entity_id 查询对象、检查权限并生成卡片，Assistant 不传标题、说明或链接。",
+				Description:     "以授权用户身份把一个内部对象的固定格式卡片发送给私聊联系人或已有群聊。当用户要把某一个联系人及其联系方式、应用、群聊、项目或任务转发或交付给其他会话时，尽量使用本操作，不要把对象资料降级为 text/markdown。entity_type 支持 user、app、group、project、task；target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id。Server 根据可信 entity_id 查询对象、检查权限并生成卡片，Assistant 不传标题、说明或链接。",
 				InputSchema:     conversationUserOperationInputSchema(conversationsOperationSendEntityCard, entityCardArgumentsSchema(true), true),
 				Name:            conversationsOperationSendEntityCard,
 				ToolDescription: toolDescription,
@@ -548,7 +548,7 @@ func readHistoryArgumentsSchema() map[string]any {
 
 func messageArgumentsSchema(withTarget bool) map[string]any {
 	properties := map[string]any{
-		"type": map[string]any{"type": "string", "enum": []string{messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile, messageTypeCard}},
+		"type": map[string]any{"type": "string", "enum": []string{messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile, messageTypeCard, messageTypeChart}},
 		"content": map[string]any{
 			"type":        "string",
 			"minLength":   1,
@@ -556,8 +556,10 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 		},
 		"name":        map[string]any{"type": "string", "minLength": 1, "maxLength": 255},
 		"url":         map[string]any{"type": "string", "minLength": 1, "maxLength": 2048, "description": "文件消息的下载地址，或卡片消息的跳转地址。卡片仅允许以 / 开头的站内路径或明确以 http://、https:// 开头的外链；禁止 javascript:、data:、//host、反斜杠和包含空白的地址。"},
-		"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": 240, "description": "卡片消息标题。"},
-		"description": map[string]any{"type": "string", "minLength": 1, "maxLength": 2000, "description": "卡片消息说明；必须使用纯文本，不支持 Markdown。应提供足够理解卡片用途的简洁背景。"},
+		"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": 240, "description": "卡片或图表消息标题；chart 的限制以对应分支为准。"},
+		"description": map[string]any{"type": "string", "minLength": 1, "maxLength": 2000, "description": "卡片或图表消息说明；必须使用纯文本，不支持 Markdown。chart 数据中的数字有单位时，必须在 description 中明确说明单位；其他限制以对应分支为准。"},
+		"chart_type":  map[string]any{"type": "string", "enum": []string{"line", "bar", "pie", "radar"}, "description": "图表子类型：折线图 line、条形图 bar、饼图 pie、雷达图 radar。"},
+		"data":        map[string]any{"type": "object", "description": "图表数据；结构由 chart_type 决定。"},
 	}
 	messageConstraint := map[string]any{
 		"oneOf": []any{
@@ -569,6 +571,8 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 					map[string]any{"required": []string{"url"}},
 					map[string]any{"required": []string{"title"}},
 					map[string]any{"required": []string{"description"}},
+					map[string]any{"required": []string{"chart_type"}},
+					map[string]any{"required": []string{"data"}},
 				}},
 			},
 			map[string]any{
@@ -581,6 +585,8 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 				"not": map[string]any{"anyOf": []any{
 					map[string]any{"required": []string{"title"}},
 					map[string]any{"required": []string{"description"}},
+					map[string]any{"required": []string{"chart_type"}},
+					map[string]any{"required": []string{"data"}},
 				}},
 			},
 			map[string]any{
@@ -589,6 +595,22 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 				"not": map[string]any{"anyOf": []any{
 					map[string]any{"required": []string{"content"}},
 					map[string]any{"required": []string{"name"}},
+					map[string]any{"required": []string{"chart_type"}},
+					map[string]any{"required": []string{"data"}},
+				}},
+			},
+			map[string]any{
+				"properties": map[string]any{
+					"type":        map[string]any{"enum": []string{messageTypeChart}},
+					"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": maxChartMessageTitleRunes},
+					"description": map[string]any{"type": "string", "minLength": 1, "maxLength": maxChartMessageDescriptionRunes, "description": "图表底部说明，必须是纯文本；只要数据中的数字有单位，就必须在这里明确说明单位，统计范围和数据来源也写在这里。"},
+				},
+				"required": []string{"type", "chart_type", "title", "data", "description"},
+				"oneOf":    chartMessageVariantsSchema(),
+				"not": map[string]any{"anyOf": []any{
+					map[string]any{"required": []string{"content"}},
+					map[string]any{"required": []string{"name"}},
+					map[string]any{"required": []string{"url"}},
 				}},
 			},
 		},
@@ -619,6 +641,147 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 		"allOf":                constraints,
 		"additionalProperties": false,
 	}
+}
+
+func chartMessageVariantsSchema() []any {
+	return []any{
+		map[string]any{
+			"properties": map[string]any{
+				"chart_type": map[string]any{"enum": []string{"line"}},
+				"data":       chartCartesianDataSchema(2),
+			},
+		},
+		map[string]any{
+			"properties": map[string]any{
+				"chart_type": map[string]any{"enum": []string{"bar"}},
+				"data":       chartBarDataSchema(),
+			},
+		},
+		map[string]any{
+			"properties": map[string]any{
+				"chart_type": map[string]any{"enum": []string{"pie"}},
+				"data":       chartPieDataSchema(),
+			},
+		},
+		map[string]any{
+			"properties": map[string]any{
+				"chart_type": map[string]any{"enum": []string{"radar"}},
+				"data":       chartRadarDataSchema(),
+			},
+		},
+	}
+}
+
+func chartCartesianDataSchema(minLabels int) map[string]any {
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"labels", "series"},
+		"properties": map[string]any{
+			"labels": chartLabelsSchema(minLabels, 100),
+			"series": chartSeriesListSchema(minLabels, 100, true),
+		},
+		"additionalProperties": false,
+	}
+}
+
+func chartBarDataSchema() map[string]any {
+	schema := chartCartesianDataSchema(1)
+	properties := schema["properties"].(map[string]any)
+	properties["direction"] = map[string]any{"type": "string", "enum": []string{"vertical", "horizontal"}, "description": "vertical 表示柱子向上增长，horizontal 表示条形向右增长。"}
+	properties["mode"] = map[string]any{"type": "string", "enum": []string{"grouped", "stacked"}, "description": "grouped 表示多系列并排，stacked 表示多系列堆叠。"}
+	schema["required"] = []string{"direction", "mode", "labels", "series"}
+	return schema
+}
+
+func chartPieDataSchema() map[string]any {
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{
+				"type":     "array",
+				"minItems": 2,
+				"maxItems": 5,
+				"items": map[string]any{
+					"type":     "object",
+					"required": []string{"name", "value"},
+					"properties": map[string]any{
+						"name":  chartNameSchema(),
+						"value": map[string]any{"type": "number", "exclusiveMinimum": 0, "maximum": maxChartMessageValue},
+					},
+					"additionalProperties": false,
+				},
+			},
+		},
+		"additionalProperties": false,
+	}
+}
+
+func chartRadarDataSchema() map[string]any {
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"axes", "series"},
+		"properties": map[string]any{
+			"axes": map[string]any{
+				"type":     "array",
+				"minItems": 3,
+				"maxItems": 12,
+				"items": map[string]any{
+					"type":     "object",
+					"required": []string{"name", "max"},
+					"properties": map[string]any{
+						"name": chartNameSchema(),
+						"max":  map[string]any{"type": "number", "exclusiveMinimum": 0, "maximum": maxChartMessageValue},
+					},
+					"additionalProperties": false,
+				},
+			},
+			"series": chartSeriesListSchema(3, 12, false),
+		},
+		"additionalProperties": false,
+	}
+}
+
+func chartSeriesListSchema(minValues int, maxValues int, allowNull bool) map[string]any {
+	valueSchema := map[string]any{"type": "number", "minimum": 0, "maximum": maxChartMessageValue}
+	if allowNull {
+		valueSchema = map[string]any{"anyOf": []any{
+			map[string]any{"type": "number", "minimum": -maxChartMessageValue, "maximum": maxChartMessageValue},
+			map[string]any{"type": "null"},
+		}}
+	}
+	return map[string]any{
+		"type":     "array",
+		"minItems": 1,
+		"maxItems": 5,
+		"items": map[string]any{
+			"type":     "object",
+			"required": []string{"name", "values"},
+			"properties": map[string]any{
+				"name": chartNameSchema(),
+				"values": map[string]any{
+					"type":     "array",
+					"minItems": minValues,
+					"maxItems": maxValues,
+					"items":    valueSchema,
+				},
+			},
+			"additionalProperties": false,
+		},
+	}
+}
+
+func chartLabelsSchema(minItems int, maxItems int) map[string]any {
+	return map[string]any{
+		"type":     "array",
+		"minItems": minItems,
+		"maxItems": maxItems,
+		"items":    chartNameSchema(),
+	}
+}
+
+func chartNameSchema() map[string]any {
+	return map[string]any{"type": "string", "minLength": 1, "maxLength": 64}
 }
 
 func createGroupArgumentsSchema() map[string]any {

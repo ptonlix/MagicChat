@@ -443,6 +443,13 @@ func sanitizeForwardMessageBody(raw json.RawMessage, mentionLabels map[string]st
 		}
 		summary, err := handler.Summary(raw)
 		return cloneRawMessage(raw), summary, leafMetrics, err
+	case messageTypeChart:
+		handler := chartMessageBodyHandler{}
+		if err := handler.Validate(raw); err != nil {
+			return nil, "", forwardBodyMetrics{}, errForwardUnsupportedMessage
+		}
+		summary, err := handler.Summary(raw)
+		return cloneRawMessage(raw), summary, leafMetrics, err
 	case messageTypeFile:
 		var body fileMessageBody
 		if json.Unmarshal(raw, &body) != nil || strings.TrimSpace(body.FileID) == "" || strings.TrimSpace(body.Name) == "" {

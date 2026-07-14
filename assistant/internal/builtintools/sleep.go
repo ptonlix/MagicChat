@@ -53,7 +53,12 @@ const (
 	messageTypeImage                      = "image"
 	messageTypeFile                       = "file"
 	messageTypeCard                       = "card"
+	messageTypeChart                      = "chart"
 	messageTypeEntityCard                 = "entity_card"
+	maxChartMessageBodyBytes              = 64 * 1024
+	maxChartMessageTitleRunes             = 16
+	maxChartMessageDescriptionRunes       = 128
+	maxChartMessageValue                  = 1_000_000_000_000_000
 )
 
 type sleepFunc func(context.Context, time.Duration) error
@@ -167,16 +172,18 @@ type readHistoryInput struct {
 }
 
 type messageInput struct {
-	AuthorizationRef string `json:"authorization_ref"`
-	ContactID        string `json:"contact_id"`
-	Content          string `json:"content"`
-	ConversationID   string `json:"conversation_id"`
-	Description      string `json:"description"`
-	Name             string `json:"name"`
-	TargetType       string `json:"target_type"`
-	Title            string `json:"title"`
-	Type             string `json:"type"`
-	URL              string `json:"url"`
+	AuthorizationRef string          `json:"authorization_ref"`
+	ChartType        string          `json:"chart_type"`
+	ContactID        string          `json:"contact_id"`
+	Content          string          `json:"content"`
+	ConversationID   string          `json:"conversation_id"`
+	Data             json.RawMessage `json:"data"`
+	Description      string          `json:"description"`
+	Name             string          `json:"name"`
+	TargetType       string          `json:"target_type"`
+	Title            string          `json:"title"`
+	Type             string          `json:"type"`
+	URL              string          `json:"url"`
 }
 
 type entityCardInput struct {
@@ -205,15 +212,17 @@ type readFileURLsInput struct {
 }
 
 type scopedMessagePayload struct {
-	AuthorizationRef string `json:"-"`
-	Content          string `json:"content,omitempty"`
-	Description      string `json:"description,omitempty"`
-	EntityID         string `json:"entity_id,omitempty"`
-	EntityType       string `json:"entity_type,omitempty"`
-	Name             string `json:"name,omitempty"`
-	Title            string `json:"title,omitempty"`
-	Type             string `json:"type"`
-	URL              string `json:"url,omitempty"`
+	AuthorizationRef string          `json:"-"`
+	ChartType        string          `json:"chart_type,omitempty"`
+	Content          string          `json:"content,omitempty"`
+	Data             json.RawMessage `json:"data,omitempty"`
+	Description      string          `json:"description,omitempty"`
+	EntityID         string          `json:"entity_id,omitempty"`
+	EntityType       string          `json:"entity_type,omitempty"`
+	Name             string          `json:"name,omitempty"`
+	Title            string          `json:"title,omitempty"`
+	Type             string          `json:"type"`
+	URL              string          `json:"url,omitempty"`
 }
 
 type sendMessageTargetPayload struct {
@@ -1203,7 +1212,7 @@ func parseMessageInput(input json.RawMessage, requireContact bool) (scopedMessag
 	}
 	messageType := strings.TrimSpace(parsed.Type)
 	switch messageType {
-	case messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile, messageTypeCard:
+	case messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile, messageTypeCard, messageTypeChart:
 	default:
 		return scopedMessagePayload{}, fmt.Errorf("unsupported message type %q", parsed.Type)
 	}
@@ -1212,6 +1221,9 @@ func parseMessageInput(input json.RawMessage, requireContact bool) (scopedMessag
 	}
 	if messageType == messageTypeCard {
 		return parseCardMessageInput(parsed)
+	}
+	if messageType == messageTypeChart {
+		return parseChartMessageInput(parsed)
 	}
 	content := strings.TrimSpace(parsed.Content)
 	if content == "" {
@@ -1223,6 +1235,53 @@ func parseMessageInput(input json.RawMessage, requireContact bool) (scopedMessag
 		Type:             messageType,
 		Content:          content,
 	}, nil
+}
+
+func parseChartMessageInput(parsed messageInput) (scopedMessagePayload, error) {
+	chartType := strings.TrimSpace(parsed.ChartType)
+	switch chartType {
+	case "line", "bar", "pie", "radar":
+	default:
+		return scopedMessagePayload{}, fmt.Errorf("chart_type must be line, bar, pie, or radar")
+	}
+	title := strings.TrimSpace(parsed.Title)
+	if title == "" {
+		return scopedMessagePayload{}, fmt.Errorf("chart message title is required")
+	}
+	if len([]rune(title)) > maxChartMessageTitleRunes {
+		return scopedMessagePayload{}, fmt.Errorf("chart message title must be at most 16 characters")
+	}
+	description := strings.TrimSpace(parsed.Description)
+	if description == "" {
+		return scopedMessagePayload{}, fmt.Errorf("chart message description is required")
+	}
+	if len([]rune(description)) > maxChartMessageDescriptionRunes {
+		return scopedMessagePayload{}, fmt.Errorf("chart message description must be at most 128 characters")
+	}
+	if len(parsed.Data) == 0 || string(parsed.Data) == "null" {
+		return scopedMessagePayload{}, fmt.Errorf("chart message data is required")
+	}
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(parsed.Data, &data); err != nil || len(data) == 0 {
+		return scopedMessagePayload{}, fmt.Errorf("chart message data must be an object")
+	}
+
+	message := scopedMessagePayload{
+		AuthorizationRef: strings.TrimSpace(parsed.AuthorizationRef),
+		ChartType:        chartType,
+		Data:             parsed.Data,
+		Description:      description,
+		Title:            title,
+		Type:             messageTypeChart,
+	}
+	encoded, err := json.Marshal(message)
+	if err != nil {
+		return scopedMessagePayload{}, fmt.Errorf("marshal chart message: %w", err)
+	}
+	if len(encoded) > maxChartMessageBodyBytes {
+		return scopedMessagePayload{}, fmt.Errorf("chart message must be at most 64 KiB")
+	}
+	return message, nil
 }
 
 func parseCardMessageInput(parsed messageInput) (scopedMessagePayload, error) {

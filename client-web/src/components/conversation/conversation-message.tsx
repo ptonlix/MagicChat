@@ -19,6 +19,7 @@ import { MessageTextWithLinks } from "@/components/message-inline-link"
 import { MessageLink } from "@/components/message-link"
 import { MessageMarkdown } from "@/components/message-markdown"
 import { MessageCard } from "@/components/message-card"
+import { MessageRenderErrorBoundary } from "@/components/message-render-error-boundary"
 import { MessageVoice } from "@/components/message-voice"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +38,11 @@ import type {
   ConversationPanelMessage,
   ConversationPanelReplyTarget,
 } from "@/lib/conversation-panel-types"
+
+const MessageChart = React.lazy(async () => {
+  const module = await import("@/components/message-chart")
+  return { default: module.MessageChart }
+})
 
 export const SystemMessageBadge = React.memo(function SystemMessageBadge({
   currentUserId,
@@ -436,6 +442,8 @@ function getMessageCopyText(
       return message.body.url
     case "card":
       return `${message.body.title}\n${message.body.description}\n${message.body.url}`
+    case "chart":
+      return `${message.body.title}\n${message.body.description}`
     case "markdown":
     case "text":
       return formatMentionTemplateText(
@@ -549,6 +557,23 @@ const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
       return <MessageLink link={body} />
     case "card":
       return <MessageCard card={body} />
+    case "chart":
+      return (
+        <MessageRenderErrorBoundary
+          fallback={
+            <span className="text-muted-foreground">暂不支持查看该消息</span>
+          }
+          resetKey={body}
+        >
+          <React.Suspense
+            fallback={
+              <div className="h-64 w-160 max-w-full animate-pulse rounded-sm bg-foreground/5" />
+            }
+          >
+            <MessageChart chart={body} />
+          </React.Suspense>
+        </MessageRenderErrorBoundary>
+      )
     case "markdown":
       return (
         <MessageMarkdown

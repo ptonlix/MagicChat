@@ -212,6 +212,14 @@ export type CardMessageBodyResponse = {
   url?: string
 }
 
+export type ChartMessageBodyResponse = {
+  chart_type?: string
+  data?: unknown
+  description?: string
+  title?: string
+  type?: "chart"
+}
+
 export type FileMessageBodyResponse = {
   file_id?: string
   name?: string
@@ -240,6 +248,7 @@ export type ForwardBundleItemBodyResponse =
   | MarkdownMessageBodyResponse
   | LinkMessageBodyResponse
   | CardMessageBodyResponse
+  | ChartMessageBodyResponse
   | FileMessageBodyResponse
   | ImageMessageBodyResponse
   | VoiceMessageBodyResponse
@@ -321,6 +330,7 @@ export type MessageBodyResponse =
   | MarkdownMessageBodyResponse
   | LinkMessageBodyResponse
   | CardMessageBodyResponse
+  | ChartMessageBodyResponse
   | FileMessageBodyResponse
   | ImageMessageBodyResponse
   | VoiceMessageBodyResponse
@@ -563,12 +573,72 @@ export type ClientCardMessageBody = {
   url: string
 }
 
-export type ClientEntityCardType =
-  | "user"
-  | "app"
-  | "group"
-  | "project"
-  | "task"
+export type ClientChartSeries = {
+  name: string
+  values: Array<number | null>
+}
+
+export type ClientLineChartMessageBody = {
+  chartType: "line"
+  data: {
+    labels: string[]
+    series: ClientChartSeries[]
+  }
+  description: string
+  title: string
+  type: "chart"
+}
+
+export type ClientBarChartMessageBody = {
+  chartType: "bar"
+  data: {
+    direction: "horizontal" | "vertical"
+    labels: string[]
+    mode: "grouped" | "stacked"
+    series: ClientChartSeries[]
+  }
+  description: string
+  title: string
+  type: "chart"
+}
+
+export type ClientPieChartMessageBody = {
+  chartType: "pie"
+  data: {
+    items: Array<{
+      name: string
+      value: number
+    }>
+  }
+  description: string
+  title: string
+  type: "chart"
+}
+
+export type ClientRadarChartMessageBody = {
+  chartType: "radar"
+  data: {
+    axes: Array<{
+      max: number
+      name: string
+    }>
+    series: Array<{
+      name: string
+      values: number[]
+    }>
+  }
+  description: string
+  title: string
+  type: "chart"
+}
+
+export type ClientChartMessageBody =
+  | ClientLineChartMessageBody
+  | ClientBarChartMessageBody
+  | ClientPieChartMessageBody
+  | ClientRadarChartMessageBody
+
+export type ClientEntityCardType = "user" | "app" | "group" | "project" | "task"
 
 export type ClientEntityCardMessageInput = {
   entityId: string
@@ -577,8 +647,7 @@ export type ClientEntityCardMessageInput = {
 }
 
 export type ClientCardSendInput =
-  | ClientCardMessageBody
-  | ClientEntityCardMessageInput
+  ClientCardMessageBody | ClientEntityCardMessageInput
 
 export type ClientFileMessageBody = {
   fileId: string
@@ -608,6 +677,7 @@ export type ClientForwardableMessageBody =
   | ClientMarkdownMessageBody
   | ClientLinkMessageBody
   | ClientCardMessageBody
+  | ClientChartMessageBody
   | ClientFileMessageBody
   | ClientImageMessageBody
   | ClientVoiceMessageBody
@@ -697,6 +767,7 @@ export type ClientMessageBody =
   | ClientMarkdownMessageBody
   | ClientLinkMessageBody
   | ClientCardMessageBody
+  | ClientChartMessageBody
   | ClientFileMessageBody
   | ClientImageMessageBody
   | ClientVoiceMessageBody
@@ -770,6 +841,12 @@ export type SendConversationCardMessageInput = {
   replyToMessageId?: string
   title: string
   url: string
+}
+
+export type SendConversationChartMessageInput = {
+  chart: ClientChartMessageBody
+  clientMessageId: string
+  replyToMessageId?: string
 }
 
 export type SendConversationEntityCardMessageInput = {

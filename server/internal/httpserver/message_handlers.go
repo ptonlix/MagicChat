@@ -32,21 +32,22 @@ import (
 )
 
 const (
-	defaultMessageHistoryLimit  = 20
-	maxMessageHistoryLimit      = 20
-	maxClientMessageIDLength    = 128
-	maxLinkMessageURLLength     = 2048
-	maxLinkPreviewReadBytes     = 1024
-	maxMessageMentionTargets    = 50
-	maxCardDescription          = 2000
-	maxCardTitleLength          = 256
-	maxTextMessageContentLength = 5000
-	linkPreviewFetchTimeout     = 2 * time.Second
-	linkPreviewMaxRedirects     = 3
-	messageTypeLink             = "link"
-	messageTypeMarkdown         = "markdown"
-	messageTypeCard             = "card"
-	messageTypeText             = "text"
+	defaultMessageHistoryLimit   = 20
+	maxMessageHistoryLimit       = 20
+	maxClientMessageIDLength     = 128
+	maxLinkMessageURLLength      = 2048
+	maxLinkPreviewReadBytes      = 1024
+	maxMessageMentionTargets     = 50
+	maxCardDescription           = 2000
+	maxCardTitleLength           = 256
+	maxCreateMessageRequestBytes = maxChartMessageBodyBytes + 1024
+	maxTextMessageContentLength  = 5000
+	linkPreviewFetchTimeout      = 2 * time.Second
+	linkPreviewMaxRedirects      = 3
+	messageTypeLink              = "link"
+	messageTypeMarkdown          = "markdown"
+	messageTypeCard              = "card"
+	messageTypeText              = "text"
 )
 
 var messageMentionTokenPattern = regexp.MustCompile(`\{\(@(?:(user)/(all)|(user|app)/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}))\)\}`)
@@ -186,6 +187,7 @@ type linkMessageBodyHandler struct{}
 type cardMessageBodyHandler struct{}
 
 var messageBodyHandlers = map[string]messageBodyHandler{
+	messageTypeChart:    chartMessageBodyHandler{},
 	messageTypeLink:     linkMessageBodyHandler{},
 	messageTypeMarkdown: markdownMessageBodyHandler{},
 	messageTypeCard:     cardMessageBodyHandler{},
@@ -259,7 +261,7 @@ func (s *Server) listConversationMessages(c echo.Context) error {
 // createConversationMessage godoc
 //
 // @Summary 发送消息
-// @Description 普通用户向自己参与的会话发送 text、markdown、link、card，或通过 entity_card 对象引用生成卡片消息，client_message_id 用于重试幂等。
+// @Description 普通用户向自己参与的会话发送 text、markdown、link、card、chart，或通过 entity_card 对象引用生成卡片消息，client_message_id 用于重试幂等。
 // @Tags 客户端消息
 // @Accept json
 // @Produce json
@@ -271,6 +273,7 @@ func (s *Server) listConversationMessages(c echo.Context) error {
 // @Failure 401 {object} errorEnvelope
 // @Failure 403 {object} errorEnvelope
 // @Failure 404 {object} errorEnvelope
+// @Failure 413 {object} errorEnvelope
 // @Failure 500 {object} errorEnvelope
 // @Router /api/client/conversations/{conversation_id}/messages [post]
 func (s *Server) createConversationMessage(c echo.Context) error {
@@ -284,8 +287,12 @@ func (s *Server) createConversationMessage(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
 
+	c.Request().Body = http.MaxBytesReader(c.Response().Writer, c.Request().Body, maxCreateMessageRequestBytes)
 	var req createMessageRequest
 	if err := c.Bind(&req); err != nil {
+		if isRequestBodyTooLarge(err) {
+			return failure(c, http.StatusRequestEntityTooLarge, "request_too_large", "消息内容不能超过 64 KiB")
+		}
 		return failure(c, http.StatusBadRequest, "invalid_request", "请求格式错误")
 	}
 
