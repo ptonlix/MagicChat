@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import type { ContactApp, ContactUser } from "@/lib/client-data-api"
 import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { SelectionListAvatar } from "@/components/selection-list-avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -297,21 +297,7 @@ function CreateGroupMemberItem({
     >
       <Label htmlFor={checkboxId}>
         <ItemMedia>
-          <Avatar
-            className="rounded-sm bg-muted after:rounded-sm"
-            data-size="sm"
-          >
-            {candidate.avatar && (
-              <AvatarImage
-                alt={displayName}
-                className="rounded-sm"
-                src={candidate.avatar}
-              />
-            )}
-            <AvatarFallback className="rounded-sm">
-              {getConversationInitial(displayName)}
-            </AvatarFallback>
-          </Avatar>
+          <SelectionListAvatar avatar={candidate.avatar} name={displayName} />
         </ItemMedia>
         <ItemContent className="min-w-0">
           <ItemTitle className="truncate">{displayName}</ItemTitle>
@@ -345,8 +331,4 @@ function getContactDisplayName(contact: { name: string; nickname: string }) {
   const nickname = contact.nickname.trim()
 
   return nickname || contact.name.trim()
-}
-
-function getConversationInitial(name: string) {
-  return Array.from(name.trim())[0]?.toUpperCase() ?? "?"
 }

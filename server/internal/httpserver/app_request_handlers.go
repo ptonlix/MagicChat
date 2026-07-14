@@ -48,9 +48,12 @@ const (
 )
 
 type appSendMessageRequest struct {
-	Message json.RawMessage      `json:"message"`
-	Target  appSendMessageTarget `json:"target"`
-	UserID  string               `json:"user_id"`
+	ActorUserID                 string               `json:"actor_user_id"`
+	AuthorizationConversationID string               `json:"authorization_conversation_id"`
+	Message                     json.RawMessage      `json:"message"`
+	Target                      appSendMessageTarget `json:"target"`
+	TriggerMessageID            string               `json:"trigger_message_id"`
+	UserID                      string               `json:"user_id"`
 }
 
 type appSendMessageTarget struct {
@@ -431,7 +434,24 @@ func (s *Server) handleAppSendMessage(appID string, request realtime.Envelope) (
 	if err != nil {
 		return appSendMessageResponse{}, err
 	}
-	prepared, err := s.prepareAppSendMessageBody(context.Background(), req.Message)
+	entityCardUserID := ""
+	if isEntityCardMessageBody(req.Message) {
+		actorUserID, triggerMessageID, err := normalizeAppActorTrigger(req.ActorUserID, req.TriggerMessageID)
+		if err != nil {
+			return appSendMessageResponse{}, err
+		}
+		if err := s.requireAppSendAsUserTrigger(appID, actorUserID, triggerMessageID, req.AuthorizationConversationID); err != nil {
+			return appSendMessageResponse{}, err
+		}
+		if strings.TrimSpace(req.AuthorizationConversationID) != conversation.ID {
+			return appSendMessageResponse{}, newAppRequestFailure("forbidden", "对象卡片只能回复到授权会话")
+		}
+		if _, err := s.findActiveAppActor(actorUserID); err != nil {
+			return appSendMessageResponse{}, err
+		}
+		entityCardUserID = actorUserID
+	}
+	prepared, err := s.prepareAppSendMessageBodyForUser(context.Background(), entityCardUserID, req.Message)
 	if err != nil {
 		return appSendMessageResponse{}, err
 	}
@@ -484,7 +504,7 @@ func (s *Server) handleAppSendMessageAsUser(appID string, request realtime.Envel
 	if err != nil {
 		return appSendMessageResponse{}, err
 	}
-	prepared, err := s.prepareAppSendMessageBody(context.Background(), req.Message)
+	prepared, err := s.prepareAppSendMessageBodyForUser(context.Background(), actor.ID, req.Message)
 	if err != nil {
 		return appSendMessageResponse{}, err
 	}
@@ -1668,12 +1688,32 @@ type appSendMessageBodyEnvelope struct {
 }
 
 func (s *Server) prepareAppSendMessageBody(ctx context.Context, raw json.RawMessage) (preparedAppSendMessageBody, error) {
+	return s.prepareAppSendMessageBodyForUser(ctx, "", raw)
+}
+
+func (s *Server) prepareAppSendMessageBodyForUser(ctx context.Context, userID string, raw json.RawMessage) (preparedAppSendMessageBody, error) {
 	var envelope appSendMessageBodyEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return preparedAppSendMessageBody{}, newAppRequestFailure("invalid_request", "消息体格式错误")
 	}
 	switch strings.TrimSpace(envelope.Type) {
-	case messageTypeText, messageTypeMarkdown, messageTypeLink:
+	case messageTypeEntityCard:
+		body, err := s.resolveEntityCardMessageBody(ctx, userID, raw)
+		if errors.Is(err, errEntityCardNotFound) {
+			return preparedAppSendMessageBody{}, newAppRequestFailure("not_found", err.Error())
+		}
+		var requestErr *entityCardRequestError
+		if errors.As(err, &requestErr) {
+			return preparedAppSendMessageBody{}, newAppRequestFailure("invalid_request", err.Error())
+		}
+		if err != nil {
+			return preparedAppSendMessageBody{}, newAppRequestFailure("internal_error", "生成对象卡片失败")
+		}
+		return preparedAppSendMessageBody{
+			Body:     body,
+			Finalize: finalizeNormalizedMessageBody,
+		}, nil
+	case messageTypeText, messageTypeMarkdown, messageTypeLink, messageTypeCard:
 		body, err := normalizeAppSendMessageBody(ctx, raw)
 		if err != nil {
 			return preparedAppSendMessageBody{}, err

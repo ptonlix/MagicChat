@@ -79,7 +79,9 @@ export function normalizeMessage(
   }
 
   const normalized: ClientMessage = {
-    body: revokedAt ? { type: "revoked" } : normalizeMessageBody(message.body),
+    body: revokedAt
+      ? { type: "revoked" }
+      : normalizeMessageBodyOrUnsupported(message.body),
     clientMessageId: message.client_message_id ?? "",
     conversationId: message.conversation_id,
     createdAt: message.created_at,
@@ -103,6 +105,16 @@ export function normalizeMessage(
   }
 
   return normalized
+}
+
+function normalizeMessageBodyOrUnsupported(
+  body: MessageBodyResponse | undefined
+): ClientMessageBody {
+  try {
+    return normalizeMessageBody(body)
+  } catch {
+    return { type: "unsupported" }
+  }
 }
 
 function normalizeMessageDelegatedBy(
@@ -184,6 +196,20 @@ function normalizeMessageBody(
     return {
       title: body.title,
       type: "link",
+      url: body.url,
+    }
+  }
+
+  if (
+    body?.type === "card" &&
+    typeof body.title === "string" &&
+    typeof body.description === "string" &&
+    typeof body.url === "string"
+  ) {
+    return {
+      description: body.description,
+      title: body.title,
+      type: "card",
       url: body.url,
     }
   }
@@ -307,6 +333,7 @@ function isForwardableMessageBody(
     body.type === "text" ||
     body.type === "markdown" ||
     body.type === "link" ||
+    body.type === "card" ||
     body.type === "file" ||
     body.type === "image" ||
     body.type === "voice" ||

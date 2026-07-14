@@ -124,17 +124,18 @@ type messagePayload struct {
 }
 
 type messageBody struct {
-	Content    string                     `json:"content"`
-	DurationMS int                        `json:"duration_ms"`
-	FileID     string                     `json:"file_id"`
-	ItemCount  int                        `json:"item_count"`
-	Items      []forwardBundleItemPayload `json:"items"`
-	Name       string                     `json:"name"`
-	SizeBytes  int64                      `json:"size_bytes"`
-	Title      string                     `json:"title"`
-	Transcript string                     `json:"transcript"`
-	Type       string                     `json:"type"`
-	URL        string                     `json:"url"`
+	Content     string                     `json:"content"`
+	Description string                     `json:"description"`
+	DurationMS  int                        `json:"duration_ms"`
+	FileID      string                     `json:"file_id"`
+	ItemCount   int                        `json:"item_count"`
+	Items       []forwardBundleItemPayload `json:"items"`
+	Name        string                     `json:"name"`
+	SizeBytes   int64                      `json:"size_bytes"`
+	Title       string                     `json:"title"`
+	Transcript  string                     `json:"transcript"`
+	Type        string                     `json:"type"`
+	URL         string                     `json:"url"`
 }
 
 type forwardBundleItemPayload struct {
@@ -674,7 +675,7 @@ func authorizationForMessage(payload messageCreatedPayload) preparedAuthorizatio
 
 func isSupportedIncomingMessageType(messageType string) bool {
 	switch messageType {
-	case "text", "markdown", "image", "file", "link", "voice", "forward_bundle":
+	case "text", "markdown", "image", "file", "link", "card", "voice", "forward_bundle":
 		return true
 	default:
 		return false
@@ -736,6 +737,13 @@ func buildAgentMessageContent(body messageBody, fileURLs map[string]temporaryFil
 			title = "链接"
 		}
 		return fmt.Sprintf("用户发送了一个链接。\n标题：%s\n地址：%s", title, body.URL), nil
+	case "card":
+		return fmt.Sprintf(
+			"用户发送了一条卡片消息。\n标题：%s\n说明：%s\n地址：%s",
+			body.Title,
+			body.Description,
+			body.URL,
+		), nil
 	case "voice":
 		content := fmt.Sprintf("用户发送了一条语音消息。\n时长：%d 毫秒\n文件 ID：%s", body.DurationMS, body.FileID)
 		if transcript := strings.TrimSpace(body.Transcript); transcript != "" {

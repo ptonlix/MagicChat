@@ -8,10 +8,13 @@ import {
   listClientContacts,
   listClientConversations,
   listConversationMessages,
+  normalizeMessageCreatedEventPayload,
   sendConversationFileMessage,
   sendConversationImageMessage,
   sendConversationLinkMessage,
   sendConversationMarkdownMessage,
+  sendConversationCardMessage,
+  sendConversationEntityCardMessage,
   sendConversationTextMessage,
 } from "@/lib/client-data-api"
 
@@ -566,6 +569,17 @@ describe("client data API", () => {
       },
       fetcher
     )
+    await sendConversationCardMessage(
+      "conversation-1",
+      {
+        clientMessageId: "client-notification",
+        description: "任务说明",
+        replyToMessageId: "message-quoted",
+        title: "任务标题",
+        url: "/projects/project-1?taskId=task-1",
+      },
+      fetcher
+    )
     await sendConversationFileMessage(
       "conversation-1",
       {
@@ -591,17 +605,132 @@ describe("client data API", () => {
     expect(markdownBody.reply_to_message_id).toBe("message-quoted")
     const linkBody = JSON.parse(String(fetcher.mock.calls[2][1]?.body))
     expect(linkBody.reply_to_message_id).toBe("message-quoted")
+    const notificationBody = JSON.parse(String(fetcher.mock.calls[3][1]?.body))
+    expect(notificationBody).toMatchObject({
+      body: {
+        description: "任务说明",
+        title: "任务标题",
+        type: "card",
+        url: "/projects/project-1?taskId=task-1",
+      },
+      reply_to_message_id: "message-quoted",
+    })
+    expect(notificationBody.body).not.toHaveProperty("action")
 
-    const fileBody = fetcher.mock.calls[3][1]?.body
+    const fileBody = fetcher.mock.calls[4][1]?.body
     expect(fileBody).toBeInstanceOf(FormData)
     expect((fileBody as FormData).get("reply_to_message_id")).toBe(
       "message-quoted"
     )
-    const imageBody = fetcher.mock.calls[4][1]?.body
+    const imageBody = fetcher.mock.calls[5][1]?.body
     expect(imageBody).toBeInstanceOf(FormData)
     expect((imageBody as FormData).get("reply_to_message_id")).toBe(
       "message-quoted"
     )
+  })
+
+  it("sends and normalizes card message messages", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            message: {
+              body: {
+                description: "任务说明",
+                title: "任务标题",
+                type: "card",
+                url: "/projects/project-1?taskId=task-1",
+              },
+              client_message_id: "client-notification",
+              conversation_id: "conversation-1",
+              created_at: "2026-07-14T08:00:00Z",
+              id: "message-notification",
+              sender: { id: "user-1", type: "user" },
+              seq: 10,
+            },
+          },
+          success: true,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 201,
+        }
+      )
+    )
+
+    const message = await sendConversationCardMessage(
+      "conversation-1",
+      {
+        clientMessageId: "client-notification",
+        description: "任务说明",
+        title: "任务标题",
+        url: "/projects/project-1?taskId=task-1",
+      },
+      fetcher
+    )
+
+    expect(message.body).toEqual({
+      description: "任务说明",
+      title: "任务标题",
+      type: "card",
+      url: "/projects/project-1?taskId=task-1",
+    })
+  })
+
+  it("sends an entity card reference and normalizes the generated card", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            message: {
+              body: {
+                description:
+                  "项目：官网 · 状态：进行中 · 负责人：张三 · 截止：2026-07-20",
+                title: "完成首页改版",
+                type: "card",
+                url: "/projects/project-1?taskId=task-1",
+              },
+              client_message_id: "client-entity-card",
+              conversation_id: "conversation-1",
+              created_at: "2026-07-14T08:00:00Z",
+              id: "message-entity-card",
+              sender: { id: "user-1", type: "user" },
+              seq: 11,
+            },
+          },
+          success: true,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 201,
+        }
+      )
+    )
+
+    const message = await sendConversationEntityCardMessage(
+      "conversation-1",
+      {
+        clientMessageId: "client-entity-card",
+        entityId: "task-1",
+        entityType: "task",
+      },
+      fetcher
+    )
+
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({
+      body: {
+        entity_id: "task-1",
+        entity_type: "task",
+        type: "entity_card",
+      },
+    })
+    expect(message.body).toEqual({
+      description:
+        "项目：官网 · 状态：进行中 · 负责人：张三 · 截止：2026-07-20",
+      title: "完成首页改版",
+      type: "card",
+      url: "/projects/project-1?taskId=task-1",
+    })
   })
 
   it("normalizes reply reference details on messages", async () => {
@@ -744,6 +873,100 @@ describe("client data API", () => {
         newestSeq: 12,
         oldestSeq: 12,
       },
+    })
+  })
+
+  it("keeps message history available when one message body is unsupported", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            messages: [
+              {
+                id: "message-unsupported",
+                conversation_id: "conversation-1",
+                seq: 12,
+                sender: { type: "user", id: "user-2" },
+                body: { type: "future_message", payload: { value: 1 } },
+                client_message_id: "client-message-unsupported",
+                created_at: "2026-07-03T08:00:00Z",
+              },
+              {
+                id: "message-malformed",
+                conversation_id: "conversation-1",
+                seq: 13,
+                sender: { type: "user", id: "user-2" },
+                body: {
+                  type: "card",
+                  title: "缺少地址字段的卡片",
+                  description: "不完整消息",
+                },
+                client_message_id: "client-message-malformed",
+                created_at: "2026-07-03T08:01:00Z",
+              },
+              {
+                id: "message-supported",
+                conversation_id: "conversation-1",
+                seq: 14,
+                sender: { type: "user", id: "user-2" },
+                body: { type: "text", content: "后续正常消息" },
+                client_message_id: "client-message-supported",
+                created_at: "2026-07-03T08:02:00Z",
+              },
+            ],
+            page: {
+              limit: 20,
+              oldest_seq: 12,
+              newest_seq: 14,
+              has_more_before: false,
+              has_more_after: false,
+            },
+          },
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      listConversationMessages("conversation-1", {}, fetcher)
+    ).resolves.toMatchObject({
+      messages: [
+        {
+          id: "message-unsupported",
+          body: { type: "unsupported" },
+        },
+        {
+          id: "message-malformed",
+          body: { type: "unsupported" },
+        },
+        {
+          id: "message-supported",
+          body: { type: "text", content: "后续正常消息" },
+        },
+      ],
+    })
+  })
+
+  it("normalizes an unsupported realtime message body without dropping the event", () => {
+    expect(
+      normalizeMessageCreatedEventPayload({
+        message: {
+          id: "message-realtime-unsupported",
+          conversation_id: "conversation-1",
+          seq: 15,
+          sender: { type: "user", id: "user-2" },
+          body: { type: "future_message", payload: "unknown" },
+          client_message_id: "client-realtime-unsupported",
+          created_at: "2026-07-03T08:03:00Z",
+        },
+      })
+    ).toMatchObject({
+      id: "message-realtime-unsupported",
+      body: { type: "unsupported" },
     })
   })
 

@@ -236,6 +236,7 @@ export function ChatPage() {
         (message) =>
           selectedMessageIds.has(message.id) &&
           message.body.type !== "revoked" &&
+          message.body.type !== "unsupported" &&
           message.body.type !== "system_event"
       ),
     [activeClientMessages, selectedMessageIds]

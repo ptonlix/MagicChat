@@ -38,11 +38,14 @@ const (
 	maxLinkMessageURLLength     = 2048
 	maxLinkPreviewReadBytes     = 1024
 	maxMessageMentionTargets    = 50
+	maxCardDescription          = 2000
+	maxCardTitleLength          = 240
 	maxTextMessageContentLength = 5000
 	linkPreviewFetchTimeout     = 2 * time.Second
 	linkPreviewMaxRedirects     = 3
 	messageTypeLink             = "link"
 	messageTypeMarkdown         = "markdown"
+	messageTypeCard             = "card"
 	messageTypeText             = "text"
 )
 
@@ -138,6 +141,13 @@ type linkMessageBody struct {
 	Title string `json:"title"`
 }
 
+type cardMessageBody struct {
+	Description string `json:"description"`
+	Title       string `json:"title"`
+	Type        string `json:"type"`
+	URL         string `json:"url"`
+}
+
 type messageBodyEnvelope struct {
 	Type string `json:"type"`
 }
@@ -173,10 +183,12 @@ type messageMentionTarget struct {
 type textMessageBodyHandler struct{}
 type markdownMessageBodyHandler struct{}
 type linkMessageBodyHandler struct{}
+type cardMessageBodyHandler struct{}
 
 var messageBodyHandlers = map[string]messageBodyHandler{
 	messageTypeLink:     linkMessageBodyHandler{},
 	messageTypeMarkdown: markdownMessageBodyHandler{},
+	messageTypeCard:     cardMessageBodyHandler{},
 	messageTypeText:     textMessageBodyHandler{},
 }
 
@@ -247,7 +259,7 @@ func (s *Server) listConversationMessages(c echo.Context) error {
 // createConversationMessage godoc
 //
 // @Summary 发送消息
-// @Description 普通用户向自己参与的会话发送消息。第一版只支持 text body，client_message_id 用于重试幂等。
+// @Description 普通用户向自己参与的会话发送 text、markdown、link、card，或通过 entity_card 对象引用生成卡片消息，client_message_id 用于重试幂等。
 // @Tags 客户端消息
 // @Accept json
 // @Produce json
@@ -277,8 +289,15 @@ func (s *Server) createConversationMessage(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", "请求格式错误")
 	}
 
-	clientMessageID, replyToMessageID, messageBody, err := normalizeCreateMessageRequest(c.Request().Context(), req)
+	clientMessageID, replyToMessageID, messageBody, err := s.normalizeCreateMessageRequest(c.Request().Context(), user.ID, req)
 	if err != nil {
+		if errors.Is(err, errEntityCardNotFound) {
+			return failure(c, http.StatusNotFound, "not_found", err.Error())
+		}
+		var entityCardRequestErr *entityCardRequestError
+		if isEntityCardMessageBody(req.Body) && !errors.As(err, &entityCardRequestErr) {
+			return failure(c, http.StatusInternalServerError, "internal_error", "服务端错误")
+		}
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
 
@@ -388,7 +407,7 @@ func normalizeOptionalPositiveInt64(rawValue string, fieldName string) (*int64, 
 	return &parsedValue, nil
 }
 
-func normalizeCreateMessageRequest(ctx context.Context, req createMessageRequest) (string, *string, json.RawMessage, error) {
+func (s *Server) normalizeCreateMessageRequest(ctx context.Context, userID string, req createMessageRequest) (string, *string, json.RawMessage, error) {
 	clientMessageID, err := normalizeClientMessageID(req.ClientMessageID)
 	if err != nil {
 		return "", nil, nil, err
@@ -396,6 +415,14 @@ func normalizeCreateMessageRequest(ctx context.Context, req createMessageRequest
 	replyToMessageID, err := normalizeOptionalMessageID(req.ReplyToMessageID, "引用消息 ID")
 	if err != nil {
 		return "", nil, nil, err
+	}
+
+	if isEntityCardMessageBody(req.Body) {
+		resolvedBody, err := s.resolveEntityCardMessageBody(ctx, userID, req.Body)
+		if err != nil {
+			return "", nil, nil, err
+		}
+		return clientMessageID, replyToMessageID, resolvedBody, nil
 	}
 
 	handler, err := findMessageBodyHandler(req.Body)
@@ -1275,6 +1302,114 @@ func decodeLinkMessageBody(raw json.RawMessage) (linkMessageBody, error) {
 	}
 
 	return body, nil
+}
+
+func (cardMessageBodyHandler) Type() string {
+	return messageTypeCard
+}
+
+func (handler cardMessageBodyHandler) Validate(raw json.RawMessage) error {
+	body, err := decodeCardMessageBody(raw)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(body.Type) != handler.Type() {
+		return errors.New("消息类型错误")
+	}
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		return errors.New("卡片标题不能为空")
+	}
+	if len([]rune(title)) > maxCardTitleLength {
+		return errors.New("卡片标题不能超过 240 个字符")
+	}
+	description := strings.TrimSpace(body.Description)
+	if len([]rune(description)) > maxCardDescription {
+		return errors.New("卡片说明不能超过 2000 个字符")
+	}
+	if _, err := normalizeCardURL(body.URL); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (handler cardMessageBodyHandler) Normalize(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	if err := handler.Validate(raw); err != nil {
+		return nil, err
+	}
+	body, err := decodeCardMessageBody(raw)
+	if err != nil {
+		return nil, err
+	}
+	normalizedURL, err := normalizeCardURL(body.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(cardMessageBody{
+		Description: strings.TrimSpace(body.Description),
+		Title:       strings.TrimSpace(body.Title),
+		Type:        handler.Type(),
+		URL:         normalizedURL,
+	})
+}
+
+func (cardMessageBodyHandler) Summary(raw json.RawMessage) (string, error) {
+	body, err := decodeCardMessageBody(raw)
+	if err != nil {
+		return "", err
+	}
+
+	return "[卡片] " + strings.TrimSpace(body.Title), nil
+}
+
+func decodeCardMessageBody(raw json.RawMessage) (cardMessageBody, error) {
+	var body cardMessageBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return cardMessageBody{}, errors.New("消息体格式错误")
+	}
+
+	return body, nil
+}
+
+func normalizeCardURL(rawURL string) (string, error) {
+	cardURL := strings.TrimSpace(rawURL)
+	if cardURL == "" {
+		return "", errors.New("链接不能为空")
+	}
+	if len([]rune(cardURL)) > maxLinkMessageURLLength {
+		return "", errors.New("链接不能超过 2048 个字符")
+	}
+	if strings.Contains(cardURL, "\\") || strings.ContainsAny(cardURL, " \t\r\n") {
+		return "", errors.New("链接格式错误")
+	}
+	if strings.HasPrefix(cardURL, "/") {
+		if strings.HasPrefix(cardURL, "//") {
+			return "", errors.New("链接格式错误")
+		}
+		parsedURL, err := url.ParseRequestURI(cardURL)
+		if err != nil || parsedURL.Scheme != "" || parsedURL.Host != "" || !strings.HasPrefix(parsedURL.Path, "/") {
+			return "", errors.New("链接格式错误")
+		}
+
+		return parsedURL.String(), nil
+	}
+
+	lowerURL := strings.ToLower(cardURL)
+	if !strings.HasPrefix(lowerURL, "http://") && !strings.HasPrefix(lowerURL, "https://") {
+		return "", errors.New("只支持站内相对路径或 http、https 链接")
+	}
+	parsedURL, err := url.Parse(cardURL)
+	if err != nil || parsedURL.Host == "" || strings.TrimSpace(parsedURL.Hostname()) == "" {
+		return "", errors.New("链接格式错误")
+	}
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", errors.New("只支持站内相对路径或 http、https 链接")
+	}
+
+	return parsedURL.String(), nil
 }
 
 func normalizeLinkMessageURL(rawURL string) (string, error) {

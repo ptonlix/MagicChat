@@ -19,6 +19,8 @@ import type {
   SendConversationTextMessageInput,
   SendConversationMarkdownMessageInput,
   SendConversationLinkMessageInput,
+  SendConversationCardMessageInput,
+  SendConversationEntityCardMessageInput,
   SendConversationFileMessageInput,
   SendConversationImageMessageInput,
   SendConversationVoiceMessageInput,
@@ -270,6 +272,85 @@ export async function sendConversationLinkMessage(
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "发送链接失败")
+  }
+
+  const message = (
+    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
+  )?.data?.message
+
+  return normalizeMessage(message)
+}
+
+export async function sendConversationCardMessage(
+  conversationId: string,
+  input: SendConversationCardMessageInput,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      body: JSON.stringify({
+        client_message_id: input.clientMessageId,
+        reply_to_message_id: input.replyToMessageId,
+        body: {
+          description: input.description,
+          title: input.title,
+          type: "card",
+          url: input.url,
+        },
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "发送卡片失败")
+  }
+
+  const message = (
+    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
+  )?.data?.message
+
+  return normalizeMessage(message)
+}
+
+export async function sendConversationEntityCardMessage(
+  conversationId: string,
+  input: SendConversationEntityCardMessageInput,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      body: JSON.stringify({
+        client_message_id: input.clientMessageId,
+        reply_to_message_id: input.replyToMessageId,
+        body: {
+          entity_id: input.entityId,
+          entity_type: input.entityType,
+          type: "entity_card",
+        },
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "发送对象卡片失败")
   }
 
   const message = (
@@ -603,6 +684,10 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
     return `[链接] ${body.title}`
   }
 
+  if (body.type === "card") {
+    return `[卡片] ${body.title}`
+  }
+
   if (body.type === "file") {
     return `[文件] ${body.name}`
   }
@@ -624,6 +709,10 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
 
   if (body.type === "revoked") {
     return "该消息已被撤回"
+  }
+
+  if (body.type === "unsupported") {
+    return "暂不支持查看该消息"
   }
 
   if (body.event === "message_revoked") {

@@ -7,12 +7,14 @@ import {
   CircleDot,
   CircleX,
   Equal,
+  Send,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ProjectMemberCombobox } from "@/components/projects/project-member-combobox"
 import { ProjectTaskDatePicker } from "@/components/projects/project-task-date-picker"
 import { ProjectTaskLabelsCombobox } from "@/components/projects/project-task-labels-combobox"
+import { SendCardDialog } from "@/components/conversation/send-card-dialog"
 import type {
   ProjectTask,
   ProjectTaskPriority,
@@ -101,6 +103,7 @@ export function ProjectTaskDetailsDialog({
   const [membersError, setMembersError] = React.useState("")
   const [membersLoading, setMembersLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
+  const [sendDialogOpen, setSendDialogOpen] = React.useState(false)
   const assigneeComboboxPortal = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
@@ -188,6 +191,11 @@ export function ProjectTaskDetailsDialog({
   const selectedAssignee = memberOptions.find(
     (member) => member.id === form.assigneeUserId
   )
+  const card = {
+    entityId: details.id,
+    entityType: "task",
+    type: "entity_card",
+  } as const
 
   function updateForm<K extends keyof TaskEditForm>(
     field: K,
@@ -212,6 +220,7 @@ export function ProjectTaskDetailsDialog({
       setMembers([])
       setMembersError("")
       setMembersLoading(true)
+      setSendDialogOpen(false)
     }
     onOpenChange(nextOpen)
   }
@@ -418,19 +427,37 @@ export function ProjectTaskDetailsDialog({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-between">
             <Button
-              disabled={saving}
-              onClick={() => handleOpenChange(false)}
+              disabled={loading || saving || dirty || Boolean(error)}
+              onClick={() => setSendDialogOpen(true)}
+              title={
+                dirty
+                  ? "请先保存修改后再发送"
+                  : error
+                    ? "任务详情加载失败，暂不能发送"
+                    : undefined
+              }
               type="button"
               variant="outline"
             >
-              关闭
+              <Send />
+              发送到对话
             </Button>
-            <Button disabled={!canSave} type="submit">
-              {saving && <Spinner />}
-              保存
-            </Button>
+            <div className="flex justify-end gap-2">
+              <Button
+                disabled={saving}
+                onClick={() => handleOpenChange(false)}
+                type="button"
+                variant="outline"
+              >
+                关闭
+              </Button>
+              <Button disabled={!canSave} type="submit">
+                {saving && <Spinner />}
+                保存
+              </Button>
+            </div>
           </DialogFooter>
         </form>
         <div
@@ -438,6 +465,11 @@ export function ProjectTaskDetailsDialog({
           ref={assigneeComboboxPortal}
         />
       </DialogContent>
+      <SendCardDialog
+        card={card}
+        onOpenChange={setSendDialogOpen}
+        open={sendDialogOpen}
+      />
     </Dialog>
   )
 }

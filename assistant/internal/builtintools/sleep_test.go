@@ -295,19 +295,62 @@ func TestConversationMessageHelpDocumentsMentionTokens(t *testing.T) {
 	}
 }
 
-func TestMessageToolMetadataClarifiesFileUsageScenarios(t *testing.T) {
+func TestMessageToolMetadataDocumentsSupportedMessageTypes(t *testing.T) {
 	source := NewSource()
 	for _, operation := range []string{conversationsOperationReply, conversationsOperationSend} {
 		description, schema := helpOperationForTest(t, source, operation)
-		for _, snippet := range []string{"text", "markdown", "image", "file"} {
+		for _, snippet := range []string{"text", "markdown", "image", "file", "card"} {
 			if !strings.Contains(description, snippet) {
 				t.Fatalf("%s description = %q, want to contain %q", operation, description, snippet)
 			}
 		}
 		properties := schema["properties"].(map[string]any)["arguments"].(map[string]any)["properties"].(map[string]any)
-		for _, property := range []string{"name", "url", "content"} {
+		for _, property := range []string{"name", "url", "content", "title", "description"} {
 			if _, ok := properties[property]; !ok {
 				t.Fatalf("%s arguments = %#v, want %s", operation, properties, property)
+			}
+		}
+		if _, ok := properties["action"]; ok {
+			t.Fatalf("%s arguments = %#v, action should not be exposed", operation, properties)
+		}
+		urlDescription := properties["url"].(map[string]any)["description"].(string)
+		for _, snippet := range []string{"http://", "https://", "javascript:"} {
+			if !strings.Contains(urlDescription, snippet) {
+				t.Fatalf("%s url description = %q, want %q", operation, urlDescription, snippet)
+			}
+		}
+		descriptionDescription := properties["description"].(map[string]any)["description"].(string)
+		for _, snippet := range []string{"纯文本", "不支持 Markdown"} {
+			if !strings.Contains(descriptionDescription, snippet) {
+				t.Fatalf("%s description field = %q, want %q", operation, descriptionDescription, snippet)
+			}
+		}
+	}
+}
+
+func TestEntityCardToolMetadataUsesObjectReferences(t *testing.T) {
+	source := NewSource()
+	for _, operation := range []string{conversationsOperationReplyEntityCard, conversationsOperationSendEntityCard} {
+		description, schema := helpOperationForTest(t, source, operation)
+		for _, snippet := range []string{"user", "app", "group", "project", "task", "Server"} {
+			if !strings.Contains(description, snippet) {
+				t.Fatalf("%s description = %q, want %q", operation, description, snippet)
+			}
+		}
+		required := schema["required"].([]any)
+		if !slices.Contains(required, any("runas")) {
+			t.Fatalf("%s required = %#v, want runas", operation, required)
+		}
+		arguments := schema["properties"].(map[string]any)["arguments"].(map[string]any)
+		properties := arguments["properties"].(map[string]any)
+		for _, property := range []string{"entity_type", "entity_id"} {
+			if _, ok := properties[property]; !ok {
+				t.Fatalf("%s arguments = %#v, want %s", operation, properties, property)
+			}
+		}
+		for _, property := range []string{"title", "description", "url"} {
+			if _, ok := properties[property]; ok {
+				t.Fatalf("%s arguments = %#v, should not expose %s", operation, properties, property)
 			}
 		}
 	}
@@ -1297,6 +1340,138 @@ func TestReplyToolCallsMessageSendForInlineFileContentWithSpecifiedName(t *testi
 	}
 }
 
+func TestReplyToolCallsMessageSendForCard(t *testing.T) {
+	requester := &fakeRequester{}
+	ctx := WithScope(context.Background(), Scope{
+		ConversationID:   "conversation-1",
+		ConversationType: "app",
+		Requester:        requester,
+	})
+
+	_, err := callReply(ctx, json.RawMessage(`{
+		"type":"card",
+		"title":"任务标题",
+		"description":"任务说明",
+		"url":"/projects/project-1?taskId=task-1"
+	}`))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	var payload struct {
+		Message scopedMessagePayload `json:"message"`
+	}
+	if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.Message.Type != messageTypeCard || payload.Message.Title != "任务标题" || payload.Message.Description != "任务说明" {
+		t.Fatalf("message = %#v, want card message", payload.Message)
+	}
+	if payload.Message.URL != "/projects/project-1?taskId=task-1" {
+		t.Fatalf("message url = %q, want card URL", payload.Message.URL)
+	}
+}
+
+func TestReplyToolRejectsIncompleteCard(t *testing.T) {
+	ctx := WithScope(context.Background(), Scope{
+		ConversationID:   "conversation-1",
+		ConversationType: "app",
+		Requester:        &fakeRequester{},
+	})
+
+	for _, input := range []string{
+		`{"type":"card","description":"说明","url":"/projects/1"}`,
+		`{"type":"card","title":"标题","url":"/projects/1"}`,
+		`{"type":"card","title":"标题","description":"说明"}`,
+	} {
+		if _, err := callReply(ctx, json.RawMessage(input)); err == nil {
+			t.Fatalf("CallTool(%s) error = nil, want invalid card message error", input)
+		}
+	}
+}
+
+func TestReplyEntityCardUsesAuthorizedUserForResolutionAndAgentForSending(t *testing.T) {
+	requester := &fakeRequester{}
+	source := NewSource()
+	ctx := WithScope(context.Background(), Scope{
+		AuthorizationResolver: AuthorizationResolverFunc(func(ref string) (Authorization, bool) {
+			if ref != "auth-1" {
+				return Authorization{}, false
+			}
+			return Authorization{ActorID: "user-1", ActorType: "user", TriggerMessageID: "message-1"}, true
+		}),
+		ConversationID:   "conversation-1",
+		ConversationType: "app",
+		Requester:        requester,
+	})
+
+	result, err := source.CallTool(ctx, conversationsToolName, json.RawMessage(`{
+		"operation":"reply_entity_card",
+		"runas":{"type":"user","id":"user-1","authorization_ref":"auth-1"},
+		"arguments":{"entity_type":"task","entity_id":"task-1"}
+	}`))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if !result.Final {
+		t.Fatal("result.Final = false, want true")
+	}
+	if len(requester.calls) != 1 || requester.calls[0].method != methodMessageSend {
+		t.Fatalf("request calls = %#v", requester.calls)
+	}
+	var payload sendMessagePayload
+	if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.ActorUserID != "user-1" || payload.TriggerMessageID != "message-1" || payload.AuthorizationConversationID != "conversation-1" {
+		t.Fatalf("payload authorization = %#v", payload)
+	}
+	if payload.Message.Type != messageTypeEntityCard || payload.Message.EntityType != "task" || payload.Message.EntityID != "task-1" {
+		t.Fatalf("payload message = %#v", payload.Message)
+	}
+	if payload.Target.Type != "app" || payload.Target.ConversationID != "conversation-1" {
+		t.Fatalf("payload target = %#v", payload.Target)
+	}
+}
+
+func TestSendEntityCardUsesDelegatedSendingTarget(t *testing.T) {
+	requester := &fakeRequester{}
+	source := NewSource()
+	ctx := WithScope(context.Background(), Scope{
+		AuthorizationResolver: AuthorizationResolverFunc(func(ref string) (Authorization, bool) {
+			return Authorization{ActorID: "user-1", ActorType: "user", TriggerMessageID: "message-1"}, ref == "auth-1"
+		}),
+		ConversationID: "conversation-1",
+		Requester:      requester,
+	})
+
+	_, err := source.CallTool(ctx, conversationsToolName, json.RawMessage(`{
+		"operation":"send_entity_card",
+		"runas":{"type":"user","id":"user-1","authorization_ref":"auth-1"},
+		"arguments":{
+			"target_type":"group",
+			"conversation_id":"conversation-2",
+			"entity_type":"project",
+			"entity_id":"project-1"
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if len(requester.calls) != 1 || requester.calls[0].method != methodMessageSendAsUser {
+		t.Fatalf("request calls = %#v", requester.calls)
+	}
+	var payload sendAsUserPayload
+	if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.Target.Type != "group" || payload.Target.ConversationID != "conversation-2" {
+		t.Fatalf("payload target = %#v", payload.Target)
+	}
+	if payload.Message.Type != messageTypeEntityCard || payload.Message.EntityType != "project" || payload.Message.EntityID != "project-1" {
+		t.Fatalf("payload message = %#v", payload.Message)
+	}
+}
+
 func TestReplyToolRejectsInvalidFileInputs(t *testing.T) {
 	ctx := WithScope(context.Background(), Scope{
 		ConversationID:   "conversation-1",
@@ -1368,6 +1543,40 @@ func TestSendAsUserToolCallsMessageSendAsUserWithTriggerContext(t *testing.T) {
 	}
 	if payload.Message.Type != "markdown" || payload.Message.Content != "**收到**" {
 		t.Fatalf("message = %#v, want markdown content", payload.Message)
+	}
+}
+
+func TestSendAsUserToolCallsMessageSendAsUserForCard(t *testing.T) {
+	requester := &fakeRequester{}
+	ctx := WithScope(context.Background(), Scope{
+		CurrentUserID:    "user-1",
+		Requester:        requester,
+		TriggerMessageID: "message-1",
+	})
+
+	_, err := callSendAsUser(ctx, json.RawMessage(`{
+		"target_type":"group",
+		"conversation_id":"conversation-2",
+		"type":"card",
+		"title":"任务标题",
+		"description":"任务说明",
+		"url":"/projects/project-1?taskId=task-1"
+	}`))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	var payload struct {
+		Message scopedMessagePayload `json:"message"`
+		Target  sendAsUserTarget     `json:"target"`
+	}
+	if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.Target.Type != "group" || payload.Target.ConversationID != "conversation-2" {
+		t.Fatalf("target = %#v, want group conversation", payload.Target)
+	}
+	if payload.Message.Type != messageTypeCard || payload.Message.URL != "/projects/project-1?taskId=task-1" {
+		t.Fatalf("message = %#v, want card message", payload.Message)
 	}
 }
 

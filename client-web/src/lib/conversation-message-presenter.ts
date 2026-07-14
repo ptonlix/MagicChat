@@ -103,7 +103,11 @@ function canRevokeMessage(
   conversation: ClientConversation,
   currentUserId: string
 ) {
-  if (message.sender.type === "system" || message.body.type === "revoked") {
+  if (
+    message.sender.type === "system" ||
+    message.body.type === "revoked" ||
+    message.body.type === "unsupported"
+  ) {
     return false
   }
   if (message.sender.type === "user" && message.sender.id === currentUserId) {

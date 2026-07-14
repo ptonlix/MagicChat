@@ -332,6 +332,37 @@ func TestSanitizeForwardMessageBodyLimitsNestedBundleDepth(t *testing.T) {
 	}
 }
 
+func TestSanitizeForwardCardMessageBody(t *testing.T) {
+	raw, err := json.Marshal(cardMessageBody{
+		Description: "任务说明",
+		Title:       "任务标题",
+		Type:        messageTypeCard,
+		URL:         "/projects/project-1?taskId=task-1",
+	})
+	if err != nil {
+		t.Fatalf("marshal card message: %v", err)
+	}
+
+	sanitized, summary, metrics, err := sanitizeForwardMessageBody(raw, nil, 0)
+	if err != nil {
+		t.Fatalf("sanitize card message: %v", err)
+	}
+	if summary != "[卡片] 任务标题" {
+		t.Fatalf("summary = %q, want card summary", summary)
+	}
+	if metrics.LeafCount != 1 || metrics.BundleDepth != 0 {
+		t.Fatalf("metrics = %#v", metrics)
+	}
+
+	var body cardMessageBody
+	if err := json.Unmarshal(sanitized, &body); err != nil {
+		t.Fatalf("unmarshal sanitized card message: %v", err)
+	}
+	if body.URL != "/projects/project-1?taskId=task-1" || body.Description != "任务说明" {
+		t.Fatalf("sanitized card message = %#v", body)
+	}
+}
+
 func TestBuildForwardMessageDraftsLimitsNestedBundle(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	leafBody, err := json.Marshal(map[string]any{

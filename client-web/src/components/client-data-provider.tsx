@@ -630,6 +630,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationImage,
     sendConversationLink,
     sendConversationMarkdown,
+    sendConversationCard,
     sendConversationText,
     sendConversationVoice,
   } = useConversationSenders({
@@ -842,6 +843,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationImage,
     sendConversationLink,
     sendConversationMarkdown,
+    sendConversationCard,
     sendConversationText,
     sendConversationVoice,
     setGroupConversationPrivate,

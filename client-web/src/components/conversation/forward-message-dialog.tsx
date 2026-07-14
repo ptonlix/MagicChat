@@ -8,7 +8,7 @@ import type {
 } from "@/lib/client-data-api"
 import { getClientDataErrorMessage } from "@/lib/client-data-state"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ConversationSelectionAvatar } from "@/components/conversation/conversation-selection-avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -204,18 +204,9 @@ export function ForwardMessageDialog({
                   >
                     <Label htmlFor={checkboxId}>
                       <ItemMedia>
-                        <Avatar className="rounded-sm" data-size="sm">
-                          {conversation.avatar && (
-                            <AvatarImage
-                              alt={conversation.name}
-                              className="rounded-sm"
-                              src={conversation.avatar}
-                            />
-                          )}
-                          <AvatarFallback className="rounded-sm">
-                            {conversation.name.trim().slice(0, 1) || "会"}
-                          </AvatarFallback>
-                        </Avatar>
+                        <ConversationSelectionAvatar
+                          conversation={conversation}
+                        />
                       </ItemMedia>
                       <ItemContent className="min-w-0">
                         <ItemTitle className="max-w-full">

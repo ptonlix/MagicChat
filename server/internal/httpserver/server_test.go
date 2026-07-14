@@ -5831,6 +5831,102 @@ func TestCreateConversationLinkMessageDoesNotFetchPreviewBeforeAccessCheck(t *te
 	requireError(t, body, "forbidden")
 }
 
+func TestCreateConversationCardMessageNormalizesAndSummarizes(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID,
+		kind:            store.ConversationKindDirect,
+		memberIDs:       []string{alice.ID, bob.ID},
+		now:             now,
+	})
+
+	resp, body := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/messages", map[string]any{
+		"client_message_id": "client-card-1",
+		"body": map[string]any{
+			"type":        "card",
+			"title":       "  完成首页改版  ",
+			"description": "  请查看任务的最新状态。  ",
+			"url":         "  /projects/project-1?taskId=task-1  ",
+		},
+	}, loginAsUser(t, server, alice.Email))
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201, body = %#v", resp.StatusCode, body)
+	}
+	createdMessage := requireSuccess(t, body)["message"].(map[string]any)
+	messageBody := createdMessage["body"].(map[string]any)
+	if messageBody["type"] != messageTypeCard ||
+		messageBody["title"] != "完成首页改版" ||
+		messageBody["description"] != "请查看任务的最新状态。" {
+		t.Fatalf("message.body = %#v, want normalized card message", messageBody)
+	}
+	if messageBody["url"] != "/projects/project-1?taskId=task-1" {
+		t.Fatalf("message.body.url = %#v, want normalized URL", messageBody["url"])
+	}
+	if _, exists := messageBody["action"]; exists {
+		t.Fatalf("message.body = %#v, action should not be present", messageBody)
+	}
+
+	var storedMessage store.Message
+	if err := db.First(&storedMessage, "id = ?", createdMessage["id"]).Error; err != nil {
+		t.Fatalf("find stored message: %v", err)
+	}
+	if storedMessage.Summary != "[卡片] 完成首页改版" {
+		t.Fatalf("stored summary = %q, want card summary", storedMessage.Summary)
+	}
+}
+
+func TestCardMessageRejectsUnsafeURL(t *testing.T) {
+	handler := cardMessageBodyHandler{}
+	for _, target := range []string{
+		"javascript:alert(1)",
+		"data:text/html,test",
+		"https:example.com/path",
+		"www.example.com/path",
+		"//evil.example/path",
+		`/projects\\evil`,
+		`https://example.com/projects\\evil`,
+	} {
+		raw, err := json.Marshal(cardMessageBody{
+			Description: "卡片说明",
+			Title:       "卡片标题",
+			Type:        messageTypeCard,
+			URL:         target,
+		})
+		if err != nil {
+			t.Fatalf("marshal card message: %v", err)
+		}
+		if err := handler.Validate(raw); err == nil {
+			t.Fatalf("Validate(%q) succeeded, want error", target)
+		}
+	}
+}
+
+func TestCardMessageAcceptsInternalAndHTTPURLs(t *testing.T) {
+	handler := cardMessageBodyHandler{}
+	for _, target := range []string{
+		"/projects/project-1?taskId=task-1",
+		"http://example.com/tasks/1",
+		"https://example.com/tasks/1",
+	} {
+		raw, err := json.Marshal(cardMessageBody{
+			Description: "卡片说明",
+			Title:       "卡片标题",
+			Type:        messageTypeCard,
+			URL:         target,
+		})
+		if err != nil {
+			t.Fatalf("marshal card message: %v", err)
+		}
+		if err := handler.Validate(raw); err != nil {
+			t.Fatalf("Validate(%q) error = %v", target, err)
+		}
+	}
+}
+
 func TestCreateConversationTextMessageRejectsInvalidRequests(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()

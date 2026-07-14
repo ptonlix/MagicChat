@@ -205,6 +205,13 @@ export type LinkMessageBodyResponse = {
   url?: string
 }
 
+export type CardMessageBodyResponse = {
+  description?: string
+  title?: string
+  type?: "card"
+  url?: string
+}
+
 export type FileMessageBodyResponse = {
   file_id?: string
   name?: string
@@ -232,6 +239,7 @@ export type ForwardBundleItemBodyResponse =
   | TextMessageBodyResponse
   | MarkdownMessageBodyResponse
   | LinkMessageBodyResponse
+  | CardMessageBodyResponse
   | FileMessageBodyResponse
   | ImageMessageBodyResponse
   | VoiceMessageBodyResponse
@@ -312,6 +320,7 @@ export type MessageBodyResponse =
   | TextMessageBodyResponse
   | MarkdownMessageBodyResponse
   | LinkMessageBodyResponse
+  | CardMessageBodyResponse
   | FileMessageBodyResponse
   | ImageMessageBodyResponse
   | VoiceMessageBodyResponse
@@ -547,6 +556,30 @@ export type ClientLinkMessageBody = {
   url: string
 }
 
+export type ClientCardMessageBody = {
+  description: string
+  title: string
+  type: "card"
+  url: string
+}
+
+export type ClientEntityCardType =
+  | "user"
+  | "app"
+  | "group"
+  | "project"
+  | "task"
+
+export type ClientEntityCardMessageInput = {
+  entityId: string
+  entityType: ClientEntityCardType
+  type: "entity_card"
+}
+
+export type ClientCardSendInput =
+  | ClientCardMessageBody
+  | ClientEntityCardMessageInput
+
 export type ClientFileMessageBody = {
   fileId: string
   name: string
@@ -574,6 +607,7 @@ export type ClientForwardableMessageBody =
   | ClientTextMessageBody
   | ClientMarkdownMessageBody
   | ClientLinkMessageBody
+  | ClientCardMessageBody
   | ClientFileMessageBody
   | ClientImageMessageBody
   | ClientVoiceMessageBody
@@ -595,6 +629,10 @@ export type ClientForwardBundleMessageBody = {
 
 export type ClientRevokedMessageBody = {
   type: "revoked"
+}
+
+export type ClientUnsupportedMessageBody = {
+  type: "unsupported"
 }
 
 export type ClientSystemEventUserRef = {
@@ -658,11 +696,13 @@ export type ClientMessageBody =
   | ClientTextMessageBody
   | ClientMarkdownMessageBody
   | ClientLinkMessageBody
+  | ClientCardMessageBody
   | ClientFileMessageBody
   | ClientImageMessageBody
   | ClientVoiceMessageBody
   | ClientForwardBundleMessageBody
   | ClientRevokedMessageBody
+  | ClientUnsupportedMessageBody
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
   | ClientGroupVisibilityChangedSystemEventBody
@@ -722,6 +762,21 @@ export type SendConversationLinkMessageInput = {
   clientMessageId: string
   replyToMessageId?: string
   url: string
+}
+
+export type SendConversationCardMessageInput = {
+  clientMessageId: string
+  description: string
+  replyToMessageId?: string
+  title: string
+  url: string
+}
+
+export type SendConversationEntityCardMessageInput = {
+  clientMessageId: string
+  entityId: string
+  entityType: ClientEntityCardType
+  replyToMessageId?: string
 }
 
 export type SendConversationFileMessageInput = {

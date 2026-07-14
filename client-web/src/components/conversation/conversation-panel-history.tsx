@@ -311,7 +311,7 @@ export const ConversationPanelHistory = React.memo(
 )
 
 function isMessageAvailable(message: ConversationPanelMessage) {
-  return message.body.type !== "revoked"
+  return message.body.type !== "revoked" && message.body.type !== "unsupported"
 }
 
 function scrollToBottom(viewport: HTMLDivElement) {

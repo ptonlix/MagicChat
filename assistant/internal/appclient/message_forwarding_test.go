@@ -59,3 +59,26 @@ func TestBuildAgentMessageContentForForwardBundle(t *testing.T) {
 		t.Fatalf("file IDs = %#v", fileIDs)
 	}
 }
+
+func TestBuildAgentMessageContentForCard(t *testing.T) {
+	if !isSupportedIncomingMessageType("card") {
+		t.Fatal("card should be accepted as an incoming message")
+	}
+
+	body := messageBody{
+		Description: "任务说明",
+		Title:       "任务标题",
+		Type:        "card",
+		URL:         "/projects/project-1?taskId=task-1",
+	}
+
+	content, err := buildAgentMessageContent(body, nil)
+	if err != nil {
+		t.Fatalf("build content: %v", err)
+	}
+	for _, expected := range []string{"卡片消息", "任务标题", "任务说明", "/projects/project-1?taskId=task-1"} {
+		if !strings.Contains(content, expected) {
+			t.Fatalf("content = %q, want %q", content, expected)
+		}
+	}
+}

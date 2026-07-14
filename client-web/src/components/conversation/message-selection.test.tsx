@@ -137,6 +137,57 @@ describe("conversation message selection", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Carol")
     expect(screen.getByRole("dialog")).toHaveTextContent("内层消息")
   })
+
+  it("renders an unsupported message without hiding supported messages", async () => {
+    const user = userEvent.setup()
+    const onReply = vi.fn()
+    const unsupportedMessage: ConversationPanelMessage = {
+      ...createMessage("message-unsupported", "unused"),
+      body: { type: "unsupported" },
+    }
+
+    render(
+      <MemoryRouter>
+        <ClientDataContext.Provider value={createClientDataValue()}>
+          <ConversationPanel
+            conversation={createConversation()}
+            currentUserId="user-1"
+            draft=""
+            historyError={null}
+            historyLoading={false}
+            historyLoadingBefore={false}
+            messages={[
+              unsupportedMessage,
+              createMessage("message-supported", "后续正常消息"),
+            ]}
+            onCancelReply={vi.fn()}
+            onDraftChange={vi.fn()}
+            onLoadBeforeMessages={vi.fn()}
+            onReplyToMessage={onReply}
+            onRevokeMessage={vi.fn()}
+            onRichTextModeChange={vi.fn()}
+            onSendFile={async () => null}
+            onSendImage={async () => null}
+            onSendMessage={vi.fn()}
+            onSendVoice={async () => null}
+            replyTarget={null}
+            richTextMode={false}
+            sending={false}
+          />
+        </ClientDataContext.Provider>
+      </MemoryRouter>
+    )
+
+    const unsupported = screen.getByText("暂不支持查看该消息")
+    expect(unsupported).toHaveClass("text-muted-foreground")
+    expect(screen.getByText("后续正常消息")).toBeInTheDocument()
+
+    await user.pointer({ keys: "[MouseRight]", target: unsupported })
+    expect(
+      screen.queryByRole("menuitem", { name: "回复" })
+    ).not.toBeInTheDocument()
+    expect(onReply).not.toHaveBeenCalled()
+  })
 })
 
 function SelectionHarness({

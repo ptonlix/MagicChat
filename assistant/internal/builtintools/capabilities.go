@@ -92,18 +92,20 @@ func contactsCapabilitySpec() capabilitySpec {
 }
 
 func conversationsCapabilitySpec() capabilitySpec {
-	toolDescription := "统一会话管理能力。支持查询会话、读取历史、回复当前会话、授权用户代发、等待新回复、创建群聊和添加成员；具体 operation 和参数通过全局 help 查询。"
+	toolDescription := "统一会话管理能力。支持查询会话、读取历史、回复当前会话、授权用户代发、发送固定格式内部对象卡片、等待新回复、创建群聊和添加成员；具体 operation 和参数通过全局 help 查询。"
 	toolSchema := capabilityToolInputSchema([]string{
 		conversationsOperationSearch,
 		conversationsOperationRead,
 		conversationsOperationReply,
+		conversationsOperationReplyEntityCard,
 		conversationsOperationSend,
+		conversationsOperationSendEntityCard,
 		conversationsOperationWait,
 		conversationsOperationCreate,
 		conversationsOperationAdd,
 	}, conversationPublicRunAsInputSchema())
 	return capabilitySpec{
-		Description: "提供最近会话查询、聊天历史读取、当前会话回复、授权用户代发、等待会话新回复，以及群聊创建和成员添加。操作统一通过 conversations 工具执行；需要授权用户身份的操作在顶层传 runas。",
+		Description: "提供最近会话查询、聊天历史读取、当前会话回复、授权用户代发、内部对象卡片发送、等待会话新回复，以及群聊创建和成员添加。操作统一通过 conversations 工具执行；需要授权用户身份的操作在顶层传 runas。",
 		Name:        capabilityConversations,
 		Summary:     "管理会话、消息和群聊，并等待新回复。",
 		Operations: []operationSpec{
@@ -124,7 +126,7 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "回复当前触发 Assistant 的会话。支持 text、markdown、image 和 file；text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，指定对象必须是当前会话成员；image 使用可下载 URL，file 使用显式文件名以及 url 或小文本 content。返回消息发送结果。",
+				Description:     "回复当前触发 Assistant 的会话。支持 text、markdown、image、file 和自定义 card；内部的联系人、应用、群聊、项目、任务使用 reply_entity_card。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，指定对象必须是当前会话成员；image 使用可下载 URL，file 使用显式文件名以及 url 或小文本 content；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
 				Example:         conversationExample(conversationsOperationReply, map[string]any{"type": "text", "content": "收到"}),
 				InputSchema:     conversationOperationInputSchema(conversationsOperationReply, messageArgumentsSchema(false), false, false),
 				Name:            conversationsOperationReply,
@@ -133,9 +135,26 @@ func conversationsCapabilitySpec() capabilitySpec {
 				ToolName:        conversationsToolName,
 			},
 			{
-				Description:     "以授权用户身份向私聊联系人或已有群聊发送消息。target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id；支持 text、markdown、image 和 file。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，UUID 必须可信且指定对象必须是目标会话成员。返回消息发送结果。",
+				Description:     "把一个内部对象以固定格式卡片回复到当前触发 Assistant 的会话。entity_type 支持 user、app、group、project、task；只传可信的 entity_id，Server 会查询实时对象、检查授权用户权限，并统一生成标题、纯文本说明和站内链接。适合发送联系人、应用、群聊、项目或任务；不要自行拼装这些对象的通用 card。",
+				Example:         conversationExample(conversationsOperationReplyEntityCard, map[string]any{"entity_type": "task", "entity_id": "task-id"}),
+				InputSchema:     conversationUserOperationInputSchema(conversationsOperationReplyEntityCard, entityCardArgumentsSchema(false), true),
+				Name:            conversationsOperationReplyEntityCard,
+				ToolDescription: toolDescription,
+				ToolInputSchema: toolSchema,
+				ToolName:        conversationsToolName,
+			},
+			{
+				Description:     "以授权用户身份向私聊联系人或已有群聊发送消息。target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id；支持 text、markdown、image、file 和自定义 card，内部的联系人、应用、群聊、项目、任务使用 send_entity_card。text/markdown 的 content 可使用 {(@user/用户UUID)} @ 用户、{(@app/应用UUID)} @ 应用、{(@user/all)} @ 全体用户，UUID 必须可信且指定对象必须是目标会话成员；自定义 card 使用 title、纯文本 description 和 url，description 不支持 Markdown，url 仅允许以 / 开头的站内路径或 http://、https:// 外链。返回消息发送结果。",
 				InputSchema:     conversationUserOperationInputSchema(conversationsOperationSend, messageArgumentsSchema(true), true),
 				Name:            conversationsOperationSend,
+				ToolDescription: toolDescription,
+				ToolInputSchema: toolSchema,
+				ToolName:        conversationsToolName,
+			},
+			{
+				Description:     "以授权用户身份把一个内部对象的固定格式卡片发送给私聊联系人或已有群聊。entity_type 支持 user、app、group、project、task；target_type=user 时使用 contact_id，target_type=group 时使用 conversation_id。Server 根据可信 entity_id 查询对象、检查权限并生成卡片，Assistant 不传标题、说明或链接。",
+				InputSchema:     conversationUserOperationInputSchema(conversationsOperationSendEntityCard, entityCardArgumentsSchema(true), true),
+				Name:            conversationsOperationSendEntityCard,
 				ToolDescription: toolDescription,
 				ToolInputSchema: toolSchema,
 				ToolName:        conversationsToolName,
@@ -441,10 +460,53 @@ func conversationUserOperationInputSchema(operation string, argumentsSchema map[
 
 func conversationPublicRunAsInputSchema() map[string]any {
 	runAs := runAsInputSchema()
-	runAs["description"] = "除 reply 外，会话操作都必须提供授权用户执行身份；type 固定为 user。reply 不接受 runas。"
+	runAs["description"] = "除普通 reply 外，会话操作都必须提供授权用户执行身份；type 固定为 user。reply 不接受 runas，reply_entity_card 因为需要读取内部对象而必须提供 runas。"
 	properties := runAs["properties"].(map[string]any)
 	properties["type"].(map[string]any)["enum"] = []string{"user"}
 	return runAs
+}
+
+func entityCardArgumentsSchema(withTarget bool) map[string]any {
+	properties := map[string]any{
+		"entity_type": map[string]any{
+			"type":        "string",
+			"enum":        []string{"user", "app", "group", "project", "task"},
+			"description": "内部对象类型：联系人使用 user，应用使用 app，群聊使用 group，项目使用 project，任务使用 task。",
+		},
+		"entity_id": map[string]any{
+			"type":        "string",
+			"minLength":   1,
+			"description": "对象 ID；必须来自可信上下文或工具结果，不能猜测。",
+		},
+	}
+	required := []string{"entity_type", "entity_id"}
+	schema := map[string]any{
+		"type":                 "object",
+		"required":             required,
+		"properties":           properties,
+		"additionalProperties": false,
+	}
+	if !withTarget {
+		return schema
+	}
+	properties["target_type"] = map[string]any{"type": "string", "enum": []string{"user", "group"}}
+	properties["contact_id"] = map[string]any{"type": "string", "minLength": 1, "description": "私聊目标用户 ID；target_type=user 时必填。"}
+	properties["conversation_id"] = map[string]any{"type": "string", "minLength": 1, "description": "目标群聊 ID；target_type=group 时必填。"}
+	required = append(required, "target_type")
+	schema["required"] = required
+	schema["oneOf"] = []any{
+		map[string]any{
+			"properties": map[string]any{"target_type": map[string]any{"enum": []string{"user"}}},
+			"required":   []string{"contact_id"},
+			"not":        map[string]any{"required": []string{"conversation_id"}},
+		},
+		map[string]any{
+			"properties": map[string]any{"target_type": map[string]any{"enum": []string{"group"}}},
+			"required":   []string{"conversation_id"},
+			"not":        map[string]any{"required": []string{"contact_id"}},
+		},
+	}
+	return schema
 }
 
 func conversationExample(operation string, arguments map[string]any) map[string]any {
@@ -486,14 +548,16 @@ func readHistoryArgumentsSchema() map[string]any {
 
 func messageArgumentsSchema(withTarget bool) map[string]any {
 	properties := map[string]any{
-		"type": map[string]any{"type": "string", "enum": []string{messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile}},
+		"type": map[string]any{"type": "string", "enum": []string{messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile, messageTypeCard}},
 		"content": map[string]any{
 			"type":        "string",
 			"minLength":   1,
 			"description": "消息内容。text/markdown 中可嵌入精确 @ token：{(@user/用户UUID)}、{(@app/应用UUID)} 或 {(@user/all)}；UUID 必须来自可信上下文，指定对象必须是目标会话成员。image 时为可下载 URL；file 且没有 url 时为小文本文件内容。",
 		},
-		"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 255},
-		"url":  map[string]any{"type": "string", "minLength": 1},
+		"name":        map[string]any{"type": "string", "minLength": 1, "maxLength": 255},
+		"url":         map[string]any{"type": "string", "minLength": 1, "maxLength": 2048, "description": "文件消息的下载地址，或卡片消息的跳转地址。卡片仅允许以 / 开头的站内路径或明确以 http://、https:// 开头的外链；禁止 javascript:、data:、//host、反斜杠和包含空白的地址。"},
+		"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": 240, "description": "卡片消息标题。"},
+		"description": map[string]any{"type": "string", "minLength": 1, "maxLength": 2000, "description": "卡片消息说明；必须使用纯文本，不支持 Markdown。应提供足够理解卡片用途的简洁背景。"},
 	}
 	messageConstraint := map[string]any{
 		"oneOf": []any{
@@ -503,6 +567,8 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 				"not": map[string]any{"anyOf": []any{
 					map[string]any{"required": []string{"name"}},
 					map[string]any{"required": []string{"url"}},
+					map[string]any{"required": []string{"title"}},
+					map[string]any{"required": []string{"description"}},
 				}},
 			},
 			map[string]any{
@@ -512,6 +578,18 @@ func messageArgumentsSchema(withTarget bool) map[string]any {
 					map[string]any{"required": []string{"url"}, "not": map[string]any{"required": []string{"content"}}},
 					map[string]any{"required": []string{"content"}, "not": map[string]any{"required": []string{"url"}}},
 				},
+				"not": map[string]any{"anyOf": []any{
+					map[string]any{"required": []string{"title"}},
+					map[string]any{"required": []string{"description"}},
+				}},
+			},
+			map[string]any{
+				"properties": map[string]any{"type": map[string]any{"enum": []string{messageTypeCard}}},
+				"required":   []string{"type", "title", "description", "url"},
+				"not": map[string]any{"anyOf": []any{
+					map[string]any{"required": []string{"content"}},
+					map[string]any{"required": []string{"name"}},
+				}},
 			},
 		},
 	}

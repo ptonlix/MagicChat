@@ -242,6 +242,7 @@ function createClientDataValue(
     sendConversationVoice: vi.fn(),
     sendConversationLink: vi.fn(),
     sendConversationMarkdown: vi.fn(),
+    sendConversationCard: vi.fn(),
     sendConversationText: vi.fn(),
     setGroupConversationPrivate: vi.fn(),
     setGroupConversationPublic: vi.fn(),

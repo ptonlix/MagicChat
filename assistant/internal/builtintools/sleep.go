@@ -12,44 +12,48 @@ import (
 )
 
 const (
-	sourceName                    = "builtin"
-	sleepToolName                 = "sleep"
-	getAttachmentsToolName        = "get_attachments"
-	endConversationToolName       = "end_conversation"
-	contactsToolName              = "contacts"
-	conversationsToolName         = "conversations"
-	contactsOperationSearchUsers  = "search_users"
-	contactsOperationSearchApps   = "search_apps"
-	contactsOperationSearchGroups = "search_groups"
-	conversationsOperationSearch  = "search"
-	conversationsOperationRead    = "read_history"
-	conversationsOperationReply   = "reply"
-	conversationsOperationSend    = "send"
-	conversationsOperationWait    = "wait_for_reply"
-	conversationsOperationCreate  = "create_group"
-	conversationsOperationAdd     = "add_members"
-	methodContactsUsersList       = "contacts.users.list"
-	methodContactsAppsList        = "contacts.apps.list"
-	methodContactsGroupsList      = "contacts.groups.list"
-	methodConversationsList       = "conversations.list"
-	methodConversationHistoryRead = "conversation.history.read"
-	methodGroupConversationsList  = "group_conversations.list"
-	methodCreateGroup             = "group_conversations.create"
-	methodAddGroupMembers         = "group_conversations.members.add"
-	methodMessageSend             = "message.send"
-	methodMessageSendAsUser       = "message.send_as_user"
-	methodTemporaryFilesReadURLs  = "temporary_files.read_urls"
-	minSleepSeconds               = 5
-	maxSleepSeconds               = 30
-	minWaitForReplySeconds        = 5
-	maxWaitForReplySeconds        = 60
-	waitForReplyPollSeconds       = 5
-	waitForReplyMessageLimit      = 30
-	defaultSleepUnit              = time.Second
-	messageTypeText               = "text"
-	messageTypeMarkdown           = "markdown"
-	messageTypeImage              = "image"
-	messageTypeFile               = "file"
+	sourceName                            = "builtin"
+	sleepToolName                         = "sleep"
+	getAttachmentsToolName                = "get_attachments"
+	endConversationToolName               = "end_conversation"
+	contactsToolName                      = "contacts"
+	conversationsToolName                 = "conversations"
+	contactsOperationSearchUsers          = "search_users"
+	contactsOperationSearchApps           = "search_apps"
+	contactsOperationSearchGroups         = "search_groups"
+	conversationsOperationSearch          = "search"
+	conversationsOperationRead            = "read_history"
+	conversationsOperationReply           = "reply"
+	conversationsOperationSend            = "send"
+	conversationsOperationReplyEntityCard = "reply_entity_card"
+	conversationsOperationSendEntityCard  = "send_entity_card"
+	conversationsOperationWait            = "wait_for_reply"
+	conversationsOperationCreate          = "create_group"
+	conversationsOperationAdd             = "add_members"
+	methodContactsUsersList               = "contacts.users.list"
+	methodContactsAppsList                = "contacts.apps.list"
+	methodContactsGroupsList              = "contacts.groups.list"
+	methodConversationsList               = "conversations.list"
+	methodConversationHistoryRead         = "conversation.history.read"
+	methodGroupConversationsList          = "group_conversations.list"
+	methodCreateGroup                     = "group_conversations.create"
+	methodAddGroupMembers                 = "group_conversations.members.add"
+	methodMessageSend                     = "message.send"
+	methodMessageSendAsUser               = "message.send_as_user"
+	methodTemporaryFilesReadURLs          = "temporary_files.read_urls"
+	minSleepSeconds                       = 5
+	maxSleepSeconds                       = 30
+	minWaitForReplySeconds                = 5
+	maxWaitForReplySeconds                = 60
+	waitForReplyPollSeconds               = 5
+	waitForReplyMessageLimit              = 30
+	defaultSleepUnit                      = time.Second
+	messageTypeText                       = "text"
+	messageTypeMarkdown                   = "markdown"
+	messageTypeImage                      = "image"
+	messageTypeFile                       = "file"
+	messageTypeCard                       = "card"
+	messageTypeEntityCard                 = "entity_card"
 )
 
 type sleepFunc func(context.Context, time.Duration) error
@@ -167,10 +171,21 @@ type messageInput struct {
 	ContactID        string `json:"contact_id"`
 	Content          string `json:"content"`
 	ConversationID   string `json:"conversation_id"`
+	Description      string `json:"description"`
 	Name             string `json:"name"`
 	TargetType       string `json:"target_type"`
+	Title            string `json:"title"`
 	Type             string `json:"type"`
 	URL              string `json:"url"`
+}
+
+type entityCardInput struct {
+	AuthorizationRef string `json:"authorization_ref"`
+	ContactID        string `json:"contact_id"`
+	ConversationID   string `json:"conversation_id"`
+	EntityID         string `json:"entity_id"`
+	EntityType       string `json:"entity_type"`
+	TargetType       string `json:"target_type"`
 }
 
 type createGroupInput struct {
@@ -192,7 +207,11 @@ type readFileURLsInput struct {
 type scopedMessagePayload struct {
 	AuthorizationRef string `json:"-"`
 	Content          string `json:"content,omitempty"`
+	Description      string `json:"description,omitempty"`
+	EntityID         string `json:"entity_id,omitempty"`
+	EntityType       string `json:"entity_type,omitempty"`
 	Name             string `json:"name,omitempty"`
+	Title            string `json:"title,omitempty"`
 	Type             string `json:"type"`
 	URL              string `json:"url,omitempty"`
 }
@@ -203,8 +222,11 @@ type sendMessageTargetPayload struct {
 }
 
 type sendMessagePayload struct {
-	Message scopedMessagePayload     `json:"message"`
-	Target  sendMessageTargetPayload `json:"target"`
+	ActorUserID                 string                   `json:"actor_user_id,omitempty"`
+	AuthorizationConversationID string                   `json:"authorization_conversation_id,omitempty"`
+	Message                     scopedMessagePayload     `json:"message"`
+	Target                      sendMessageTargetPayload `json:"target"`
+	TriggerMessageID            string                   `json:"trigger_message_id,omitempty"`
 }
 
 type sendAsUserPayload struct {
@@ -407,7 +429,7 @@ func (s *Source) callConversations(ctx context.Context, input json.RawMessage) (
 		return callReply(ctx, parsed.Arguments)
 	case conversationsOperationWait:
 		return s.callWaitForReply(ctx, parsed)
-	case conversationsOperationSearch, conversationsOperationRead, conversationsOperationSend, conversationsOperationCreate, conversationsOperationAdd:
+	case conversationsOperationSearch, conversationsOperationRead, conversationsOperationSend, conversationsOperationReplyEntityCard, conversationsOperationSendEntityCard, conversationsOperationCreate, conversationsOperationAdd:
 		legacyInput, err := conversationLegacyUserInput(ctx, parsed)
 		if err != nil {
 			return mcpclient.ToolResult{}, err
@@ -419,6 +441,10 @@ func (s *Source) callConversations(ctx context.Context, input json.RawMessage) (
 			return callReadHistory(ctx, legacyInput)
 		case conversationsOperationSend:
 			return callSendAsUser(ctx, legacyInput)
+		case conversationsOperationReplyEntityCard:
+			return callReplyEntityCard(ctx, legacyInput)
+		case conversationsOperationSendEntityCard:
+			return callSendEntityCard(ctx, legacyInput)
 		case conversationsOperationCreate:
 			return callCreateGroup(ctx, legacyInput)
 		default:
@@ -855,6 +881,69 @@ func callSendAsUser(ctx context.Context, input json.RawMessage) (mcpclient.ToolR
 	})
 }
 
+func callReplyEntityCard(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
+	scope, err := requireScope(ctx)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	if strings.TrimSpace(scope.ConversationID) == "" || strings.TrimSpace(scope.ConversationType) == "" {
+		return mcpclient.ToolResult{}, fmt.Errorf("current conversation scope is missing")
+	}
+	message, parsed, err := parseEntityCardInput(input)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+
+	result, err := requestTool(ctx, scope.Requester, methodMessageSend, sendMessagePayload{
+		ActorUserID:                 auth.ActorID,
+		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		Message:                     message,
+		Target: sendMessageTargetPayload{
+			Type:           strings.TrimSpace(scope.ConversationType),
+			ConversationID: strings.TrimSpace(scope.ConversationID),
+		},
+		TriggerMessageID: auth.TriggerMessageID,
+	})
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	result.Final = true
+
+	return result, nil
+}
+
+func callSendEntityCard(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
+	scope, err := requireScope(ctx)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	message, parsed, err := parseEntityCardInput(input)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	target, targetUserID, err := parseEntityCardTarget(parsed)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+	auth, err := requireUserAuthorization(scope, parsed.AuthorizationRef)
+	if err != nil {
+		return mcpclient.ToolResult{}, err
+	}
+
+	return requestTool(ctx, scope.Requester, methodMessageSendAsUser, sendAsUserPayload{
+		ActorUserID:                 auth.ActorID,
+		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		Message:                     message,
+		Target:                      target,
+		TargetUserID:                targetUserID,
+		TriggerMessageID:            auth.TriggerMessageID,
+	})
+}
+
 func callCreateGroup(ctx context.Context, input json.RawMessage) (mcpclient.ToolResult, error) {
 	scope, err := requireScope(ctx)
 	if err != nil {
@@ -1114,12 +1203,15 @@ func parseMessageInput(input json.RawMessage, requireContact bool) (scopedMessag
 	}
 	messageType := strings.TrimSpace(parsed.Type)
 	switch messageType {
-	case messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile:
+	case messageTypeText, messageTypeMarkdown, messageTypeImage, messageTypeFile, messageTypeCard:
 	default:
 		return scopedMessagePayload{}, fmt.Errorf("unsupported message type %q", parsed.Type)
 	}
 	if messageType == messageTypeFile {
 		return parseFileMessageInput(parsed)
+	}
+	if messageType == messageTypeCard {
+		return parseCardMessageInput(parsed)
 	}
 	content := strings.TrimSpace(parsed.Content)
 	if content == "" {
@@ -1130,6 +1222,29 @@ func parseMessageInput(input json.RawMessage, requireContact bool) (scopedMessag
 		AuthorizationRef: strings.TrimSpace(parsed.AuthorizationRef),
 		Type:             messageType,
 		Content:          content,
+	}, nil
+}
+
+func parseCardMessageInput(parsed messageInput) (scopedMessagePayload, error) {
+	title := strings.TrimSpace(parsed.Title)
+	if title == "" {
+		return scopedMessagePayload{}, fmt.Errorf("card message title is required")
+	}
+	description := strings.TrimSpace(parsed.Description)
+	if description == "" {
+		return scopedMessagePayload{}, fmt.Errorf("card message description is required")
+	}
+	url := strings.TrimSpace(parsed.URL)
+	if url == "" {
+		return scopedMessagePayload{}, fmt.Errorf("card message url is required")
+	}
+
+	return scopedMessagePayload{
+		AuthorizationRef: strings.TrimSpace(parsed.AuthorizationRef),
+		Description:      description,
+		Title:            title,
+		Type:             messageTypeCard,
+		URL:              url,
 	}, nil
 }
 
@@ -1214,6 +1329,56 @@ func parseSendAsUserInput(input json.RawMessage) (scopedMessagePayload, sendAsUs
 		}, "", nil
 	default:
 		return scopedMessagePayload{}, sendAsUserTarget{}, "", fmt.Errorf("unsupported target_type %q", parsed.TargetType)
+	}
+}
+
+func parseEntityCardInput(input json.RawMessage) (scopedMessagePayload, entityCardInput, error) {
+	var parsed entityCardInput
+	if err := json.Unmarshal(input, &parsed); err != nil {
+		return scopedMessagePayload{}, entityCardInput{}, fmt.Errorf("parse entity card input: %w", err)
+	}
+	entityType := strings.ToLower(strings.TrimSpace(parsed.EntityType))
+	switch entityType {
+	case "user", "app", "group", "project", "task":
+	default:
+		return scopedMessagePayload{}, entityCardInput{}, fmt.Errorf("unsupported entity_type %q", parsed.EntityType)
+	}
+	entityID := strings.TrimSpace(parsed.EntityID)
+	if entityID == "" {
+		return scopedMessagePayload{}, entityCardInput{}, fmt.Errorf("entity_id is required")
+	}
+	parsed.AuthorizationRef = strings.TrimSpace(parsed.AuthorizationRef)
+	parsed.EntityID = entityID
+	parsed.EntityType = entityType
+
+	return scopedMessagePayload{
+		EntityID:   entityID,
+		EntityType: entityType,
+		Type:       messageTypeEntityCard,
+	}, parsed, nil
+}
+
+func parseEntityCardTarget(parsed entityCardInput) (sendAsUserTarget, string, error) {
+	targetType := strings.TrimSpace(parsed.TargetType)
+	contactID := strings.TrimSpace(parsed.ContactID)
+	conversationID := strings.TrimSpace(parsed.ConversationID)
+	if targetType == "" && contactID != "" {
+		targetType = "user"
+	}
+
+	switch targetType {
+	case "user":
+		if contactID == "" {
+			return sendAsUserTarget{}, "", fmt.Errorf("contact_id is required for user target")
+		}
+		return sendAsUserTarget{Type: "user", UserID: contactID}, contactID, nil
+	case "group":
+		if conversationID == "" {
+			return sendAsUserTarget{}, "", fmt.Errorf("conversation_id is required for group target")
+		}
+		return sendAsUserTarget{ConversationID: conversationID, Type: "group"}, "", nil
+	default:
+		return sendAsUserTarget{}, "", fmt.Errorf("unsupported target_type %q", parsed.TargetType)
 	}
 }
 

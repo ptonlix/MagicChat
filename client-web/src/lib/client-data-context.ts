@@ -5,6 +5,7 @@ import {
   type ClientDataRequestError,
   type MarkConversationReadOptions,
   type ClientMessage,
+  type ClientCardSendInput,
   type ClientMessagePage,
   type ClientUser,
   type ContactApp,
@@ -130,6 +131,11 @@ export type ClientDataContextValue = {
   sendConversationLink: (
     conversationId: string,
     url: string,
+    options?: SendConversationMessageOptions
+  ) => Promise<ClientMessage | null>
+  sendConversationCard: (
+    conversationId: string,
+    card: ClientCardSendInput,
     options?: SendConversationMessageOptions
   ) => Promise<ClientMessage | null>
   sendConversationFile: (

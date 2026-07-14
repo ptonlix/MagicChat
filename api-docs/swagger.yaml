@@ -2116,7 +2116,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: 普通用户向自己参与的会话发送消息。第一版只支持 text body，client_message_id 用于重试幂等。
+      description: 普通用户向自己参与的会话发送 text、markdown、link、card，或通过 entity_card 对象引用生成卡片消息，client_message_id
+        用于重试幂等。
       parameters:
       - description: 会话 ID
         in: path

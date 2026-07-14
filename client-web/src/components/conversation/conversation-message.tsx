@@ -18,6 +18,7 @@ import { MessageImage } from "@/components/message-image"
 import { MessageTextWithLinks } from "@/components/message-inline-link"
 import { MessageLink } from "@/components/message-link"
 import { MessageMarkdown } from "@/components/message-markdown"
+import { MessageCard } from "@/components/message-card"
 import { MessageVoice } from "@/components/message-voice"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -100,6 +101,8 @@ export const MessageBubble = React.memo(function MessageBubble({
   const fallback = fromMe ? "我" : getAvatarInitial(conversation.name)
   const canInsertAuthorMention =
     conversation.type === "group" && message.mentionTarget !== null
+  const unavailable =
+    message.body.type === "revoked" || message.body.type === "unsupported"
   const copyText = getMessageCopyText(message, mentionLabelResolver)
   const bubbleRef = React.useRef<HTMLDivElement | null>(null)
   const selectedCopyTextRef = React.useRef("")
@@ -157,8 +160,12 @@ export const MessageBubble = React.memo(function MessageBubble({
             ? "hover:bg-teal-100/80 data-[state=open]:bg-teal-100/80 hover:dark:bg-teal-950 dark:data-[state=open]:bg-teal-950"
             : "hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700")
       )}
-      data-message-action-trigger={!selectionMode ? "" : undefined}
-      onContextMenu={!selectionMode ? handleMessageContextMenu : undefined}
+      data-message-action-trigger={
+        !selectionMode && !unavailable ? "" : undefined
+      }
+      onContextMenu={
+        !selectionMode && !unavailable ? handleMessageContextMenu : undefined
+      }
       ref={bubbleRef}
     >
       {message.replyTo && <MessageReplyReference replyTo={message.replyTo} />}
@@ -215,7 +222,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             )}
             <span>{message.time}</span>
           </div>
-          {selectionMode ? (
+          {selectionMode || unavailable ? (
             messageBody
           ) : (
             <MessageActionMenu
@@ -423,8 +430,12 @@ function getMessageCopyText(
       return ""
     case "revoked":
       return ""
+    case "unsupported":
+      return ""
     case "link":
       return message.body.url
+    case "card":
+      return `${message.body.title}\n${message.body.description}\n${message.body.url}`
     case "markdown":
     case "text":
       return formatMentionTemplateText(
@@ -536,6 +547,8 @@ const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
       return <MessageVoice voice={body} />
     case "link":
       return <MessageLink link={body} />
+    case "card":
+      return <MessageCard card={body} />
     case "markdown":
       return (
         <MessageMarkdown
@@ -562,6 +575,8 @@ const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
       )
     case "revoked":
       return <span className="text-muted-foreground">该消息已被撤回</span>
+    case "unsupported":
+      return <span className="text-muted-foreground">暂不支持查看该消息</span>
     case "system_event":
       return <span>{formatClientMessageBodySummary(body)}</span>
   }
