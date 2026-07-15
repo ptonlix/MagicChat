@@ -10,6 +10,7 @@ import {
 } from "@/lib/message-mentions"
 import { cn } from "@/lib/utils"
 import { AppProfilePopover } from "@/components/app-profile-popover"
+import { MarkdownCodeBlock } from "@/components/markdown-code-block"
 import { MessageInlineLink } from "@/components/message-inline-link"
 import { UserProfilePopover } from "@/components/user-profile-popover"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -124,8 +125,13 @@ function createMarkdownComponents(
         {children}
       </blockquote>
     ),
-    code: ({ children }) => (
-      <code className="rounded bg-foreground/8 px-1 py-0.5 font-mono text-[0.92em]">
+    code: ({ children, className }) => (
+      <code
+        className={cn(
+          "rounded bg-foreground/8 px-1 py-0.5 font-mono! text-[0.92em]",
+          className
+        )}
+      >
         {children}
       </code>
     ),
@@ -203,11 +209,18 @@ function createMarkdownComponents(
       <ol className="list-decimal space-y-1 pl-5">{children}</ol>
     ),
     p: ({ children }) => <p>{children}</p>,
-    pre: ({ children }) => (
-      <pre className="max-w-full overflow-x-auto rounded bg-foreground/8 p-3 font-mono text-[0.92em] [&_code]:rounded-none [&_code]:bg-transparent [&_code]:p-0">
-        {children}
-      </pre>
-    ),
+    pre: ({ children }) => {
+      const codeElement = React.Children.toArray(children).find(
+        React.isValidElement<{
+          children?: React.ReactNode
+          className?: string
+        }>
+      )
+      const code = getMarkdownCodeText(codeElement?.props.children)
+      const language = getMarkdownCodeLanguage(codeElement?.props.className)
+
+      return <MarkdownCodeBlock code={code} language={language} />
+    },
     table: ({ children }) => (
       <div className="max-w-full overflow-x-auto">
         <table className="w-max min-w-full border-collapse text-xs">
@@ -250,6 +263,17 @@ function createMarkdownComponents(
       )
     },
   } as ReactMarkdownProps["components"]
+}
+
+function getMarkdownCodeLanguage(className: string | undefined) {
+  return className?.match(/(?:^|\s)language-([^\s]+)/)?.[1]?.toLowerCase() ?? ""
+}
+
+function getMarkdownCodeText(children: React.ReactNode) {
+  return React.Children.toArray(children)
+    .map((child) => (typeof child === "string" ? child : ""))
+    .join("")
+    .replace(/\n$/, "")
 }
 
 function getMarkdownImageSource(src: string | Blob | undefined) {

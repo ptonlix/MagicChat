@@ -77,6 +77,58 @@ describe("ProjectTaskDetailsDialog card message", () => {
     const sendButton = await screen.findByRole("button", {
       name: "发送到对话",
     })
+    const descriptionPreview = document.querySelector(
+      '[data-slot="task-description-preview"]'
+    )
+    expect(descriptionPreview).toBeInTheDocument()
+    expect(descriptionPreview).toHaveClass(
+      "border-input",
+      "overflow-hidden",
+      "shadow-xs"
+    )
+    expect(descriptionPreview?.firstElementChild).toHaveClass(
+      "h-full",
+      "contain-content",
+      "overflow-auto"
+    )
+    expect(descriptionPreview).toHaveTextContent("这是任务说明")
+    expect(descriptionPreview?.querySelector("strong")).toHaveTextContent(
+      "这是任务说明"
+    )
+    expect(
+      screen.queryByRole("textbox", { name: "详细内容" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("radio", { name: "显示渲染结果" })
+    ).toHaveAttribute("aria-checked", "true")
+    expect(
+      screen.getByRole("radio", { name: "显示 Markdown 原文" })
+    ).toHaveAttribute("aria-checked", "false")
+
+    await user.click(screen.getByRole("radio", { name: "显示 Markdown 原文" }))
+    expect(screen.getByRole("textbox", { name: "详细内容" })).toHaveClass(
+      "field-sizing-fixed",
+      "h-100",
+      "min-h-100",
+      "max-h-100",
+      "resize-none",
+      "font-mono!"
+    )
+    expect(
+      screen.getByRole("radio", { name: "显示渲染结果" })
+    ).toHaveAttribute("aria-checked", "false")
+    expect(
+      screen.getByRole("radio", { name: "显示 Markdown 原文" })
+    ).toHaveAttribute("aria-checked", "true")
+    await user.click(screen.getByRole("textbox", { name: "标题" }))
+    expect(
+      screen.getByRole("textbox", { name: "详细内容" })
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("radio", { name: "显示渲染结果" }))
+    expect(
+      document.querySelector('[data-slot="task-description-preview"]')
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("radio", { name: "显示 Markdown 原文" }))
     expect(sendButton).toBeEnabled()
     await user.click(sendButton)
 
@@ -118,7 +170,7 @@ function createTask(): ProjectTask {
       name: "Alice",
       nickname: "",
     },
-    description: "这是任务说明",
+    description: "**这是任务说明**",
     dueDate: "2026-07-20",
     id: "task-1",
     labels: [],

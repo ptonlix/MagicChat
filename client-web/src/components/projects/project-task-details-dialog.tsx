@@ -7,6 +7,8 @@ import {
   CircleDot,
   CircleX,
   Equal,
+  Eye,
+  Pencil,
   Send,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -15,6 +17,7 @@ import { ProjectMemberCombobox } from "@/components/projects/project-member-comb
 import { ProjectTaskDatePicker } from "@/components/projects/project-task-date-picker"
 import { ProjectTaskLabelsCombobox } from "@/components/projects/project-task-labels-combobox"
 import { SendCardDialog } from "@/components/conversation/send-card-dialog"
+import { MessageMarkdown } from "@/components/message-markdown"
 import type {
   ProjectTask,
   ProjectTaskPriority,
@@ -46,6 +49,7 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
 import {
@@ -93,6 +97,7 @@ export function ProjectTaskDetailsDialog({
     normalizeTaskEditForm(initialForm)
   )
   const [details, setDetails] = React.useState(task)
+  const [descriptionEditing, setDescriptionEditing] = React.useState(false)
   const [error, setError] = React.useState("")
   const [form, setForm] = React.useState<TaskEditForm>(initialForm)
   const [loading, setLoading] = React.useState(true)
@@ -120,6 +125,7 @@ export function ProjectTaskDetailsDialog({
         const loadedForm = createTaskEditForm(nextDetails)
         setBaseline(normalizeTaskEditForm(loadedForm))
         setDetails(nextDetails)
+        setDescriptionEditing(false)
         setForm(loadedForm)
       })
       .catch((loadError: unknown) => {
@@ -211,6 +217,7 @@ export function ProjectTaskDetailsDialog({
     if (!nextOpen) {
       const resetForm = createTaskEditForm(details)
       setBaseline(normalizeTaskEditForm(resetForm))
+      setDescriptionEditing(false)
       setError("")
       setForm(resetForm)
       setLoading(true)
@@ -241,6 +248,7 @@ export function ProjectTaskDetailsDialog({
       const updatedForm = createTaskEditForm(updatedTask)
       setBaseline(normalizeTaskEditForm(updatedForm))
       setDetails(updatedTask)
+      setDescriptionEditing(false)
       setError("")
       setForm(updatedForm)
       await onUpdated?.()
@@ -298,17 +306,73 @@ export function ProjectTaskDetailsDialog({
                 )}
               </TaskField>
 
-              <TaskField htmlFor="task-details-description" label="描述">
-                <Textarea
-                  className="min-h-52 lg:min-h-[26rem]"
-                  disabled={loading || saving}
-                  id="task-details-description"
-                  onChange={(event) =>
-                    updateForm("description", event.target.value)
-                  }
-                  placeholder="支持 Markdown"
-                  value={form.description}
-                />
+              <TaskField
+                action={
+                  <ToggleGroup
+                    aria-label="详细内容显示模式"
+                    className="shrink-0"
+                    disabled={loading || saving}
+                    onValueChange={(value) => {
+                      if (value) {
+                        setDescriptionEditing(value === "source")
+                      }
+                    }}
+                    spacing={0}
+                    type="single"
+                    value={descriptionEditing ? "source" : "preview"}
+                    variant="outline"
+                  >
+                    <ToggleGroupItem
+                      aria-label="显示渲染结果"
+                      className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
+                      title="预览"
+                      value="preview"
+                    >
+                      <Eye className="size-3.5" />
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      aria-label="显示 Markdown 原文"
+                      className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
+                      title="编辑原文"
+                      value="source"
+                    >
+                      <Pencil className="size-3.5" />
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                }
+                htmlFor={
+                  descriptionEditing ? "task-details-description" : undefined
+                }
+                label="详细内容"
+              >
+                {descriptionEditing ? (
+                  <Textarea
+                    autoFocus
+                    className="field-sizing-fixed h-100 max-h-100 min-h-100 resize-none font-mono!"
+                    disabled={loading || saving}
+                    id="task-details-description"
+                    onChange={(event) =>
+                      updateForm("description", event.target.value)
+                    }
+                    placeholder="支持 Markdown"
+                    value={form.description}
+                  />
+                ) : (
+                  <div
+                    className="h-100 overflow-hidden rounded-md border border-input bg-transparent text-sm shadow-xs dark:bg-input/30"
+                    data-slot="task-description-preview"
+                  >
+                    <div className="h-full overflow-auto px-2.5 py-2 contain-content">
+                      {form.description.trim() ? (
+                        <MessageMarkdown content={form.description} />
+                      ) : (
+                        <span className="text-muted-foreground">
+                          暂无详细内容
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </TaskField>
             </div>
 
@@ -475,17 +539,26 @@ export function ProjectTaskDetailsDialog({
 }
 
 function TaskField({
+  action,
   children,
   htmlFor,
   label,
 }: {
+  action?: React.ReactNode
   children: React.ReactNode
   htmlFor?: string
   label: string
 }) {
   return (
     <div className="grid content-start gap-2">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      {action ? (
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={htmlFor}>{label}</Label>
+          {action}
+        </div>
+      ) : (
+        <Label htmlFor={htmlFor}>{label}</Label>
+      )}
       {children}
     </div>
   )
