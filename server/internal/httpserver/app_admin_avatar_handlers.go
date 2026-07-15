@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	fileapp "app/internal/application/file"
 	"app/internal/store"
 
 	"github.com/google/uuid"
@@ -70,26 +71,20 @@ func (s *Server) uploadAdminAppAvatar(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", "头像必须是 256x256 的 WebP 图片")
 	}
 
-	storageClient, err := s.newObjectStoreClient(c.Request().Context())
-	if err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "头像存储未配置")
-	}
-
 	objectKey := buildAdminAppAvatarObjectKey(app.ID, uuid.NewString())
-	if err := storageClient.PutPublicObject(
-		c.Request().Context(),
-		objectKey,
-		bytes.NewReader(avatarBytes),
-		int64(len(avatarBytes)),
-		avatarContentType,
-	); err != nil {
+	uploaded, err := s.files.UploadPublic(c.Request().Context(), fileapp.UploadPublicCommand{
+		ObjectKey:   objectKey,
+		Content:     bytes.NewReader(avatarBytes),
+		ContentType: avatarContentType,
+		SizeBytes:   int64(len(avatarBytes)),
+	})
+	if err != nil {
+		if fileapp.ErrorCodeOf(err) == fileapp.CodeStorageUnavailable {
+			return failure(c, http.StatusInternalServerError, "internal_error", "头像存储未配置")
+		}
 		return failure(c, http.StatusInternalServerError, "internal_error", "上传头像失败")
 	}
-
-	avatarURL, err := storageClient.PublicObjectURL(objectKey)
-	if err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "头像存储未配置")
-	}
+	avatarURL := uploaded.URL
 	if err := s.db.Model(&store.App{}).Where("id = ?", app.ID).Update("avatar", avatarURL).Error; err != nil {
 		return failure(c, http.StatusInternalServerError, "internal_error", "保存头像失败")
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	projectapp "app/internal/application/project"
 	"app/internal/store"
 
 	"github.com/google/uuid"
@@ -159,9 +160,12 @@ func buildGroupEntityCard(s *Server, ctx context.Context, userID string, entityI
 }
 
 func buildProjectEntityCard(s *Server, ctx context.Context, userID string, entityID string) (cardMessageBody, error) {
-	project, _, err := s.findAccessibleProject(ctx, entityID, userID)
+	project, err := s.projects.Get(ctx, projectapp.ProjectCommand{AccountID: userID, ProjectID: entityID})
 	if err != nil {
-		return cardMessageBody{}, mapEntityCardLookupError(err)
+		if projectapp.ErrorCodeOf(err) == projectapp.CodeNotFound {
+			return cardMessageBody{}, errEntityCardNotFound
+		}
+		return cardMessageBody{}, err
 	}
 	description := entityCardPlainTextExcerpt(project.Description, 240)
 	if description == "" {
@@ -182,9 +186,12 @@ func buildTaskEntityCard(s *Server, ctx context.Context, userID string, entityID
 		First(&task, "id = ?", entityID).Error; err != nil {
 		return cardMessageBody{}, mapEntityCardLookupError(err)
 	}
-	project, _, err := s.findAccessibleProject(ctx, task.ProjectID, userID)
+	project, err := s.projects.Get(ctx, projectapp.ProjectCommand{AccountID: userID, ProjectID: task.ProjectID})
 	if err != nil {
-		return cardMessageBody{}, mapEntityCardLookupError(err)
+		if projectapp.ErrorCodeOf(err) == projectapp.CodeNotFound {
+			return cardMessageBody{}, errEntityCardNotFound
+		}
+		return cardMessageBody{}, err
 	}
 	assignee := ""
 	if task.AssigneeUser != nil {

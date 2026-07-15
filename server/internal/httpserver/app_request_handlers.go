@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	fileapp "app/internal/application/file"
 	"app/internal/appregistry"
 	"app/internal/realtime"
 	"app/internal/store"
@@ -1027,12 +1028,7 @@ func (s *Server) handleAppReadTemporaryFileURLs(_ string, request realtime.Envel
 		return readTemporaryFileURLsResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
 	}
 
-	fileIDs, err := normalizeTemporaryFileIDs(req.FileIDs)
-	if err != nil {
-		return readTemporaryFileURLsResponse{}, newAppRequestFailure("invalid_request", err.Error())
-	}
-
-	urls, err := s.presignTemporaryFileReadURLsForApp(context.Background(), fileIDs)
+	urls, err := s.presignTemporaryFileReadURLsForApp(context.Background(), req.FileIDs)
 	if err != nil {
 		return readTemporaryFileURLsResponse{}, err
 	}
@@ -1041,43 +1037,20 @@ func (s *Server) handleAppReadTemporaryFileURLs(_ string, request realtime.Envel
 }
 
 func (s *Server) presignTemporaryFileReadURLsForApp(ctx context.Context, fileIDs []string) ([]temporaryFileReadURLResponse, error) {
-	var files []store.TemporaryFile
-	if err := s.db.Where("id IN ?", fileIDs).Find(&files).Error; err != nil {
-		return nil, err
-	}
-	if len(files) != len(fileIDs) {
-		return nil, newAppRequestFailure("not_found", "临时文件不存在")
-	}
-
-	storageClient, err := s.newObjectStoreClient(ctx)
+	values, err := s.files.ResolveTemporaryURLs(ctx, fileIDs)
 	if err != nil {
-		return nil, newAppRequestFailure("internal_error", "临时文件存储未配置")
-	}
-
-	filesByID := make(map[string]store.TemporaryFile, len(files))
-	for _, file := range files {
-		filesByID[file.ID] = file
-	}
-
-	urls := make([]temporaryFileReadURLResponse, 0, len(fileIDs))
-	now := time.Now().UTC()
-	for _, fileID := range fileIDs {
-		file := filesByID[fileID]
-		if isTemporaryFileExpired(file, s.cfg.Storage.Lifecycle.TemporaryExpireDays, now) {
+		switch fileapp.ErrorCodeOf(err) {
+		case fileapp.CodeInvalidRequest:
+			return nil, newAppRequestFailure("invalid_request", fileapp.ErrorMessage(err))
+		case fileapp.CodeNotFound:
 			return nil, newAppRequestFailure("not_found", "临时文件不存在")
+		case fileapp.CodeStorageUnavailable:
+			return nil, newAppRequestFailure("internal_error", "临时文件存储未配置")
+		default:
+			return nil, newAppRequestFailure("internal_error", fileapp.ErrorMessage(err))
 		}
-		url, expiresAt, err := storageClient.PresignTemporaryReadURL(ctx, file.ObjectKey)
-		if err != nil {
-			return nil, newAppRequestFailure("internal_error", "生成临时文件访问地址失败")
-		}
-		urls = append(urls, temporaryFileReadURLResponse{
-			ExpiresAt: expiresAt,
-			FileID:    file.ID,
-			URL:       url,
-		})
 	}
-
-	return urls, nil
+	return newTemporaryFileReadURLResponses(values), nil
 }
 
 func normalizeAppListConversationMessagesRequest(req appListConversationMessagesRequest) (appListConversationMessagesRequest, error) {

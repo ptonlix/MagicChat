@@ -19,11 +19,10 @@ import (
 	"strings"
 	"time"
 
-	"app/internal/store"
+	fileapp "app/internal/application/file"
 
 	"github.com/HugoSmits86/nativewebp"
 	lossywebp "github.com/chai2010/webp"
-	"github.com/google/uuid"
 	xdraw "golang.org/x/image/draw"
 )
 
@@ -143,30 +142,20 @@ func (s *Server) createInlineFileMessageBody(ctx context.Context, rawContent str
 	return body, name, nil
 }
 
-func (s *Server) saveRemoteMessageTemporaryFile(ctx context.Context, content []byte, contentType string) (store.TemporaryFile, error) {
+func (s *Server) saveRemoteMessageTemporaryFile(ctx context.Context, content []byte, contentType string) (fileapp.TemporaryFile, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	storageClient, err := s.newObjectStoreClient(ctx)
+	temporaryFile, err := s.files.UploadTemporary(ctx, fileapp.UploadTemporaryCommand{
+		Content:     bytes.NewReader(content),
+		ContentType: contentType,
+		SizeBytes:   int64(len(content)),
+	})
 	if err != nil {
-		return store.TemporaryFile{}, newAppRequestFailure("internal_error", "临时文件存储未配置")
-	}
-
-	now := time.Now().UTC()
-	fileID := uuid.NewString()
-	objectKey := buildTemporaryObjectKey(now, fileID)
-	if err := storageClient.PutTemporaryObject(ctx, objectKey, bytes.NewReader(content), int64(len(content)), contentType); err != nil {
-		return store.TemporaryFile{}, newAppRequestFailure("internal_error", "上传文件失败")
-	}
-
-	temporaryFile := store.TemporaryFile{
-		ID:        fileID,
-		ObjectKey: objectKey,
-		SizeBytes: int64(len(content)),
-		CreatedAt: now,
-	}
-	if err := s.db.Create(&temporaryFile).Error; err != nil {
-		return store.TemporaryFile{}, newAppRequestFailure("internal_error", "保存文件失败")
+		if fileapp.ErrorCodeOf(err) == fileapp.CodeStorageUnavailable {
+			return fileapp.TemporaryFile{}, newAppRequestFailure("internal_error", "临时文件存储未配置")
+		}
+		return fileapp.TemporaryFile{}, newAppRequestFailure("internal_error", fileapp.ErrorMessage(err))
 	}
 
 	return temporaryFile, nil

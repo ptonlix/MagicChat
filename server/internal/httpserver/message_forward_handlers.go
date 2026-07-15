@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	fileapp "app/internal/application/file"
 	"app/internal/store"
 
 	"github.com/google/uuid"
@@ -324,7 +325,7 @@ func (s *Server) prepareForwardSources(ctx context.Context, messages []store.Mes
 		return nil, errForwardMessageLimit
 	}
 
-	if err := s.validateForwardTemporaryFiles(sources); err != nil {
+	if err := s.validateForwardTemporaryFiles(ctx, sources); err != nil {
 		return nil, err
 	}
 	return sources, nil
@@ -563,7 +564,7 @@ func cloneRawMessage(raw json.RawMessage) json.RawMessage {
 	return append(json.RawMessage(nil), raw...)
 }
 
-func (s *Server) validateForwardTemporaryFiles(sources []preparedForwardSource) error {
+func (s *Server) validateForwardTemporaryFiles(ctx context.Context, sources []preparedForwardSource) error {
 	fileIDSet := make(map[string]struct{})
 	for _, source := range sources {
 		collectForwardTemporaryFileIDs(source.Body, fileIDSet)
@@ -576,18 +577,11 @@ func (s *Server) validateForwardTemporaryFiles(sources []preparedForwardSource) 
 	for fileID := range fileIDSet {
 		fileIDs = append(fileIDs, fileID)
 	}
-	var files []store.TemporaryFile
-	if err := s.db.Where("id IN ?", fileIDs).Find(&files).Error; err != nil {
-		return err
-	}
-	if len(files) != len(fileIDs) {
-		return errForwardContentUnavailable
-	}
-	now := time.Now().UTC()
-	for _, file := range files {
-		if isTemporaryFileExpired(file, s.cfg.Storage.Lifecycle.TemporaryExpireDays, now) {
+	if err := s.files.ValidateTemporaryFiles(ctx, fileIDs); err != nil {
+		if code := fileapp.ErrorCodeOf(err); code == fileapp.CodeNotFound || code == fileapp.CodeInvalidRequest {
 			return errForwardContentUnavailable
 		}
+		return err
 	}
 	return nil
 }

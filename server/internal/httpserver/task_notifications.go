@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	taskapp "app/internal/application/task"
 	"app/internal/appregistry"
 	"app/internal/store"
 
@@ -33,12 +34,12 @@ func (s *Server) createTaskNotificationTx(
 		return nil, nil
 	}
 
-	recipient, err := validateTaskAssignee(
+	recipient, valid, err := taskapp.ResolveNotificationRecipient(
 		tx.WithContext(ctx),
 		task.ProjectID,
 		*task.AssigneeUserID,
 	)
-	if errors.Is(err, errInvalidTaskAssignee) {
+	if !valid {
 		return nil, nil
 	}
 	if err != nil {
@@ -152,6 +153,25 @@ func (s *Server) publishTaskNotification(
 		[]string{notification.RecipientUserID},
 		notification.Message,
 	)
+}
+
+func (s *Server) PrepareTaskNotification(
+	ctx context.Context,
+	tx *gorm.DB,
+	task store.Task,
+) (any, error) {
+	return s.createTaskNotificationTx(ctx, tx, task)
+}
+
+func (s *Server) PublishTaskNotification(ctx context.Context, prepared any) {
+	if prepared == nil {
+		return
+	}
+	notification, ok := prepared.(*taskNotificationResult)
+	if !ok {
+		return
+	}
+	s.publishTaskNotification(ctx, notification)
 }
 
 func ensureTaskNotificationConversationTx(

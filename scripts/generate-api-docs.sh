@@ -7,7 +7,7 @@ cd "$ROOT_DIR/server"
 
 go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
   --generalInfo main.go \
-  --dir cmd/server,internal/httpserver \
+  --dir cmd/server,internal/httpserver,internal/api/http/client,internal/api/http/admin \
   --output ../api-docs \
   --outputTypes go,json,yaml \
   --parseInternal

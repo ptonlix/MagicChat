@@ -1,13 +1,14 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"app/internal/application/account"
 	"app/internal/realtime"
-	"app/internal/store"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -44,10 +45,11 @@ func (s *Server) handleRealtimeRequest(_ string, request realtime.Envelope) real
 }
 
 func (s *Server) recordUserPong(userID string, at time.Time) {
-	_ = s.db.Model(&store.User{}).
-		Where("id = ?", userID).
-		Update("last_online_at", at.UTC()).
-		Error
+	accounts := s.accounts
+	if accounts == nil {
+		accounts = account.NewService(account.Dependencies{DB: s.db})
+	}
+	_ = accounts.RecordOnlineActivity(context.Background(), userID, at)
 }
 
 func formatOptionalTime(value *time.Time) *string {

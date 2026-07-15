@@ -6,11 +6,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
+	fileapp "app/internal/application/file"
 	"app/internal/store"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -135,32 +134,16 @@ func (s *Server) createConversationImageMessage(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", "图片最大宽高不能超过 1920px")
 	}
 
-	storageClient, err := s.newObjectStoreClient(c.Request().Context())
+	temporaryFile, err := s.files.UploadTemporary(c.Request().Context(), fileapp.UploadTemporaryCommand{
+		Content:     bytes.NewReader(imageBytes),
+		ContentType: imageMessageContentType,
+		SizeBytes:   int64(len(imageBytes)),
+	})
 	if err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "临时文件存储未配置")
-	}
-
-	now := time.Now().UTC()
-	fileID := uuid.NewString()
-	objectKey := buildTemporaryObjectKey(now, fileID)
-	if err := storageClient.PutTemporaryObject(
-		c.Request().Context(),
-		objectKey,
-		bytes.NewReader(imageBytes),
-		int64(len(imageBytes)),
-		imageMessageContentType,
-	); err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "上传图片失败")
-	}
-
-	temporaryFile := store.TemporaryFile{
-		ID:        fileID,
-		ObjectKey: objectKey,
-		SizeBytes: int64(len(imageBytes)),
-		CreatedAt: now,
-	}
-	if err := s.db.Create(&temporaryFile).Error; err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "保存图片失败")
+		if fileapp.ErrorCodeOf(err) == fileapp.CodeStorageUnavailable {
+			return failure(c, http.StatusInternalServerError, "internal_error", "临时文件存储未配置")
+		}
+		return failure(c, http.StatusInternalServerError, "internal_error", fileapp.ErrorMessage(err))
 	}
 
 	body, err := json.Marshal(imageMessageBody{

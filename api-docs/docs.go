@@ -591,13 +591,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/admin.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.infoSettingsResponse"
+                                            "$ref": "#/definitions/admin.infoSettingsResponse"
                                         }
                                     }
                                 }
@@ -607,13 +607,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/admin.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/admin.errorEnvelope"
                         }
                     }
                 }
@@ -637,7 +637,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.updateInfoSettingsRequest"
+                            "$ref": "#/definitions/admin.updateInfoSettingsRequest"
                         }
                     }
                 ],
@@ -647,13 +647,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/admin.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.infoSettingsResponse"
+                                            "$ref": "#/definitions/admin.infoSettingsResponse"
                                         }
                                     }
                                 }
@@ -663,19 +663,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/admin.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/admin.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/admin.errorEnvelope"
                         }
                     }
                 }
@@ -1553,7 +1553,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.loginRequest"
+                            "$ref": "#/definitions/client.loginRequest"
                         }
                     }
                 ],
@@ -1563,13 +1563,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.userLoginResponse"
+                                            "$ref": "#/definitions/client.accountEnvelope"
                                         }
                                     }
                                 }
@@ -1579,19 +1579,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -1611,13 +1611,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.successEnvelope"
+                            "$ref": "#/definitions/client.successEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -3866,13 +3866,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.infoSettingsResponse"
+                                            "$ref": "#/definitions/client.infoSettingsResponse"
                                         }
                                     }
                                 }
@@ -3882,7 +3882,7 @@ const docTemplate = `{
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -3904,13 +3904,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.currentUserResponse"
+                                            "$ref": "#/definitions/client.accountEnvelope"
                                         }
                                     }
                                 }
@@ -3920,13 +3920,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -3950,7 +3950,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.updateCurrentUserRequest"
+                            "$ref": "#/definitions/client.updateProfileRequest"
                         }
                     }
                 ],
@@ -3960,13 +3960,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.currentUserResponse"
+                                            "$ref": "#/definitions/client.accountEnvelope"
                                         }
                                     }
                                 }
@@ -3976,19 +3976,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4022,13 +4022,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.currentUserResponse"
+                                            "$ref": "#/definitions/client.accountEnvelope"
                                         }
                                     }
                                 }
@@ -4038,25 +4038,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4097,13 +4097,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectListResponse"
+                                            "$ref": "#/definitions/client.projectListResponse"
                                         }
                                     }
                                 }
@@ -4113,19 +4113,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4154,7 +4154,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.createProjectRequest"
+                            "$ref": "#/definitions/client.createProjectRequest"
                         }
                     }
                 ],
@@ -4164,13 +4164,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectResponse"
+                                            "$ref": "#/definitions/client.projectResponse"
                                         }
                                     }
                                 }
@@ -4180,25 +4180,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4234,13 +4234,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectResponse"
+                                            "$ref": "#/definitions/client.projectResponse"
                                         }
                                     }
                                 }
@@ -4250,25 +4250,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4302,13 +4302,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectResponse"
+                                            "$ref": "#/definitions/client.projectResponse"
                                         }
                                     }
                                 }
@@ -4318,31 +4318,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4378,7 +4378,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.updateProjectRequest"
+                            "$ref": "#/definitions/client.updateProjectRequest"
                         }
                     }
                 ],
@@ -4388,13 +4388,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectResponse"
+                                            "$ref": "#/definitions/client.projectResponse"
                                         }
                                     }
                                 }
@@ -4404,31 +4404,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4474,13 +4474,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectResponse"
+                                            "$ref": "#/definitions/client.projectResponse"
                                         }
                                     }
                                 }
@@ -4490,37 +4490,37 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4568,13 +4568,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectGroupListResponse"
+                                            "$ref": "#/definitions/client.projectGroupListResponse"
                                         }
                                     }
                                 }
@@ -4584,25 +4584,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4616,9 +4616,6 @@ const docTemplate = `{
                     }
                 ],
                 "description": "项目所有者将可用群聊关联到普通项目；重复关联保持成功。",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4648,13 +4645,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectGroupMutationResponse"
+                                            "$ref": "#/definitions/client.projectGroupMutationResponse"
                                         }
                                     }
                                 }
@@ -4664,37 +4661,37 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4735,13 +4732,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectGroupMutationResponse"
+                                            "$ref": "#/definitions/client.projectGroupMutationResponse"
                                         }
                                     }
                                 }
@@ -4751,31 +4748,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4823,13 +4820,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.projectMemberListResponse"
+                                            "$ref": "#/definitions/client.projectMemberListResponse"
                                         }
                                     }
                                 }
@@ -4839,25 +4836,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -4959,13 +4956,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.taskListResponse"
+                                            "$ref": "#/definitions/client.taskListResponse"
                                         }
                                     }
                                 }
@@ -4975,25 +4972,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5029,7 +5026,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.createTaskRequest"
+                            "$ref": "#/definitions/client.createTaskRequest"
                         }
                     }
                 ],
@@ -5039,13 +5036,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.taskResponse"
+                                            "$ref": "#/definitions/client.taskResponse"
                                         }
                                     }
                                 }
@@ -5055,25 +5052,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5116,13 +5113,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.taskResponse"
+                                            "$ref": "#/definitions/client.taskResponse"
                                         }
                                     }
                                 }
@@ -5132,25 +5129,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5191,13 +5188,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.deleteTaskResponse"
+                                            "$ref": "#/definitions/client.deleteTaskResponse"
                                         }
                                     }
                                 }
@@ -5207,25 +5204,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5268,7 +5265,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.updateTaskRequest"
+                            "$ref": "#/definitions/client.updateTaskRequest"
                         }
                     }
                 ],
@@ -5278,13 +5275,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.taskResponse"
+                                            "$ref": "#/definitions/client.taskResponse"
                                         }
                                     }
                                 }
@@ -5294,25 +5291,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5320,6 +5317,11 @@ const docTemplate = `{
         },
         "/api/client/temporary-files": {
             "post": {
+                "security": [
+                    {
+                        "UserSession": []
+                    }
+                ],
                 "description": "普通用户上传临时文件。文件会写入 temporary bucket，成功后返回临时文件 ID。",
                 "consumes": [
                     "multipart/form-data"
@@ -5346,13 +5348,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.createTemporaryFileResponse"
+                                            "$ref": "#/definitions/client.createTemporaryFileResponse"
                                         }
                                     }
                                 }
@@ -5362,25 +5364,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5388,6 +5390,11 @@ const docTemplate = `{
         },
         "/api/client/temporary-files/read-urls": {
             "post": {
+                "security": [
+                    {
+                        "UserSession": []
+                    }
+                ],
                 "description": "普通用户按临时文件 ID 批量申请 24 小时有效的访问地址。",
                 "consumes": [
                     "application/json"
@@ -5406,7 +5413,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/httpserver.readTemporaryFileURLsRequest"
+                            "$ref": "#/definitions/client.readTemporaryFileURLsRequest"
                         }
                     }
                 ],
@@ -5416,13 +5423,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/httpserver.successEnvelope"
+                                    "$ref": "#/definitions/client.successEnvelope"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/httpserver.readTemporaryFileURLsResponse"
+                                            "$ref": "#/definitions/client.readTemporaryFileURLsResponse"
                                         }
                                     }
                                 }
@@ -5432,25 +5439,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5458,6 +5465,11 @@ const docTemplate = `{
         },
         "/api/client/temporary-files/{file_id}/content": {
             "get": {
+                "security": [
+                    {
+                        "UserSession": []
+                    }
+                ],
                 "description": "普通用户通过临时文件 ID 跳转到有效的临时访问地址，适用于浏览器原生媒体播放。",
                 "tags": [
                     "客户端文件"
@@ -5479,25 +5491,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/httpserver.errorEnvelope"
+                            "$ref": "#/definitions/client.errorEnvelope"
                         }
                     }
                 }
@@ -5505,6 +5517,754 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "admin.errorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "admin.errorEnvelope": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/admin.errorBody"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "admin.infoSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string",
+                    "example": "MyGod"
+                },
+                "organization_name": {
+                    "type": "string",
+                    "example": "长亭科技"
+                },
+                "third_party_providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/admin.publicThirdPartyProviderResponse"
+                    }
+                }
+            }
+        },
+        "admin.publicThirdPartyProviderResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "company-sso"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "企业 SSO"
+                }
+            }
+        },
+        "admin.successEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "success": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "admin.updateInfoSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string",
+                    "example": "MyGod"
+                },
+                "organization_name": {
+                    "type": "string",
+                    "example": "长亭科技"
+                }
+            }
+        },
+        "client.accountEnvelope": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "$ref": "#/definitions/client.accountResponse"
+                }
+            }
+        },
+        "client.accountResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string",
+                    "example": "/assets/avatars/builtin/07.webp"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "last_online_at": {
+                    "type": "string",
+                    "example": "2026-07-03T01:00:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "张三"
+                },
+                "nickname": {
+                    "type": "string",
+                    "example": "小张"
+                },
+                "phone": {
+                    "type": "string",
+                    "example": "+8613812345678"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
+        "client.createProjectRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "avatar": {
+                    "type": "string",
+                    "example": "/assets/avatars/projects/release.webp"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "协调新版发布工作"
+                },
+                "group_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "example": "新版发布"
+                }
+            }
+        },
+        "client.createTaskRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "assignee_user_id": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "核对发布清单并记录结果"
+                },
+                "due_date": {
+                    "type": "string",
+                    "format": "date",
+                    "x-nullable": true,
+                    "example": "2026-07-18"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "发布"
+                    ]
+                },
+                "priority": {
+                    "type": "integer",
+                    "format": "int32",
+                    "enum": [
+                        1,
+                        2,
+                        3
+                    ],
+                    "example": 2
+                },
+                "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "x-nullable": true,
+                    "example": "2026-07-11"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "todo",
+                        "in_progress",
+                        "done",
+                        "canceled"
+                    ],
+                    "example": "todo"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "完成发布检查"
+                }
+            }
+        },
+        "client.createTemporaryFileResponse": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "$ref": "#/definitions/client.temporaryFileResponse"
+                }
+            }
+        },
+        "client.deleteTaskResponse": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                }
+            }
+        },
+        "client.errorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.errorEnvelope": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/client.errorBody"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "client.infoSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string",
+                    "example": "MyGod"
+                },
+                "authenticated": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "organization_name": {
+                    "type": "string",
+                    "example": "长亭科技"
+                },
+                "third_party_providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.publicThirdPartyProviderResponse"
+                    }
+                }
+            }
+        },
+        "client.loginRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "password"
+                }
+            }
+        },
+        "client.projectGroupListResponse": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.projectGroupResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "x-nullable": true
+                }
+            }
+        },
+        "client.projectGroupMutationResponse": {
+            "type": "object"
+        },
+        "client.projectGroupResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.projectListResponse": {
+            "type": "object",
+            "properties": {
+                "next_cursor": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "personal_project": {
+                    "$ref": "#/definitions/client.projectSummaryResponse"
+                },
+                "projects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.projectSummaryResponse"
+                    }
+                }
+            }
+        },
+        "client.projectMemberListResponse": {
+            "type": "object",
+            "properties": {
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.projectMemberResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "x-nullable": true
+                }
+            }
+        },
+        "client.projectMemberResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "source_group_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.projectResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_user_role": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "group_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_personal": {
+                    "type": "boolean"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner": {
+                    "$ref": "#/definitions/client.projectUserResponse"
+                },
+                "task_counts": {
+                    "$ref": "#/definitions/client.projectTaskCountsResponse"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.projectSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_personal": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.projectTaskCountsResponse": {
+            "type": "object",
+            "properties": {
+                "canceled": {
+                    "type": "integer"
+                },
+                "done": {
+                    "type": "integer"
+                },
+                "in_progress": {
+                    "type": "integer"
+                },
+                "todo": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "client.projectUserResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.publicThirdPartyProviderResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "company-sso"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "企业 SSO"
+                }
+            }
+        },
+        "client.readTemporaryFileURLsRequest": {
+            "type": "object",
+            "properties": {
+                "file_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "client.readTemporaryFileURLsResponse": {
+            "type": "object",
+            "properties": {
+                "urls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.temporaryFileReadURLResponse"
+                    }
+                }
+            }
+        },
+        "client.successEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "success": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "client.taskListResponse": {
+            "type": "object",
+            "properties": {
+                "next_cursor": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.taskResponse"
+                    }
+                }
+            }
+        },
+        "client.taskResponse": {
+            "type": "object",
+            "properties": {
+                "assignee": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/client.projectUserResponse"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "canceled_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "completed_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "creator": {
+                    "$ref": "#/definitions/client.projectUserResponse"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "due_date": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.temporaryFileReadURLResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "file_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.temporaryFileResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "size_bytes": {
+                    "type": "integer",
+                    "example": 123456
+                }
+            }
+        },
+        "client.updateProfileRequest": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string",
+                    "example": "/assets/avatars/builtin/07.webp"
+                },
+                "nickname": {
+                    "type": "string",
+                    "example": "小张"
+                }
+            }
+        },
+        "client.updateProjectRequest": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string",
+                    "example": "/assets/avatars/projects/release.webp"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "协调新版发布工作"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "新版发布"
+                }
+            }
+        },
+        "client.updateTaskRequest": {
+            "type": "object",
+            "properties": {
+                "assignee_user_id": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "核对发布清单并记录结果"
+                },
+                "due_date": {
+                    "type": "string",
+                    "format": "date",
+                    "x-nullable": true,
+                    "example": "2026-07-18"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "发布"
+                    ]
+                },
+                "priority": {
+                    "type": "integer",
+                    "format": "int32",
+                    "enum": [
+                        1,
+                        2,
+                        3
+                    ],
+                    "example": 2
+                },
+                "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "x-nullable": true,
+                    "example": "2026-07-11"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "todo",
+                        "in_progress",
+                        "done",
+                        "canceled"
+                    ],
+                    "example": "in_progress"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "完成发布检查"
+                }
+            }
+        },
         "httpserver.addGroupConversationMembersRequest": {
             "type": "object",
             "properties": {
@@ -5975,105 +6735,6 @@ const docTemplate = `{
                 }
             }
         },
-        "httpserver.createProjectRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "avatar": {
-                    "type": "string",
-                    "example": "/assets/avatars/projects/release.webp"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "协调新版发布工作"
-                },
-                "group_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
-                    ]
-                },
-                "name": {
-                    "type": "string",
-                    "example": "新版发布"
-                }
-            }
-        },
-        "httpserver.createTaskRequest": {
-            "type": "object",
-            "required": [
-                "title"
-            ],
-            "properties": {
-                "assignee_user_id": {
-                    "type": "string",
-                    "x-nullable": true,
-                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "核对发布清单并记录结果"
-                },
-                "due_date": {
-                    "type": "string",
-                    "format": "date",
-                    "x-nullable": true,
-                    "example": "2026-07-18"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "发布"
-                    ]
-                },
-                "priority": {
-                    "type": "integer",
-                    "format": "int32",
-                    "enum": [
-                        1,
-                        2,
-                        3
-                    ],
-                    "example": 2
-                },
-                "start_date": {
-                    "type": "string",
-                    "format": "date",
-                    "x-nullable": true,
-                    "example": "2026-07-11"
-                },
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "todo",
-                        "in_progress",
-                        "done",
-                        "canceled"
-                    ],
-                    "example": "todo"
-                },
-                "title": {
-                    "type": "string",
-                    "example": "完成发布检查"
-                }
-            }
-        },
-        "httpserver.createTemporaryFileResponse": {
-            "type": "object",
-            "properties": {
-                "file": {
-                    "$ref": "#/definitions/httpserver.temporaryFileResponse"
-                }
-            }
-        },
         "httpserver.createUserRequest": {
             "type": "object",
             "properties": {
@@ -6100,23 +6761,6 @@ const docTemplate = `{
                 },
                 "user": {
                     "$ref": "#/definitions/httpserver.userResponse"
-                }
-            }
-        },
-        "httpserver.currentUserResponse": {
-            "type": "object",
-            "properties": {
-                "user": {
-                    "$ref": "#/definitions/httpserver.userResponse"
-                }
-            }
-        },
-        "httpserver.deleteTaskResponse": {
-            "type": "object",
-            "properties": {
-                "task_id": {
-                    "type": "string",
-                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
                 }
             }
         },
@@ -6299,29 +6943,6 @@ const docTemplate = `{
                 "visibility": {
                     "type": "string",
                     "example": "private"
-                }
-            }
-        },
-        "httpserver.infoSettingsResponse": {
-            "type": "object",
-            "properties": {
-                "app_name": {
-                    "type": "string",
-                    "example": "MyGod"
-                },
-                "authenticated": {
-                    "type": "boolean",
-                    "example": false
-                },
-                "organization_name": {
-                    "type": "string",
-                    "example": "长亭科技"
-                },
-                "third_party_providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.publicThirdPartyProviderResponse"
-                    }
                 }
             }
         },
@@ -6629,250 +7250,8 @@ const docTemplate = `{
                 }
             }
         },
-        "httpserver.projectGroupListResponse": {
-            "type": "object",
-            "properties": {
-                "groups": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.projectGroupResponse"
-                    }
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "x-nullable": true
-                }
-            }
-        },
         "httpserver.projectGroupMutationResponse": {
             "type": "object"
-        },
-        "httpserver.projectGroupResponse": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "member_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.projectListResponse": {
-            "type": "object",
-            "properties": {
-                "next_cursor": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "personal_project": {
-                    "$ref": "#/definitions/httpserver.projectSummaryResponse"
-                },
-                "projects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.projectSummaryResponse"
-                    }
-                }
-            }
-        },
-        "httpserver.projectMemberListResponse": {
-            "type": "object",
-            "properties": {
-                "members": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.projectMemberResponse"
-                    }
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "x-nullable": true
-                }
-            }
-        },
-        "httpserver.projectMemberResponse": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "role": {
-                    "type": "string"
-                },
-                "source_group_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.projectResponse": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "current_user_role": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "group_count": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_personal": {
-                    "type": "boolean"
-                },
-                "member_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "owner": {
-                    "$ref": "#/definitions/httpserver.projectUserSummary"
-                },
-                "task_counts": {
-                    "$ref": "#/definitions/httpserver.projectTaskCountsResponse"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.projectSummaryResponse": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_personal": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.projectTaskCountsResponse": {
-            "type": "object",
-            "properties": {
-                "canceled": {
-                    "type": "integer"
-                },
-                "done": {
-                    "type": "integer"
-                },
-                "in_progress": {
-                    "type": "integer"
-                },
-                "todo": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "httpserver.projectUserSummary": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.publicThirdPartyProviderResponse": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string",
-                    "example": "company-sso"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "企业 SSO"
-                }
-            }
-        },
-        "httpserver.readTemporaryFileURLsRequest": {
-            "type": "object",
-            "properties": {
-                "file_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "httpserver.readTemporaryFileURLsResponse": {
-            "type": "object",
-            "properties": {
-                "urls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.temporaryFileReadURLResponse"
-                    }
-                }
-            }
         },
         "httpserver.resetUserPasswordResponse": {
             "type": "object",
@@ -6904,116 +7283,6 @@ const docTemplate = `{
                 "success": {
                     "type": "boolean",
                     "example": true
-                }
-            }
-        },
-        "httpserver.taskListResponse": {
-            "type": "object",
-            "properties": {
-                "next_cursor": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/httpserver.taskResponse"
-                    }
-                }
-            }
-        },
-        "httpserver.taskResponse": {
-            "type": "object",
-            "properties": {
-                "assignee": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/httpserver.projectUserSummary"
-                        }
-                    ],
-                    "x-nullable": true
-                },
-                "canceled_at": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "completed_at": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "creator": {
-                    "$ref": "#/definitions/httpserver.projectUserSummary"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "due_date": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "id": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "priority": {
-                    "type": "integer"
-                },
-                "project_id": {
-                    "type": "string"
-                },
-                "start_date": {
-                    "type": "string",
-                    "x-nullable": true
-                },
-                "status": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.temporaryFileReadURLResponse": {
-            "type": "object",
-            "properties": {
-                "expires_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "file_id": {
-                    "type": "string",
-                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "httpserver.temporaryFileResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
-                },
-                "size_bytes": {
-                    "type": "integer",
-                    "example": 123456
                 }
             }
         },
@@ -7102,19 +7371,6 @@ const docTemplate = `{
                 }
             }
         },
-        "httpserver.updateCurrentUserRequest": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string",
-                    "example": "/assets/avatars/builtin/07.webp"
-                },
-                "nickname": {
-                    "type": "string",
-                    "example": "小张"
-                }
-            }
-        },
         "httpserver.updateGroupConversationAvatarResponse": {
             "type": "object",
             "properties": {
@@ -7135,104 +7391,7 @@ const docTemplate = `{
                 }
             }
         },
-        "httpserver.updateInfoSettingsRequest": {
-            "type": "object",
-            "properties": {
-                "app_name": {
-                    "type": "string",
-                    "example": "MyGod"
-                },
-                "organization_name": {
-                    "type": "string",
-                    "example": "长亭科技"
-                }
-            }
-        },
-        "httpserver.updateProjectRequest": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string",
-                    "example": "/assets/avatars/projects/release.webp"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "协调新版发布工作"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "新版发布"
-                }
-            }
-        },
-        "httpserver.updateTaskRequest": {
-            "type": "object",
-            "properties": {
-                "assignee_user_id": {
-                    "type": "string",
-                    "x-nullable": true,
-                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "核对发布清单并记录结果"
-                },
-                "due_date": {
-                    "type": "string",
-                    "format": "date",
-                    "x-nullable": true,
-                    "example": "2026-07-18"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "发布"
-                    ]
-                },
-                "priority": {
-                    "type": "integer",
-                    "format": "int32",
-                    "enum": [
-                        1,
-                        2,
-                        3
-                    ],
-                    "example": 2
-                },
-                "start_date": {
-                    "type": "string",
-                    "format": "date",
-                    "x-nullable": true,
-                    "example": "2026-07-11"
-                },
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "todo",
-                        "in_progress",
-                        "done",
-                        "canceled"
-                    ],
-                    "example": "in_progress"
-                },
-                "title": {
-                    "type": "string",
-                    "example": "完成发布检查"
-                }
-            }
-        },
         "httpserver.updateUserStatusResponse": {
-            "type": "object",
-            "properties": {
-                "user": {
-                    "$ref": "#/definitions/httpserver.userResponse"
-                }
-            }
-        },
-        "httpserver.userLoginResponse": {
             "type": "object",
             "properties": {
                 "user": {

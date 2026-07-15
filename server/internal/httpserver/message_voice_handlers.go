@@ -10,11 +10,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
+	fileapp "app/internal/application/file"
 	"app/internal/store"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -149,32 +148,16 @@ func (s *Server) createConversationVoiceMessage(c echo.Context) error {
 		return failure(c, http.StatusBadRequest, "invalid_request", err.Error())
 	}
 
-	storageClient, err := s.newObjectStoreClient(c.Request().Context())
+	temporaryFile, err := s.files.UploadTemporary(c.Request().Context(), fileapp.UploadTemporaryCommand{
+		Content:     bytes.NewReader(voiceBytes),
+		ContentType: voiceMessageContentType,
+		SizeBytes:   int64(len(voiceBytes)),
+	})
 	if err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "临时文件存储未配置")
-	}
-
-	now := time.Now().UTC()
-	fileID := uuid.NewString()
-	objectKey := buildTemporaryObjectKey(now, fileID)
-	if err := storageClient.PutTemporaryObject(
-		c.Request().Context(),
-		objectKey,
-		bytes.NewReader(voiceBytes),
-		int64(len(voiceBytes)),
-		voiceMessageContentType,
-	); err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "上传语音失败")
-	}
-
-	temporaryFile := store.TemporaryFile{
-		ID:        fileID,
-		ObjectKey: objectKey,
-		SizeBytes: int64(len(voiceBytes)),
-		CreatedAt: now,
-	}
-	if err := s.db.Create(&temporaryFile).Error; err != nil {
-		return failure(c, http.StatusInternalServerError, "internal_error", "保存语音失败")
+		if fileapp.ErrorCodeOf(err) == fileapp.CodeStorageUnavailable {
+			return failure(c, http.StatusInternalServerError, "internal_error", "临时文件存储未配置")
+		}
+		return failure(c, http.StatusInternalServerError, "internal_error", fileapp.ErrorMessage(err))
 	}
 
 	body, err := json.Marshal(voiceMessageBody{

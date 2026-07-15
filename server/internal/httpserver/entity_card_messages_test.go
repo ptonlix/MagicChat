@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	projectapp "app/internal/application/project"
 	"app/internal/realtime"
 	"app/internal/store"
 )
@@ -59,7 +60,7 @@ func TestResolveEntityCardMessageBodyUsesFixedTemplates(t *testing.T) {
 		UpdatedAt: now,
 	})
 
-	subject := &Server{db: db}
+	subject := &Server{db: db, projects: projectapp.NewService(projectapp.Dependencies{DB: db})}
 	for _, testCase := range []struct {
 		entityID        string
 		entityType      string
@@ -142,7 +143,7 @@ func TestResolveEntityCardMessageBodyHidesInaccessibleTask(t *testing.T) {
 		t.Fatalf("marshal request: %v", err)
 	}
 
-	_, err = (&Server{db: db}).resolveEntityCardMessageBody(context.Background(), outsider.ID, raw)
+	_, err = (&Server{db: db, projects: projectapp.NewService(projectapp.Dependencies{DB: db})}).resolveEntityCardMessageBody(context.Background(), outsider.ID, raw)
 	if !errors.Is(err, errEntityCardNotFound) {
 		t.Fatalf("resolve error = %v, want not found", err)
 	}

@@ -1,5 +1,519 @@
 basePath: /
 definitions:
+  admin.errorBody:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  admin.errorEnvelope:
+    properties:
+      error:
+        $ref: '#/definitions/admin.errorBody'
+      success:
+        example: false
+        type: boolean
+    type: object
+  admin.infoSettingsResponse:
+    properties:
+      app_name:
+        example: MyGod
+        type: string
+      organization_name:
+        example: 长亭科技
+        type: string
+      third_party_providers:
+        items:
+          $ref: '#/definitions/admin.publicThirdPartyProviderResponse'
+        type: array
+    type: object
+  admin.publicThirdPartyProviderResponse:
+    properties:
+      key:
+        example: company-sso
+        type: string
+      name:
+        example: 企业 SSO
+        type: string
+    type: object
+  admin.successEnvelope:
+    properties:
+      data: {}
+      success:
+        example: true
+        type: boolean
+    type: object
+  admin.updateInfoSettingsRequest:
+    properties:
+      app_name:
+        example: MyGod
+        type: string
+      organization_name:
+        example: 长亭科技
+        type: string
+    type: object
+  client.accountEnvelope:
+    properties:
+      user:
+        $ref: '#/definitions/client.accountResponse'
+    type: object
+  client.accountResponse:
+    properties:
+      avatar:
+        example: /assets/avatars/builtin/07.webp
+        type: string
+      created_at:
+        format: date-time
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      last_online_at:
+        example: "2026-07-03T01:00:00Z"
+        type: string
+      name:
+        example: 张三
+        type: string
+      nickname:
+        example: 小张
+        type: string
+      phone:
+        example: "+8613812345678"
+        type: string
+      status:
+        example: active
+        type: string
+    type: object
+  client.createProjectRequest:
+    properties:
+      avatar:
+        example: /assets/avatars/projects/release.webp
+        type: string
+      description:
+        example: 协调新版发布工作
+        type: string
+      group_ids:
+        example:
+        - 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        items:
+          type: string
+        type: array
+      name:
+        example: 新版发布
+        type: string
+    required:
+    - name
+    type: object
+  client.createTaskRequest:
+    properties:
+      assignee_user_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+        x-nullable: true
+      description:
+        example: 核对发布清单并记录结果
+        type: string
+      due_date:
+        example: "2026-07-18"
+        format: date
+        type: string
+        x-nullable: true
+      labels:
+        example:
+        - 发布
+        items:
+          type: string
+        type: array
+      priority:
+        enum:
+        - 1
+        - 2
+        - 3
+        example: 2
+        format: int32
+        type: integer
+      start_date:
+        example: "2026-07-11"
+        format: date
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - todo
+        - in_progress
+        - done
+        - canceled
+        example: todo
+        type: string
+      title:
+        example: 完成发布检查
+        type: string
+    required:
+    - title
+    type: object
+  client.createTemporaryFileResponse:
+    properties:
+      file:
+        $ref: '#/definitions/client.temporaryFileResponse'
+    type: object
+  client.deleteTaskResponse:
+    properties:
+      task_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+    type: object
+  client.errorBody:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  client.errorEnvelope:
+    properties:
+      error:
+        $ref: '#/definitions/client.errorBody'
+      success:
+        example: false
+        type: boolean
+    type: object
+  client.infoSettingsResponse:
+    properties:
+      app_name:
+        example: MyGod
+        type: string
+      authenticated:
+        example: false
+        type: boolean
+      organization_name:
+        example: 长亭科技
+        type: string
+      third_party_providers:
+        items:
+          $ref: '#/definitions/client.publicThirdPartyProviderResponse'
+        type: array
+    type: object
+  client.loginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: password
+        type: string
+    type: object
+  client.projectGroupListResponse:
+    properties:
+      groups:
+        items:
+          $ref: '#/definitions/client.projectGroupResponse'
+        type: array
+      next_cursor:
+        type: string
+        x-nullable: true
+    type: object
+  client.projectGroupMutationResponse:
+    type: object
+  client.projectGroupResponse:
+    properties:
+      avatar:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      member_count:
+        type: integer
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  client.projectListResponse:
+    properties:
+      next_cursor:
+        type: string
+        x-nullable: true
+      personal_project:
+        $ref: '#/definitions/client.projectSummaryResponse'
+      projects:
+        items:
+          $ref: '#/definitions/client.projectSummaryResponse'
+        type: array
+    type: object
+  client.projectMemberListResponse:
+    properties:
+      members:
+        items:
+          $ref: '#/definitions/client.projectMemberResponse'
+        type: array
+      next_cursor:
+        type: string
+        x-nullable: true
+    type: object
+  client.projectMemberResponse:
+    properties:
+      avatar:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      nickname:
+        type: string
+      role:
+        type: string
+      source_group_ids:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+    type: object
+  client.projectResponse:
+    properties:
+      avatar:
+        type: string
+      created_at:
+        type: string
+      current_user_role:
+        type: string
+      description:
+        type: string
+      group_count:
+        type: integer
+      id:
+        type: string
+      is_personal:
+        type: boolean
+      member_count:
+        type: integer
+      name:
+        type: string
+      owner:
+        $ref: '#/definitions/client.projectUserResponse'
+      task_counts:
+        $ref: '#/definitions/client.projectTaskCountsResponse'
+      updated_at:
+        type: string
+    type: object
+  client.projectSummaryResponse:
+    properties:
+      avatar:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_personal:
+        type: boolean
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  client.projectTaskCountsResponse:
+    properties:
+      canceled:
+        type: integer
+      done:
+        type: integer
+      in_progress:
+        type: integer
+      todo:
+        type: integer
+      total:
+        type: integer
+    type: object
+  client.projectUserResponse:
+    properties:
+      avatar:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      nickname:
+        type: string
+    type: object
+  client.publicThirdPartyProviderResponse:
+    properties:
+      key:
+        example: company-sso
+        type: string
+      name:
+        example: 企业 SSO
+        type: string
+    type: object
+  client.readTemporaryFileURLsRequest:
+    properties:
+      file_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  client.readTemporaryFileURLsResponse:
+    properties:
+      urls:
+        items:
+          $ref: '#/definitions/client.temporaryFileReadURLResponse'
+        type: array
+    type: object
+  client.successEnvelope:
+    properties:
+      data: {}
+      success:
+        example: true
+        type: boolean
+    type: object
+  client.taskListResponse:
+    properties:
+      next_cursor:
+        type: string
+        x-nullable: true
+      tasks:
+        items:
+          $ref: '#/definitions/client.taskResponse'
+        type: array
+    type: object
+  client.taskResponse:
+    properties:
+      assignee:
+        allOf:
+        - $ref: '#/definitions/client.projectUserResponse'
+        x-nullable: true
+      canceled_at:
+        type: string
+        x-nullable: true
+      completed_at:
+        type: string
+        x-nullable: true
+      created_at:
+        type: string
+      creator:
+        $ref: '#/definitions/client.projectUserResponse'
+      description:
+        type: string
+      due_date:
+        type: string
+        x-nullable: true
+      id:
+        type: string
+      labels:
+        items:
+          type: string
+        type: array
+      priority:
+        type: integer
+      project_id:
+        type: string
+      start_date:
+        type: string
+        x-nullable: true
+      status:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  client.temporaryFileReadURLResponse:
+    properties:
+      expires_at:
+        format: date-time
+        type: string
+      file_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      url:
+        type: string
+    type: object
+  client.temporaryFileResponse:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      size_bytes:
+        example: 123456
+        type: integer
+    type: object
+  client.updateProfileRequest:
+    properties:
+      avatar:
+        example: /assets/avatars/builtin/07.webp
+        type: string
+      nickname:
+        example: 小张
+        type: string
+    type: object
+  client.updateProjectRequest:
+    properties:
+      avatar:
+        example: /assets/avatars/projects/release.webp
+        type: string
+      description:
+        example: 协调新版发布工作
+        type: string
+      name:
+        example: 新版发布
+        type: string
+    type: object
+  client.updateTaskRequest:
+    properties:
+      assignee_user_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+        x-nullable: true
+      description:
+        example: 核对发布清单并记录结果
+        type: string
+      due_date:
+        example: "2026-07-18"
+        format: date
+        type: string
+        x-nullable: true
+      labels:
+        example:
+        - 发布
+        items:
+          type: string
+        type: array
+      priority:
+        enum:
+        - 1
+        - 2
+        - 3
+        example: 2
+        format: int32
+        type: integer
+      start_date:
+        example: "2026-07-11"
+        format: date
+        type: string
+        x-nullable: true
+      status:
+        enum:
+        - todo
+        - in_progress
+        - done
+        - canceled
+        example: in_progress
+        type: string
+      title:
+        example: 完成发布检查
+        type: string
+    type: object
   httpserver.addGroupConversationMembersRequest:
     properties:
       app_ids:
@@ -324,78 +838,6 @@ definitions:
       message:
         $ref: '#/definitions/httpserver.messageResponse'
     type: object
-  httpserver.createProjectRequest:
-    properties:
-      avatar:
-        example: /assets/avatars/projects/release.webp
-        type: string
-      description:
-        example: 协调新版发布工作
-        type: string
-      group_ids:
-        example:
-        - 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
-        items:
-          type: string
-        type: array
-      name:
-        example: 新版发布
-        type: string
-    required:
-    - name
-    type: object
-  httpserver.createTaskRequest:
-    properties:
-      assignee_user_id:
-        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
-        type: string
-        x-nullable: true
-      description:
-        example: 核对发布清单并记录结果
-        type: string
-      due_date:
-        example: "2026-07-18"
-        format: date
-        type: string
-        x-nullable: true
-      labels:
-        example:
-        - 发布
-        items:
-          type: string
-        type: array
-      priority:
-        enum:
-        - 1
-        - 2
-        - 3
-        example: 2
-        format: int32
-        type: integer
-      start_date:
-        example: "2026-07-11"
-        format: date
-        type: string
-        x-nullable: true
-      status:
-        enum:
-        - todo
-        - in_progress
-        - done
-        - canceled
-        example: todo
-        type: string
-      title:
-        example: 完成发布检查
-        type: string
-    required:
-    - title
-    type: object
-  httpserver.createTemporaryFileResponse:
-    properties:
-      file:
-        $ref: '#/definitions/httpserver.temporaryFileResponse'
-    type: object
   httpserver.createUserRequest:
     properties:
       email:
@@ -415,17 +857,6 @@ definitions:
         type: string
       user:
         $ref: '#/definitions/httpserver.userResponse'
-    type: object
-  httpserver.currentUserResponse:
-    properties:
-      user:
-        $ref: '#/definitions/httpserver.userResponse'
-    type: object
-  httpserver.deleteTaskResponse:
-    properties:
-      task_id:
-        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
-        type: string
     type: object
   httpserver.dissolveGroupConversationResponse:
     properties:
@@ -551,22 +982,6 @@ definitions:
       visibility:
         example: private
         type: string
-    type: object
-  httpserver.infoSettingsResponse:
-    properties:
-      app_name:
-        example: MyGod
-        type: string
-      authenticated:
-        example: false
-        type: boolean
-      organization_name:
-        example: 长亭科技
-        type: string
-      third_party_providers:
-        items:
-          $ref: '#/definitions/httpserver.publicThirdPartyProviderResponse'
-        type: array
     type: object
   httpserver.leaveGroupConversationResponse:
     properties:
@@ -777,166 +1192,7 @@ definitions:
         example: user
         type: string
     type: object
-  httpserver.projectGroupListResponse:
-    properties:
-      groups:
-        items:
-          $ref: '#/definitions/httpserver.projectGroupResponse'
-        type: array
-      next_cursor:
-        type: string
-        x-nullable: true
-    type: object
   httpserver.projectGroupMutationResponse:
-    type: object
-  httpserver.projectGroupResponse:
-    properties:
-      avatar:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: string
-      member_count:
-        type: integer
-      name:
-        type: string
-      status:
-        type: string
-    type: object
-  httpserver.projectListResponse:
-    properties:
-      next_cursor:
-        type: string
-        x-nullable: true
-      personal_project:
-        $ref: '#/definitions/httpserver.projectSummaryResponse'
-      projects:
-        items:
-          $ref: '#/definitions/httpserver.projectSummaryResponse'
-        type: array
-    type: object
-  httpserver.projectMemberListResponse:
-    properties:
-      members:
-        items:
-          $ref: '#/definitions/httpserver.projectMemberResponse'
-        type: array
-      next_cursor:
-        type: string
-        x-nullable: true
-    type: object
-  httpserver.projectMemberResponse:
-    properties:
-      avatar:
-        type: string
-      display_name:
-        type: string
-      email:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      nickname:
-        type: string
-      role:
-        type: string
-      source_group_ids:
-        items:
-          type: string
-        type: array
-      status:
-        type: string
-    type: object
-  httpserver.projectResponse:
-    properties:
-      avatar:
-        type: string
-      created_at:
-        type: string
-      current_user_role:
-        type: string
-      description:
-        type: string
-      group_count:
-        type: integer
-      id:
-        type: string
-      is_personal:
-        type: boolean
-      member_count:
-        type: integer
-      name:
-        type: string
-      owner:
-        $ref: '#/definitions/httpserver.projectUserSummary'
-      task_counts:
-        $ref: '#/definitions/httpserver.projectTaskCountsResponse'
-      updated_at:
-        type: string
-    type: object
-  httpserver.projectSummaryResponse:
-    properties:
-      avatar:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      is_personal:
-        type: boolean
-      name:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  httpserver.projectTaskCountsResponse:
-    properties:
-      canceled:
-        type: integer
-      done:
-        type: integer
-      in_progress:
-        type: integer
-      todo:
-        type: integer
-      total:
-        type: integer
-    type: object
-  httpserver.projectUserSummary:
-    properties:
-      avatar:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      nickname:
-        type: string
-    type: object
-  httpserver.publicThirdPartyProviderResponse:
-    properties:
-      key:
-        example: company-sso
-        type: string
-      name:
-        example: 企业 SSO
-        type: string
-    type: object
-  httpserver.readTemporaryFileURLsRequest:
-    properties:
-      file_ids:
-        items:
-          type: string
-        type: array
-    type: object
-  httpserver.readTemporaryFileURLsResponse:
-    properties:
-      urls:
-        items:
-          $ref: '#/definitions/httpserver.temporaryFileReadURLResponse'
-        type: array
     type: object
   httpserver.resetUserPasswordResponse:
     properties:
@@ -959,80 +1215,6 @@ definitions:
       success:
         example: true
         type: boolean
-    type: object
-  httpserver.taskListResponse:
-    properties:
-      next_cursor:
-        type: string
-        x-nullable: true
-      tasks:
-        items:
-          $ref: '#/definitions/httpserver.taskResponse'
-        type: array
-    type: object
-  httpserver.taskResponse:
-    properties:
-      assignee:
-        allOf:
-        - $ref: '#/definitions/httpserver.projectUserSummary'
-        x-nullable: true
-      canceled_at:
-        type: string
-        x-nullable: true
-      completed_at:
-        type: string
-        x-nullable: true
-      created_at:
-        type: string
-      creator:
-        $ref: '#/definitions/httpserver.projectUserSummary'
-      description:
-        type: string
-      due_date:
-        type: string
-        x-nullable: true
-      id:
-        type: string
-      labels:
-        items:
-          type: string
-        type: array
-      priority:
-        type: integer
-      project_id:
-        type: string
-      start_date:
-        type: string
-        x-nullable: true
-      status:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  httpserver.temporaryFileReadURLResponse:
-    properties:
-      expires_at:
-        format: date-time
-        type: string
-      file_id:
-        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
-        type: string
-      url:
-        type: string
-    type: object
-  httpserver.temporaryFileResponse:
-    properties:
-      created_at:
-        format: date-time
-        type: string
-      id:
-        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
-        type: string
-      size_bytes:
-        example: 123456
-        type: integer
     type: object
   httpserver.thirdPartyProviderEnvelope:
     properties:
@@ -1090,15 +1272,6 @@ definitions:
       type:
         type: string
     type: object
-  httpserver.updateCurrentUserRequest:
-    properties:
-      avatar:
-        example: /assets/avatars/builtin/07.webp
-        type: string
-      nickname:
-        example: 小张
-        type: string
-    type: object
   httpserver.updateGroupConversationAvatarResponse:
     properties:
       conversation:
@@ -1112,78 +1285,7 @@ definitions:
         example: 产品讨论组
         type: string
     type: object
-  httpserver.updateInfoSettingsRequest:
-    properties:
-      app_name:
-        example: MyGod
-        type: string
-      organization_name:
-        example: 长亭科技
-        type: string
-    type: object
-  httpserver.updateProjectRequest:
-    properties:
-      avatar:
-        example: /assets/avatars/projects/release.webp
-        type: string
-      description:
-        example: 协调新版发布工作
-        type: string
-      name:
-        example: 新版发布
-        type: string
-    type: object
-  httpserver.updateTaskRequest:
-    properties:
-      assignee_user_id:
-        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
-        type: string
-        x-nullable: true
-      description:
-        example: 核对发布清单并记录结果
-        type: string
-      due_date:
-        example: "2026-07-18"
-        format: date
-        type: string
-        x-nullable: true
-      labels:
-        example:
-        - 发布
-        items:
-          type: string
-        type: array
-      priority:
-        enum:
-        - 1
-        - 2
-        - 3
-        example: 2
-        format: int32
-        type: integer
-      start_date:
-        example: "2026-07-11"
-        format: date
-        type: string
-        x-nullable: true
-      status:
-        enum:
-        - todo
-        - in_progress
-        - done
-        - canceled
-        example: in_progress
-        type: string
-      title:
-        example: 完成发布检查
-        type: string
-    type: object
   httpserver.updateUserStatusResponse:
-    properties:
-      user:
-        $ref: '#/definitions/httpserver.userResponse'
-    type: object
-  httpserver.userLoginResponse:
     properties:
       user:
         $ref: '#/definitions/httpserver.userResponse'
@@ -1583,19 +1685,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/admin.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.infoSettingsResponse'
+                  $ref: '#/definitions/admin.infoSettingsResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/admin.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/admin.errorEnvelope'
       summary: 获取系统基础信息设置
       tags:
       - 管理员设置
@@ -1609,7 +1711,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.updateInfoSettingsRequest'
+          $ref: '#/definitions/admin.updateInfoSettingsRequest'
       produces:
       - application/json
       responses:
@@ -1617,23 +1719,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/admin.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.infoSettingsResponse'
+                  $ref: '#/definitions/admin.infoSettingsResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/admin.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/admin.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/admin.errorEnvelope'
       summary: 更新系统基础信息设置
       tags:
       - 管理员设置
@@ -2180,7 +2282,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.loginRequest'
+          $ref: '#/definitions/client.loginRequest'
       produces:
       - application/json
       responses:
@@ -2188,23 +2290,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.userLoginResponse'
+                  $ref: '#/definitions/client.accountEnvelope'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       summary: 普通用户登录
       tags:
       - 客户端认证
@@ -2217,11 +2319,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/httpserver.successEnvelope'
+            $ref: '#/definitions/client.successEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       summary: 普通用户退出登录
       tags:
       - 客户端认证
@@ -3619,15 +3721,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.infoSettingsResponse'
+                  $ref: '#/definitions/client.infoSettingsResponse'
               type: object
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       summary: 获取客户端公开信息
       tags:
       - 客户端信息
@@ -3641,19 +3743,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.currentUserResponse'
+                  $ref: '#/definitions/client.accountEnvelope'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       summary: 获取当前用户
       tags:
       - 客户端认证
@@ -3667,7 +3769,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.updateCurrentUserRequest'
+          $ref: '#/definitions/client.updateProfileRequest'
       produces:
       - application/json
       responses:
@@ -3675,23 +3777,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.currentUserResponse'
+                  $ref: '#/definitions/client.accountEnvelope'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       summary: 修改当前用户资料
       tags:
       - 客户端认证
@@ -3713,27 +3815,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.currentUserResponse'
+                  $ref: '#/definitions/client.accountEnvelope'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "413":
           description: Request Entity Too Large
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       summary: 上传当前用户头像
       tags:
       - 客户端认证
@@ -3756,23 +3858,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectListResponse'
+                  $ref: '#/definitions/client.projectListResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 列出项目
@@ -3788,7 +3890,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.createProjectRequest'
+          $ref: '#/definitions/client.createProjectRequest'
       produces:
       - application/json
       responses:
@@ -3796,27 +3898,27 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectResponse'
+                  $ref: '#/definitions/client.projectResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 创建项目
@@ -3838,31 +3940,31 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectResponse'
+                  $ref: '#/definitions/client.projectResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 删除项目
@@ -3883,27 +3985,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectResponse'
+                  $ref: '#/definitions/client.projectResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 获取项目
@@ -3924,7 +4026,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.updateProjectRequest'
+          $ref: '#/definitions/client.updateProjectRequest'
       produces:
       - application/json
       responses:
@@ -3932,31 +4034,31 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectResponse'
+                  $ref: '#/definitions/client.projectResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 更新项目
@@ -3985,35 +4087,35 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectResponse'
+                  $ref: '#/definitions/client.projectResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "413":
           description: Request Entity Too Large
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 上传项目头像
@@ -4043,27 +4145,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectGroupListResponse'
+                  $ref: '#/definitions/client.projectGroupListResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 列出项目群聊
@@ -4090,39 +4192,37 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectGroupMutationResponse'
+                  $ref: '#/definitions/client.projectGroupMutationResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 解除项目群聊
       tags:
       - 客户端项目
     put:
-      consumes:
-      - application/json
       description: 项目所有者将可用群聊关联到普通项目；重复关联保持成功。
       parameters:
       - description: 项目 ID
@@ -4142,35 +4242,35 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectGroupMutationResponse'
+                  $ref: '#/definitions/client.projectGroupMutationResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 关联项目群聊
@@ -4200,27 +4300,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.projectMemberListResponse'
+                  $ref: '#/definitions/client.projectMemberListResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 列出项目成员
@@ -4286,27 +4386,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.taskListResponse'
+                  $ref: '#/definitions/client.taskListResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 列出项目任务
@@ -4327,7 +4427,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.createTaskRequest'
+          $ref: '#/definitions/client.createTaskRequest'
       produces:
       - application/json
       responses:
@@ -4335,27 +4435,27 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.taskResponse'
+                  $ref: '#/definitions/client.taskResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 创建项目任务
@@ -4382,27 +4482,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.deleteTaskResponse'
+                  $ref: '#/definitions/client.deleteTaskResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 删除项目任务
@@ -4428,27 +4528,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.taskResponse'
+                  $ref: '#/definitions/client.taskResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 获取项目任务
@@ -4474,7 +4574,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.updateTaskRequest'
+          $ref: '#/definitions/client.updateTaskRequest'
       produces:
       - application/json
       responses:
@@ -4482,27 +4582,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.taskResponse'
+                  $ref: '#/definitions/client.taskResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
       security:
       - UserSession: []
       summary: 更新项目任务
@@ -4526,27 +4626,29 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.createTemporaryFileResponse'
+                  $ref: '#/definitions/client.createTemporaryFileResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "413":
           description: Request Entity Too Large
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
+      security:
+      - UserSession: []
       summary: 上传临时文件
       tags:
       - 客户端文件
@@ -4565,19 +4667,21 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
+      security:
+      - UserSession: []
       summary: 访问临时文件内容
       tags:
       - 客户端文件
@@ -4592,7 +4696,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/httpserver.readTemporaryFileURLsRequest'
+          $ref: '#/definitions/client.readTemporaryFileURLsRequest'
       produces:
       - application/json
       responses:
@@ -4600,27 +4704,29 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/httpserver.successEnvelope'
+            - $ref: '#/definitions/client.successEnvelope'
             - properties:
                 data:
-                  $ref: '#/definitions/httpserver.readTemporaryFileURLsResponse'
+                  $ref: '#/definitions/client.readTemporaryFileURLsResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/httpserver.errorEnvelope'
+            $ref: '#/definitions/client.errorEnvelope'
+      security:
+      - UserSession: []
       summary: 批量申请临时文件访问地址
       tags:
       - 客户端文件

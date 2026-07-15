@@ -7,8 +7,16 @@ import (
 	"sync"
 	"time"
 
+	adminapi "app/internal/api/http/admin"
+	clientapi "app/internal/api/http/client"
 	"app/internal/appconnection"
+	"app/internal/application/account"
+	fileapp "app/internal/application/file"
+	projectapp "app/internal/application/project"
+	settingsapp "app/internal/application/settings"
+	taskapp "app/internal/application/task"
 	"app/internal/config"
+	"app/internal/infrastructure/filestorage"
 	"app/internal/realtime"
 	"app/internal/store"
 
@@ -19,13 +27,24 @@ import (
 
 const (
 	adminSessionCookieName = "admin_session"
-	userSessionCookieName  = "user_session"
+	userSessionCookieName  = clientapi.UserSessionCookieName
 	sessionTTL             = 7 * 24 * time.Hour
 )
 
 type Server struct {
 	db             *gorm.DB
 	cfg            config.Config
+	accounts       *account.Service
+	clientAccounts *clientapi.AccountAPI
+	files          *fileapp.Service
+	clientFiles    *clientapi.FileAPI
+	settings       *settingsapp.Service
+	clientInfo     *clientapi.InfoAPI
+	adminSettings  *adminapi.SettingsAPI
+	projects       *projectapp.Service
+	clientProjects *clientapi.ProjectAPI
+	tasks          *taskapp.Service
+	clientTasks    *clientapi.TaskAPI
 	appConnections *appconnection.Manager
 	realtime       *realtime.ConnectionPool
 	appEventMu     sync.Mutex
@@ -43,6 +62,36 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 		db:  db,
 		cfg: cfg,
 	}
+	server.files = fileapp.NewService(fileapp.Dependencies{
+		DB:                  db,
+		Storage:             filestorage.New(cfg.Storage),
+		TemporaryExpireDays: cfg.Storage.Lifecycle.TemporaryExpireDays,
+	})
+	server.clientFiles = clientapi.NewFileAPI(server.files)
+	server.settings = settingsapp.NewService(settingsapp.Dependencies{DB: db})
+	server.adminSettings = adminapi.NewSettingsAPI(server.settings)
+	server.accounts = account.NewService(account.Dependencies{
+		DB:    db,
+		Files: server.files,
+	})
+	server.clientAccounts = clientapi.NewAccountAPI(
+		server.accounts,
+		server.accounts,
+		func(c echo.Context, session account.AuthenticatedSession) {
+			c.Set(currentUserContextKey, legacyUserFromAccount(session.Account))
+		},
+	)
+	server.clientInfo = clientapi.NewInfoAPI(server.settings, server.accounts)
+	server.projects = projectapp.NewService(projectapp.Dependencies{
+		DB:    db,
+		Files: server.files,
+	})
+	server.clientProjects = clientapi.NewProjectAPI(server.projects)
+	server.tasks = taskapp.NewService(taskapp.Dependencies{
+		DB:            db,
+		Notifications: server,
+	})
+	server.clientTasks = clientapi.NewTaskAPI(server.tasks)
 	server.appConnections = appconnection.NewManager(appconnection.Options{
 		RequestHandler: server.handleAppRequest,
 	})
@@ -61,37 +110,19 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 		router.GET("/swagger/*", echoSwagger.EchoWrapHandler(echoSwagger.URL("/api-docs/swagger.json")))
 	}
 	router.POST("/api/admin/auth/login", server.adminLogin)
-	router.POST("/api/client/auth/login", server.userLogin)
-	router.POST("/api/client/auth/logout", server.userLogout)
+	server.clientAccounts.RegisterPublicRoutes(router)
 	router.GET("/api/client/auth/third-party/:key/start", server.startThirdPartyLogin)
 	router.GET("/api/client/auth/third-party/:key/callback", server.finishThirdPartyLogin)
-	router.GET("/api/client/info", server.clientInfo)
+	server.clientInfo.RegisterPublicRoutes(router)
 	router.GET("/api/app/ws", server.appWebSocket)
 
-	client := router.Group("/api/client", server.requireUserSession)
-	client.GET("/me", server.getCurrentUser)
-	client.PATCH("/me", server.updateCurrentUser)
-	client.POST("/me/avatar", server.uploadCurrentUserAvatar)
-	client.POST("/temporary-files", server.createTemporaryFile)
-	client.POST("/temporary-files/read-urls", server.readTemporaryFileURLs)
-	client.GET("/temporary-files/:file_id/content", server.redirectTemporaryFileContent)
+	client := router.Group("/api/client", server.clientAccounts.RequireSession)
+	server.clientAccounts.RegisterProtectedRoutes(client)
+	server.clientFiles.RegisterRoutes(client)
+	server.clientProjects.RegisterRoutes(client)
+	server.clientTasks.RegisterRoutes(client)
 	client.GET("/contacts", server.listClientContacts)
 	client.GET("/contacts/users", server.listContactUsers)
-	client.GET("/projects", server.listProjects)
-	client.POST("/projects", server.createProject)
-	client.GET("/projects/:project_id/tasks", server.listTasks)
-	client.POST("/projects/:project_id/tasks", server.createTask)
-	client.GET("/projects/:project_id/tasks/:task_id", server.getTask)
-	client.PATCH("/projects/:project_id/tasks/:task_id", server.updateTask)
-	client.DELETE("/projects/:project_id/tasks/:task_id", server.deleteTask)
-	client.GET("/projects/:project_id/groups", server.listProjectGroups)
-	client.PUT("/projects/:project_id/groups/:group_id", server.bindProjectGroup)
-	client.DELETE("/projects/:project_id/groups/:group_id", server.unbindProjectGroup)
-	client.GET("/projects/:project_id/members", server.listProjectMembers)
-	client.GET("/projects/:project_id", server.getProject)
-	client.PATCH("/projects/:project_id", server.updateProject)
-	client.DELETE("/projects/:project_id", server.deleteProject)
-	client.POST("/projects/:project_id/avatar", server.uploadProjectAvatar)
 	client.GET("/conversations", server.listClientConversations)
 	client.POST("/conversations/apps", server.createAppConversation)
 	client.POST("/conversations/direct", server.createDirectConversation)
@@ -119,8 +150,7 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	client.GET("/ws", server.clientWebSocket)
 
 	admin := router.Group("/api/admin", server.requireAdminSession)
-	admin.GET("/settings/info", server.getInfoSettings)
-	admin.PUT("/settings/info", server.updateInfoSettings)
+	server.adminSettings.RegisterRoutes(admin)
 	admin.GET("/apps", server.listAdminApps)
 	admin.POST("/apps", server.createAdminApp)
 	admin.PUT("/apps/:id", server.updateAdminApp)
@@ -143,6 +173,26 @@ func NewRouterWithRealtimeOptions(db *gorm.DB, cfg config.Config, realtimeOption
 	admin.POST("/users/:id/reset-password", server.resetUserPassword)
 
 	return router
+}
+
+func legacyUserFromAccount(value account.Account) store.User {
+	var phone *string
+	if value.Phone != "" {
+		phoneValue := value.Phone
+		phone = &phoneValue
+	}
+	return store.User{
+		ID:           value.ID,
+		Email:        value.Email,
+		Name:         value.Name,
+		Nickname:     value.Nickname,
+		Phone:        phone,
+		Avatar:       value.Avatar,
+		Status:       value.Status,
+		LastOnlineAt: value.LastOnlineAt,
+		CreatedAt:    value.CreatedAt,
+		UpdatedAt:    value.UpdatedAt,
+	}
 }
 
 func findAPIDocsDir() (string, bool) {
