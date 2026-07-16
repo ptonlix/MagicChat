@@ -166,7 +166,7 @@ export function LoginScreen() {
                 src={require("../../../assets/images/icon.png")}
                 width="$5"
               />
-              <YStack gap="$2" shrink={1}>
+              <YStack gap="$1.5" shrink={1}>
                 <Paragraph fontSize="$5" fontWeight="600" lineHeight="$6">
                   {appName} 智能协作平台
                 </Paragraph>
