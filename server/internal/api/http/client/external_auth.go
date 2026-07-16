@@ -17,11 +17,15 @@ const (
 )
 
 type ExternalAuthAPI struct {
-	auth externalauth.ServiceAPI
+	auth         externalauth.ServiceAPI
+	clientOrigin string
 }
 
-func NewExternalAuthAPI(auth externalauth.ServiceAPI) *ExternalAuthAPI {
-	return &ExternalAuthAPI{auth: auth}
+func NewExternalAuthAPI(auth externalauth.ServiceAPI, clientOrigin string) *ExternalAuthAPI {
+	return &ExternalAuthAPI{
+		auth:         auth,
+		clientOrigin: strings.TrimRight(strings.TrimSpace(clientOrigin), "/"),
+	}
 }
 
 func (a *ExternalAuthAPI) RegisterPublicRoutes(router *echo.Echo) {
@@ -43,9 +47,8 @@ func (a *ExternalAuthAPI) RegisterPublicRoutes(router *echo.Echo) {
 // @Failure 500 {object} errorEnvelope
 // @Router /api/client/auth/third-party/{key}/start [get]
 func (a *ExternalAuthAPI) start(c echo.Context) error {
-	callbackURLForProvider := externalAuthCallbackURLBuilder(c)
 	result, err := a.auth.Start(c.Request().Context(), externalauth.StartCommand{
-		ProviderKey: c.Param("key"), Redirect: c.QueryParam("redirect"), CallbackURLForProvider: callbackURLForProvider,
+		ProviderKey: c.Param("key"), Redirect: c.QueryParam("redirect"), CallbackURLForProvider: a.callbackURLForProvider,
 		IP: c.RealIP(), UserAgent: c.Request().UserAgent(),
 	})
 	if result.State != "" {
@@ -79,10 +82,9 @@ func (a *ExternalAuthAPI) finish(c echo.Context) error {
 	if cookie, err := c.Cookie(externalAuthStateCookieName); err == nil {
 		cookieState = cookie.Value
 	}
-	callbackURLForProvider := externalAuthCallbackURLBuilder(c)
 	result, err := a.auth.Finish(c.Request().Context(), externalauth.FinishCommand{
 		ProviderKey: c.Param("key"), Code: callbackCode(c), State: c.QueryParam("state"),
-		CookieState: cookieState, CallbackURLForProvider: callbackURLForProvider, IP: c.RealIP(), UserAgent: c.Request().UserAgent(),
+		CookieState: cookieState, CallbackURLForProvider: a.callbackURLForProvider, IP: c.RealIP(), UserAgent: c.Request().UserAgent(),
 	})
 	if err != nil {
 		return writeExternalAuthError(c, err)
@@ -91,11 +93,8 @@ func (a *ExternalAuthAPI) finish(c echo.Context) error {
 	return c.Redirect(http.StatusFound, result.RedirectPath)
 }
 
-func externalAuthCallbackURLBuilder(c echo.Context) func(string) string {
-	baseURL := externalRequestBaseURL(c)
-	return func(providerKey string) string {
-		return baseURL + "/api/client/auth/third-party/" + url.PathEscape(providerKey) + "/callback"
-	}
+func (a *ExternalAuthAPI) callbackURLForProvider(providerKey string) string {
+	return a.clientOrigin + "/api/client/auth/third-party/" + url.PathEscape(providerKey) + "/callback"
 }
 
 func writeExternalAuthError(c echo.Context, err error) error {
@@ -137,28 +136,4 @@ func clearExternalAuthStateCookie(c echo.Context) {
 		Name: externalAuthStateCookieName, Value: "", Path: externalAuthCookiePath,
 		Expires: time.Unix(0, 0).UTC(), MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode,
 	})
-}
-
-func externalRequestBaseURL(c echo.Context) string {
-	req := c.Request()
-	scheme := firstForwardedValue(req.Header.Get("X-Forwarded-Proto"))
-	if scheme == "" {
-		if req.TLS != nil {
-			scheme = "https"
-		} else {
-			scheme = "http"
-		}
-	}
-	host := firstForwardedValue(req.Header.Get("X-Forwarded-Host"))
-	if host == "" {
-		host = req.Host
-	}
-	return scheme + "://" + host
-}
-
-func firstForwardedValue(value string) string {
-	if value == "" {
-		return ""
-	}
-	return strings.TrimSpace(strings.Split(value, ",")[0])
 }

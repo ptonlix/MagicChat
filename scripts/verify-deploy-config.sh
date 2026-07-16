@@ -129,8 +129,10 @@ assert_contains "deploy/nginx/templates/default.conf.template" 'server_name ${PU
 assert_contains "deploy/nginx/templates/default.conf.template" 'return 301 https://${PUBLIC_HOSTNAME}$client_https_port_suffix$request_uri'
 assert_contains "deploy/nginx/templates/default.conf.template" "/etc/nginx/certs/tls.crt"
 assert_contains "deploy/nginx/templates/default.conf.template" "/etc/nginx/certs/tls.key"
-assert_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header Host $http_host'
-assert_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header X-Forwarded-Host $http_host'
+assert_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header Host $client_public_host'
+assert_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header X-Forwarded-Host $client_public_host'
+assert_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header Host $admin_public_host'
+assert_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header X-Forwarded-Host $admin_public_host'
 assert_contains "deploy/nginx/templates/default.conf.template" "root /usr/share/nginx/client"
 assert_contains "deploy/nginx/templates/default.conf.template" "root /usr/share/nginx/admin"
 assert_contains "deploy/nginx/templates/default.conf.template" "location /api/client/ws"
@@ -142,6 +144,8 @@ assert_not_contains "deploy/nginx/templates/default.conf.template" 'server_name 
 assert_not_contains "deploy/nginx/templates/default.conf.template" "proxy_pass http://mygod_s3"
 assert_not_contains "deploy/nginx/templates/default.conf.template" 'CLIENT_HOSTNAME'
 assert_not_contains "deploy/nginx/templates/default.conf.template" 'ADMIN_HOSTNAME'
+assert_not_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header Host $http_host'
+assert_not_contains "deploy/nginx/templates/default.conf.template" 'proxy_set_header X-Forwarded-Host $http_host'
 
 assert_contains "server/Dockerfile" "go build"
 assert_contains "server/Dockerfile" "COPY server/migrations"

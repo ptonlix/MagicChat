@@ -12,7 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func TestExternalAuthAPIKeepsRedirectAndCookieProtocol(t *testing.T) {
+func TestExternalAuthAPIUsesConfiguredCallbackOriginAndKeepsCookieProtocol(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(10 * time.Minute)
 	service := &externalAuthServiceStub{
 		startResult: externalauth.StartResult{
@@ -26,18 +26,19 @@ func TestExternalAuthAPIKeepsRedirectAndCookieProtocol(t *testing.T) {
 		},
 	}
 	router := echo.New()
-	NewExternalAuthAPI(service).RegisterPublicRoutes(router)
+	NewExternalAuthAPI(service, "https://chat.example.com:8443/").RegisterPublicRoutes(router)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/client/auth/third-party/request-key/start?redirect=/projects", nil)
-	request.Header.Set("X-Forwarded-Proto", "https, http")
-	request.Header.Set("X-Forwarded-Host", "client.example.com, proxy.internal")
+	request.Host = "attacker.example"
+	request.Header.Set("X-Forwarded-Proto", "http")
+	request.Header.Set("X-Forwarded-Host", "attacker.example")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusFound || recorder.Header().Get("Location") != "https://sso.test/authorize" {
 		t.Fatalf("start status = %d, location = %q, body = %s", recorder.Code, recorder.Header().Get("Location"), recorder.Body.String())
 	}
 	if service.startCommand.ProviderKey != "request-key" || service.startCommand.Redirect != "/projects" ||
-		service.startCallbackURL != "https://client.example.com/api/client/auth/third-party/canonical-key/callback" {
+		service.startCallbackURL != "https://chat.example.com:8443/api/client/auth/third-party/canonical-key/callback" {
 		t.Fatalf("start command = %#v, callback = %q", service.startCommand, service.startCallbackURL)
 	}
 	startCookies := recorder.Result().Cookies()
@@ -47,7 +48,9 @@ func TestExternalAuthAPIKeepsRedirectAndCookieProtocol(t *testing.T) {
 	}
 
 	request = httptest.NewRequest(http.MethodGet, "/api/client/auth/third-party/request-key/callback?authCode=callback-code&state=login-state", nil)
-	request.Host = "client.example.com"
+	request.Host = "attacker.example"
+	request.Header.Set("X-Forwarded-Proto", "http")
+	request.Header.Set("X-Forwarded-Host", "attacker.example")
 	request.AddCookie(&http.Cookie{Name: externalAuthStateCookieName, Value: "login-state", Path: externalAuthCookiePath})
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -55,7 +58,7 @@ func TestExternalAuthAPIKeepsRedirectAndCookieProtocol(t *testing.T) {
 		t.Fatalf("finish status = %d, location = %q, body = %s", recorder.Code, recorder.Header().Get("Location"), recorder.Body.String())
 	}
 	if service.finishCommand.Code != "callback-code" || service.finishCommand.CookieState != "login-state" ||
-		service.finishCallbackURL != "http://client.example.com/api/client/auth/third-party/canonical-key/callback" {
+		service.finishCallbackURL != "https://chat.example.com:8443/api/client/auth/third-party/canonical-key/callback" {
 		t.Fatalf("finish command = %#v, callback = %q", service.finishCommand, service.finishCallbackURL)
 	}
 	finishCookies := recorder.Result().Cookies()
