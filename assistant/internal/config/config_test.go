@@ -1,373 +1,141 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestLoadFromEnvUsesDefaults(t *testing.T) {
-	cfg, err := LoadFromEnv(func(key string) string {
-		switch key {
-		case "AI_ASSISTANT_SECRET":
-			return "secret"
-		case "MYGOD_LLM_BASE_URL":
-			return "https://api.example.com/v1"
-		case "MYGOD_LLM_API_KEY":
-			return "llm-api-key"
-		case "MYGOD_LLM_MODEL_NAME":
-			return "claude-sonnet-4"
-		default:
-			return ""
-		}
-	})
+func TestLoadFromEnvReadsConfiguration(t *testing.T) {
+	values := requiredEnvironment()
+	values["ASSISTANT_WEBSOCKET_URL"] = " wss://chat.example.com/api/app/ws "
+	values["AGENT_MAX_TURNS"] = "75"
+	values["LLM_BASE_URL"] = " https://api.example.com/v1/ "
+	values["LLM_MODEL_NAME"] = " model-name "
+	values["MCP_GATEWAY_URL"] = " https://mcp.example.com/mcp/ "
+
+	cfg, err := LoadFromEnv(mapGetenv(values))
 	if err != nil {
 		t.Fatalf("LoadFromEnv() error = %v", err)
 	}
-	if cfg.AppID != DefaultAppID {
-		t.Fatalf("AppID = %q, want %q", cfg.AppID, DefaultAppID)
-	}
-	if cfg.AppSecret != "secret" {
-		t.Fatalf("AppSecret = %q, want secret", cfg.AppSecret)
-	}
-	if cfg.WebSocketURL != DefaultWebSocketURL {
-		t.Fatalf("WebSocketURL = %q, want %q", cfg.WebSocketURL, DefaultWebSocketURL)
-	}
-	if cfg.Agent.MaxTurns != DefaultAgentMaxTurns {
-		t.Fatalf("Agent.MaxTurns = %d, want %d", cfg.Agent.MaxTurns, DefaultAgentMaxTurns)
-	}
-}
-
-func TestLoadFromEnvReadsExplicitValues(t *testing.T) {
-	cfg, err := LoadFromEnv(func(key string) string {
-		switch key {
-		case "MYGOD_APP_ID":
-			return "app-id"
-		case "AI_ASSISTANT_SECRET":
-			return "app-secret"
-		case "MYGOD_WS_URL":
-			return "wss://mygod.example.com/api/app/ws"
-		case "MYGOD_LLM_BASE_URL":
-			return " https://api.example.com/v1 "
-		case "MYGOD_LLM_API_KEY":
-			return " llm-api-key "
-		case "MYGOD_LLM_MODEL_NAME":
-			return " claude-sonnet-4 "
-		default:
-			return ""
-		}
-	})
-	if err != nil {
-		t.Fatalf("LoadFromEnv() error = %v", err)
-	}
-	if cfg.AppID != "app-id" {
-		t.Fatalf("AppID = %q, want app-id", cfg.AppID)
-	}
-	if cfg.AppSecret != "app-secret" {
-		t.Fatalf("AppSecret = %q, want app-secret", cfg.AppSecret)
-	}
-	if cfg.WebSocketURL != "wss://mygod.example.com/api/app/ws" {
-		t.Fatalf("WebSocketURL = %q, want wss://mygod.example.com/api/app/ws", cfg.WebSocketURL)
-	}
-	if cfg.LLM.BaseURL != "https://api.example.com/v1" {
-		t.Fatalf("LLM.BaseURL = %q, want https://api.example.com/v1", cfg.LLM.BaseURL)
-	}
-	if cfg.LLM.APIKey != "llm-api-key" {
-		t.Fatalf("LLM.APIKey = %q, want llm-api-key", cfg.LLM.APIKey)
-	}
-	if cfg.LLM.ModelName != "claude-sonnet-4" {
-		t.Fatalf("LLM.ModelName = %q, want claude-sonnet-4", cfg.LLM.ModelName)
-	}
-}
-
-func TestLoadFromFileReadsAssistantAndLLMConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte(`
-app:
-  id: "assistant-app-id"
-  secret: "assistant-secret"
-  websocket_url: "wss://mygod.example.com/api/app/ws"
-
-llm:
-  base_url: "https://api.example.com/v1"
-  api_key: "llm-api-key"
-  model_name: "claude-sonnet-4"
-
-agent:
-  max_turns: 12
-
-mcp:
-  servers:
-    - name: "main"
-      url: "https://mcp.example.com/mcp"
-      headers:
-        Authorization: "Bearer mcp-api-key"
-    - name: "internal_tools"
-      url: "http://127.0.0.1:3000/mcp"
-`), 0o600); err != nil {
-		t.Fatalf("write config file: %v", err)
-	}
-
-	cfg, err := LoadFromFile(path, func(string) string { return "" })
-	if err != nil {
-		t.Fatalf("LoadFromFile() error = %v", err)
-	}
-	if cfg.AppID != "assistant-app-id" {
-		t.Fatalf("AppID = %q, want assistant-app-id", cfg.AppID)
+	if cfg.AppID != AIAssistantAppID {
+		t.Fatalf("AppID = %q, want %q", cfg.AppID, AIAssistantAppID)
 	}
 	if cfg.AppSecret != "assistant-secret" {
-		t.Fatalf("AppSecret = %q, want assistant-secret", cfg.AppSecret)
+		t.Fatalf("AppSecret = %q", cfg.AppSecret)
 	}
-	if cfg.WebSocketURL != "wss://mygod.example.com/api/app/ws" {
-		t.Fatalf("WebSocketURL = %q, want wss://mygod.example.com/api/app/ws", cfg.WebSocketURL)
+	if cfg.WebSocketURL != "wss://chat.example.com/api/app/ws" {
+		t.Fatalf("WebSocketURL = %q", cfg.WebSocketURL)
 	}
-	if cfg.LLM.BaseURL != "https://api.example.com/v1" {
-		t.Fatalf("LLM.BaseURL = %q, want https://api.example.com/v1", cfg.LLM.BaseURL)
+	if cfg.Agent.MaxTurns != 75 {
+		t.Fatalf("Agent.MaxTurns = %d, want 75", cfg.Agent.MaxTurns)
 	}
-	if cfg.LLM.APIKey != "llm-api-key" {
-		t.Fatalf("LLM.APIKey = %q, want llm-api-key", cfg.LLM.APIKey)
+	if cfg.LLM.BaseURL != "https://api.example.com/v1" || cfg.LLM.APIKey != "llm-api-key" || cfg.LLM.ModelName != "model-name" {
+		t.Fatalf("LLM = %#v", cfg.LLM)
 	}
-	if cfg.LLM.ModelName != "claude-sonnet-4" {
-		t.Fatalf("LLM.ModelName = %q, want claude-sonnet-4", cfg.LLM.ModelName)
+	if len(cfg.MCP.Servers) != 1 {
+		t.Fatalf("MCP server count = %d, want 1", len(cfg.MCP.Servers))
 	}
-	if cfg.Agent.MaxTurns != 12 {
-		t.Fatalf("Agent.MaxTurns = %d, want 12", cfg.Agent.MaxTurns)
-	}
-	if len(cfg.MCP.Servers) != 2 {
-		t.Fatalf("MCP server count = %d, want 2", len(cfg.MCP.Servers))
-	}
-	if cfg.MCP.Servers[0].Name != "main" {
-		t.Fatalf("first MCP server name = %q, want main", cfg.MCP.Servers[0].Name)
-	}
-	if cfg.MCP.Servers[0].URL != "https://mcp.example.com/mcp" {
-		t.Fatalf("first MCP server URL = %q, want https://mcp.example.com/mcp", cfg.MCP.Servers[0].URL)
-	}
-	if cfg.MCP.Servers[0].Headers["Authorization"] != "Bearer mcp-api-key" {
-		t.Fatalf("first MCP Authorization header = %q, want bearer token", cfg.MCP.Servers[0].Headers["Authorization"])
-	}
-	if cfg.MCP.Servers[1].Name != "internal_tools" {
-		t.Fatalf("second MCP server name = %q, want internal_tools", cfg.MCP.Servers[1].Name)
+	server := cfg.MCP.Servers[0]
+	if server.Name != mcpGatewayName || server.URL != "https://mcp.example.com/mcp" || server.Headers["Authorization"] != "Bearer mcp-key" {
+		t.Fatalf("MCP server = %#v", server)
 	}
 }
 
-func TestLoadFromFileAllowsEnvOverrides(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte(`
-app:
-  id: "assistant-app-id"
-  secret: "file-secret"
-  websocket_url: "ws://server:20080/api/app/ws"
+func TestLoadFromEnvDefaultsMaxTurnsToFifty(t *testing.T) {
+	values := requiredEnvironment()
+	delete(values, "AGENT_MAX_TURNS")
 
-llm:
-  base_url: "https://file.example.com/v1"
-  api_key: "file-api-key"
-  model_name: "file-model"
-`), 0o600); err != nil {
-		t.Fatalf("write config file: %v", err)
-	}
-
-	cfg, err := LoadFromFile(path, func(key string) string {
-		switch key {
-		case "AI_ASSISTANT_SECRET":
-			return "env-secret"
-		case "MYGOD_LLM_BASE_URL":
-			return "https://env.example.com/v1"
-		case "MYGOD_LLM_API_KEY":
-			return "env-api-key"
-		case "MYGOD_LLM_MODEL_NAME":
-			return "env-model"
-		default:
-			return ""
-		}
-	})
+	cfg, err := LoadFromEnv(mapGetenv(values))
 	if err != nil {
-		t.Fatalf("LoadFromFile() error = %v", err)
+		t.Fatalf("LoadFromEnv() error = %v", err)
 	}
-	if cfg.AppSecret != "env-secret" {
-		t.Fatalf("AppSecret = %q, want env-secret", cfg.AppSecret)
+	if DefaultAgentMaxTurns != 50 {
+		t.Fatalf("DefaultAgentMaxTurns = %d, want 50", DefaultAgentMaxTurns)
 	}
-	if cfg.LLM.BaseURL != "https://env.example.com/v1" {
-		t.Fatalf("LLM.BaseURL = %q, want https://env.example.com/v1", cfg.LLM.BaseURL)
-	}
-	if cfg.LLM.APIKey != "env-api-key" {
-		t.Fatalf("LLM.APIKey = %q, want env-api-key", cfg.LLM.APIKey)
-	}
-	if cfg.LLM.ModelName != "env-model" {
-		t.Fatalf("LLM.ModelName = %q, want env-model", cfg.LLM.ModelName)
+	if cfg.Agent.MaxTurns != DefaultAgentMaxTurns {
+		t.Fatalf("Agent.MaxTurns = %d, want 50", cfg.Agent.MaxTurns)
 	}
 }
 
-func TestLoadReadsConfigPathFromEnv(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "assistant.yaml")
-	if err := os.WriteFile(path, []byte(`
-app:
-  secret: "assistant-secret"
-
-llm:
-  base_url: "https://api.example.com/v1"
-  api_key: "llm-api-key"
-  model_name: "claude-sonnet-4"
-`), 0o600); err != nil {
-		t.Fatalf("write config file: %v", err)
+func TestLoadReadsProcessEnvironment(t *testing.T) {
+	for name, value := range requiredEnvironment() {
+		t.Setenv(name, value)
 	}
-	t.Setenv("CONFIG", path)
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.AppSecret != "assistant-secret" {
-		t.Fatalf("AppSecret = %q, want assistant-secret", cfg.AppSecret)
-	}
-	if cfg.AppID != DefaultAppID {
-		t.Fatalf("AppID = %q, want %s", cfg.AppID, DefaultAppID)
-	}
-	if cfg.WebSocketURL != DefaultWebSocketURL {
-		t.Fatalf("WebSocketURL = %q, want %s", cfg.WebSocketURL, DefaultWebSocketURL)
+	if cfg.AppID != AIAssistantAppID || cfg.WebSocketURL != "ws://localhost:20080/api/app/ws" {
+		t.Fatalf("Config = %#v", cfg)
 	}
 }
 
-func TestLoadFromEnvReadsAIAssistantSecret(t *testing.T) {
-	cfg, err := LoadFromEnv(func(key string) string {
-		switch key {
-		case "AI_ASSISTANT_SECRET":
-			return "ai-assistant-secret"
-		case "MYGOD_LLM_BASE_URL":
-			return "https://api.example.com/v1"
-		case "MYGOD_LLM_API_KEY":
-			return "llm-api-key"
-		case "MYGOD_LLM_MODEL_NAME":
-			return "claude-sonnet-4"
-		default:
-			return ""
-		}
-	})
-	if err != nil {
-		t.Fatalf("LoadFromEnv() error = %v", err)
+func TestLoadFromEnvRejectsMissingRequiredEnvironment(t *testing.T) {
+	required := []string{
+		"AI_ASSISTANT_SECRET",
+		"ASSISTANT_WEBSOCKET_URL",
+		"LLM_BASE_URL",
+		"LLM_API_KEY",
+		"LLM_MODEL_NAME",
+		"MCP_GATEWAY_URL",
+		"MCP_GATEWAY_KEY",
 	}
-	if cfg.AppSecret != "ai-assistant-secret" {
-		t.Fatalf("AppSecret = %q, want ai-assistant-secret", cfg.AppSecret)
-	}
-}
 
-func TestLoadFromEnvRejectsMissingSecret(t *testing.T) {
-	_, err := LoadFromEnv(func(string) string { return "" })
-	if err == nil {
-		t.Fatal("LoadFromEnv() error = nil, want missing secret error")
+	for _, name := range required {
+		t.Run(name, func(t *testing.T) {
+			values := requiredEnvironment()
+			delete(values, name)
+
+			_, err := LoadFromEnv(mapGetenv(values))
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("LoadFromEnv() error = %v, want %s", err, name)
+			}
+		})
 	}
 }
 
-func TestLoadFromEnvRejectsInvalidWebSocketURL(t *testing.T) {
-	_, err := LoadFromEnv(func(key string) string {
-		switch key {
-		case "AI_ASSISTANT_SECRET":
-			return "app-secret"
-		case "MYGOD_WS_URL":
-			return "https://mygod.example.com/api/app/ws"
-		default:
-			return ""
-		}
-	})
-	if err == nil {
-		t.Fatal("LoadFromEnv() error = nil, want invalid websocket URL error")
+func TestLoadFromEnvRejectsInvalidEnvironment(t *testing.T) {
+	tests := []struct {
+		name      string
+		envName   string
+		envValue  string
+		errorText string
+	}{
+		{name: "websocket scheme", envName: "ASSISTANT_WEBSOCKET_URL", envValue: "https://chat.example.com/api/app/ws", errorText: "ASSISTANT_WEBSOCKET_URL"},
+		{name: "max turns zero", envName: "AGENT_MAX_TURNS", envValue: "0", errorText: "AGENT_MAX_TURNS"},
+		{name: "max turns text", envName: "AGENT_MAX_TURNS", envValue: "many", errorText: "AGENT_MAX_TURNS"},
+		{name: "llm scheme", envName: "LLM_BASE_URL", envValue: "ws://api.example.com", errorText: "LLM_BASE_URL"},
+		{name: "mcp scheme", envName: "MCP_GATEWAY_URL", envValue: "ws://mcp.example.com", errorText: "MCP_GATEWAY_URL"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := requiredEnvironment()
+			values[test.envName] = test.envValue
+
+			_, err := LoadFromEnv(mapGetenv(values))
+			if err == nil || !strings.Contains(err.Error(), test.errorText) {
+				t.Fatalf("LoadFromEnv() error = %v, want %s", err, test.errorText)
+			}
+		})
 	}
 }
 
-func TestLoadFromEnvRejectsMissingLLMConfig(t *testing.T) {
-	_, err := LoadFromEnv(func(key string) string {
-		if key == "AI_ASSISTANT_SECRET" {
-			return "app-secret"
-		}
-
-		return ""
-	})
-	if err == nil {
-		t.Fatal("LoadFromEnv() error = nil, want missing LLM config error")
+func requiredEnvironment() map[string]string {
+	return map[string]string{
+		"AI_ASSISTANT_SECRET":     "assistant-secret",
+		"ASSISTANT_WEBSOCKET_URL": "ws://localhost:20080/api/app/ws",
+		"LLM_BASE_URL":            "https://api.example.com/v1",
+		"LLM_API_KEY":             "llm-api-key",
+		"LLM_MODEL_NAME":          "model-name",
+		"MCP_GATEWAY_URL":         "https://mcp.example.com/mcp",
+		"MCP_GATEWAY_KEY":         "mcp-key",
 	}
 }
 
-func TestLoadFromEnvRejectsPartialLLMConfig(t *testing.T) {
-	_, err := LoadFromEnv(func(key string) string {
-		switch key {
-		case "AI_ASSISTANT_SECRET":
-			return "app-secret"
-		case "MYGOD_LLM_BASE_URL":
-			return "https://api.example.com/v1"
-		case "MYGOD_LLM_MODEL_NAME":
-			return "claude-sonnet-4"
-		default:
-			return ""
-		}
-	})
-	if err == nil {
-		t.Fatal("LoadFromEnv() error = nil, want partial LLM config error")
-	}
-}
-
-func TestLoadFromEnvRejectsInvalidLLMBaseURL(t *testing.T) {
-	_, err := LoadFromEnv(func(key string) string {
-		switch key {
-		case "AI_ASSISTANT_SECRET":
-			return "app-secret"
-		case "MYGOD_LLM_BASE_URL":
-			return "ws://api.example.com/v1"
-		case "MYGOD_LLM_API_KEY":
-			return "llm-api-key"
-		case "MYGOD_LLM_MODEL_NAME":
-			return "claude-sonnet-4"
-		default:
-			return ""
-		}
-	})
-	if err == nil {
-		t.Fatal("LoadFromEnv() error = nil, want invalid LLM base URL error")
-	}
-}
-
-func TestLoadFromFileRejectsInvalidMCPServerName(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte(`
-app:
-  secret: "assistant-secret"
-
-llm:
-  base_url: "https://api.example.com/v1"
-  api_key: "llm-api-key"
-  model_name: "claude-sonnet-4"
-
-mcp:
-  servers:
-    - name: "main tools"
-      url: "https://mcp.example.com/mcp"
-`), 0o600); err != nil {
-		t.Fatalf("write config file: %v", err)
-	}
-
-	if _, err := LoadFromFile(path, func(string) string { return "" }); err == nil {
-		t.Fatal("LoadFromFile() error = nil, want invalid MCP server name error")
-	}
-}
-
-func TestLoadFromFileRejectsInvalidMCPServerURL(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte(`
-app:
-  secret: "assistant-secret"
-
-llm:
-  base_url: "https://api.example.com/v1"
-  api_key: "llm-api-key"
-  model_name: "claude-sonnet-4"
-
-mcp:
-  servers:
-    - name: "main"
-      url: "ws://mcp.example.com/mcp"
-`), 0o600); err != nil {
-		t.Fatalf("write config file: %v", err)
-	}
-
-	if _, err := LoadFromFile(path, func(string) string { return "" }); err == nil {
-		t.Fatal("LoadFromFile() error = nil, want invalid MCP server URL error")
+func mapGetenv(values map[string]string) func(string) string {
+	return func(name string) string {
+		return values[name]
 	}
 }

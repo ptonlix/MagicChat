@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
@@ -42,8 +43,8 @@ func (c *Client) PresignTemporaryReadURL(ctx context.Context, key string, ttl ti
 	if key == "" {
 		return "", time.Time{}, errors.New("temporary object key is required")
 	}
-	if strings.TrimSpace(c.cfg.AssetsHostname) == "" {
-		return "", time.Time{}, errors.New("assets hostname is required")
+	if strings.TrimSpace(c.cfg.AssetHostnames.Temporary) == "" {
+		return "", time.Time{}, errors.New("temporary assets hostname is required")
 	}
 	if ttl <= 0 {
 		return "", time.Time{}, errors.New("temporary read URL TTL must be positive")
@@ -53,7 +54,7 @@ func (c *Client) PresignTemporaryReadURL(ctx context.Context, key string, ttl ti
 	}
 
 	expiresAt := time.Now().UTC().Add(ttl)
-	request, err := c.presign.PresignGetObject(ctx, &s3.GetObjectInput{
+	request, err := c.temporaryPresign.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(c.cfg.Buckets.Temporary),
 		Key:    aws.String(key),
 	}, func(options *s3.PresignOptions) {
@@ -61,6 +62,18 @@ func (c *Client) PresignTemporaryReadURL(ctx context.Context, key string, ttl ti
 	})
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("presign temporary object: %w", err)
+	}
+	presignedURL, err := url.Parse(request.URL)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("parse presigned temporary object URL: %w", err)
+	}
+	wantHostname := strings.TrimSpace(c.cfg.AssetHostnames.Temporary)
+	if presignedURL.Hostname() != wantHostname {
+		return "", time.Time{}, fmt.Errorf(
+			"presigned temporary object hostname is %q, want %q",
+			presignedURL.Hostname(),
+			wantHostname,
+		)
 	}
 
 	return request.URL, expiresAt, nil

@@ -210,7 +210,7 @@ const DefaultSystemPrompt = `# 角色与目标
 - 查重后改为更新旧任务时，如果本次请求带来了新的必要背景，将不重复的内容合并进原 description，不要覆盖原有有效描述。`
 
 const (
-	DefaultMaxTurns     = 20
+	DefaultMaxTurns     = 50
 	FinalAnswerFollowup = "你刚才没有给出可见结论。请直接给出最终回答，主要回答用户最后一个问题。"
 	LoopLimitFallback   = "已达到本次处理的最大步骤数，我先暂停。"
 	ModelErrorFallback  = "调用大模型出现异常，无法生成回复"

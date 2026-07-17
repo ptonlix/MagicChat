@@ -336,11 +336,19 @@ func (AppEventAck) TableName() string {
 }
 
 type AppSettings struct {
-	ID               int       `gorm:"primaryKey"`
-	AppName          string    `gorm:"size:120;not null"`
-	OrganizationName string    `gorm:"size:160;not null"`
-	CreatedAt        time.Time `gorm:"not null"`
-	UpdatedAt        time.Time `gorm:"not null"`
+	ID                    int       `gorm:"primaryKey"`
+	AppName               string    `gorm:"size:120;not null"`
+	OrganizationName      string    `gorm:"size:160;not null"`
+	EmailCodeLoginEnabled bool      `gorm:"not null;default:false"`
+	SMTPHost              string    `gorm:"size:255;not null;default:''"`
+	SMTPPort              int       `gorm:"not null;default:587"`
+	SMTPSecurity          string    `gorm:"size:16;not null;default:starttls"`
+	SMTPUsername          string    `gorm:"size:320;not null;default:''"`
+	SMTPPassword          string    `gorm:"not null;default:''"`
+	SMTPFromEmail         string    `gorm:"size:320;not null;default:''"`
+	SMTPFromName          string    `gorm:"size:120;not null;default:''"`
+	CreatedAt             time.Time `gorm:"not null"`
+	UpdatedAt             time.Time `gorm:"not null"`
 }
 
 type ThirdPartyLoginProvider struct {

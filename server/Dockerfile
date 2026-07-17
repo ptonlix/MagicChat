@@ -20,9 +20,8 @@ WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY server/migrations /app/migrations
 COPY api-docs /app/api-docs
-COPY server/config.example.yaml /app/config.example.yaml
 
-RUN mkdir -p /app/config /app/log && chown -R app:app /app
+RUN mkdir -p /app/log && chown -R app:app /app
 
 USER app
 

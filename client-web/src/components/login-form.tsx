@@ -33,6 +33,10 @@ type EmailCodeLoginCredentials = {
   email: string
 }
 
+type EmailCodeRequestResult = {
+  retryAfterSeconds: number
+}
+
 type LoginMode = "password" | "email-code"
 
 const rememberedLoginStorageKey = "client-web:remembered-login"
@@ -42,6 +46,7 @@ type RememberedLoginCredentials = LoginCredentials
 export function LoginForm({
   children,
   className,
+  emailCodeLoginEnabled = true,
   onEmailCodeLogin,
   onLogin,
   onRequestEmailCode,
@@ -49,11 +54,14 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div"> & {
   children?: ReactNode
+  emailCodeLoginEnabled?: boolean
   onEmailCodeLogin?: (
     credentials: EmailCodeLoginCredentials
   ) => Promise<void> | void
   onLogin?: (credentials: LoginCredentials) => Promise<void> | void
-  onRequestEmailCode?: (email: string) => Promise<void> | void
+  onRequestEmailCode?: (
+    email: string
+  ) => Promise<EmailCodeRequestResult> | EmailCodeRequestResult
   submitVariant?: "default" | "outline"
 }) {
   const [rememberedCredentials] = useState(readRememberedLoginCredentials)
@@ -74,6 +82,7 @@ export function LoginForm({
   const emailInputRef = useRef<HTMLInputElement>(null)
   const pending =
     passwordLoginPending || emailCodeLoginPending || requestCodePending
+  const activeLoginMode = emailCodeLoginEnabled ? loginMode : "password"
 
   useEffect(() => {
     if (retryCodeAfter <= 0) {
@@ -116,8 +125,8 @@ export function LoginForm({
       if (!onRequestEmailCode) {
         throw new Error("邮箱验证码登录服务暂未接入")
       }
-      await onRequestEmailCode(account.trim())
-      setRetryCodeAfter(60)
+      const result = await onRequestEmailCode(account.trim())
+      setRetryCodeAfter(Math.max(1, Math.ceil(result.retryAfterSeconds)))
       toast.success("验证码已发送")
     } catch (requestError) {
       toast.error(getEmailCodeRequestErrorMessage(requestError))
@@ -152,94 +161,103 @@ export function LoginForm({
                 setLoginMode(mode)
               }
             }}
-            value={loginMode}
+            value={activeLoginMode}
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger disabled={pending} value="email-code">
-                验证码登录
-              </TabsTrigger>
+            <TabsList
+              className={cn(
+                "grid w-full",
+                emailCodeLoginEnabled ? "grid-cols-2" : "grid-cols-1"
+              )}
+            >
+              {emailCodeLoginEnabled && (
+                <TabsTrigger disabled={pending} value="email-code">
+                  验证码登录
+                </TabsTrigger>
+              )}
               <TabsTrigger disabled={pending} value="password">
                 密码登录
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent className="pt-2" value="email-code">
-              <form onSubmit={handleEmailCodeSubmit}>
-                <FieldGroup className="gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="email-code-email">邮箱</FieldLabel>
-                    <Input
-                      autoComplete="email"
-                      disabled={pending}
-                      id="email-code-email"
-                      name="email"
-                      onChange={(event) => setAccount(event.target.value)}
-                      placeholder="请输入邮箱"
-                      ref={emailInputRef}
-                      required
-                      type="email"
-                      value={account}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="email-code">验证码</FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        autoComplete="one-time-code"
+            {emailCodeLoginEnabled && (
+              <TabsContent className="pt-2" value="email-code">
+                <form onSubmit={handleEmailCodeSubmit}>
+                  <FieldGroup className="gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="email-code-email">邮箱</FieldLabel>
+                      <Input
+                        autoComplete="email"
                         disabled={pending}
-                        id="email-code"
-                        inputMode="numeric"
-                        maxLength={6}
-                        name="code"
-                        onChange={(event) =>
-                          setEmailCode(
-                            event.target.value.replace(/\D/g, "").slice(0, 6)
-                          )
-                        }
-                        pattern="[0-9]{6}"
-                        placeholder="请输入 6 位验证码"
+                        id="email-code-email"
+                        name="email"
+                        onChange={(event) => setAccount(event.target.value)}
+                        placeholder="请输入邮箱"
+                        ref={emailInputRef}
                         required
-                        value={emailCode}
+                        type="email"
+                        value={account}
                       />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupButton
-                          className="min-w-20"
-                          disabled={pending || retryCodeAfter > 0}
-                          onClick={handleRequestEmailCode}
-                        >
-                          {requestCodePending && (
-                            <Loader2Icon
-                              aria-hidden="true"
-                              className="animate-spin"
-                            />
-                          )}
-                          {requestCodePending
-                            ? "发送中"
-                            : retryCodeAfter > 0
-                              ? `${retryCodeAfter} 秒`
-                              : "获取验证码"}
-                        </InputGroupButton>
-                      </InputGroupAddon>
-                    </InputGroup>
-                  </Field>
-                  <Field>
-                    <Button
-                      disabled={pending}
-                      type="submit"
-                      variant={submitVariant}
-                    >
-                      {emailCodeLoginPending && (
-                        <Loader2Icon
-                          aria-hidden="true"
-                          className="animate-spin"
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="email-code">验证码</FieldLabel>
+                      <InputGroup>
+                        <InputGroupInput
+                          autoComplete="one-time-code"
+                          disabled={pending}
+                          id="email-code"
+                          inputMode="numeric"
+                          maxLength={8}
+                          name="code"
+                          onChange={(event) =>
+                            setEmailCode(
+                              event.target.value.replace(/\D/g, "").slice(0, 8)
+                            )
+                          }
+                          pattern="[0-9]{8}"
+                          placeholder="请输入 8 位验证码"
+                          required
+                          value={emailCode}
                         />
-                      )}
-                      登录
-                    </Button>
-                  </Field>
-                </FieldGroup>
-              </form>
-            </TabsContent>
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupButton
+                            className="min-w-20"
+                            disabled={pending || retryCodeAfter > 0}
+                            onClick={handleRequestEmailCode}
+                          >
+                            {requestCodePending && (
+                              <Loader2Icon
+                                aria-hidden="true"
+                                className="animate-spin"
+                              />
+                            )}
+                            {requestCodePending
+                              ? "发送中"
+                              : retryCodeAfter > 0
+                                ? `${retryCodeAfter} 秒`
+                                : "获取验证码"}
+                          </InputGroupButton>
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </Field>
+                    <Field>
+                      <Button
+                        disabled={pending}
+                        type="submit"
+                        variant={submitVariant}
+                      >
+                        {emailCodeLoginPending && (
+                          <Loader2Icon
+                            aria-hidden="true"
+                            className="animate-spin"
+                          />
+                        )}
+                        登录
+                      </Button>
+                    </Field>
+                  </FieldGroup>
+                </form>
+              </TabsContent>
+            )}
 
             <TabsContent className="pt-2" value="password">
               <form onSubmit={handlePasswordSubmit}>

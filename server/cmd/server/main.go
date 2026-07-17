@@ -15,6 +15,8 @@ import (
 	"app/internal/store"
 )
 
+const serverAddr = ":20080"
+
 // @title AI 原生企业协作服务 API
 // @version 0.1.0
 // @description 私有部署企业协作产品的服务端 API。当前阶段包含管理员登录、管理员创建普通用户、普通用户登录。
@@ -59,8 +61,8 @@ func main() {
 			logger.Error("shutdown server", "error", err)
 		}
 	}()
-	logger.Info("server starting", "addr", cfg.Server.Addr)
-	if err := router.Start(cfg.Server.Addr); err != nil && err != http.ErrServerClosed {
+	logger.Info("server starting", "addr", serverAddr)
+	if err := router.Start(serverAddr); err != nil && err != http.ErrServerClosed {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}

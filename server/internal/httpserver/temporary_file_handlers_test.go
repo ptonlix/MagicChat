@@ -548,7 +548,7 @@ func newTemporaryFileTestRouter(t *testing.T, s3Endpoint string, assetsHostname 
 	}
 
 	router := NewRouter(db, config.Config{
-		Server:   config.ServerConfig{Addr: ":20080"},
+		Server:   config.ServerConfig{},
 		Database: config.DatabaseConfig{DSN: "sqlite-test"},
 		Admin:    config.AdminConfig{Password: "admin-secret"},
 		Apps:     config.AppsConfig{AIAssistantSecret: "test-ai-assistant-secret"},
@@ -559,7 +559,11 @@ func newTemporaryFileTestRouter(t *testing.T, s3Endpoint string, assetsHostname 
 			AccessKeyID:     "mygod",
 			SecretAccessKey: "storage-secret",
 			ForcePathStyle:  true,
-			AssetsHostname:  assetsHostname,
+			AssetHostnames: config.StorageAssetHostnamesConfig{
+				Public:    assetsHostname,
+				Private:   assetsHostname,
+				Temporary: assetsHostname,
+			},
 			Buckets: config.StorageBucketsConfig{
 				Public:    "mygod-public",
 				Private:   "mygod-private",

@@ -575,6 +575,170 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/admin/settings/email-login": {
+            "get": {
+                "description": "管理员读取邮箱验证码登录和完整 SMTP 设置，包括已保存的 SMTP 密码。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员设置"
+                ],
+                "summary": "获取邮箱验证码登录设置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/admin.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/admin.emailLoginSettingsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "管理员配置邮箱验证码登录和 SMTP。省略 smtp_password 时保留原密码。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员设置"
+                ],
+                "summary": "更新邮箱验证码登录设置",
+                "parameters": [
+                    {
+                        "description": "邮箱登录设置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.updateEmailLoginSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/admin.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/admin.emailLoginSettingsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/settings/email-login/test": {
+            "post": {
+                "description": "管理员使用已保存的 SMTP 配置发送测试邮件。失败时返回可诊断的错误原因。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理员设置"
+                ],
+                "summary": "发送 SMTP 测试邮件",
+                "parameters": [
+                    {
+                        "description": "测试收件邮箱",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.testEmailLoginSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/admin.successEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/admin.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/settings/info": {
             "get": {
                 "description": "管理员读取 App 名称和组织名称。",
@@ -2122,6 +2286,146 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/auth/email-code/login": {
+            "post": {
+                "description": "验证 8 位邮箱验证码，创建普通用户 Session 并写入登录 Cookie。验证码仅能使用一次。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端认证"
+                ],
+                "summary": "使用邮箱验证码登录",
+                "parameters": [
+                    {
+                        "description": "邮箱和验证码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/client.emailCodeLoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.accountEnvelope"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/auth/email-code/request": {
+            "post": {
+                "description": "请求发送 8 位登录验证码。验证码 15 分钟内有效，同一直连 IP 与邮箱组合 5 秒内不能重复发送。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端认证"
+                ],
+                "summary": "发送邮箱登录验证码",
+                "parameters": [
+                    {
+                        "description": "邮箱",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/client.requestEmailCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.requestEmailCodeResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/client.errorEnvelope"
                         }
@@ -6224,6 +6528,44 @@ const docTemplate = `{
                 }
             }
         },
+        "admin.emailLoginSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "from_email": {
+                    "type": "string",
+                    "example": "mailer@example.com"
+                },
+                "from_name": {
+                    "type": "string",
+                    "example": "即应"
+                },
+                "smtp_host": {
+                    "type": "string",
+                    "example": "smtp.example.com"
+                },
+                "smtp_password": {
+                    "type": "string"
+                },
+                "smtp_password_configured": {
+                    "type": "boolean"
+                },
+                "smtp_port": {
+                    "type": "integer",
+                    "example": 587
+                },
+                "smtp_security": {
+                    "type": "string",
+                    "example": "starttls"
+                },
+                "smtp_username": {
+                    "type": "string",
+                    "example": "mailer@example.com"
+                }
+            }
+        },
         "admin.errorBody": {
             "type": "object",
             "properties": {
@@ -6367,6 +6709,15 @@ const docTemplate = `{
                 }
             }
         },
+        "admin.testEmailLoginSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "recipient_email": {
+                    "type": "string",
+                    "example": "admin@example.com"
+                }
+            }
+        },
         "admin.thirdPartyProviderEnvelope": {
             "type": "object",
             "properties": {
@@ -6448,6 +6799,35 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "admin.updateEmailLoginSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "from_email": {
+                    "type": "string"
+                },
+                "from_name": {
+                    "type": "string"
+                },
+                "smtp_host": {
+                    "type": "string"
+                },
+                "smtp_password": {
+                    "type": "string"
+                },
+                "smtp_port": {
+                    "type": "integer"
+                },
+                "smtp_security": {
+                    "type": "string"
+                },
+                "smtp_username": {
                     "type": "string"
                 }
             }
@@ -7155,6 +7535,19 @@ const docTemplate = `{
                 }
             }
         },
+        "client.emailCodeLoginRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "01234567"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
         "client.errorBody": {
             "type": "object",
             "properties": {
@@ -7336,6 +7729,10 @@ const docTemplate = `{
                     "example": "即应"
                 },
                 "authenticated": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "email_code_login_enabled": {
                     "type": "boolean",
                     "example": false
                 },
@@ -7855,6 +8252,28 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/client.temporaryFileReadURLResponse"
                     }
+                }
+            }
+        },
+        "client.requestEmailCodeRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
+        "client.requestEmailCodeResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in_seconds": {
+                    "type": "integer",
+                    "example": 900
+                },
+                "retry_after_seconds": {
+                    "type": "integer",
+                    "example": 5
                 }
             }
         },

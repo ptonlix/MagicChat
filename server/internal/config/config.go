@@ -3,26 +3,24 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Admin    AdminConfig    `yaml:"admin"`
-	Storage  StorageConfig  `yaml:"storage"`
-	Apps     AppsConfig     `yaml:"apps"`
+	Server   ServerConfig
+	Database DatabaseConfig
+	Admin    AdminConfig
+	Storage  StorageConfig
+	Apps     AppsConfig
 }
 
 type ServerConfig struct {
-	Addr            string `yaml:"addr"`
-	PublicHostname  string `yaml:"-"`
-	ClientHTTPSPort uint16 `yaml:"-"`
-	AdminHTTPSPort  uint16 `yaml:"-"`
+	PublicHostname  string
+	ClientHTTPSPort uint16
+	AdminHTTPSPort  uint16
 }
 
 func (c ServerConfig) ClientOrigin() string {
@@ -34,88 +32,84 @@ func (c ServerConfig) AdminOrigin() string {
 }
 
 type DatabaseConfig struct {
-	DSN string `yaml:"dsn"`
+	DSN string
 }
 
 type AdminConfig struct {
-	Password string `yaml:"password"`
+	Password string
 }
 
 type AppsConfig struct {
-	AIAssistantSecret string `yaml:"ai_assistant_secret"`
+	AIAssistantSecret string
 }
 
 type StorageConfig struct {
-	Provider        string                 `yaml:"provider"`
-	Endpoint        string                 `yaml:"endpoint"`
-	Region          string                 `yaml:"region"`
-	AccessKeyID     string                 `yaml:"access_key_id"`
-	SecretAccessKey string                 `yaml:"secret_access_key"`
-	ForcePathStyle  bool                   `yaml:"force_path_style"`
-	Buckets         StorageBucketsConfig   `yaml:"buckets"`
-	Lifecycle       StorageLifecycleConfig `yaml:"lifecycle"`
-	AssetsHostname  string                 `yaml:"-"`
+	Provider        string
+	Endpoint        string
+	Region          string
+	AccessKeyID     string
+	SecretAccessKey string
+	ForcePathStyle  bool
+	Buckets         StorageBucketsConfig
+	Lifecycle       StorageLifecycleConfig
+	AssetHostnames  StorageAssetHostnamesConfig
+}
+
+type StorageAssetHostnamesConfig struct {
+	Public    string
+	Private   string
+	Temporary string
 }
 
 type StorageBucketsConfig struct {
-	Public    string `yaml:"public"`
-	Private   string `yaml:"private"`
-	Temporary string `yaml:"temporary"`
+	Public    string
+	Private   string
+	Temporary string
 }
 
 type StorageLifecycleConfig struct {
-	TemporaryExpireDays int32 `yaml:"temporary_expire_days"`
-	AbortMultipartDays  int32 `yaml:"abort_multipart_days"`
+	TemporaryExpireDays int32
+	AbortMultipartDays  int32
 }
 
 func Load() (Config, error) {
-	path := os.Getenv("CONFIG")
-	if strings.TrimSpace(path) == "" {
-		path = "config.yaml"
-	}
+	cfg := Config{}
 
-	content, err := os.ReadFile(path)
+	database, err := loadDatabaseConfig()
 	if err != nil {
-		return Config{}, fmt.Errorf("read config file: %w", err)
-	}
-
-	cfg := Config{
-		Server: ServerConfig{Addr: ":20080"},
-	}
-	if err := yaml.Unmarshal(content, &cfg); err != nil {
-		return Config{}, fmt.Errorf("parse config file: %w", err)
-	}
-
-	if strings.TrimSpace(cfg.Server.Addr) == "" {
-		cfg.Server.Addr = ":20080"
-	}
-	if strings.TrimSpace(cfg.Database.DSN) == "" {
-		return Config{}, fmt.Errorf("database.dsn is required")
-	}
-	if strings.TrimSpace(cfg.Admin.Password) == "" {
-		return Config{}, fmt.Errorf("admin.password is required")
-	}
-	if err := normalizePublicEndpoints(&cfg); err != nil {
 		return Config{}, err
 	}
-	if err := normalizeAppsConfig(&cfg.Apps); err != nil {
+	cfg.Database = database
+	if cfg.Admin.Password, err = requiredEnv("ADMIN_PASSWORD"); err != nil {
 		return Config{}, err
 	}
-	if err := normalizeStorageConfig(&cfg.Storage); err != nil {
+	if cfg.Apps.AIAssistantSecret, err = requiredEnv("AI_ASSISTANT_SECRET"); err != nil {
+		return Config{}, err
+	}
+	storage, err := loadStorageConfig()
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Storage = storage
+	if err := loadPublicEndpoints(&cfg); err != nil {
 		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func normalizePublicEndpoints(cfg *Config) error {
-	cfg.Server.PublicHostname = strings.TrimSpace(firstNonEmptyEnv("PUBLIC_HOSTNAME"))
-	cfg.Storage.AssetsHostname = strings.TrimSpace(firstNonEmptyEnv("ASSETS_HOSTNAME"))
-
-	if err := validateHostnameEnv("PUBLIC_HOSTNAME", cfg.Server.PublicHostname); err != nil {
+func loadPublicEndpoints(cfg *Config) error {
+	var err error
+	if cfg.Server.PublicHostname, err = requiredHostnameEnv("PUBLIC_HOSTNAME"); err != nil {
 		return err
 	}
-	if err := validateHostnameEnv("ASSETS_HOSTNAME", cfg.Storage.AssetsHostname); err != nil {
+	if cfg.Storage.AssetHostnames.Public, err = requiredHostnameEnv("PUBLIC_ASSETS_HOSTNAME"); err != nil {
+		return err
+	}
+	if cfg.Storage.AssetHostnames.Private, err = requiredHostnameEnv("PRIVATE_ASSETS_HOSTNAME"); err != nil {
+		return err
+	}
+	if cfg.Storage.AssetHostnames.Temporary, err = requiredHostnameEnv("TEMPORARY_ASSETS_HOSTNAME"); err != nil {
 		return err
 	}
 
@@ -136,19 +130,114 @@ func normalizePublicEndpoints(cfg *Config) error {
 	return nil
 }
 
-func validateHostnameEnv(name string, value string) error {
-	if value == "" {
-		return fmt.Errorf("%s is required", name)
+func loadDatabaseConfig() (DatabaseConfig, error) {
+	database, err := requiredEnv("POSTGRES_DB")
+	if err != nil {
+		return DatabaseConfig{}, err
 	}
+	user, err := requiredEnv("POSTGRES_USER")
+	if err != nil {
+		return DatabaseConfig{}, err
+	}
+	password, err := requiredEnv("POSTGRES_PASSWORD")
+	if err != nil {
+		return DatabaseConfig{}, err
+	}
+	host := strings.TrimSpace(os.Getenv("POSTGRES_HOST"))
+	if host == "" {
+		host = "localhost"
+	}
+	if err := validateHostname("POSTGRES_HOST", host); err != nil {
+		return DatabaseConfig{}, err
+	}
+
+	dsn := (&url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(user, password),
+		Host:     net.JoinHostPort(host, "5432"),
+		Path:     "/" + database,
+		RawQuery: "sslmode=disable",
+	}).String()
+	return DatabaseConfig{DSN: dsn}, nil
+}
+
+func loadStorageConfig() (StorageConfig, error) {
+	cfg := StorageConfig{Provider: "s3"}
+	var err error
+	if cfg.Endpoint, err = requiredHTTPURLEnv("AWS_ENDPOINT_URL_S3"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.Region, err = requiredEnv("AWS_REGION"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.AccessKeyID, err = requiredEnv("AWS_ACCESS_KEY_ID"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.SecretAccessKey, err = requiredEnv("AWS_SECRET_ACCESS_KEY"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.ForcePathStyle, err = boolFromEnv("S3_FORCE_PATH_STYLE", false); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.Buckets.Public, err = requiredEnv("PUBLIC_ASSETS_BUCKET"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.Buckets.Private, err = requiredEnv("PRIVATE_ASSETS_BUCKET"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.Buckets.Temporary, err = requiredEnv("TEMPORARY_ASSETS_BUCKET"); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.Lifecycle.TemporaryExpireDays, err = positiveInt32FromEnv("TEMPORARY_ASSETS_EXPIRE_DAYS", 180); err != nil {
+		return StorageConfig{}, err
+	}
+	if cfg.Lifecycle.AbortMultipartDays, err = positiveInt32FromEnv("S3_ABORT_MULTIPART_DAYS", 7); err != nil {
+		return StorageConfig{}, err
+	}
+
+	return cfg, nil
+}
+
+func requiredEnv(name string) (string, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return "", fmt.Errorf("%s is required", name)
+	}
+	return value, nil
+}
+
+func requiredHostnameEnv(name string) (string, error) {
+	value, err := requiredEnv(name)
+	if err != nil {
+		return "", err
+	}
+	if err := validateHostname(name, value); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+func validateHostname(name string, value string) error {
 	if strings.Contains(value, "://") || strings.ContainsAny(value, "/?#:\t\r\n ") {
 		return fmt.Errorf("%s must be a hostname without scheme, port, or path", name)
 	}
-
 	return nil
 }
 
+func requiredHTTPURLEnv(name string) (string, error) {
+	value, err := requiredEnv(name)
+	if err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("%s must be an HTTP(S) URL without query or fragment", name)
+	}
+	return strings.TrimRight(value, "/"), nil
+}
+
 func httpsPortFromEnv(name string, defaultPort uint16) (uint16, error) {
-	value := strings.TrimSpace(firstNonEmptyEnv(name))
+	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
 		return defaultPort, nil
 	}
@@ -159,83 +248,34 @@ func httpsPortFromEnv(name string, defaultPort uint16) (uint16, error) {
 	return uint16(port), nil
 }
 
+func boolFromEnv(name string, defaultValue bool) (bool, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be true or false", name)
+	}
+	return parsed, nil
+}
+
+func positiveInt32FromEnv(name string, defaultValue int32) (int32, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	return int32(parsed), nil
+}
+
 func httpsOrigin(hostname string, port uint16) string {
 	host := hostname
 	if port != 443 {
 		host = net.JoinHostPort(hostname, strconv.FormatUint(uint64(port), 10))
 	}
 	return "https://" + host
-}
-
-func normalizeAppsConfig(cfg *AppsConfig) error {
-	if value := firstNonEmptyEnv("AI_ASSISTANT_SECRET"); value != "" {
-		cfg.AIAssistantSecret = value
-	}
-	cfg.AIAssistantSecret = strings.TrimSpace(cfg.AIAssistantSecret)
-	if cfg.AIAssistantSecret == "" {
-		return fmt.Errorf("apps.ai_assistant_secret is required")
-	}
-
-	return nil
-}
-
-func normalizeStorageConfig(cfg *StorageConfig) error {
-	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
-	if cfg.Provider == "" {
-		return nil
-	}
-	if cfg.Provider != "s3" {
-		return fmt.Errorf("storage.provider must be s3")
-	}
-
-	cfg.Endpoint = strings.TrimSpace(cfg.Endpoint)
-	cfg.Region = strings.TrimSpace(cfg.Region)
-	cfg.AccessKeyID = strings.TrimSpace(cfg.AccessKeyID)
-	cfg.SecretAccessKey = strings.TrimSpace(cfg.SecretAccessKey)
-	cfg.Buckets.Public = strings.TrimSpace(cfg.Buckets.Public)
-	cfg.Buckets.Private = strings.TrimSpace(cfg.Buckets.Private)
-	cfg.Buckets.Temporary = strings.TrimSpace(cfg.Buckets.Temporary)
-
-	if cfg.Region == "" {
-		cfg.Region = "us-east-1"
-	}
-	if cfg.AccessKeyID == "" {
-		cfg.AccessKeyID = firstNonEmptyEnv("RUSTFS_ACCESS_KEY", "AWS_ACCESS_KEY_ID")
-	}
-	if cfg.SecretAccessKey == "" {
-		cfg.SecretAccessKey = firstNonEmptyEnv("RUSTFS_SECRET_KEY", "AWS_SECRET_ACCESS_KEY")
-	}
-	if cfg.AccessKeyID == "" {
-		return fmt.Errorf("storage.access_key_id is required")
-	}
-	if cfg.SecretAccessKey == "" {
-		return fmt.Errorf("storage.secret_access_key is required")
-	}
-	if cfg.Buckets.Public == "" {
-		return fmt.Errorf("storage.buckets.public is required")
-	}
-	if cfg.Buckets.Private == "" {
-		return fmt.Errorf("storage.buckets.private is required")
-	}
-	if cfg.Buckets.Temporary == "" {
-		return fmt.Errorf("storage.buckets.temporary is required")
-	}
-	if cfg.Lifecycle.TemporaryExpireDays <= 0 {
-		cfg.Lifecycle.TemporaryExpireDays = 180
-	}
-	if cfg.Lifecycle.AbortMultipartDays <= 0 {
-		cfg.Lifecycle.AbortMultipartDays = 7
-	}
-
-	return nil
-}
-
-func firstNonEmptyEnv(names ...string) string {
-	for _, name := range names {
-		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-			return value
-		}
-	}
-
-	return ""
 }

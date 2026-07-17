@@ -14,9 +14,9 @@ import (
 )
 
 type Client struct {
-	cfg     appconfig.StorageConfig
-	presign *s3.PresignClient
-	s3      *s3.Client
+	cfg              appconfig.StorageConfig
+	temporaryPresign *s3.PresignClient
+	s3               *s3.Client
 }
 
 func New(ctx context.Context, cfg appconfig.StorageConfig) (*Client, error) {
@@ -47,16 +47,44 @@ func New(ctx context.Context, cfg appconfig.StorageConfig) (*Client, error) {
 		}
 		options.UsePathStyle = cfg.ForcePathStyle
 	})
-	presignClient := s3.NewPresignClient(s3.NewFromConfig(awsCfg, func(options *s3.Options) {
-		if strings.TrimSpace(cfg.AssetsHostname) != "" {
-			options.BaseEndpoint = aws.String("https://" + strings.TrimSpace(cfg.AssetsHostname))
-		}
-		options.UsePathStyle = cfg.ForcePathStyle
-	}))
+	temporaryPresignClient := newBucketPresignClient(
+		awsCfg,
+		cfg,
+		cfg.Buckets.Temporary,
+		cfg.AssetHostnames.Temporary,
+	)
 
 	return &Client{
-		cfg:     cfg,
-		presign: presignClient,
-		s3:      client,
+		cfg:              cfg,
+		temporaryPresign: temporaryPresignClient,
+		s3:               client,
 	}, nil
+}
+
+func newBucketPresignClient(
+	awsCfg aws.Config,
+	cfg appconfig.StorageConfig,
+	bucket string,
+	hostname string,
+) *s3.PresignClient {
+	baseEndpoint := strings.TrimSpace(cfg.Endpoint)
+	hostname = strings.TrimSpace(hostname)
+	bucket = strings.TrimSpace(bucket)
+
+	if cfg.ForcePathStyle {
+		baseEndpoint = "https://" + hostname
+	} else if suffix, ok := strings.CutPrefix(hostname, bucket+"."); ok {
+		// Virtual-host-style S3 clients add the bucket to the endpoint host. COS
+		// exposes bucket-specific hosts, so derive their shared regional endpoint
+		// before asking the SDK to sign the request.
+		baseEndpoint = "https://" + suffix
+	}
+
+	client := s3.NewFromConfig(awsCfg, func(options *s3.Options) {
+		if baseEndpoint != "" {
+			options.BaseEndpoint = aws.String(baseEndpoint)
+		}
+		options.UsePathStyle = cfg.ForcePathStyle
+	})
+	return s3.NewPresignClient(client)
 }

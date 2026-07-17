@@ -26,7 +26,7 @@ RUN pnpm build
 FROM nginx:stable-alpine
 
 COPY deploy/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY deploy/nginx/templates /etc/nginx/templates
+COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=client-build /src/client-web/dist /usr/share/nginx/client
 COPY --from=admin-build /src/admin-web/dist /usr/share/nginx/admin
 

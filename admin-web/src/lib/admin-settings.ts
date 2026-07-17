@@ -23,6 +23,18 @@ type InfoSettingsResponse = {
   organization_name?: string
 }
 
+type EmailLoginSettingsResponse = {
+  enabled?: boolean
+  from_email?: string
+  from_name?: string
+  smtp_host?: string
+  smtp_password?: string
+  smtp_password_configured?: boolean
+  smtp_port?: number
+  smtp_security?: SMTPSecurity
+  smtp_username?: string
+}
+
 type ThirdPartyLoginProviderResponse = {
   callback_url?: string
   client_id?: string
@@ -41,6 +53,25 @@ export type InfoSettings = {
   appName: string
   organizationName: string
 }
+
+export type SMTPSecurity = "none" | "starttls" | "tls"
+
+export type EmailLoginSettings = {
+  enabled: boolean
+  fromEmail: string
+  fromName: string
+  smtpHost: string
+  smtpPassword: string
+  smtpPasswordConfigured: boolean
+  smtpPort: number
+  smtpSecurity: SMTPSecurity
+  smtpUsername: string
+}
+
+export type UpdateEmailLoginSettingsInput = Omit<
+  EmailLoginSettings,
+  "smtpPasswordConfigured"
+>
 
 export type ThirdPartyLoginProviderType =
   | "dingtalk"
@@ -137,6 +168,92 @@ export async function updateInfoSettings(
   )?.data
 
   return normalizeInfoSettings(data)
+}
+
+export async function getEmailLoginSettings(
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher("/api/admin/settings/email-login", {
+    credentials: "include",
+    method: "GET",
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<EmailLoginSettingsResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "加载邮箱登录设置失败")
+  }
+
+  const data = (
+    payload as
+      | AdminSettingsSuccessEnvelope<EmailLoginSettingsResponse>
+      | undefined
+  )?.data
+
+  return normalizeEmailLoginSettings(data)
+}
+
+export async function updateEmailLoginSettings(
+  input: UpdateEmailLoginSettingsInput,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher("/api/admin/settings/email-login", {
+    body: JSON.stringify({
+      enabled: input.enabled,
+      from_email: input.fromEmail.trim(),
+      from_name: input.fromName.trim(),
+      smtp_host: input.smtpHost.trim(),
+      smtp_password: input.smtpPassword,
+      smtp_port: input.smtpPort,
+      smtp_security: input.smtpSecurity,
+      smtp_username: input.smtpUsername.trim(),
+    }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PUT",
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<EmailLoginSettingsResponse>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "保存邮箱登录设置失败")
+  }
+
+  const data = (
+    payload as
+      | AdminSettingsSuccessEnvelope<EmailLoginSettingsResponse>
+      | undefined
+  )?.data
+
+  return normalizeEmailLoginSettings(data)
+}
+
+export async function testEmailLoginSettings(
+  recipientEmail: string,
+  fetcher: AdminSettingsFetch = adminFetch
+) {
+  const response = await fetcher("/api/admin/settings/email-login/test", {
+    body: JSON.stringify({ recipient_email: recipientEmail.trim() }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  })
+  const payload = await readJson<
+    | AdminSettingsErrorEnvelope
+    | AdminSettingsSuccessEnvelope<Record<string, never>>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "发送 SMTP 测试邮件失败")
+  }
 }
 
 export async function listThirdPartyLoginProviders(
@@ -367,6 +484,41 @@ function normalizeInfoSettings(
     appName: settings.app_name,
     organizationName: settings.organization_name,
   }
+}
+
+function normalizeEmailLoginSettings(
+  settings: EmailLoginSettingsResponse | undefined
+): EmailLoginSettings {
+  if (
+    !settings ||
+    typeof settings.enabled !== "boolean" ||
+    typeof settings.smtp_host !== "string" ||
+    typeof settings.smtp_port !== "number" ||
+    !isSMTPSecurity(settings.smtp_security) ||
+    typeof settings.smtp_username !== "string" ||
+    typeof settings.smtp_password !== "string" ||
+    typeof settings.smtp_password_configured !== "boolean" ||
+    typeof settings.from_email !== "string" ||
+    typeof settings.from_name !== "string"
+  ) {
+    throw new AdminSettingsRequestError("邮箱登录设置响应格式不正确")
+  }
+
+  return {
+    enabled: settings.enabled,
+    fromEmail: settings.from_email,
+    fromName: settings.from_name,
+    smtpHost: settings.smtp_host,
+    smtpPassword: settings.smtp_password,
+    smtpPasswordConfigured: settings.smtp_password_configured,
+    smtpPort: settings.smtp_port,
+    smtpSecurity: settings.smtp_security,
+    smtpUsername: settings.smtp_username,
+  }
+}
+
+function isSMTPSecurity(value: unknown): value is SMTPSecurity {
+  return value === "none" || value === "starttls" || value === "tls"
 }
 
 function normalizeThirdPartyLoginProviderList(

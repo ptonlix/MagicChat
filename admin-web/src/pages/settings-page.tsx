@@ -2,12 +2,14 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   EyeIcon,
+  EyeOffIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   PowerIcon,
   PowerOffIcon,
   SaveIcon,
+  SendIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react"
@@ -31,15 +33,36 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 import {
   AdminSettingsRequestError,
   createThirdPartyLoginProvider,
   deleteThirdPartyLoginProvider,
   disableThirdPartyLoginProvider,
   enableThirdPartyLoginProvider,
+  getEmailLoginSettings,
   getInfoSettings,
   listThirdPartyLoginProviders,
   moveThirdPartyLoginProvider,
@@ -47,6 +70,10 @@ import {
   type ThirdPartyLoginProviderInput,
   type ThirdPartyLoginProviderMoveDirection,
   type ThirdPartyLoginProviderType,
+  type EmailLoginSettings,
+  type SMTPSecurity,
+  testEmailLoginSettings,
+  updateEmailLoginSettings,
   updateInfoSettings,
   updateThirdPartyLoginProvider,
 } from "@/lib/admin-settings"
@@ -340,111 +367,459 @@ export default function SettingsPage() {
 
   return (
     <div className={getSettingsPageLayoutClassName()}>
-      <Card className={getSettingsCardClassName()}>
-        <CardHeader>
-          <CardTitle>基础信息</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-            <FieldGroup className="gap-4">
-              <Field>
-                <FieldLabel htmlFor={appNameId}>应用名称</FieldLabel>
-                <Input
-                  disabled={isLoading || isSaving}
-                  id={appNameId}
-                  onChange={(event) => setAppName(event.target.value)}
-                  required
-                  value={appName}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={organizationNameId}>组织名称</FieldLabel>
-                <Input
-                  disabled={isLoading || isSaving}
-                  id={organizationNameId}
-                  onChange={(event) => setOrganizationName(event.target.value)}
-                  required
-                  value={organizationName}
-                />
-              </Field>
-            </FieldGroup>
-
-            <div className="flex justify-end">
-              <Button disabled={isSubmitDisabled} type="submit">
-                {isSaving ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <SaveIcon data-icon="inline-start" />
-                )}
-                保存设置
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-      <Card className={getSettingsCardClassName()}>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle>第三方登录</CardTitle>
-            <ThirdPartyProviderAddMenu
-              disabled={isLoading}
-              onSelect={openCreateProviderForm}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            {providers.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                暂无第三方登录方式
-              </div>
-            ) : (
-              providers.map((provider, index) => (
-                <div
-                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                  key={provider.id}
-                >
-                  <div
-                    className={getThirdPartyProviderTextClassName(
-                      provider.enabled
-                    )}
-                  >
-                    <div className="truncate text-sm font-medium">
-                      {provider.name}
-                      {provider.enabled ? "" : " · 已禁用"}
-                    </div>
-                  </div>
-                  <ThirdPartyProviderActions
-                    isFirst={index === 0}
-                    isLast={index === providers.length - 1}
-                    isUpdating={updatingProviderId === provider.id}
-                    onDelete={handleProviderDelete}
-                    onEdit={openEditProviderForm}
-                    onMove={handleProviderMove}
-                    onStatusChange={handleProviderStatusChange}
-                    onViewCallback={setCallbackProvider}
-                    provider={provider}
+      <div className="flex min-w-0 flex-col gap-4">
+        <Card className={getSettingsCardClassName()}>
+          <CardHeader>
+            <CardTitle>基础信息</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+              <FieldGroup className="gap-4">
+                <Field>
+                  <FieldLabel htmlFor={appNameId}>应用名称</FieldLabel>
+                  <Input
+                    disabled={isLoading || isSaving}
+                    id={appNameId}
+                    onChange={(event) => setAppName(event.target.value)}
+                    required
+                    value={appName}
                   />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={organizationNameId}>组织名称</FieldLabel>
+                  <Input
+                    disabled={isLoading || isSaving}
+                    id={organizationNameId}
+                    onChange={(event) =>
+                      setOrganizationName(event.target.value)
+                    }
+                    required
+                    value={organizationName}
+                  />
+                </Field>
+              </FieldGroup>
+
+              <div className="flex justify-end">
+                <Button disabled={isSubmitDisabled} type="submit">
+                  {isSaving ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : (
+                    <SaveIcon data-icon="inline-start" />
+                  )}
+                  保存设置
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+        <Card className={getSettingsCardClassName()}>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>第三方登录</CardTitle>
+              <ThirdPartyProviderAddMenu
+                disabled={isLoading}
+                onSelect={openCreateProviderForm}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              {providers.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  暂无第三方登录方式
                 </div>
-              ))
-            )}
-          </div>
-          <ThirdPartyCallbackURLDialog
-            onOpenChange={handleCallbackDialogOpenChange}
-            provider={callbackProvider}
-          />
-          <ThirdPartyProviderDialog
-            disabled={isLoading}
-            editingProvider={editingProvider}
-            onOpenChange={handleProviderDialogOpenChange}
-            onProviderSaved={handleProviderSaved}
-            open={isProviderDialogOpen}
-            providerType={dialogProviderType}
-          />
-        </CardContent>
-      </Card>
+              ) : (
+                providers.map((provider, index) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                    key={provider.id}
+                  >
+                    <div
+                      className={getThirdPartyProviderTextClassName(
+                        provider.enabled
+                      )}
+                    >
+                      <div className="truncate text-sm font-medium">
+                        {provider.name}
+                        {provider.enabled ? "" : " · 已禁用"}
+                      </div>
+                    </div>
+                    <ThirdPartyProviderActions
+                      isFirst={index === 0}
+                      isLast={index === providers.length - 1}
+                      isUpdating={updatingProviderId === provider.id}
+                      onDelete={handleProviderDelete}
+                      onEdit={openEditProviderForm}
+                      onMove={handleProviderMove}
+                      onStatusChange={handleProviderStatusChange}
+                      onViewCallback={setCallbackProvider}
+                      provider={provider}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+            <ThirdPartyCallbackURLDialog
+              onOpenChange={handleCallbackDialogOpenChange}
+              provider={callbackProvider}
+            />
+            <ThirdPartyProviderDialog
+              disabled={isLoading}
+              editingProvider={editingProvider}
+              onOpenChange={handleProviderDialogOpenChange}
+              onProviderSaved={handleProviderSaved}
+              open={isProviderDialogOpen}
+              providerType={dialogProviderType}
+            />
+          </CardContent>
+        </Card>
+      </div>
+      <EmailLoginSettingsCard />
     </div>
   )
+}
+
+const defaultEmailLoginSettings: EmailLoginSettings = {
+  enabled: false,
+  fromEmail: "",
+  fromName: "",
+  smtpHost: "",
+  smtpPassword: "",
+  smtpPasswordConfigured: false,
+  smtpPort: 587,
+  smtpSecurity: "starttls",
+  smtpUsername: "",
+}
+
+function EmailLoginSettingsCard() {
+  const enabledId = useId()
+  const fromEmailId = useId()
+  const fromNameId = useId()
+  const hostId = useId()
+  const passwordId = useId()
+  const portId = useId()
+  const securityId = useId()
+  const usernameId = useId()
+  const [settings, setSettings] = useState(defaultEmailLoginSettings)
+  const [testRecipient, setTestRecipient] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isTesting, setIsTesting] = useState(false)
+  const [showSMTPPassword, setShowSMTPPassword] = useState(false)
+
+  useEffect(() => {
+    let ignore = false
+
+    async function load() {
+      try {
+        const loaded = await getEmailLoginSettings()
+        if (!ignore) {
+          setSettings(loaded)
+          setTestRecipient(loaded.fromEmail)
+        }
+      } catch (error) {
+        if (!ignore) {
+          toast.error(
+            error instanceof AdminSettingsRequestError
+              ? error.message
+              : "加载邮箱登录设置失败"
+          )
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSaving(true)
+
+    try {
+      const updated = await updateEmailLoginSettings(settings)
+      setSettings(updated)
+      toast.success("邮箱登录设置已保存")
+    } catch (error) {
+      toast.error(
+        error instanceof AdminSettingsRequestError
+          ? error.message
+          : "保存邮箱登录设置失败"
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleTestSMTP() {
+    if (testRecipient.trim() === "") {
+      toast.error("请输入测试收件邮箱")
+      return
+    }
+    setIsTesting(true)
+    try {
+      await testEmailLoginSettings(testRecipient)
+      toast.success("SMTP 测试邮件已发送")
+    } catch (error) {
+      toast.error(
+        error instanceof AdminSettingsRequestError
+          ? error.message
+          : "发送 SMTP 测试邮件失败"
+      )
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
+  const disabled = isLoading || isSaving || isTesting
+
+  return (
+    <Card className={getSettingsCardClassName()}>
+      <CardHeader>
+        <CardTitle>邮箱验证码登录</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+          <Field orientation="horizontal">
+            <div className="flex flex-1 flex-col gap-1">
+              <FieldLabel htmlFor={enabledId}>启用邮箱验证码登录</FieldLabel>
+              <FieldDescription>
+                启用后，用户可以通过 8 位邮箱验证码登录，验证码 15 分钟内有效。
+              </FieldDescription>
+            </div>
+            <Switch
+              checked={settings.enabled}
+              disabled={disabled}
+              id={enabledId}
+              onCheckedChange={(enabled) =>
+                setSettings((current) => ({ ...current, enabled }))
+              }
+            />
+          </Field>
+
+          <FieldGroup className="gap-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_9rem]">
+              <Field>
+                <FieldLabel htmlFor={hostId}>SMTP 主机</FieldLabel>
+                <Input
+                  disabled={disabled}
+                  id={hostId}
+                  onChange={(event) =>
+                    setSettings((current) => ({
+                      ...current,
+                      smtpHost: event.target.value,
+                    }))
+                  }
+                  placeholder="smtp.example.com"
+                  required={settings.enabled}
+                  value={settings.smtpHost}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={portId}>端口</FieldLabel>
+                <Input
+                  disabled={disabled}
+                  id={portId}
+                  max={65535}
+                  min={1}
+                  onChange={(event) =>
+                    setSettings((current) => ({
+                      ...current,
+                      smtpPort: Number(event.target.value),
+                    }))
+                  }
+                  required
+                  type="number"
+                  value={settings.smtpPort}
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel htmlFor={securityId}>连接安全</FieldLabel>
+              <Select
+                disabled={disabled}
+                onValueChange={(smtpSecurity) => {
+                  setSettings((current) => ({
+                    ...current,
+                    smtpSecurity: smtpSecurity as SMTPSecurity,
+                    ...(smtpSecurity === "none"
+                      ? {
+                          smtpPassword: "",
+                          smtpPasswordConfigured: false,
+                          smtpUsername: "",
+                        }
+                      : {}),
+                  }))
+                }}
+                value={settings.smtpSecurity}
+              >
+                <SelectTrigger className="w-full" id={securityId}>
+                  <SelectValue>
+                    {getSMTPSecurityLabel(settings.smtpSecurity)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value="starttls">STARTTLS（推荐）</SelectItem>
+                    <SelectItem value="tls">TLS</SelectItem>
+                    <SelectItem disabled={settings.enabled} value="none">
+                      无加密
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor={usernameId}>SMTP 用户名</FieldLabel>
+                <Input
+                  autoComplete="username"
+                  disabled={disabled || settings.smtpSecurity === "none"}
+                  id={usernameId}
+                  onChange={(event) =>
+                    setSettings((current) => ({
+                      ...current,
+                      smtpUsername: event.target.value,
+                    }))
+                  }
+                  placeholder="请输入 SMTP 用户名"
+                  required={settings.enabled}
+                  value={settings.smtpUsername}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={passwordId}>SMTP 密码</FieldLabel>
+                <InputGroup>
+                  <InputGroupInput
+                    autoComplete="new-password"
+                    disabled={disabled || settings.smtpSecurity === "none"}
+                    id={passwordId}
+                    onChange={(event) =>
+                      setSettings((current) => ({
+                        ...current,
+                        smtpPassword: event.target.value,
+                        smtpPasswordConfigured: event.target.value !== "",
+                      }))
+                    }
+                    placeholder="请输入 SMTP 密码"
+                    required={settings.enabled}
+                    type={showSMTPPassword ? "text" : "password"}
+                    value={settings.smtpPassword}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      aria-label={showSMTPPassword ? "隐藏密码" : "显示密码"}
+                      aria-pressed={showSMTPPassword}
+                      disabled={disabled || settings.smtpSecurity === "none"}
+                      onClick={() => setShowSMTPPassword((visible) => !visible)}
+                      size="icon-xs"
+                    >
+                      {showSMTPPassword ? <EyeOffIcon /> : <EyeIcon />}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+              </Field>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor={fromEmailId}>发件人邮箱</FieldLabel>
+                <Input
+                  disabled={disabled}
+                  id={fromEmailId}
+                  onChange={(event) =>
+                    setSettings((current) => ({
+                      ...current,
+                      fromEmail: event.target.value,
+                    }))
+                  }
+                  placeholder="mailer@example.com"
+                  required={settings.enabled}
+                  type="email"
+                  value={settings.fromEmail}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={fromNameId}>发件人名称</FieldLabel>
+                <Input
+                  disabled={disabled}
+                  id={fromNameId}
+                  onChange={(event) =>
+                    setSettings((current) => ({
+                      ...current,
+                      fromName: event.target.value,
+                    }))
+                  }
+                  placeholder="留空时使用应用名称"
+                  value={settings.fromName}
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel htmlFor={`${fromEmailId}-test`}>
+                测试收件邮箱
+              </FieldLabel>
+              <Input
+                disabled={disabled}
+                id={`${fromEmailId}-test`}
+                onChange={(event) => setTestRecipient(event.target.value)}
+                placeholder="admin@example.com"
+                type="email"
+                value={testRecipient}
+              />
+              <FieldDescription>
+                测试使用已经保存的 SMTP 配置；修改配置后请先保存。
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              disabled={disabled || testRecipient.trim() === ""}
+              onClick={handleTestSMTP}
+              type="button"
+              variant="outline"
+            >
+              {isTesting ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <SendIcon data-icon="inline-start" />
+              )}
+              发送测试邮件
+            </Button>
+            <Button disabled={disabled} type="submit">
+              {isSaving ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <SaveIcon data-icon="inline-start" />
+              )}
+              保存邮箱设置
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function getSMTPSecurityLabel(value: SMTPSecurity) {
+  switch (value) {
+    case "starttls":
+      return "STARTTLS（推荐）"
+    case "tls":
+      return "TLS"
+    case "none":
+      return "无加密"
+  }
 }
 
 function ThirdPartyProviderAddMenu({

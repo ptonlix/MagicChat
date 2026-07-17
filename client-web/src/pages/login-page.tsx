@@ -6,11 +6,20 @@ import { Button } from "@/components/ui/button"
 import { LoginForm } from "@/components/login-form"
 import { Separator } from "@/components/ui/separator"
 import { useAppInfo } from "@/lib/app-info-context"
-import { clientLogin } from "@/lib/client-auth"
+import {
+  clientEmailCodeLogin,
+  clientLogin,
+  requestClientEmailCode,
+} from "@/lib/client-auth"
 
 export function LoginPage() {
-  const { appName, authenticated, organizationName, thirdPartyProviders } =
-    useAppInfo()
+  const {
+    appName,
+    authenticated,
+    emailCodeLoginEnabled,
+    organizationName,
+    thirdPartyProviders,
+  } = useAppInfo()
   const navigate = useNavigate()
   const hasThirdPartyProviders = thirdPartyProviders.length > 0
 
@@ -28,6 +37,18 @@ export function LoginPage() {
     navigate("/init", { replace: true })
   }
 
+  async function handleEmailCodeLogin(credentials: {
+    code: string
+    email: string
+  }) {
+    await clientEmailCodeLogin(credentials)
+    navigate("/init", { replace: true })
+  }
+
+  async function handleRequestEmailCode(email: string) {
+    return requestClientEmailCode(email)
+  }
+
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       <main className="flex flex-1 items-center justify-center px-4 py-10">
@@ -43,7 +64,10 @@ export function LoginPage() {
           </div>
           <LoginForm
             className="w-full"
+            emailCodeLoginEnabled={emailCodeLoginEnabled}
+            onEmailCodeLogin={handleEmailCodeLogin}
             onLogin={handleLogin}
+            onRequestEmailCode={handleRequestEmailCode}
             submitVariant={hasThirdPartyProviders ? "outline" : "default"}
           >
             {hasThirdPartyProviders && (

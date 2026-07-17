@@ -17,10 +17,11 @@ type InfoAPI struct {
 }
 
 type infoSettingsResponse struct {
-	AppName             string                             `json:"app_name" example:"即应"`
-	Authenticated       *bool                              `json:"authenticated,omitempty" example:"false"`
-	OrganizationName    string                             `json:"organization_name" example:"长亭科技"`
-	ThirdPartyProviders []publicThirdPartyProviderResponse `json:"third_party_providers"`
+	AppName               string                             `json:"app_name" example:"即应"`
+	Authenticated         *bool                              `json:"authenticated,omitempty" example:"false"`
+	EmailCodeLoginEnabled bool                               `json:"email_code_login_enabled" example:"false"`
+	OrganizationName      string                             `json:"organization_name" example:"长亭科技"`
+	ThirdPartyProviders   []publicThirdPartyProviderResponse `json:"third_party_providers"`
 }
 
 type publicThirdPartyProviderResponse struct {
@@ -85,9 +86,10 @@ func newClientInfoSettingsResponse(info settingsapp.PublicInfo, authenticated bo
 		providers = append(providers, publicThirdPartyProviderResponse{Key: provider.Key, Name: provider.Name})
 	}
 	return infoSettingsResponse{
-		AppName:             info.Settings.AppName,
-		Authenticated:       &authenticated,
-		OrganizationName:    info.Settings.OrganizationName,
-		ThirdPartyProviders: providers,
+		AppName:               info.Settings.AppName,
+		Authenticated:         &authenticated,
+		EmailCodeLoginEnabled: info.EmailCodeLoginEnabled,
+		OrganizationName:      info.Settings.OrganizationName,
+		ThirdPartyProviders:   providers,
 	}
 }

@@ -52,7 +52,6 @@ func newTestRouterWithRealtimeOptions(t *testing.T, options realtime.Options) (*
 
 	router := NewRouterWithRealtimeOptions(db, config.Config{
 		Server: config.ServerConfig{
-			Addr:            ":20080",
 			PublicHostname:  "chat.example.test",
 			ClientHTTPSPort: 443,
 			AdminHTTPSPort:  1443,
@@ -4588,7 +4587,6 @@ func TestCreateConversationTextMessageDoesNotLogRecordNotFoundForFreshClientMess
 
 	router := NewRouterWithRealtimeOptions(db, config.Config{
 		Server: config.ServerConfig{
-			Addr:            ":20080",
 			PublicHostname:  "chat.example.test",
 			ClientHTTPSPort: 443,
 			AdminHTTPSPort:  1443,

@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -64,10 +65,11 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCommand) (Settings, erro
 }
 
 func (s *Service) GetPublicInfo(ctx context.Context) (PublicInfo, error) {
-	value, err := s.Get(ctx)
+	stored, err := s.getOrCreate(ctx)
 	if err != nil {
-		return PublicInfo{}, err
+		return PublicInfo{}, internalError(err)
 	}
+	value := newSettings(stored)
 	var providers []store.ThirdPartyLoginProvider
 	if err := s.db.WithContext(ctx).
 		Where("enabled = ?", true).
@@ -80,7 +82,66 @@ func (s *Service) GetPublicInfo(ctx context.Context) (PublicInfo, error) {
 	for _, provider := range providers {
 		result = append(result, PublicProvider{Key: provider.Key, Name: provider.Name})
 	}
-	return PublicInfo{Settings: value, Providers: result}, nil
+	return PublicInfo{
+		Settings:              value,
+		Providers:             result,
+		EmailCodeLoginEnabled: stored.EmailCodeLoginEnabled,
+	}, nil
+}
+
+func (s *Service) GetEmailLogin(ctx context.Context) (EmailLoginSettings, error) {
+	value, err := s.getOrCreate(ctx)
+	if err != nil {
+		return EmailLoginSettings{}, internalError(err)
+	}
+	return newEmailLoginSettings(value), nil
+}
+
+func (s *Service) UpdateEmailLogin(ctx context.Context, cmd UpdateEmailLoginCommand) (EmailLoginSettings, error) {
+	stored, err := s.getOrCreate(ctx)
+	if err != nil {
+		return EmailLoginSettings{}, internalError(err)
+	}
+
+	value := EmailLoginSettings{
+		Enabled:      cmd.Enabled,
+		SMTPHost:     strings.TrimSpace(cmd.SMTPHost),
+		SMTPPort:     cmd.SMTPPort,
+		SMTPSecurity: strings.ToLower(strings.TrimSpace(cmd.SMTPSecurity)),
+		SMTPUsername: strings.TrimSpace(cmd.SMTPUsername),
+		SMTPPassword: stored.SMTPPassword,
+		FromEmail:    strings.ToLower(strings.TrimSpace(cmd.FromEmail)),
+		FromName:     strings.TrimSpace(cmd.FromName),
+	}
+	if cmd.SMTPPassword != nil {
+		value.SMTPPassword = *cmd.SMTPPassword
+	}
+	if value.SMTPPort == 0 {
+		value.SMTPPort = 587
+	}
+	if value.SMTPSecurity == "" {
+		value.SMTPSecurity = SMTPSecuritySTARTTLS
+	}
+	if err := validateEmailLoginSettings(value); err != nil {
+		return EmailLoginSettings{}, err
+	}
+
+	if err := s.db.WithContext(ctx).Model(&store.AppSettings{}).
+		Where("id = ?", store.AppSettingsID).
+		Updates(map[string]any{
+			"email_code_login_enabled": value.Enabled,
+			"smtp_host":                value.SMTPHost,
+			"smtp_port":                value.SMTPPort,
+			"smtp_security":            value.SMTPSecurity,
+			"smtp_username":            value.SMTPUsername,
+			"smtp_password":            value.SMTPPassword,
+			"smtp_from_email":          value.FromEmail,
+			"smtp_from_name":           value.FromName,
+			"updated_at":               s.now().UTC(),
+		}).Error; err != nil {
+		return EmailLoginSettings{}, internalError(err)
+	}
+	return value, nil
 }
 
 func (s *Service) getOrCreate(ctx context.Context) (store.AppSettings, error) {
@@ -98,6 +159,8 @@ func (s *Service) getOrCreate(ctx context.Context) (store.AppSettings, error) {
 		ID:               store.AppSettingsID,
 		AppName:          store.DefaultAppName,
 		OrganizationName: store.DefaultOrganizationName,
+		SMTPPort:         587,
+		SMTPSecurity:     SMTPSecuritySTARTTLS,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
@@ -114,5 +177,56 @@ func newSettings(value store.AppSettings) Settings {
 	return Settings{AppName: value.AppName, OrganizationName: value.OrganizationName}
 }
 
+func newEmailLoginSettings(value store.AppSettings) EmailLoginSettings {
+	return EmailLoginSettings{
+		Enabled:      value.EmailCodeLoginEnabled,
+		SMTPHost:     value.SMTPHost,
+		SMTPPort:     value.SMTPPort,
+		SMTPSecurity: value.SMTPSecurity,
+		SMTPUsername: value.SMTPUsername,
+		SMTPPassword: value.SMTPPassword,
+		FromEmail:    value.SMTPFromEmail,
+		FromName:     value.SMTPFromName,
+	}
+}
+
+func validateEmailLoginSettings(value EmailLoginSettings) error {
+	if value.SMTPPort < 1 || value.SMTPPort > 65535 {
+		return newError(CodeInvalidRequest, "SMTP 端口必须在 1 到 65535 之间", nil)
+	}
+	switch value.SMTPSecurity {
+	case SMTPSecurityNone, SMTPSecuritySTARTTLS, SMTPSecurityTLS:
+	default:
+		return newError(CodeInvalidRequest, "SMTP 安全类型不支持", nil)
+	}
+	if (value.SMTPUsername == "") != (value.SMTPPassword == "") {
+		return newError(CodeInvalidRequest, "SMTP 用户名和密码必须同时配置", nil)
+	}
+	if value.SMTPSecurity == SMTPSecurityNone && value.SMTPUsername != "" {
+		return newError(CodeInvalidRequest, "无加密 SMTP 连接不能使用用户名密码认证", nil)
+	}
+	if !value.Enabled {
+		return nil
+	}
+	if value.SMTPHost == "" {
+		return newError(CodeInvalidRequest, "SMTP 主机不能为空", nil)
+	}
+	if strings.Contains(value.SMTPHost, "://") || strings.ContainsAny(value.SMTPHost, "/?#\t\r\n ") {
+		return newError(CodeInvalidRequest, "SMTP 主机格式错误", nil)
+	}
+	if value.SMTPUsername == "" {
+		return newError(CodeInvalidRequest, "SMTP 用户名不能为空", nil)
+	}
+	if value.SMTPPassword == "" {
+		return newError(CodeInvalidRequest, "SMTP 密码不能为空", nil)
+	}
+	address, err := mail.ParseAddress(value.FromEmail)
+	if err != nil || address.Address != value.FromEmail {
+		return newError(CodeInvalidRequest, "发件人邮箱格式错误", nil)
+	}
+	return nil
+}
+
 var _ AdminService = (*Service)(nil)
 var _ PublicService = (*Service)(nil)
+var _ EmailLoginSettingsService = (*Service)(nil)

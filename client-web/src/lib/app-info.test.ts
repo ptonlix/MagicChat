@@ -11,6 +11,7 @@ describe("client app info", () => {
           data: {
             app_name: "星环协作",
             authenticated: true,
+            email_code_login_enabled: true,
             organization_name: "长亭科技",
             third_party_providers: [
               {
@@ -34,6 +35,7 @@ describe("client app info", () => {
     expect(info).toEqual({
       appName: "星环协作",
       authenticated: true,
+      emailCodeLoginEnabled: true,
       oidcProviders: [
         {
           key: "company-sso",

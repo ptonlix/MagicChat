@@ -15,6 +15,7 @@ import (
 	appapp "app/internal/application/app"
 	contactapp "app/internal/application/contact"
 	conversationapp "app/internal/application/conversation"
+	"app/internal/application/emailauth"
 	entitycardapp "app/internal/application/entitycard"
 	externalauthapp "app/internal/application/externalauth"
 	fileapp "app/internal/application/file"
@@ -28,6 +29,7 @@ import (
 	"app/internal/config"
 	externalauthinfra "app/internal/infrastructure/externalauth"
 	"app/internal/infrastructure/filestorage"
+	mailinfra "app/internal/infrastructure/mail"
 	"app/internal/realtime"
 	"app/internal/store"
 
@@ -41,6 +43,7 @@ type Server struct {
 	cfg                 config.Config
 	accounts            *account.Service
 	clientAccounts      *clientapi.AccountAPI
+	clientEmailAuth     *clientapi.EmailAuthAPI
 	adminAuth           *adminauth.Service
 	adminAuthAPI        *adminapi.AuthAPI
 	userManagement      *usermanagement.Service
@@ -64,6 +67,7 @@ type Server struct {
 	settings            *settingsapp.Service
 	clientInfo          *clientapi.InfoAPI
 	adminSettings       *adminapi.SettingsAPI
+	adminEmailLogin     *adminapi.EmailLoginSettingsAPI
 	projects            *projectapp.Service
 	clientProjects      *clientapi.ProjectAPI
 	entityCards         entitycardapp.Resolver
@@ -123,6 +127,12 @@ func newRouter(db *gorm.DB, cfg config.Config, realtimeOptions realtime.Options,
 			c.Set(currentUserContextKey, legacyUserFromAccount(session.Account))
 		},
 	)
+	emailAuth := emailauth.NewService(emailauth.Dependencies{
+		Accounts: server.accounts, Settings: server.settings, Mailer: mailinfra.NewSMTPMailer(),
+		ClientOrigin: cfg.Server.ClientOrigin(),
+	})
+	server.clientEmailAuth = clientapi.NewEmailAuthAPI(emailAuth)
+	server.adminEmailLogin = adminapi.NewEmailLoginSettingsAPI(server.settings, emailAuth)
 	server.clientInfo = clientapi.NewInfoAPI(server.settings, server.accounts)
 	server.projects = projectapp.NewService(projectapp.Dependencies{
 		DB:    db,
@@ -199,6 +209,7 @@ func newRouter(db *gorm.DB, cfg config.Config, realtimeOptions realtime.Options,
 	}
 	server.adminAuthAPI.RegisterPublicRoutes(router)
 	server.clientAccounts.RegisterPublicRoutes(router)
+	server.clientEmailAuth.RegisterPublicRoutes(router)
 	server.clientExternalAuth.RegisterPublicRoutes(router)
 	server.clientInfo.RegisterPublicRoutes(router)
 	router.GET("/api/app/ws", server.appWebSocket)
@@ -216,6 +227,7 @@ func newRouter(db *gorm.DB, cfg config.Config, realtimeOptions realtime.Options,
 
 	admin := router.Group("/api/admin", server.adminAuthAPI.RequireSession)
 	server.adminSettings.RegisterRoutes(admin)
+	server.adminEmailLogin.RegisterRoutes(admin)
 	server.adminApps.RegisterRoutes(admin)
 	server.adminUsers.RegisterRoutes(admin)
 	server.adminProviders.RegisterRoutes(admin)

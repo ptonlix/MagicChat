@@ -74,6 +74,33 @@ definitions:
       user:
         $ref: '#/definitions/admin.userResponse'
     type: object
+  admin.emailLoginSettingsResponse:
+    properties:
+      enabled:
+        type: boolean
+      from_email:
+        example: mailer@example.com
+        type: string
+      from_name:
+        example: 即应
+        type: string
+      smtp_host:
+        example: smtp.example.com
+        type: string
+      smtp_password:
+        type: string
+      smtp_password_configured:
+        type: boolean
+      smtp_port:
+        example: 587
+        type: integer
+      smtp_security:
+        example: starttls
+        type: string
+      smtp_username:
+        example: mailer@example.com
+        type: string
+    type: object
   admin.errorBody:
     properties:
       code:
@@ -171,6 +198,12 @@ definitions:
         example: true
         type: boolean
     type: object
+  admin.testEmailLoginSettingsRequest:
+    properties:
+      recipient_email:
+        example: admin@example.com
+        type: string
+    type: object
   admin.thirdPartyProviderEnvelope:
     properties:
       provider:
@@ -225,6 +258,25 @@ definitions:
       sort_order:
         type: integer
       type:
+        type: string
+    type: object
+  admin.updateEmailLoginSettingsRequest:
+    properties:
+      enabled:
+        type: boolean
+      from_email:
+        type: string
+      from_name:
+        type: string
+      smtp_host:
+        type: string
+      smtp_password:
+        type: string
+      smtp_port:
+        type: integer
+      smtp_security:
+        type: string
+      smtp_username:
         type: string
     type: object
   admin.updateInfoSettingsRequest:
@@ -718,6 +770,15 @@ definitions:
         example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
         type: string
     type: object
+  client.emailCodeLoginRequest:
+    properties:
+      code:
+        example: "01234567"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+    type: object
   client.errorBody:
     properties:
       code:
@@ -843,6 +904,9 @@ definitions:
         example: 即应
         type: string
       authenticated:
+        example: false
+        type: boolean
+      email_code_login_enabled:
         example: false
         type: boolean
       organization_name:
@@ -1193,6 +1257,21 @@ definitions:
         items:
           $ref: '#/definitions/client.temporaryFileReadURLResponse'
         type: array
+    type: object
+  client.requestEmailCodeRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    type: object
+  client.requestEmailCodeResponse:
+    properties:
+      expires_in_seconds:
+        example: 900
+        type: integer
+      retry_after_seconds:
+        example: 5
+        type: integer
     type: object
   client.revokeConversationMessageResponse:
     properties:
@@ -1775,6 +1854,108 @@ paths:
       summary: 管理员登录
       tags:
       - 管理员认证
+  /api/admin/settings/email-login:
+    get:
+      description: 管理员读取邮箱验证码登录和完整 SMTP 设置，包括已保存的 SMTP 密码。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/admin.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/admin.emailLoginSettingsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+      summary: 获取邮箱验证码登录设置
+      tags:
+      - 管理员设置
+    put:
+      consumes:
+      - application/json
+      description: 管理员配置邮箱验证码登录和 SMTP。省略 smtp_password 时保留原密码。
+      parameters:
+      - description: 邮箱登录设置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.updateEmailLoginSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/admin.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/admin.emailLoginSettingsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+      summary: 更新邮箱验证码登录设置
+      tags:
+      - 管理员设置
+  /api/admin/settings/email-login/test:
+    post:
+      consumes:
+      - application/json
+      description: 管理员使用已保存的 SMTP 配置发送测试邮件。失败时返回可诊断的错误原因。
+      parameters:
+      - description: 测试收件邮箱
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.testEmailLoginSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.successEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/admin.errorEnvelope'
+      summary: 发送 SMTP 测试邮件
+      tags:
+      - 管理员设置
   /api/admin/settings/info:
     get:
       description: 管理员读取 App 名称和组织名称。
@@ -2729,6 +2910,92 @@ paths:
       summary: 重置应用连接密钥
       tags:
       - 客户端应用
+  /api/client/auth/email-code/login:
+    post:
+      consumes:
+      - application/json
+      description: 验证 8 位邮箱验证码，创建普通用户 Session 并写入登录 Cookie。验证码仅能使用一次。
+      parameters:
+      - description: 邮箱和验证码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.emailCodeLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.accountEnvelope'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 使用邮箱验证码登录
+      tags:
+      - 客户端认证
+  /api/client/auth/email-code/request:
+    post:
+      consumes:
+      - application/json
+      description: 请求发送 8 位登录验证码。验证码 15 分钟内有效，同一直连 IP 与邮箱组合 5 秒内不能重复发送。
+      parameters:
+      - description: 邮箱
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.requestEmailCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.requestEmailCodeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 发送邮箱登录验证码
+      tags:
+      - 客户端认证
   /api/client/auth/login:
     post:
       consumes:

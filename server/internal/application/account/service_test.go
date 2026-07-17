@@ -85,6 +85,42 @@ func TestServiceLoginDoesNotRevealDisabledOrMissingAccount(t *testing.T) {
 	}
 }
 
+func TestServiceIssuesSessionOnlyForVerifiedActiveEmail(t *testing.T) {
+	db := openAccountTestDB(t)
+	now := time.Date(2026, 7, 15, 4, 0, 0, 0, time.UTC)
+	user := insertAccountTestUser(t, db, "alice@example.com", "test-password", now)
+	service := NewService(Dependencies{
+		DB:                   db,
+		Now:                  func() time.Time { return now },
+		GenerateSessionToken: func() (string, error) { return "verified-session-token", nil },
+	})
+
+	allowed, err := service.CanLoginWithEmail(context.Background(), " Alice@Example.com ")
+	if err != nil || !allowed {
+		t.Fatalf("active email allowed = %t, error = %v", allowed, err)
+	}
+	result, err := service.LoginWithVerifiedEmail(context.Background(), VerifiedEmailLoginCommand{
+		Email: "Alice@example.com", UserAgent: "verified-email-test", IP: "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("verified login: %v", err)
+	}
+	if result.Account.ID != user.ID || result.Session.Token != "verified-session-token" {
+		t.Fatalf("verified login result = %#v", result)
+	}
+
+	if err := db.Model(&user).Update("status", store.UserStatusDisabled).Error; err != nil {
+		t.Fatalf("disable user: %v", err)
+	}
+	allowed, err = service.CanLoginWithEmail(context.Background(), user.Email)
+	if err != nil || allowed {
+		t.Fatalf("disabled email allowed = %t, error = %v", allowed, err)
+	}
+	if _, err := service.LoginWithVerifiedEmail(context.Background(), VerifiedEmailLoginCommand{Email: user.Email}); ErrorCodeOf(err) != CodeInvalidCredentials {
+		t.Fatalf("disabled verified login error = %v", err)
+	}
+}
+
 func TestServiceUpdatesProfileAndOnlineActivity(t *testing.T) {
 	db := openAccountTestDB(t)
 	now := time.Date(2026, 7, 15, 4, 0, 0, 0, time.UTC)

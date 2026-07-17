@@ -40,16 +40,21 @@ func (c *Client) PublicObjectURL(key string) (string, error) {
 	if key == "" {
 		return "", errors.New("public object key is required")
 	}
-	if strings.TrimSpace(c.cfg.AssetsHostname) == "" {
-		return "", errors.New("assets hostname is required")
+	if strings.TrimSpace(c.cfg.AssetHostnames.Public) == "" {
+		return "", errors.New("public assets hostname is required")
 	}
 	if strings.TrimSpace(c.cfg.Buckets.Public) == "" {
 		return "", errors.New("public bucket is required")
 	}
 
+	path := "/" + key
+	if c.cfg.ForcePathStyle {
+		path = "/" + strings.Trim(strings.TrimSpace(c.cfg.Buckets.Public), "/") + path
+	}
+
 	return (&url.URL{
 		Scheme: "https",
-		Host:   strings.TrimSpace(c.cfg.AssetsHostname),
-		Path:   "/" + strings.Trim(strings.TrimSpace(c.cfg.Buckets.Public), "/") + "/" + key,
+		Host:   strings.TrimSpace(c.cfg.AssetHostnames.Public),
+		Path:   path,
 	}).String(), nil
 }

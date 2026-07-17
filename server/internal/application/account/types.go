@@ -46,6 +46,12 @@ type LoginResult struct {
 	Session SessionCredential
 }
 
+type VerifiedEmailLoginCommand struct {
+	Email     string
+	UserAgent string
+	IP        string
+}
+
 type LogoutCommand struct {
 	Token string
 }
@@ -72,6 +78,11 @@ type ClientService interface {
 
 type SessionAuthenticator interface {
 	AuthenticateSession(context.Context, string) (AuthenticatedSession, error)
+}
+
+type VerifiedEmailLoginService interface {
+	CanLoginWithEmail(context.Context, string) (bool, error)
+	LoginWithVerifiedEmail(context.Context, VerifiedEmailLoginCommand) (LoginResult, error)
 }
 
 type ActivityRecorder interface {

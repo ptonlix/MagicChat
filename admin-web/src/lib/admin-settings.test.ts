@@ -6,11 +6,14 @@ import {
   deleteThirdPartyProvider,
   disableThirdPartyProvider,
   enableThirdPartyProvider,
+  getEmailLoginSettings,
   getInfoSettings,
   listThirdPartyProviders,
   moveThirdPartyProvider,
+  testEmailLoginSettings,
   updateThirdPartyProvider,
   updateInfoSettings,
+  updateEmailLoginSettings,
   type ThirdPartyProviderInput,
 } from "@/lib/admin-settings"
 
@@ -122,6 +125,95 @@ describe("admin settings", () => {
       message: "App 名称不能为空",
       name: "AdminSettingsRequestError",
     } satisfies AdminSettingsRequestError)
+  })
+
+  it("loads and updates email login settings with the SMTP password", async () => {
+    const responseData = {
+      enabled: true,
+      from_email: "mailer@example.com",
+      from_name: "即应通知",
+      smtp_host: "smtp.example.com",
+      smtp_password: "smtp-secret",
+      smtp_password_configured: true,
+      smtp_port: 587,
+      smtp_security: "starttls",
+      smtp_username: "mailer@example.com",
+    }
+    const fetcher = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true, data: responseData }), {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        })
+      )
+    )
+
+    await expect(getEmailLoginSettings(fetcher)).resolves.toEqual({
+      enabled: true,
+      fromEmail: "mailer@example.com",
+      fromName: "即应通知",
+      smtpHost: "smtp.example.com",
+      smtpPassword: "smtp-secret",
+      smtpPasswordConfigured: true,
+      smtpPort: 587,
+      smtpSecurity: "starttls",
+      smtpUsername: "mailer@example.com",
+    })
+    await updateEmailLoginSettings(
+      {
+        enabled: true,
+        fromEmail: " mailer@example.com ",
+        fromName: " 即应通知 ",
+        smtpHost: " smtp.example.com ",
+        smtpPassword: "smtp-secret",
+        smtpPort: 587,
+        smtpSecurity: "starttls",
+        smtpUsername: " mailer@example.com ",
+      },
+      fetcher
+    )
+
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/admin/settings/email-login",
+      {
+        body: JSON.stringify({
+          enabled: true,
+          from_email: "mailer@example.com",
+          from_name: "即应通知",
+          smtp_host: "smtp.example.com",
+          smtp_password: "smtp-secret",
+          smtp_port: 587,
+          smtp_security: "starttls",
+          smtp_username: "mailer@example.com",
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "PUT",
+      }
+    )
+  })
+
+  it("sends an SMTP test email through the admin API", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: {} }), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      })
+    )
+
+    await expect(
+      testEmailLoginSettings(" admin@example.com ", fetcher)
+    ).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/admin/settings/email-login/test",
+      {
+        body: JSON.stringify({ recipient_email: "admin@example.com" }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }
+    )
   })
 
   it("lists ThirdParty providers through the admin API", async () => {
@@ -284,14 +376,18 @@ describe("admin settings", () => {
       scopes: ["email", "profile"],
       type: "oidc",
     })
-    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/admin/third-party/providers", {
-      body: expectedBody,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    })
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/admin/third-party/providers",
+      {
+        body: expectedBody,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }
+    )
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       "/api/admin/third-party/providers/provider-1",

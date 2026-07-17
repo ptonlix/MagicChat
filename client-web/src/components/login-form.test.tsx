@@ -38,7 +38,9 @@ describe("LoginForm", () => {
   it("requests a code and submits the email-code login form", async () => {
     const user = userEvent.setup()
     const onEmailCodeLogin = vi.fn()
-    const onRequestEmailCode = vi.fn()
+    const onRequestEmailCode = vi.fn().mockResolvedValue({
+      retryAfterSeconds: 5,
+    })
     render(
       <LoginForm
         onEmailCodeLogin={onEmailCodeLogin}
@@ -53,17 +55,29 @@ describe("LoginForm", () => {
     await waitFor(() => {
       expect(onRequestEmailCode).toHaveBeenCalledWith("alice@example.com")
     })
-    expect(screen.getByRole("button", { name: "60 秒" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "5 秒" })).toBeDisabled()
 
-    await user.type(screen.getByLabelText("验证码"), "12a3456")
-    expect(screen.getByLabelText("验证码")).toHaveValue("123456")
+    await user.type(screen.getByLabelText("验证码"), "12a345678")
+    expect(screen.getByLabelText("验证码")).toHaveValue("12345678")
     await user.click(screen.getByRole("button", { name: "登录" }))
 
     await waitFor(() => {
       expect(onEmailCodeLogin).toHaveBeenCalledWith({
-        code: "123456",
+        code: "12345678",
         email: "alice@example.com",
       })
     })
+  })
+
+  it("hides email-code login when the server has not enabled it", () => {
+    render(<LoginForm emailCodeLoginEnabled={false} onLogin={vi.fn()} />)
+
+    expect(
+      screen.queryByRole("tab", { name: "验证码登录" })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "密码登录" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
   })
 })

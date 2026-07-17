@@ -7,8 +7,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-magic-chat}
+      POSTGRES_USER: ${POSTGRES_USER:-magic-chat}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
     volumes:
       - ./data/postgres/data:/var/lib/postgresql/data
@@ -27,11 +27,16 @@ services:
       server:
         condition: service_healthy
     environment:
-      CONFIG: /app/config/config.yaml
       LOG_FILE: /app/log/assistant.log
       AI_ASSISTANT_SECRET: ${AI_ASSISTANT_SECRET:-change-me}
+      ASSISTANT_WEBSOCKET_URL: ${ASSISTANT_WEBSOCKET_URL:-ws://server:20080/api/app/ws}
+      AGENT_MAX_TURNS: ${AGENT_MAX_TURNS:-50}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.example.com}
+      LLM_API_KEY: ${LLM_API_KEY:-change-me}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-change-me}
+      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-https://mcp.example.com/mcp}
+      MCP_GATEWAY_KEY: ${MCP_GATEWAY_KEY:-change-me}
     volumes:
-      - ./data/assistant/config:/app/config:ro
       - ./data/assistant/log:/app/log
 
   server:
@@ -42,16 +47,29 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      CONFIG: /app/config/config.yaml
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-magic-chat}
+      POSTGRES_USER: ${POSTGRES_USER:-magic-chat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
       PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:-localhost}
       CLIENT_HTTPS_PORT: ${CLIENT_HTTPS_PORT:-443}
       ADMIN_HTTPS_PORT: ${ADMIN_HTTPS_PORT:-1443}
-      ASSETS_HOSTNAME: ${ASSETS_HOSTNAME:-assets.localhost}
+      PUBLIC_ASSETS_HOSTNAME: ${PUBLIC_ASSETS_HOSTNAME:-public-assets.localhost}
+      PRIVATE_ASSETS_HOSTNAME: ${PRIVATE_ASSETS_HOSTNAME:-private-assets.localhost}
+      TEMPORARY_ASSETS_HOSTNAME: ${TEMPORARY_ASSETS_HOSTNAME:-temporary-assets.localhost}
       AI_ASSISTANT_SECRET: ${AI_ASSISTANT_SECRET:-change-me}
+      AWS_ENDPOINT_URL_S3: ${AWS_ENDPOINT_URL_S3:-https://s3.example.com}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-change-me}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-change-me}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      PUBLIC_ASSETS_BUCKET: ${PUBLIC_ASSETS_BUCKET:-magicchat-public}
+      PRIVATE_ASSETS_BUCKET: ${PRIVATE_ASSETS_BUCKET:-magicchat-private}
+      TEMPORARY_ASSETS_BUCKET: ${TEMPORARY_ASSETS_BUCKET:-magicchat-temporary}
+      TEMPORARY_ASSETS_EXPIRE_DAYS: ${TEMPORARY_ASSETS_EXPIRE_DAYS:-180}
+      S3_ABORT_MULTIPART_DAYS: ${S3_ABORT_MULTIPART_DAYS:-7}
     volumes:
-      - ./data/server/config:/app/config:ro
       - ./data/server/log:/app/log
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:20080/healthz >/dev/null || exit 1"]
@@ -67,19 +85,15 @@ services:
     depends_on:
       server:
         condition: service_healthy
-    environment:
-      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:-localhost}
-      CLIENT_HTTPS_PORT: ${CLIENT_HTTPS_PORT:-443}
-      ADMIN_HTTPS_PORT: ${ADMIN_HTTPS_PORT:-1443}
     ports:
       - "80:80"
-      - "${CLIENT_HTTPS_PORT:-443}:${CLIENT_HTTPS_PORT:-443}"
-      - "${ADMIN_HTTPS_PORT:-1443}:${ADMIN_HTTPS_PORT:-1443}"
+      - "${CLIENT_HTTPS_PORT:-443}:443"
+      - "${ADMIN_HTTPS_PORT:-1443}:1443"
     volumes:
       - ./data/nginx/certs:/etc/nginx/certs:ro
       - ./data/nginx/log:/var/log/nginx
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1:$${CLIENT_HTTPS_PORT}/nginx-healthz >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1:443/nginx-healthz >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

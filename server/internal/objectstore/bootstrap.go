@@ -67,9 +67,6 @@ func (c *Client) bootstrapOnce(ctx context.Context) error {
 		if err := c.ensureBucket(ctx, bucket); err != nil {
 			return fmt.Errorf("ensure bucket %q: %w", bucket, err)
 		}
-		if err := c.ensureBucketCORS(ctx, bucket); err != nil {
-			return fmt.Errorf("ensure bucket cors %q: %w", bucket, err)
-		}
 	}
 
 	if err := c.ensurePublicReadPolicy(ctx, c.cfg.Buckets.Public); err != nil {
@@ -129,40 +126,6 @@ func (c *Client) ensurePublicReadPolicy(ctx context.Context, bucket string) erro
 		Bucket: aws.String(bucket),
 		Policy: aws.String(policy),
 	})
-
-	return err
-}
-
-func (c *Client) ensureBucketCORS(ctx context.Context, bucket string) error {
-	_, err := c.s3.GetBucketCors(ctx, &s3.GetBucketCorsInput{
-		Bucket: aws.String(bucket),
-	})
-	if err == nil {
-		return nil
-	}
-	if !isAPIErrorCode(err, "NoSuchCORSConfiguration", "NoSuchCorsConfiguration", "NotFound", "404") {
-		return err
-	}
-
-	maxAgeSeconds := int32(3600)
-	_, err = c.s3.PutBucketCors(ctx, &s3.PutBucketCorsInput{
-		Bucket: aws.String(bucket),
-		CORSConfiguration: &types.CORSConfiguration{
-			CORSRules: []types.CORSRule{
-				{
-					AllowedHeaders: []string{"*"},
-					AllowedMethods: []string{"GET", "HEAD", "PUT"},
-					AllowedOrigins: []string{"*"},
-					ExposeHeaders:  []string{"ETag"},
-					ID:             aws.String("default"),
-					MaxAgeSeconds:  aws.Int32(maxAgeSeconds),
-				},
-			},
-		},
-	})
-	if strings.TrimSpace(c.cfg.Endpoint) != "" && isAPIErrorCode(err, "NotImplemented") {
-		return nil
-	}
 
 	return err
 }

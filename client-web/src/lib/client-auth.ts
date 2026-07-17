@@ -3,9 +3,19 @@ type ClientAuthFetch = (
   init?: RequestInit
 ) => Promise<Response>
 
-type ClientLoginInput = {
+export type ClientLoginInput = {
   account: string
   password: string
+}
+
+export type ClientEmailCodeLoginInput = {
+  code: string
+  email: string
+}
+
+export type ClientEmailCodeRequestResult = {
+  expiresInSeconds: number
+  retryAfterSeconds: number
 }
 
 type ClientUserResponse = {
@@ -25,6 +35,14 @@ type ClientLoginErrorEnvelope = {
   error?: {
     code?: string
     message?: string
+  }
+  success?: boolean
+}
+
+type ClientEmailCodeRequestSuccessEnvelope = {
+  data?: {
+    expires_in_seconds?: number
+    retry_after_seconds?: number
   }
   success?: boolean
 }
@@ -51,6 +69,16 @@ export class ClientLogoutRequestError extends Error {
   constructor(message: string, options?: { code?: string }) {
     super(message)
     this.name = "ClientLogoutRequestError"
+    this.code = options?.code
+  }
+}
+
+export class ClientEmailCodeRequestError extends Error {
+  code?: string
+
+  constructor(message: string, options?: { code?: string }) {
+    super(message)
+    this.name = "ClientEmailCodeRequestError"
     this.code = options?.code
   }
 }
@@ -97,6 +125,76 @@ export async function clientLogin(
   }
 }
 
+export async function requestClientEmailCode(
+  email: string,
+  fetcher: ClientAuthFetch = fetch
+): Promise<ClientEmailCodeRequestResult> {
+  const response = await fetcher("/api/client/auth/email-code/request", {
+    body: JSON.stringify({ email: email.trim() }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  })
+  const payload = await readJson<
+    ClientEmailCodeRequestSuccessEnvelope | ClientLoginErrorEnvelope
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    const error = (payload as ClientLoginErrorEnvelope | undefined)?.error
+    throw new ClientEmailCodeRequestError(
+      error?.message ?? `验证码发送失败（HTTP ${response.status}）`,
+      { code: error?.code }
+    )
+  }
+
+  const data = (payload as ClientEmailCodeRequestSuccessEnvelope | undefined)
+    ?.data
+  if (
+    typeof data?.expires_in_seconds !== "number" ||
+    typeof data.retry_after_seconds !== "number"
+  ) {
+    throw new ClientEmailCodeRequestError("验证码发送响应格式不正确")
+  }
+  return {
+    expiresInSeconds: data.expires_in_seconds,
+    retryAfterSeconds: data.retry_after_seconds,
+  }
+}
+
+export async function clientEmailCodeLogin(
+  input: ClientEmailCodeLoginInput,
+  fetcher: ClientAuthFetch = fetch
+) {
+  const response = await fetcher("/api/client/auth/email-code/login", {
+    body: JSON.stringify({
+      code: input.code,
+      email: input.email.trim(),
+    }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  })
+  const payload = await readJson<
+    ClientLoginErrorEnvelope | ClientLoginSuccessEnvelope
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    const error = (payload as ClientLoginErrorEnvelope | undefined)?.error
+    throw new ClientLoginRequestError(
+      error?.message ?? `登录失败（HTTP ${response.status}）`,
+      { code: error?.code }
+    )
+  }
+
+  return normalizeClientUser(
+    (payload as ClientLoginSuccessEnvelope | undefined)?.data?.user
+  )
+}
+
 export async function clientLogout(fetcher: ClientAuthFetch = fetch) {
   const response = await fetcher("/api/client/auth/logout", {
     credentials: "include",
@@ -123,4 +221,16 @@ async function readJson<T>(response: Response): Promise<T | undefined> {
   }
 
   return response.json() as Promise<T>
+}
+
+function normalizeClientUser(user: ClientUserResponse | undefined): ClientUser {
+  if (!user?.email || !user.id || !user.name) {
+    throw new ClientLoginRequestError("登录响应格式不正确")
+  }
+
+  return {
+    email: user.email,
+    id: user.id,
+    name: user.name,
+  }
 }

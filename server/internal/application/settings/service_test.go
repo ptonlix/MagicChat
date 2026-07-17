@@ -72,6 +72,73 @@ func TestServiceReturnsEnabledPublicProvidersInDisplayOrder(t *testing.T) {
 	}
 }
 
+func TestServiceUpdatesEmailLoginSettingsAndPreservesPassword(t *testing.T) {
+	db := openSettingsTestDB(t)
+	service := NewService(Dependencies{DB: db})
+	password := "smtp-secret"
+	updated, err := service.UpdateEmailLogin(context.Background(), UpdateEmailLoginCommand{
+		Enabled: true, SMTPHost: " smtp.example.com ", SMTPPort: 587,
+		SMTPSecurity: " STARTTLS ", SMTPUsername: " mailer@example.com ",
+		SMTPPassword: &password, FromEmail: " MAILER@Example.com ", FromName: " 即应通知 ",
+	})
+	if err != nil {
+		t.Fatalf("update email login: %v", err)
+	}
+	if !updated.Enabled || updated.SMTPHost != "smtp.example.com" || updated.SMTPSecurity != SMTPSecuritySTARTTLS ||
+		updated.SMTPPassword != password || updated.FromEmail != "mailer@example.com" || updated.FromName != "即应通知" {
+		t.Fatalf("updated email login = %#v", updated)
+	}
+
+	preserved, err := service.UpdateEmailLogin(context.Background(), UpdateEmailLoginCommand{
+		Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 465,
+		SMTPSecurity: SMTPSecurityTLS, SMTPUsername: "mailer@example.com",
+		FromEmail: "mailer@example.com", FromName: "即应",
+	})
+	if err != nil {
+		t.Fatalf("preserve email login password: %v", err)
+	}
+	if preserved.SMTPPassword != password || preserved.SMTPPort != 465 || preserved.SMTPSecurity != SMTPSecurityTLS {
+		t.Fatalf("preserved email login = %#v", preserved)
+	}
+	loaded, err := service.GetEmailLogin(context.Background())
+	if err != nil || loaded.SMTPPassword != password {
+		t.Fatalf("loaded email login = %#v, error = %v", loaded, err)
+	}
+	public, err := service.GetPublicInfo(context.Background())
+	if err != nil || !public.EmailCodeLoginEnabled {
+		t.Fatalf("public email login enabled = %t, error = %v", public.EmailCodeLoginEnabled, err)
+	}
+	emptyPassword := ""
+	disabled, err := service.UpdateEmailLogin(context.Background(), UpdateEmailLoginCommand{
+		Enabled: false, SMTPPort: 25, SMTPSecurity: SMTPSecurityNone,
+		SMTPPassword: &emptyPassword,
+	})
+	if err != nil || disabled.SMTPPassword != "" || disabled.SMTPUsername != "" {
+		t.Fatalf("disabled email login = %#v, error = %v", disabled, err)
+	}
+}
+
+func TestServiceValidatesEnabledEmailLoginSettings(t *testing.T) {
+	service := NewService(Dependencies{DB: openSettingsTestDB(t)})
+	password := "smtp-secret"
+	tests := []UpdateEmailLoginCommand{
+		{Enabled: true, SMTPPort: 587, SMTPSecurity: SMTPSecuritySTARTTLS, FromEmail: "mailer@example.com"},
+		{Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPSecurity: SMTPSecuritySTARTTLS, FromEmail: "mailer@example.com"},
+		{Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 70000, SMTPSecurity: SMTPSecuritySTARTTLS, FromEmail: "mailer@example.com"},
+		{Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPSecurity: "invalid", FromEmail: "mailer@example.com"},
+		{Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPSecurity: SMTPSecuritySTARTTLS, FromEmail: "invalid"},
+		{Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 587, SMTPSecurity: SMTPSecuritySTARTTLS, SMTPUsername: "mailer", FromEmail: "mailer@example.com"},
+		{Enabled: true, SMTPHost: "smtp.example.com", SMTPPort: 25, SMTPSecurity: SMTPSecurityNone, SMTPUsername: "mailer", SMTPPassword: &password, FromEmail: "mailer@example.com"},
+		{Enabled: false, SMTPPort: 25, SMTPSecurity: SMTPSecurityNone, SMTPUsername: "mailer", SMTPPassword: &password},
+		{Enabled: false, SMTPPort: 587, SMTPSecurity: SMTPSecuritySTARTTLS, SMTPPassword: &password},
+	}
+	for index, cmd := range tests {
+		if _, err := service.UpdateEmailLogin(context.Background(), cmd); ErrorCodeOf(err) != CodeInvalidRequest {
+			t.Fatalf("case %d error = %v, code = %q", index, err, ErrorCodeOf(err))
+		}
+	}
+}
+
 func openSettingsTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})

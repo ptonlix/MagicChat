@@ -26,6 +26,7 @@ describe("ClientBrandMetadata", () => {
         value={{
           appName: "星环协作",
           authenticated: false,
+          emailCodeLoginEnabled: false,
           oidcProviders: [],
           organizationName: "长亭科技",
           thirdPartyProviders: [],

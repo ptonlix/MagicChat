@@ -19,6 +19,7 @@ type ClientInfoErrorEnvelope = {
 type ClientInfoResponse = {
   app_name?: string
   authenticated?: boolean
+  email_code_login_enabled?: boolean
   oidc_providers?: ClientInfoThirdPartyProviderResponse[]
   organization_name?: string
   third_party_providers?: ClientInfoThirdPartyProviderResponse[]
@@ -37,6 +38,7 @@ export type AppInfoThirdPartyProvider = {
 export type AppInfo = {
   appName: string
   authenticated: boolean
+  emailCodeLoginEnabled: boolean
   oidcProviders: AppInfoThirdPartyProvider[]
   organizationName: string
   thirdPartyProviders: AppInfoThirdPartyProvider[]
@@ -45,6 +47,7 @@ export type AppInfo = {
 export const defaultAppInfo: AppInfo = {
   appName: "即应",
   authenticated: false,
+  emailCodeLoginEnabled: false,
   oidcProviders: [],
   organizationName: "长亭科技",
   thirdPartyProviders: [],
@@ -108,6 +111,7 @@ function normalizeClientInfo(info: ClientInfoResponse | undefined): AppInfo {
   return {
     appName: info.app_name,
     authenticated: info.authenticated === true,
+    emailCodeLoginEnabled: info.email_code_login_enabled === true,
     oidcProviders: thirdPartyProviders,
     organizationName: info.organization_name,
     thirdPartyProviders,

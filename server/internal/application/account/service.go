@@ -88,6 +88,42 @@ func (s *Service) Login(ctx context.Context, cmd LoginCommand) (LoginResult, err
 	if err != nil || !valid {
 		return LoginResult{}, invalidCredentials()
 	}
+	return s.createLoginSession(ctx, user, cmd.UserAgent, cmd.IP)
+}
+
+func (s *Service) CanLoginWithEmail(ctx context.Context, rawEmail string) (bool, error) {
+	email, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return false, nil
+	}
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&store.User{}).
+		Where("email = ? AND status = ?", email, store.UserStatusActive).
+		Count(&count).Error; err != nil {
+		return false, internalError(err)
+	}
+	return count > 0, nil
+}
+
+func (s *Service) LoginWithVerifiedEmail(ctx context.Context, cmd VerifiedEmailLoginCommand) (LoginResult, error) {
+	email, err := normalizeEmail(cmd.Email)
+	if err != nil {
+		return LoginResult{}, invalidCredentials()
+	}
+	var user store.User
+	err = s.db.WithContext(ctx).
+		Where("email = ? AND status = ?", email, store.UserStatusActive).
+		First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return LoginResult{}, invalidCredentials()
+	}
+	if err != nil {
+		return LoginResult{}, internalError(err)
+	}
+	return s.createLoginSession(ctx, user, cmd.UserAgent, cmd.IP)
+}
+
+func (s *Service) createLoginSession(ctx context.Context, user store.User, userAgent string, ip string) (LoginResult, error) {
 
 	token, err := s.generateSessionToken()
 	if err != nil {
@@ -101,8 +137,8 @@ func (s *Service) Login(ctx context.Context, cmd LoginCommand) (LoginResult, err
 		ExpiresAt:  now.Add(s.sessionTTL),
 		CreatedAt:  now,
 		LastSeenAt: now,
-		UserAgent:  cmd.UserAgent,
-		IP:         cmd.IP,
+		UserAgent:  userAgent,
+		IP:         ip,
 	}
 	if err := s.db.WithContext(ctx).Create(&session).Error; err != nil {
 		return LoginResult{}, internalError(err)
@@ -316,3 +352,4 @@ func unauthorized() error {
 var _ ClientService = (*Service)(nil)
 var _ SessionAuthenticator = (*Service)(nil)
 var _ ActivityRecorder = (*Service)(nil)
+var _ VerifiedEmailLoginService = (*Service)(nil)
