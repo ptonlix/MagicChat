@@ -168,12 +168,18 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [organizationName, setOrganizationName] = useState("")
   const [providers, setProviders] = useState<ThirdPartyLoginProvider[]>([])
+  const [savedAppName, setSavedAppName] = useState("")
+  const [savedOrganizationName, setSavedOrganizationName] = useState("")
   const [updatingProviderId, setUpdatingProviderId] = useState<string | null>(
     null
   )
+  const hasInfoSettingsChanged =
+    appName.trim() !== savedAppName ||
+    organizationName.trim() !== savedOrganizationName
   const isSubmitDisabled =
     isLoading ||
     isSaving ||
+    !hasInfoSettingsChanged ||
     appName.trim() === "" ||
     organizationName.trim() === ""
 
@@ -195,6 +201,8 @@ export default function SettingsPage() {
 
         setAppName(settings.appName)
         setOrganizationName(settings.organizationName)
+        setSavedAppName(settings.appName)
+        setSavedOrganizationName(settings.organizationName)
         setProviders(sortThirdPartyProvidersForDisplay(loadedProviders))
       } catch (error) {
         if (ignore) {
@@ -238,6 +246,8 @@ export default function SettingsPage() {
       setAppName(settings.appName)
       setProductName(settings.appName)
       setOrganizationName(settings.organizationName)
+      setSavedAppName(settings.appName)
+      setSavedOrganizationName(settings.organizationName)
       toast.success("系统设置已保存")
     } catch (error) {
       toast.error(
@@ -402,16 +412,18 @@ export default function SettingsPage() {
                 </Field>
               </FieldGroup>
 
-              <div className="flex justify-end">
-                <Button disabled={isSubmitDisabled} type="submit">
-                  {isSaving ? (
-                    <Spinner data-icon="inline-start" />
-                  ) : (
-                    <SaveIcon data-icon="inline-start" />
-                  )}
-                  保存设置
-                </Button>
-              </div>
+              {hasInfoSettingsChanged && (
+                <div className="flex justify-end">
+                  <Button disabled={isSubmitDisabled} type="submit">
+                    {isSaving ? (
+                      <Spinner data-icon="inline-start" />
+                    ) : (
+                      <SaveIcon data-icon="inline-start" />
+                    )}
+                    保存
+                  </Button>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>
@@ -490,8 +502,12 @@ const defaultPasswordLoginSettings: PasswordLoginSettings = {
 function PasswordLoginSettingsCard() {
   const enabledId = useId()
   const [settings, setSettings] = useState(defaultPasswordLoginSettings)
+  const [savedSettings, setSavedSettings] = useState(
+    defaultPasswordLoginSettings
+  )
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const hasSettingsChanged = settings.enabled !== savedSettings.enabled
 
   useEffect(() => {
     let ignore = false
@@ -501,6 +517,7 @@ function PasswordLoginSettingsCard() {
         const loaded = await getPasswordLoginSettings()
         if (!ignore) {
           setSettings(loaded)
+          setSavedSettings(loaded)
         }
       } catch (error) {
         if (!ignore) {
@@ -525,11 +542,15 @@ function PasswordLoginSettingsCard() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!hasSettingsChanged) {
+      return
+    }
     setIsSaving(true)
 
     try {
       const updated = await updatePasswordLoginSettings(settings)
       setSettings(updated)
+      setSavedSettings(updated)
       toast.success("密码登录设置已保存")
     } catch (error) {
       toast.error(
@@ -565,16 +586,18 @@ function PasswordLoginSettingsCard() {
               onCheckedChange={(enabled) => setSettings({ enabled })}
             />
           </Field>
-          <div className="flex justify-end">
-            <Button disabled={disabled} type="submit">
-              {isSaving ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <SaveIcon data-icon="inline-start" />
-              )}
-              保存密码登录设置
-            </Button>
-          </div>
+          {hasSettingsChanged && (
+            <div className="flex justify-end">
+              <Button disabled={disabled} type="submit">
+                {isSaving ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <SaveIcon data-icon="inline-start" />
+                )}
+                保存
+              </Button>
+            </div>
+          )}
         </form>
       </CardContent>
     </Card>
@@ -603,11 +626,16 @@ function EmailLoginSettingsCard() {
   const securityId = useId()
   const usernameId = useId()
   const [settings, setSettings] = useState(defaultEmailLoginSettings)
+  const [savedSettings, setSavedSettings] = useState(defaultEmailLoginSettings)
   const [testRecipient, setTestRecipient] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [showSMTPPassword, setShowSMTPPassword] = useState(false)
+  const hasSettingsChanged = !areEmailLoginSettingsEqual(
+    settings,
+    savedSettings
+  )
 
   useEffect(() => {
     let ignore = false
@@ -617,6 +645,7 @@ function EmailLoginSettingsCard() {
         const loaded = await getEmailLoginSettings()
         if (!ignore) {
           setSettings(loaded)
+          setSavedSettings(loaded)
           setTestRecipient(loaded.fromEmail)
         }
       } catch (error) {
@@ -642,11 +671,15 @@ function EmailLoginSettingsCard() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!hasSettingsChanged) {
+      return
+    }
     setIsSaving(true)
 
     try {
       const updated = await updateEmailLoginSettings(settings)
       setSettings(updated)
+      setSavedSettings(updated)
       toast.success("邮箱登录设置已保存")
     } catch (error) {
       toast.error(
@@ -898,18 +931,36 @@ function EmailLoginSettingsCard() {
               )}
               发送测试邮件
             </Button>
-            <Button disabled={disabled} type="submit">
-              {isSaving ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <SaveIcon data-icon="inline-start" />
-              )}
-              保存邮箱设置
-            </Button>
+            {hasSettingsChanged && (
+              <Button disabled={disabled} type="submit">
+                {isSaving ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <SaveIcon data-icon="inline-start" />
+                )}
+                保存
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+function areEmailLoginSettingsEqual(
+  first: EmailLoginSettings,
+  second: EmailLoginSettings
+) {
+  return (
+    first.enabled === second.enabled &&
+    first.fromEmail.trim() === second.fromEmail.trim() &&
+    first.fromName.trim() === second.fromName.trim() &&
+    first.smtpHost.trim() === second.smtpHost.trim() &&
+    first.smtpPassword === second.smtpPassword &&
+    first.smtpPort === second.smtpPort &&
+    first.smtpSecurity === second.smtpSecurity &&
+    first.smtpUsername.trim() === second.smtpUsername.trim()
   )
 }
 
