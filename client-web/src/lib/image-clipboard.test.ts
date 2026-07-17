@@ -64,9 +64,9 @@ describe("copyTemporaryImageToClipboard", () => {
     )
     vi.stubGlobal("fetch", fetchMock)
 
-    let copiedBlob: Blob | null = null
+    const copiedBlobs: Blob[] = []
     const write = vi.fn(async (items: TestClipboardItem[]) => {
-      copiedBlob = await items[0].data["image/png"]
+      copiedBlobs.push(await items[0].data["image/png"])
     })
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -78,8 +78,8 @@ describe("copyTemporaryImageToClipboard", () => {
     expect(readTemporaryFileURLsMock).toHaveBeenCalledWith(["file-1"])
     expect(fetchMock).toHaveBeenCalledWith("https://example.com/image.png")
     expect(write).toHaveBeenCalledTimes(1)
-    expect(copiedBlob).toBeInstanceOf(Blob)
-    expect(copiedBlob?.type).toBe("image/png")
+    expect(copiedBlobs[0]).toBeInstanceOf(Blob)
+    expect(copiedBlobs[0]?.type).toBe("image/png")
   })
 })
 
