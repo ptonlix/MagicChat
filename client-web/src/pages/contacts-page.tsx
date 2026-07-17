@@ -48,6 +48,7 @@ export function ContactsPage() {
     openAppConversation,
     openDirectConversation,
     refreshContacts,
+    refreshConversations,
   } = useClientData()
   const location = useLocation()
   const navigate = useNavigate()
@@ -362,6 +363,7 @@ export function ContactsPage() {
         onAppChange={(app) => {
           setAppProfile(app)
           void refreshContacts().catch(() => undefined)
+          void refreshConversations().catch(() => undefined)
         }}
         onOpenChange={(open) => {
           if (!open) {

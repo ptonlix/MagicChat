@@ -115,6 +115,48 @@ func TestServiceDirectAndAppConversationsRemainIdempotent(t *testing.T) {
 	}
 }
 
+func TestServiceAppConversationUsesCurrentAppProfile(t *testing.T) {
+	db := openConversationTestDB(t)
+	now := time.Date(2026, 7, 17, 6, 0, 0, 0, time.UTC)
+	owner := insertConversationTestUser(t, db, "app-owner@example.com", "Owner", now)
+	app := store.App{
+		ID: uuid.NewString(), Name: "Old name", Avatar: "/old.webp", Enabled: true,
+		Visibility: store.AppVisibilityPublic, ConnectionSecret: "secret", CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(&app).Error; err != nil {
+		t.Fatalf("create app: %v", err)
+	}
+	service := NewService(Dependencies{DB: db, Now: func() time.Time { return now }})
+	created, err := service.CreateApp(context.Background(), CreateAppCommand{Actor: actorFromTestUser(owner), AppID: app.ID})
+	if err != nil || !created.Created {
+		t.Fatalf("create app conversation = %#v, err = %v", created, err)
+	}
+
+	if err := db.Model(&store.App{}).Where("id = ?", app.ID).Updates(map[string]any{
+		"name": "New name", "avatar": "/new.webp", "updated_at": now.Add(time.Minute),
+	}).Error; err != nil {
+		t.Fatalf("update app profile: %v", err)
+	}
+	var stored store.Conversation
+	if err := db.First(&stored, "id = ?", created.Conversation.ID).Error; err != nil {
+		t.Fatalf("load stored conversation: %v", err)
+	}
+	listed, err := service.loadItem(db, stored, owner.ID)
+	if err != nil {
+		t.Fatalf("load app conversation item: %v", err)
+	}
+	if listed.Name != "New name" || listed.Avatar != "/new.webp" {
+		t.Fatalf("listed app conversation profile = %#v", listed)
+	}
+	reopened, err := service.CreateApp(context.Background(), CreateAppCommand{Actor: actorFromTestUser(owner), AppID: app.ID})
+	if err != nil || reopened.Created {
+		t.Fatalf("reopen app conversation = %#v, err = %v", reopened, err)
+	}
+	if reopened.Conversation.Name != "New name" || reopened.Conversation.Avatar != "/new.webp" {
+		t.Fatalf("app conversation profile = %#v", reopened.Conversation)
+	}
+}
+
 func TestServiceOnlyAllowsPublicAppsAsGroupMembers(t *testing.T) {
 	db := openConversationTestDB(t)
 	now := time.Date(2026, 7, 16, 11, 0, 0, 0, time.UTC)

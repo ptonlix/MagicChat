@@ -280,6 +280,18 @@ func newItem(conversation store.Conversation, currentUserID string, members []st
 		if strings.TrimSpace(name) == "" {
 			name = "私聊"
 		}
+	} else if conversation.Kind == store.ConversationKindApp {
+		for _, member := range members {
+			if member.MemberType != store.ConversationMemberTypeApp {
+				continue
+			}
+			app, ok := apps[member.MemberID]
+			if !ok {
+				continue
+			}
+			name, avatar = app.Name, app.Avatar
+			break
+		}
 	} else if strings.TrimSpace(name) == "" {
 		name = "群聊"
 	}
