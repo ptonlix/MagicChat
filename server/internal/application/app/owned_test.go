@@ -242,6 +242,146 @@ func TestOwnedAppAuthorizationChangesRevokeExistingConversationAccess(t *testing
 	}
 }
 
+func TestOwnedAppAuthorizationShrinkTransfersOwnedGroupsBeforeLeaving(t *testing.T) {
+	db := openAppTestDB(t)
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX app_owned_group_one_owner_test
+		ON conversation_members (conversation_id)
+		WHERE role = 'owner' AND left_at IS NULL
+	`).Error; err != nil {
+		t.Fatalf("create one-owner index: %v", err)
+	}
+	now := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	creator := insertOwnedAppTestUser(t, db, "group-transfer-creator@example.com", now)
+	firstMember := insertOwnedAppTestUser(t, db, "group-transfer-first@example.com", now)
+	admin := insertOwnedAppTestUser(t, db, "group-transfer-admin@example.com", now)
+	service := NewService(Dependencies{
+		DB: db, Now: func() time.Time { return now },
+		GenerateSecret: func() (string, error) { return "group-transfer-secret", nil },
+	})
+	created, err := service.CreateOwned(context.Background(), CreateOwnedCommand{
+		AccountID: creator.ID, Name: "群主应用", Visibility: VisibilityPublic,
+	})
+	if err != nil {
+		t.Fatalf("create app: %v", err)
+	}
+	creatorAppID := created.ID
+	group := store.Conversation{
+		ID: uuid.NewString(), Kind: store.ConversationKindGroup, Name: "应用群主群",
+		CreatedByAppID: &creatorAppID, CreatedByUserID: creator.ID,
+		Status: store.ConversationStatusActive, PostingPolicy: store.ConversationPostingPolicyOpen,
+		Visibility: store.ConversationVisibilityPrivate, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	members := []store.ConversationMember{
+		{ConversationID: group.ID, MemberType: store.ConversationMemberTypeApp, MemberID: created.ID, Role: store.ConversationMemberRoleOwner, JoinedAt: now, HistoryVisibleFromSeq: 1},
+		{ConversationID: group.ID, MemberType: store.ConversationMemberTypeUser, MemberID: firstMember.ID, Role: store.ConversationMemberRoleMember, JoinedAt: now.Add(time.Minute), HistoryVisibleFromSeq: 1},
+		{ConversationID: group.ID, MemberType: store.ConversationMemberTypeUser, MemberID: admin.ID, Role: store.ConversationMemberRoleAdmin, JoinedAt: now.Add(2 * time.Minute), HistoryVisibleFromSeq: 1},
+	}
+	if err := db.Create(&members).Error; err != nil {
+		t.Fatalf("create group members: %v", err)
+	}
+	visibility := VisibilityCreator
+	if _, err := service.UpdateOwned(context.Background(), UpdateOwnedCommand{
+		AccountID: creator.ID, AppID: created.ID, Visibility: &visibility,
+	}); err != nil {
+		t.Fatalf("shrink visibility: %v", err)
+	}
+	var transferred store.ConversationMember
+	if err := db.First(&transferred,
+		"conversation_id = ? AND member_type = ? AND member_id = ?", group.ID, store.ConversationMemberTypeUser, admin.ID,
+	).Error; err != nil {
+		t.Fatalf("load transferred owner: %v", err)
+	}
+	if transferred.Role != store.ConversationMemberRoleOwner || transferred.LeftAt != nil {
+		t.Fatalf("transferred owner = %#v", transferred)
+	}
+	var formerOwner store.ConversationMember
+	if err := db.First(&formerOwner,
+		"conversation_id = ? AND member_type = ? AND member_id = ?", group.ID, store.ConversationMemberTypeApp, created.ID,
+	).Error; err != nil {
+		t.Fatalf("load former owner: %v", err)
+	}
+	if formerOwner.Role != store.ConversationMemberRoleMember || formerOwner.LeftAt == nil {
+		t.Fatalf("former owner = %#v", formerOwner)
+	}
+	var storedGroup store.Conversation
+	if err := db.First(&storedGroup, "id = ?", group.ID).Error; err != nil {
+		t.Fatalf("load group: %v", err)
+	}
+	if storedGroup.Status != store.ConversationStatusActive || storedGroup.CreatedByAppID == nil || *storedGroup.CreatedByAppID != created.ID {
+		t.Fatalf("stored group = %#v", storedGroup)
+	}
+}
+
+func TestDeletingApplicationDissolvesOwnedGroupWithoutActiveUser(t *testing.T) {
+	db := openAppTestDB(t)
+	now := time.Date(2026, 7, 20, 11, 0, 0, 0, time.UTC)
+	service := NewService(Dependencies{
+		DB: db, Now: func() time.Time { return now }, NewID: uuid.NewString,
+		GenerateSecret: func() (string, error) { return "admin-group-owner-secret", nil },
+	})
+	created, err := service.Create(context.Background(), CreateCommand{
+		Name: "后台群主应用", Visibility: VisibilityPublic,
+	})
+	if err != nil {
+		t.Fatalf("create admin app: %v", err)
+	}
+	legacyUser := insertOwnedAppTestUser(t, db, "disabled-group-user@example.com", now)
+	if err := db.Model(&store.User{}).Where("id = ?", legacyUser.ID).Update("status", store.UserStatusDisabled).Error; err != nil {
+		t.Fatalf("disable legacy user: %v", err)
+	}
+	creatorAppID := created.ID
+	group := store.Conversation{
+		ID: uuid.NewString(), Kind: store.ConversationKindGroup, Name: "无人群",
+		CreatedByAppID: &creatorAppID, CreatedByUserID: legacyUser.ID,
+		Status: store.ConversationStatusActive, PostingPolicy: store.ConversationPostingPolicyOpen,
+		Visibility: store.ConversationVisibilityPrivate, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := db.Create(&store.ConversationMember{
+		ConversationID: group.ID, MemberType: store.ConversationMemberTypeApp,
+		MemberID: created.ID, Role: store.ConversationMemberRoleOwner,
+		JoinedAt: now, HistoryVisibleFromSeq: 1,
+	}).Error; err != nil {
+		t.Fatalf("create app owner: %v", err)
+	}
+	project := store.Project{
+		ID: uuid.NewString(), Name: "待解绑项目", OwnerUserID: legacyUser.ID, CreatedByUserID: legacyUser.ID,
+		CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour),
+	}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create linked project: %v", err)
+	}
+	if err := db.Create(&store.ProjectGroup{
+		ProjectID: project.ID, ConversationID: group.ID, LinkedByUserID: legacyUser.ID, CreatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("link project group: %v", err)
+	}
+	if err := service.Delete(context.Background(), created.ID); err != nil {
+		t.Fatalf("delete app: %v", err)
+	}
+	var storedGroup store.Conversation
+	if err := db.First(&storedGroup, "id = ?", group.ID).Error; err != nil {
+		t.Fatalf("load dissolved group: %v", err)
+	}
+	if storedGroup.Status != store.ConversationStatusDissolved || storedGroup.DissolvedAt == nil {
+		t.Fatalf("stored group = %#v", storedGroup)
+	}
+	requireOwnedAppRowCount(t, db, &store.ProjectGroup{}, 0, "conversation_id = ?", group.ID)
+	var updatedProject store.Project
+	if err := db.First(&updatedProject, "id = ?", project.ID).Error; err != nil {
+		t.Fatalf("load updated project: %v", err)
+	}
+	if !updatedProject.UpdatedAt.Equal(now) {
+		t.Fatalf("project updated_at = %v, want %v", updatedProject.UpdatedAt, now)
+	}
+}
+
 func TestOwnedAppCreationEnforcesAccountQuota(t *testing.T) {
 	db := openAppTestDB(t)
 	now := time.Date(2026, 7, 16, 13, 0, 0, 0, time.UTC)

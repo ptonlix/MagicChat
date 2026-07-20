@@ -403,6 +403,7 @@ func openAppTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.Conversation{}, &store.ConversationMember{},
 		&store.App{}, &store.AppConversation{}, &store.AppUserGrant{},
+		&store.Project{}, &store.ProjectGroup{},
 		&store.AppEventOutbox{}, &store.AppEventAck{},
 	); err != nil {
 		t.Fatalf("migrate database: %v", err)

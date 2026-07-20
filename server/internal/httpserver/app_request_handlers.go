@@ -22,34 +22,43 @@ import (
 )
 
 const (
-	appMethodMessageSend               = "message.send"
-	appMethodMessageSendAsUser         = "message.send_as_user"
-	appMethodContactsUsersList         = "contacts.users.list"
-	appMethodContactsAppsList          = "contacts.apps.list"
-	appMethodContactsGroupsList        = "contacts.groups.list"
-	appMethodConversationsList         = "conversations.list"
-	appMethodConversationMessagesList  = "conversation.messages.list"
-	appMethodConversationHistoryRead   = "conversation.history.read"
-	appMethodGroupConversationsList    = "group_conversations.list"
-	appMethodGroupConversationsCreate  = "group_conversations.create"
-	appMethodGroupMembersAdd           = "group_conversations.members.add"
-	appMethodProjectsList              = "projects.list"
-	appMethodProjectsCreate            = "projects.create"
-	appMethodProjectGroupsGrant        = "projects.groups.grant"
-	appMethodProjectTasksList          = "projects.tasks.list"
-	appMethodProjectTasksCreate        = "projects.tasks.create"
-	appMethodProjectTasksUpdate        = "projects.tasks.update"
-	appMethodTemporaryFilesReadURLs    = "temporary_files.read_urls"
-	appMethodEventsAck                 = "events.ack"
-	defaultAppConversationHistoryLimit = 30
-	maxAppConversationHistoryLimit     = 100
-	defaultAppScopedHistoryReadLimit   = 20
-	defaultAppConversationListLimit    = 20
-	defaultAppGroupConversationLimit   = 30
+	appMethodMessageSend                = "message.send"
+	appMethodMessageSendAsUser          = "message.send_as_user"
+	appMethodUsersGet                   = "users.get"
+	appMethodAppsGet                    = "apps.get"
+	appMethodContactsUsersList          = "contacts.users.list"
+	appMethodContactsAppsList           = "contacts.apps.list"
+	appMethodContactsGroupsList         = "contacts.groups.list"
+	appMethodConversationsList          = "conversations.list"
+	appMethodConversationMessagesList   = "conversation.messages.list"
+	appMethodConversationHistoryRead    = "conversation.history.read"
+	appMethodGroupConversationsList     = "group_conversations.list"
+	appMethodGroupConversationsCreate   = "group_conversations.create"
+	appMethodGroupConversationsGet      = "group_conversations.get"
+	appMethodGroupConversationsUpdate   = "group_conversations.update"
+	appMethodGroupConversationsDissolve = "group_conversations.dissolve"
+	appMethodGroupMembersList           = "group_conversations.members.list"
+	appMethodGroupMembersAdd            = "group_conversations.members.add"
+	appMethodGroupMembersRemove         = "group_conversations.members.remove"
+	appMethodGroupMembersSetRole        = "group_conversations.members.set_role"
+	appMethodProjectsList               = "projects.list"
+	appMethodProjectsCreate             = "projects.create"
+	appMethodProjectGroupsGrant         = "projects.groups.grant"
+	appMethodProjectTasksList           = "projects.tasks.list"
+	appMethodProjectTasksCreate         = "projects.tasks.create"
+	appMethodProjectTasksUpdate         = "projects.tasks.update"
+	appMethodTemporaryFilesReadURLs     = "temporary_files.read_urls"
+	appMethodEventsAck                  = "events.ack"
+	defaultAppConversationHistoryLimit  = 30
+	maxAppConversationHistoryLimit      = 100
+	defaultAppScopedHistoryReadLimit    = 20
+	defaultAppConversationListLimit     = 20
+	defaultAppGroupConversationLimit    = 30
 
-	appMessageTargetUser  = "user"
-	appMessageTargetGroup = "group"
-	appMessageTargetApp   = "app"
+	appMessageTargetUser         = "user"
+	appMessageTargetGroup        = "group"
+	appMessageTargetApp          = "app"
+	appMessageTargetConversation = "conversation"
 )
 
 type appSendMessageRequest struct {
@@ -100,6 +109,7 @@ type appSendAsUserTarget struct {
 
 type appCreateGroupConversationRequest struct {
 	ActorUserID                 string   `json:"actor_user_id"`
+	AppIDs                      []string `json:"app_ids"`
 	AuthorizationConversationID string   `json:"authorization_conversation_id"`
 	MemberIDs                   []string `json:"member_ids"`
 	Name                        string   `json:"name"`
@@ -108,6 +118,7 @@ type appCreateGroupConversationRequest struct {
 
 type appAddGroupConversationMembersRequest struct {
 	ActorUserID                 string   `json:"actor_user_id"`
+	AppIDs                      []string `json:"app_ids"`
 	AuthorizationConversationID string   `json:"authorization_conversation_id"`
 	ConversationID              string   `json:"conversation_id"`
 	MemberIDs                   []string `json:"member_ids"`
@@ -272,6 +283,18 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 			return appRequestErrorResponse(request.ID, err)
 		}
 		return realtime.NewResponse(request.ID, response)
+	case appMethodUsersGet:
+		response, err := s.handleAppGetUser(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodAppsGet:
+		response, err := s.handleAppGetApplication(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
 	case appMethodContactsUsersList:
 		response, err := s.handleAppListContactUsers(appID, request)
 		if err != nil {
@@ -320,8 +343,44 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 			return appRequestErrorResponse(request.ID, err)
 		}
 		return realtime.NewResponse(request.ID, response)
+	case appMethodGroupConversationsGet:
+		response, err := s.handleAppGetGroup(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodGroupConversationsUpdate:
+		response, err := s.handleAppUpdateGroup(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodGroupConversationsDissolve:
+		response, err := s.handleAppDissolveGroup(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodGroupMembersList:
+		response, err := s.handleAppListGroupMembers(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
 	case appMethodGroupMembersAdd:
 		response, err := s.handleAppAddGroupConversationMembers(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodGroupMembersRemove:
+		response, err := s.handleAppRemoveGroupMember(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodGroupMembersSetRole:
+		response, err := s.handleAppSetGroupMemberRole(appID, request)
 		if err != nil {
 			return appRequestErrorResponse(request.ID, err)
 		}
@@ -382,7 +441,18 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 func isThirdPartyAppMethod(method string) bool {
 	switch method {
 	case appMethodMessageSend,
+		appMethodUsersGet,
+		appMethodAppsGet,
+		appMethodConversationsList,
 		appMethodConversationMessagesList,
+		appMethodGroupConversationsCreate,
+		appMethodGroupConversationsGet,
+		appMethodGroupConversationsUpdate,
+		appMethodGroupConversationsDissolve,
+		appMethodGroupMembersList,
+		appMethodGroupMembersAdd,
+		appMethodGroupMembersRemove,
+		appMethodGroupMembersSetRole,
 		appMethodTemporaryFilesReadURLs,
 		appMethodEventsAck:
 		return true
@@ -596,6 +666,15 @@ func (s *Server) handleAppListConversations(appID string, request realtime.Envel
 			return appListConversationsResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
 		}
 	}
+	delegated := strings.TrimSpace(req.ActorUserID) != "" ||
+		strings.TrimSpace(req.TriggerMessageID) != "" ||
+		strings.TrimSpace(req.AuthorizationConversationID) != ""
+	if !delegated {
+		return s.handleAppListOwnConversations(appID, req)
+	}
+	if !appregistry.IsAIAssistantAppID(appID) {
+		return appListConversationsResponse{}, newAppRequestFailure("forbidden", "普通应用不能代用户查询会话")
+	}
 
 	actorUserID, triggerMessageID, err := normalizeAppActorTrigger(req.ActorUserID, req.TriggerMessageID)
 	if err != nil {
@@ -681,43 +760,59 @@ func (s *Server) handleAppListGroupConversations(appID string, request realtime.
 	}, nil
 }
 
-func (s *Server) handleAppCreateGroupConversation(appID string, request realtime.Envelope) (appCreateGroupConversationResponse, error) {
+func (s *Server) handleAppCreateGroupConversation(appID string, request realtime.Envelope) (any, error) {
 	var req appCreateGroupConversationRequest
 	if err := json.Unmarshal(request.Payload, &req); err != nil {
-		return appCreateGroupConversationResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+		return nil, newAppRequestFailure("invalid_request", "请求格式错误")
+	}
+	delegated := strings.TrimSpace(req.ActorUserID) != "" ||
+		strings.TrimSpace(req.TriggerMessageID) != "" ||
+		strings.TrimSpace(req.AuthorizationConversationID) != ""
+	if !delegated {
+		result, err := s.conversations.CreateGroupAsApplication(context.Background(), conversationapp.CreateGroupAsApplicationCommand{
+			AppID: appID, AppIDs: req.AppIDs, MemberIDs: req.MemberIDs, Name: req.Name,
+		})
+		if err != nil {
+			return nil, mapConversationApplicationErrorForApp(err)
+		}
+		return newAppGroupMutationResponse(result), nil
+	}
+	if !appregistry.IsAIAssistantAppID(appID) {
+		return nil, newAppRequestFailure("forbidden", "普通应用不能代用户创建群聊")
 	}
 
 	actorUserID, triggerMessageID, err := normalizeAppActorTrigger(req.ActorUserID, req.TriggerMessageID)
 	if err != nil {
-		return appCreateGroupConversationResponse{}, err
+		return nil, err
 	}
 	name, err := normalizeGroupConversationName(req.Name)
 	if err != nil {
-		return appCreateGroupConversationResponse{}, newAppRequestFailure("invalid_request", err.Error())
+		return nil, newAppRequestFailure("invalid_request", err.Error())
 	}
 	memberIDs, err := normalizeGroupMemberIDs(req.MemberIDs, actorUserID)
 	if err != nil {
-		return appCreateGroupConversationResponse{}, newAppRequestFailure("invalid_request", err.Error())
+		return nil, newAppRequestFailure("invalid_request", err.Error())
 	}
-	if len(memberIDs) == 0 {
-		return appCreateGroupConversationResponse{}, newAppRequestFailure("invalid_request", "至少选择一名成员")
+	if len(memberIDs)+len(req.AppIDs) == 0 {
+		return nil, newAppRequestFailure("invalid_request", "至少选择一名成员或应用")
 	}
 
 	if err := s.requireAppSendAsUserTrigger(appID, actorUserID, triggerMessageID, req.AuthorizationConversationID); err != nil {
-		return appCreateGroupConversationResponse{}, err
+		return nil, err
 	}
 	actor, err := s.findActiveAppActor(actorUserID)
 	if err != nil {
-		return appCreateGroupConversationResponse{}, err
+		return nil, err
 	}
 
 	result, err := s.conversations.CreateGroup(context.Background(), conversationapp.CreateGroupCommand{
 		Actor:     conversationActorFromUser(actor),
 		Name:      name,
 		MemberIDs: memberIDs,
+		AppIDs:    req.AppIDs,
 	})
 	if err != nil {
-		return appCreateGroupConversationResponse{}, mapAppGroupConversationError(err)
+		return nil, mapAppGroupConversationError(err)
 	}
 	var messageResponse *appMessagePayload
 	if result.Message != nil {
@@ -731,43 +826,59 @@ func (s *Server) handleAppCreateGroupConversation(appID string, request realtime
 	}, nil
 }
 
-func (s *Server) handleAppAddGroupConversationMembers(appID string, request realtime.Envelope) (appAddGroupConversationMembersResponse, error) {
+func (s *Server) handleAppAddGroupConversationMembers(appID string, request realtime.Envelope) (any, error) {
 	var req appAddGroupConversationMembersRequest
 	if err := json.Unmarshal(request.Payload, &req); err != nil {
-		return appAddGroupConversationMembersResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+		return nil, newAppRequestFailure("invalid_request", "请求格式错误")
+	}
+	delegated := strings.TrimSpace(req.ActorUserID) != "" ||
+		strings.TrimSpace(req.TriggerMessageID) != "" ||
+		strings.TrimSpace(req.AuthorizationConversationID) != ""
+	if !delegated {
+		result, err := s.conversations.AddGroupMembersAsApplication(context.Background(), conversationapp.AddGroupMembersAsApplicationCommand{
+			AppID: appID, AppIDs: req.AppIDs, ConversationID: req.ConversationID, MemberIDs: req.MemberIDs,
+		})
+		if err != nil {
+			return nil, mapConversationApplicationErrorForApp(err)
+		}
+		return newAppGroupMutationResponse(result), nil
+	}
+	if !appregistry.IsAIAssistantAppID(appID) {
+		return nil, newAppRequestFailure("forbidden", "普通应用不能代用户添加群成员")
 	}
 
 	actorUserID, triggerMessageID, err := normalizeAppActorTrigger(req.ActorUserID, req.TriggerMessageID)
 	if err != nil {
-		return appAddGroupConversationMembersResponse{}, err
+		return nil, err
 	}
 	conversationID := strings.TrimSpace(req.ConversationID)
 	if _, err := uuid.Parse(conversationID); err != nil {
-		return appAddGroupConversationMembersResponse{}, newAppRequestFailure("invalid_request", "会话 ID 格式错误")
+		return nil, newAppRequestFailure("invalid_request", "会话 ID 格式错误")
 	}
 	memberIDs, err := normalizeGroupMemberIDs(req.MemberIDs, actorUserID)
 	if err != nil {
-		return appAddGroupConversationMembersResponse{}, newAppRequestFailure("invalid_request", err.Error())
+		return nil, newAppRequestFailure("invalid_request", err.Error())
 	}
-	if len(memberIDs) == 0 {
-		return appAddGroupConversationMembersResponse{}, newAppRequestFailure("invalid_request", "至少选择一名成员")
+	if len(memberIDs)+len(req.AppIDs) == 0 {
+		return nil, newAppRequestFailure("invalid_request", "至少选择一名成员或应用")
 	}
 
 	if err := s.requireAppSendAsUserTrigger(appID, actorUserID, triggerMessageID, req.AuthorizationConversationID); err != nil {
-		return appAddGroupConversationMembersResponse{}, err
+		return nil, err
 	}
 	actor, err := s.findActiveAppActor(actorUserID)
 	if err != nil {
-		return appAddGroupConversationMembersResponse{}, err
+		return nil, err
 	}
 
 	result, err := s.conversations.AddMembers(context.Background(), conversationapp.AddMembersCommand{
 		Actor:          conversationActorFromUser(actor),
 		ConversationID: conversationID,
 		MemberIDs:      memberIDs,
+		AppIDs:         req.AppIDs,
 	})
 	if err != nil {
-		return appAddGroupConversationMembersResponse{}, mapAppGroupConversationError(err)
+		return nil, mapAppGroupConversationError(err)
 	}
 
 	var messageResponse *appMessagePayload
@@ -946,7 +1057,6 @@ func (s *Server) loadAppConversationProjectContext(conversationID string, userID
 	result := appConversationProjectContext{
 		ConversationProjects: []appConversationProjectContextProject{},
 	}
-
 	var personal store.Project
 	err := s.db.
 		Select("id", "name", "description").
@@ -1518,7 +1628,7 @@ func normalizeAppSendMessageTarget(req appSendMessageRequest) (appSendMessageTar
 		if _, err := uuid.Parse(target.UserID); err != nil {
 			return appSendMessageTarget{}, newAppRequestFailure("invalid_request", "用户 ID 格式错误")
 		}
-	case appMessageTargetGroup, appMessageTargetApp:
+	case appMessageTargetGroup, appMessageTargetApp, appMessageTargetConversation:
 		if _, err := uuid.Parse(target.ConversationID); err != nil {
 			return appSendMessageTarget{}, newAppRequestFailure("invalid_request", "会话 ID 格式错误")
 		}
@@ -1668,6 +1778,32 @@ func (s *Server) findAppSendMessageConversation(appID string, target appSendMess
 		return store.Conversation{ID: opened.ID, Name: opened.Name, Kind: opened.Type}, nil
 	case appMessageTargetGroup, appMessageTargetApp:
 		return s.findAppWritableConversation(appID, target.ConversationID, target.Type)
+	case appMessageTargetConversation:
+		var conversation store.Conversation
+		if err := s.db.First(&conversation, "id = ?", target.ConversationID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return store.Conversation{}, newAppRequestFailure("not_found", "会话不存在")
+			}
+			return store.Conversation{}, err
+		}
+		if conversation.Kind == store.ConversationKindDirect {
+			return store.Conversation{}, newAppRequestFailure("forbidden", "应用不能向用户私聊发送消息")
+		}
+		if conversation.Status != store.ConversationStatusActive ||
+			conversation.PostingPolicy != store.ConversationPostingPolicyOpen {
+			return store.Conversation{}, newAppRequestFailure("forbidden", "当前会话不能发送消息")
+		}
+		var member store.ConversationMember
+		if err := s.db.First(&member,
+			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
+			conversation.ID, store.ConversationMemberTypeApp, appID,
+		).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return store.Conversation{}, newAppRequestFailure("forbidden", "应用不在当前会话中")
+			}
+			return store.Conversation{}, err
+		}
+		return conversation, nil
 	default:
 		return store.Conversation{}, newAppRequestFailure("invalid_request", "消息目标类型不支持")
 	}

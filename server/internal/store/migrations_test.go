@@ -33,6 +33,7 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00018_add_email_code_login_settings.sql",
 		"00019_default_email_login_to_tls.sql",
 		"00020_add_password_login_setting.sql",
+		"00021_add_app_owned_groups.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -40,6 +41,24 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
+	}
+}
+
+func TestAppOwnedGroupsMigration(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00021_add_app_owned_groups.sql")
+	if err != nil {
+		t.Fatalf("read app-owned groups migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+	for _, required := range []string{
+		"add column created_by_app_id uuid references apps(id) on delete restrict",
+		"create index conversations_created_by_app_id_index",
+		"drop index conversations_created_by_app_id_index",
+		"drop column created_by_app_id",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("app-owned groups migration missing %q", required)
 		}
 	}
 }

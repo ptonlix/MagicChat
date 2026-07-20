@@ -106,6 +106,8 @@ type Conversation struct {
 	Kind               string    `gorm:"size:32;not null;index"`
 	Name               string    `gorm:"size:160;not null"`
 	Avatar             string    `gorm:"size:512;not null;default:''"`
+	CreatedByAppID     *string   `gorm:"type:uuid;index"`
+	CreatedByApp       *App      `gorm:"foreignKey:CreatedByAppID;constraint:OnDelete:RESTRICT;"`
 	CreatedByUserID    string    `gorm:"type:uuid;not null;index"`
 	CreatedByUser      User      `gorm:"foreignKey:CreatedByUserID;constraint:OnDelete:RESTRICT;"`
 	Status             string    `gorm:"size:32;not null;index"`

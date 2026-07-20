@@ -23,7 +23,18 @@ func TestThirdPartyAppWebSocketAllowsOnlyPublicRPCMethods(t *testing.T) {
 
 	for _, method := range []string{
 		appMethodMessageSend,
+		appMethodUsersGet,
+		appMethodAppsGet,
+		appMethodConversationsList,
 		appMethodConversationMessagesList,
+		appMethodGroupConversationsCreate,
+		appMethodGroupConversationsGet,
+		appMethodGroupConversationsUpdate,
+		appMethodGroupConversationsDissolve,
+		appMethodGroupMembersList,
+		appMethodGroupMembersAdd,
+		appMethodGroupMembersRemove,
+		appMethodGroupMembersSetRole,
 		appMethodTemporaryFilesReadURLs,
 		appMethodEventsAck,
 	} {
@@ -33,7 +44,7 @@ func TestThirdPartyAppWebSocketAllowsOnlyPublicRPCMethods(t *testing.T) {
 				ID: "allowed-" + uuid.NewString(), Method: method,
 				Payload: mustMarshalPayloadForTest(t, map[string]any{}),
 			})
-			if response.Error == nil || response.Error.Code == "forbidden" {
+			if response.Error != nil && response.Error.Code == "forbidden" {
 				t.Fatalf("response = %#v, want method to reach its own validation", response)
 			}
 		})
@@ -44,11 +55,8 @@ func TestThirdPartyAppWebSocketAllowsOnlyPublicRPCMethods(t *testing.T) {
 		appMethodContactsUsersList,
 		appMethodContactsAppsList,
 		appMethodContactsGroupsList,
-		appMethodConversationsList,
 		appMethodConversationHistoryRead,
 		appMethodGroupConversationsList,
-		appMethodGroupConversationsCreate,
-		appMethodGroupMembersAdd,
 		appMethodProjectsList,
 		appMethodProjectsCreate,
 		appMethodProjectGroupsGrant,
