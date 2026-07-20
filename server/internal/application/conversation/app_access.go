@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	"app/internal/store"
@@ -46,6 +47,40 @@ func (s *Service) ListForActor(ctx context.Context, cmd AppListCommand) (AppList
 	if err := query.Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").Order("conversations.id ASC").Limit(cmd.Limit).Find(&conversations).Error; err != nil {
 		return AppListResult{}, err
 	}
+	topicQuery := db.Model(&store.Conversation{}).
+		Joins("JOIN conversation_topic_participants ctp ON ctp.conversation_id = conversations.id").
+		Joins("JOIN conversation_topics ct ON ct.conversation_id = conversations.id").
+		Joins("JOIN conversations parent_conversations ON parent_conversations.id = ct.parent_conversation_id").
+		Joins("JOIN conversation_members parent_cm ON parent_cm.conversation_id = ct.parent_conversation_id").
+		Where("ctp.participant_type = ? AND ctp.participant_id = ?", store.ConversationMemberTypeUser, actorID).
+		Where("parent_cm.member_type = ? AND parent_cm.member_id = ? AND parent_cm.left_at IS NULL", store.ConversationMemberTypeUser, actorID).
+		Where("ct.source_message_seq >= CASE WHEN parent_cm.history_visible_from_seq < 1 THEN 1 ELSE parent_cm.history_visible_from_seq END").
+		Where("conversations.status = ? AND parent_conversations.status = ?", store.ConversationStatusActive, store.ConversationStatusActive)
+	if keyword != "" {
+		topicQuery = topicQuery.Where("LOWER(conversations.name) LIKE ?", "%"+keyword+"%")
+	}
+	var topics []store.Conversation
+	if err := topicQuery.Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").Order("conversations.id ASC").Limit(cmd.Limit).Find(&topics).Error; err != nil {
+		return AppListResult{}, err
+	}
+	conversations = append(conversations, topics...)
+	sort.Slice(conversations, func(left, right int) bool {
+		leftAt := conversations[left].CreatedAt
+		if conversations[left].LastMessageAt != nil {
+			leftAt = *conversations[left].LastMessageAt
+		}
+		rightAt := conversations[right].CreatedAt
+		if conversations[right].LastMessageAt != nil {
+			rightAt = *conversations[right].LastMessageAt
+		}
+		if !leftAt.Equal(rightAt) {
+			return leftAt.After(rightAt)
+		}
+		return conversations[left].ID < conversations[right].ID
+	})
+	if len(conversations) > cmd.Limit {
+		conversations = conversations[:cmd.Limit]
+	}
 	ids := conversationIDs(conversations)
 	membersByConversation, users, apps, err := s.loadListMembers(db, ids)
 	if err != nil {
@@ -55,9 +90,16 @@ func (s *Service) ListForActor(ctx context.Context, cmd AppListCommand) (AppList
 	if err != nil {
 		return AppListResult{}, err
 	}
+	topicPresentations, err := loadTopicPresentations(db, conversations, actorID)
+	if err != nil {
+		return AppListResult{}, err
+	}
 	result := AppListResult{Conversations: make([]AppSummary, 0, len(conversations))}
 	for _, conversation := range conversations {
 		item := newItem(conversation, actorID, membersByConversation[conversation.ID], users, apps)
+		if presentation, ok := topicPresentations[conversation.ID]; ok {
+			item = newTopicItem(conversation, actorID, membersByConversation[conversation.ID], users, apps, presentation)
+		}
 		lastActiveAt := conversation.CreatedAt
 		if conversation.LastMessageAt != nil {
 			lastActiveAt = *conversation.LastMessageAt

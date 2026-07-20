@@ -94,6 +94,34 @@ describe("orderConversations", () => {
       orderConversations([oldGroup, recentApp]).map(({ id }) => id)
     ).toEqual(["recent-app", "old-group"])
   })
+
+  it("orders pinned conversations by activity ahead of unpinned conversations", () => {
+    const assistant = createConversation("assistant", "app", "2026-07-01", [
+      createAppMember("00000000-0000-0000-0000-000000000001"),
+    ])
+    const olderPinned = {
+      ...createConversation("older-pinned", "group", "2026-07-18"),
+      pinned: true,
+    }
+    const recentPinned = {
+      ...createConversation("recent-pinned", "direct", "2026-07-19"),
+      pinned: true,
+    }
+    const newestUnpinned = createConversation(
+      "newest-unpinned",
+      "group",
+      "2026-07-20"
+    )
+
+    expect(
+      orderConversations([
+        newestUnpinned,
+        olderPinned,
+        assistant,
+        recentPinned,
+      ]).map(({ id }) => id)
+    ).toEqual(["assistant", "recent-pinned", "older-pinned", "newest-unpinned"])
+  })
 })
 
 function createMessage(

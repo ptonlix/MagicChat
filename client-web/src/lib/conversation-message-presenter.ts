@@ -69,7 +69,102 @@ export function toConversationPanelMessage(
     senderAppProfile: getMessageAppProfile(message, conversation, appsById),
     senderUserId: message.sender.type === "user" ? message.sender.id : null,
     time: formatConversationMessageTime(message.createdAt),
+    topic: getMessageTopic(
+      message,
+      conversation,
+      currentUser,
+      contactsById,
+      appsById,
+      mentionLabelResolver
+    ),
   }
+}
+
+function getMessageTopic(
+  message: ClientMessage,
+  conversation: ClientConversation,
+  currentUser: Pick<ClientUser, "avatar" | "id" | "name" | "nickname">,
+  contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>,
+  mentionLabelResolver: MentionLabelResolver
+) {
+  if (!message.topic) {
+    return undefined
+  }
+  return {
+    archived: message.topic.archived,
+    conversationId: message.topic.conversationId,
+    recentReplies: message.topic.recentReplies.map((reply) => ({
+      author: getTopicReplyAuthor(
+        reply.sender,
+        conversation,
+        currentUser,
+        contactsById,
+        appsById
+      ),
+      avatar: getTopicReplyAvatar(
+        reply.sender,
+        conversation,
+        currentUser,
+        contactsById,
+        appsById
+      ),
+      id: reply.id,
+      summary: formatMentionTemplateText(reply.summary, mentionLabelResolver),
+      time: formatTopicReplyTime(reply.createdAt),
+    })),
+  }
+}
+
+function formatTopicReplyTime(createdAt: string) {
+  const date = new Date(createdAt)
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+  return `${padMessageTimePart(date.getHours())}:${padMessageTimePart(date.getMinutes())}`
+}
+
+function getTopicReplyAuthor(
+  sender: NonNullable<
+    ClientMessage["topic"]
+  >["recentReplies"][number]["sender"],
+  conversation: ClientConversation,
+  currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
+  contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>
+) {
+  if (sender.type === "app") {
+    return getConversationAppDisplayName(conversation, sender.id, appsById)
+  }
+  if (sender.id === currentUser.id) {
+    return formatMessageUserName(currentUser)
+  }
+  const contact = contactsById.get(sender.id)
+  if (contact) {
+    return formatMessageUserName(contact)
+  }
+  return conversation.type === "direct" ? conversation.name : "成员"
+}
+
+function getTopicReplyAvatar(
+  sender: NonNullable<
+    ClientMessage["topic"]
+  >["recentReplies"][number]["sender"],
+  conversation: ClientConversation,
+  currentUser: Pick<ClientUser, "avatar" | "id">,
+  contactsById: ReadonlyMap<string, ContactUser>,
+  appsById: ReadonlyMap<string, ContactApp>
+) {
+  if (sender.type === "app") {
+    return getConversationAppAvatar(conversation, sender.id, appsById)
+  }
+  if (sender.id === currentUser.id) {
+    return currentUser.avatar
+  }
+  return (
+    contactsById.get(sender.id)?.avatar ||
+    (conversation.type === "direct" ? conversation.avatar : "")
+  )
 }
 
 export function formatConversationMessageSummary(
@@ -125,14 +220,18 @@ function canRevokeMessage(
   if (
     message.sender.type === "system" ||
     message.body.type === "revoked" ||
-    message.body.type === "unsupported"
+    message.body.type === "unsupported" ||
+    conversation.topic?.archived
   ) {
     return false
   }
   if (message.sender.type === "user" && message.sender.id === currentUserId) {
     return true
   }
-  if (conversation.type !== "group") {
+  if (
+    conversation.type !== "group" &&
+    conversation.topic?.parentConversationType !== "group"
+  ) {
     return false
   }
 

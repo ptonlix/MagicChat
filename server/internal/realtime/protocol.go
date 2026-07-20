@@ -13,11 +13,16 @@ const (
 	KindResponse = "response"
 	KindEvent    = "event"
 
-	EventMessageCreated      = "message.created"
-	EventMessageUpdated      = "message.updated"
-	EventMemberMentioned     = "conversation.member_mentioned"
-	EventConversationRemoved = "conversation.removed"
-	EventSystemReady         = "system.ready"
+	EventMessageCreated         = "message.created"
+	EventMessageUpdated         = "message.updated"
+	EventMemberMentioned        = "conversation.member_mentioned"
+	EventConversationPinUpdated = "conversation.pin_updated"
+	EventConversationRemoved    = "conversation.removed"
+	EventTopicCreated           = "topic.created"
+	EventTopicParticipated      = "topic.participated"
+	EventTopicArchived          = "topic.archived"
+	EventTopicClosed            = "topic.closed"
+	EventSystemReady            = "system.ready"
 )
 
 type Envelope struct {

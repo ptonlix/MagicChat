@@ -1,11 +1,11 @@
 import * as React from "react"
-import { Bot, Search } from "lucide-react"
+import { Search } from "lucide-react"
 
-import { GroupAvatar } from "@/components/group-avatar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ConversationAvatar } from "@/components/conversation/conversation-avatar"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { SidebarInput } from "@/components/ui/sidebar"
 import type { ClientConversation } from "@/lib/client-data-api"
+import { getConversationDisplayName } from "@/lib/conversation-avatar-presentation"
 import {
   createConversationSearchIndex,
   searchConversationIndex,
@@ -195,7 +195,7 @@ export function ConversationSearchPopover({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
-                      {result.conversation.name}
+                      {getConversationDisplayName(result.conversation)}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {getSearchResultDescription(
@@ -220,34 +220,12 @@ function ConversationSearchResultAvatar({
 }: {
   conversation: ClientConversation
 }) {
-  if (conversation.type === "group") {
-    return (
-      <GroupAvatar
-        avatar={conversation.avatar}
-        className="size-8"
-        members={conversation.members}
-        name={conversation.name}
-      />
-    )
-  }
-
   return (
-    <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
-      {conversation.avatar && (
-        <AvatarImage
-          alt={conversation.name}
-          className="rounded-sm"
-          src={conversation.avatar}
-        />
-      )}
-      <AvatarFallback className="rounded-sm text-xs">
-        {conversation.type === "app" ? (
-          <Bot className="size-4" />
-        ) : (
-          (Array.from(conversation.name.trim())[0]?.toUpperCase() ?? "?")
-        )}
-      </AvatarFallback>
-    </Avatar>
+    <ConversationAvatar
+      className="size-8"
+      conversation={conversation}
+      sourceAvatarClassName="size-4"
+    />
   )
 }
 

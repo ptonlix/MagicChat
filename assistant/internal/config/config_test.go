@@ -9,6 +9,7 @@ func TestLoadFromEnvReadsConfiguration(t *testing.T) {
 	values := requiredEnvironment()
 	values["ASSISTANT_WEBSOCKET_URL"] = " wss://chat.example.com/api/app/ws "
 	values["AGENT_MAX_TURNS"] = "75"
+	values["AGENT_MAX_SESSIONS"] = "321"
 	values["LLM_BASE_URL"] = " https://api.example.com/v1/ "
 	values["LLM_MODEL_NAME"] = " model-name "
 	values["MCP_GATEWAY_URL"] = " https://mcp.example.com/mcp/ "
@@ -28,6 +29,9 @@ func TestLoadFromEnvReadsConfiguration(t *testing.T) {
 	}
 	if cfg.Agent.MaxTurns != 75 {
 		t.Fatalf("Agent.MaxTurns = %d, want 75", cfg.Agent.MaxTurns)
+	}
+	if cfg.Agent.MaxSessions != 321 {
+		t.Fatalf("Agent.MaxSessions = %d, want 321", cfg.Agent.MaxSessions)
 	}
 	if cfg.LLM.BaseURL != "https://api.example.com/v1" || cfg.LLM.APIKey != "llm-api-key" || cfg.LLM.ModelName != "model-name" {
 		t.Fatalf("LLM = %#v", cfg.LLM)
@@ -54,6 +58,22 @@ func TestLoadFromEnvDefaultsMaxTurnsToFifty(t *testing.T) {
 	}
 	if cfg.Agent.MaxTurns != DefaultAgentMaxTurns {
 		t.Fatalf("Agent.MaxTurns = %d, want 50", cfg.Agent.MaxTurns)
+	}
+}
+
+func TestLoadFromEnvDefaultsMaxSessionsToOneThousand(t *testing.T) {
+	values := requiredEnvironment()
+	delete(values, "AGENT_MAX_SESSIONS")
+
+	cfg, err := LoadFromEnv(mapGetenv(values))
+	if err != nil {
+		t.Fatalf("LoadFromEnv() error = %v", err)
+	}
+	if DefaultAgentMaxSessions != 1000 {
+		t.Fatalf("DefaultAgentMaxSessions = %d, want 1000", DefaultAgentMaxSessions)
+	}
+	if cfg.Agent.MaxSessions != DefaultAgentMaxSessions {
+		t.Fatalf("Agent.MaxSessions = %d, want 1000", cfg.Agent.MaxSessions)
 	}
 }
 
@@ -105,6 +125,8 @@ func TestLoadFromEnvRejectsInvalidEnvironment(t *testing.T) {
 		{name: "websocket scheme", envName: "ASSISTANT_WEBSOCKET_URL", envValue: "https://chat.example.com/api/app/ws", errorText: "ASSISTANT_WEBSOCKET_URL"},
 		{name: "max turns zero", envName: "AGENT_MAX_TURNS", envValue: "0", errorText: "AGENT_MAX_TURNS"},
 		{name: "max turns text", envName: "AGENT_MAX_TURNS", envValue: "many", errorText: "AGENT_MAX_TURNS"},
+		{name: "max sessions zero", envName: "AGENT_MAX_SESSIONS", envValue: "0", errorText: "AGENT_MAX_SESSIONS"},
+		{name: "max sessions text", envName: "AGENT_MAX_SESSIONS", envValue: "many", errorText: "AGENT_MAX_SESSIONS"},
 		{name: "llm scheme", envName: "LLM_BASE_URL", envValue: "ws://api.example.com", errorText: "LLM_BASE_URL"},
 		{name: "mcp scheme", envName: "MCP_GATEWAY_URL", envValue: "ws://mcp.example.com", errorText: "MCP_GATEWAY_URL"},
 	}

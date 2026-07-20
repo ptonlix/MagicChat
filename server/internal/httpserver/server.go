@@ -146,11 +146,13 @@ func newRouter(db *gorm.DB, cfg config.Config, realtimeOptions realtime.Options,
 		DB: db, Projects: server.projects,
 	})
 	server.conversations = conversationapp.NewService(conversationapp.Dependencies{
-		DB:            db,
-		Apps:          cfg.Apps,
-		Files:         server.files,
-		Projects:      server.projects,
-		Notifications: server,
+		AppEvents:      server,
+		AppEventLocker: &server.appEventMu,
+		DB:             db,
+		Apps:           cfg.Apps,
+		Files:          server.files,
+		Projects:       server.projects,
+		Notifications:  server,
 	})
 	server.clientConversations = clientapi.NewConversationAPI(server.conversations, server.projects)
 	server.tasks = taskapp.NewService(taskapp.Dependencies{

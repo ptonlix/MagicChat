@@ -190,13 +190,33 @@ func (s *Service) loadListMembers(db *gorm.DB, conversationIDs []string) (map[st
 	if len(conversationIDs) == 0 {
 		return byConversation, map[string]store.User{}, map[string]store.App{}, nil
 	}
+	effectiveConversationIDs := make(map[string]string, len(conversationIDs))
+	for _, conversationID := range conversationIDs {
+		effectiveConversationIDs[conversationID] = conversationID
+	}
+	var topics []store.ConversationTopic
+	if err := db.Where("conversation_id IN ?", conversationIDs).Find(&topics).Error; err != nil {
+		return nil, nil, nil, err
+	}
+	memberConversationSet := make(map[string]struct{}, len(conversationIDs))
+	for _, topic := range topics {
+		effectiveConversationIDs[topic.ConversationID] = topic.ParentConversationID
+	}
+	for _, effectiveID := range effectiveConversationIDs {
+		memberConversationSet[effectiveID] = struct{}{}
+	}
+	memberConversationIDs := sortedKeys(memberConversationSet)
 	var members []store.ConversationMember
-	if err := db.Where("conversation_id IN ? AND left_at IS NULL", conversationIDs).
+	if err := db.Where("conversation_id IN ? AND left_at IS NULL", memberConversationIDs).
 		Order("conversation_id ASC").Order("joined_at ASC").Find(&members).Error; err != nil {
 		return nil, nil, nil, err
 	}
+	membersByEffectiveConversation := make(map[string][]store.ConversationMember, len(memberConversationIDs))
 	for _, member := range members {
-		byConversation[member.ConversationID] = append(byConversation[member.ConversationID], member)
+		membersByEffectiveConversation[member.ConversationID] = append(membersByEffectiveConversation[member.ConversationID], member)
+	}
+	for _, conversationID := range conversationIDs {
+		byConversation[conversationID] = membersByEffectiveConversation[effectiveConversationIDs[conversationID]]
 	}
 	users, apps, err := loadMemberIdentities(db, members)
 	if err != nil {
@@ -255,7 +275,137 @@ func (s *Service) loadItem(db *gorm.DB, conversation store.Conversation, current
 	if err != nil {
 		return Item{}, err
 	}
-	return newItem(conversation, currentUserID, membersByConversation[conversation.ID], users, apps), nil
+	if conversation.Kind == store.ConversationKindTopic {
+		presentations, err := loadTopicPresentations(db, []store.Conversation{conversation}, currentUserID)
+		if err != nil {
+			return Item{}, err
+		}
+		presentation, ok := presentations[conversation.ID]
+		if !ok {
+			return Item{}, gorm.ErrRecordNotFound
+		}
+		item := newTopicItem(conversation, currentUserID, membersByConversation[conversation.ID], users, apps, presentation)
+		if err := s.loadItemPinState(db, &item, currentUserID); err != nil {
+			return Item{}, err
+		}
+		return item, nil
+	}
+	item := newItem(conversation, currentUserID, membersByConversation[conversation.ID], users, apps)
+	if err := s.loadItemPinState(db, &item, currentUserID); err != nil {
+		return Item{}, err
+	}
+	return item, nil
+}
+
+func (s *Service) loadItemPinState(db *gorm.DB, item *Item, currentUserID string) error {
+	if item.ID == builtinAssistantConversationID(currentUserID) {
+		item.Pinned = true
+		return nil
+	}
+	var count int64
+	if err := db.Model(&store.ConversationPin{}).Where(
+		"user_id = ? AND conversation_id = ?", currentUserID, item.ID,
+	).Count(&count).Error; err != nil {
+		return err
+	}
+	item.Pinned = count > 0
+	return nil
+}
+
+type topicPresentation struct {
+	parent       store.Conversation
+	participant  *store.ConversationTopicParticipant
+	sourceSender MessageIdentity
+	topic        store.ConversationTopic
+}
+
+func loadTopicPresentations(db *gorm.DB, conversations []store.Conversation, currentUserID string) (map[string]topicPresentation, error) {
+	conversationIDs := make([]string, 0, len(conversations))
+	for _, conversation := range conversations {
+		if conversation.Kind == store.ConversationKindTopic {
+			conversationIDs = append(conversationIDs, conversation.ID)
+		}
+	}
+	result := make(map[string]topicPresentation, len(conversationIDs))
+	if len(conversationIDs) == 0 {
+		return result, nil
+	}
+	var topics []store.ConversationTopic
+	if err := db.Where("conversation_id IN ?", conversationIDs).Find(&topics).Error; err != nil {
+		return nil, err
+	}
+	parentSet := make(map[string]struct{}, len(topics))
+	for _, topic := range topics {
+		parentSet[topic.ParentConversationID] = struct{}{}
+	}
+	var parents []store.Conversation
+	if err := db.Where("id IN ?", sortedKeys(parentSet)).Find(&parents).Error; err != nil {
+		return nil, err
+	}
+	parentsByID := make(map[string]store.Conversation, len(parents))
+	for _, parent := range parents {
+		parentsByID[parent.ID] = parent
+	}
+	participantsByConversation := make(map[string]store.ConversationTopicParticipant)
+	if currentUserID != "" {
+		var participants []store.ConversationTopicParticipant
+		if err := db.Where(
+			"conversation_id IN ? AND participant_type = ? AND participant_id = ?",
+			conversationIDs, store.ConversationMemberTypeUser, currentUserID,
+		).Find(&participants).Error; err != nil {
+			return nil, err
+		}
+		for _, participant := range participants {
+			participantsByConversation[participant.ConversationID] = participant
+		}
+	}
+	for _, topic := range topics {
+		senderAvatar, err := loadTopicSourceSenderAvatar(db, topic.SourceSenderType, topic.SourceSenderID)
+		if err != nil {
+			return nil, err
+		}
+		presentation := topicPresentation{
+			parent: parentsByID[topic.ParentConversationID],
+			sourceSender: MessageIdentity{
+				Avatar: senderAvatar, ID: dereferenceString(topic.SourceSenderID),
+				Name: topic.SourceSenderName, Type: topic.SourceSenderType,
+			},
+			topic: topic,
+		}
+		if participant, ok := participantsByConversation[topic.ConversationID]; ok {
+			value := participant
+			presentation.participant = &value
+		}
+		result[topic.ConversationID] = presentation
+	}
+	return result, nil
+}
+
+func newTopicItem(conversation store.Conversation, currentUserID string, members []store.ConversationMember, users map[string]store.User, apps map[string]store.App, presentation topicPresentation) Item {
+	parentItem := newItem(presentation.parent, currentUserID, members, users, apps)
+	lastReadSeq := int64(0)
+	lastMentionedSeq := int64(0)
+	participating := presentation.participant != nil
+	if presentation.participant != nil {
+		lastReadSeq = presentation.participant.LastReadSeq
+		lastMentionedSeq = presentation.participant.LastMentionedSeq
+	}
+	return Item{
+		Avatar: parentItem.Avatar, CreatedAt: conversation.CreatedAt, ID: conversation.ID,
+		LastMessageAt: conversation.LastMessageAt, LastMessageID: conversation.LastMessageID,
+		LastMessageSeq: conversation.LastMessageSeq, LastMessageSummary: conversation.LastMessageSummary,
+		LastMentionedSeq: lastMentionedSeq, LastReadSeq: lastReadSeq,
+		MemberCount: len(members), Members: newMembers(members, users, apps), Name: conversation.Name,
+		Topic: &TopicMetadata{
+			Archived:             presentation.topic.ArchivedAt != nil,
+			ParentConversationID: presentation.parent.ID, ParentConversationName: parentItem.Name,
+			ParentConversationType: presentation.parent.Kind, Participating: participating,
+			SourceMessageID: presentation.topic.SourceMessageID, SourceMessageSeq: presentation.topic.SourceMessageSeq,
+			SourceSender: presentation.sourceSender,
+		},
+		Type: conversation.Kind, UnreadCount: unreadCount(conversation.LastMessageSeq, lastReadSeq),
+		Visibility: presentation.parent.Visibility,
+	}
 }
 
 func newItem(conversation store.Conversation, currentUserID string, members []store.ConversationMember, users map[string]store.User, apps map[string]store.App) Item {

@@ -12,21 +12,25 @@ import (
 )
 
 type Dependencies struct {
-	DB            *gorm.DB
-	Apps          config.AppsConfig
-	Files         fileapp.PublicUploader
-	Projects      ProjectReader
-	Notifications NotificationPort
-	Now           func() time.Time
+	AppEvents      AppEventPort
+	AppEventLocker AppEventLocker
+	DB             *gorm.DB
+	Apps           config.AppsConfig
+	Files          fileapp.PublicUploader
+	Projects       ProjectReader
+	Notifications  NotificationPort
+	Now            func() time.Time
 }
 
 type Service struct {
-	db            *gorm.DB
-	apps          config.AppsConfig
-	files         fileapp.PublicUploader
-	projects      ProjectReader
-	notifications NotificationPort
-	now           func() time.Time
+	appEvents      AppEventPort
+	appEventLocker AppEventLocker
+	db             *gorm.DB
+	apps           config.AppsConfig
+	files          fileapp.PublicUploader
+	projects       ProjectReader
+	notifications  NotificationPort
+	now            func() time.Time
 }
 
 func NewService(deps Dependencies) *Service {
@@ -35,6 +39,7 @@ func NewService(deps Dependencies) *Service {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	return &Service{
+		appEvents: deps.AppEvents, appEventLocker: deps.AppEventLocker,
 		db: deps.DB, apps: deps.Apps, files: deps.Files, projects: deps.Projects,
 		notifications: deps.Notifications, now: now,
 	}

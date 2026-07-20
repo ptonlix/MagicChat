@@ -1,6 +1,6 @@
 import * as React from "react"
 import { fireEvent, render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ClientConversation } from "@/lib/client-data-api"
 import type { ConversationPanelMessage } from "@/lib/conversation-panel-types"
@@ -10,8 +10,21 @@ const testState = vi.hoisted(() => ({
   anchorTop: 100,
   bubbleRenderCount: 0,
   clientHeight: 400,
+  resizeObserverCallback: null as ResizeObserverCallback | null,
   scrollHeight: 1_000,
 }))
+
+const defaultResizeObserver = window.ResizeObserver
+
+class ControlledResizeObserver implements ResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    testState.resizeObserverCallback = callback
+  }
+
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
 
 vi.mock("@/components/ui/scroll-area", () => {
   return {
@@ -95,7 +108,19 @@ describe("ConversationPanelHistory", () => {
     testState.anchorTop = 100
     testState.bubbleRenderCount = 0
     testState.clientHeight = 400
+    testState.resizeObserverCallback = null
     testState.scrollHeight = 1_000
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: ControlledResizeObserver,
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: defaultResizeObserver,
+    })
   })
 
   it("follows an incoming message when already near the bottom", () => {
@@ -113,6 +138,30 @@ describe("ConversationPanelHistory", () => {
 
     expect(viewport.scrollTop).toBe(1_100)
     expect(screen.queryByText(/条新消息/)).not.toBeInTheDocument()
+  })
+
+  it("stays at the bottom when existing message content grows", () => {
+    const props = createProps([createMessage("message-1", "other")])
+    render(<ConversationPanelHistory {...props} />)
+    const viewport = getViewport()
+
+    testState.scrollHeight = 1_100
+    testState.resizeObserverCallback?.([], {} as ResizeObserver)
+
+    expect(viewport.scrollTop).toBe(1_100)
+  })
+
+  it("does not move when existing message content grows away from the bottom", () => {
+    const props = createProps([createMessage("message-1", "other")])
+    render(<ConversationPanelHistory {...props} />)
+    const viewport = getViewport()
+    viewport.scrollTop = 100
+    fireEvent.scroll(viewport)
+
+    testState.scrollHeight = 1_100
+    testState.resizeObserverCallback?.([], {} as ResizeObserver)
+
+    expect(viewport.scrollTop).toBe(100)
   })
 
   it("keeps the reading position and reports incoming messages away from the bottom", () => {

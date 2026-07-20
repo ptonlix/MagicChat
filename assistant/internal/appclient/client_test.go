@@ -346,14 +346,30 @@ func TestHandleParsedServerMessageRunsGroupMessageWithDirectAppMention(t *testin
 	var agentRequests []agent.Request
 	var sent []envelope
 	requester := appRequestFunc(func(ctx context.Context, method string, payload any) (json.RawMessage, error) {
-		if method != methodConversationMessagesList {
+		switch method {
+		case methodConversationMessagesList:
+			return json.Marshal(appListConversationMessagesResponsePayload{
+				Messages: []historyMessagePayload{
+					historyTextMessage("message-1", 1, "user-1", "Alice", "请处理 {(@app/"+appID+")}"),
+				},
+			})
+		case methodConversationTopicCreate:
+			var topicRequest topicMutationRequestPayload
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(raw, &topicRequest); err != nil {
+				return nil, err
+			}
+			if topicRequest.ConversationID != "conversation-group-1" || topicRequest.SourceMessageID != "message-1" {
+				t.Fatalf("topic creation request = %#v", topicRequest)
+			}
+			return testTopicMutationResponse("topic-1", "请处理")
+		default:
 			t.Fatalf("unexpected app request method %q", method)
+			return nil, nil
 		}
-		return json.Marshal(appListConversationMessagesResponsePayload{
-			Messages: []historyMessagePayload{
-				historyTextMessage("message-1", 1, "user-1", "Alice", "请处理 {(@app/"+appID+")}"),
-			},
-		})
 	})
 	replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
 		agentRequests = append(agentRequests, request)
@@ -376,11 +392,20 @@ func TestHandleParsedServerMessageRunsGroupMessageWithDirectAppMention(t *testin
 	if len(agentRequests) != 1 {
 		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
 	}
-	if agentRequests[0].Conversation.Type != "group" {
-		t.Fatalf("conversation type = %q, want group", agentRequests[0].Conversation.Type)
+	if agentRequests[0].Conversation.ID != "topic-1" || agentRequests[0].Conversation.Type != "topic" ||
+		agentRequests[0].Conversation.Parent == nil || agentRequests[0].Conversation.Parent.ID != "conversation-group-1" ||
+		agentRequests[0].Conversation.Parent.Type != "group" {
+		t.Fatalf("conversation = %#v, want topic-1 topic", agentRequests[0].Conversation)
 	}
 	if len(sent) != 1 {
 		t.Fatalf("sent count = %d, want 1", len(sent))
+	}
+	var reply sendMessageRequestPayload
+	if err := json.Unmarshal(sent[0].Payload, &reply); err != nil {
+		t.Fatalf("decode topic reply: %v", err)
+	}
+	if reply.Target.Type != "topic" || reply.Target.ConversationID != "topic-1" {
+		t.Fatalf("topic reply target = %#v", reply.Target)
 	}
 }
 
@@ -389,14 +414,19 @@ func TestHandleParsedServerMessageRunsGroupMessageWithUppercaseDirectAppMention(
 	mentionedAppID := strings.ToUpper(appID)
 	var agentRequests []agent.Request
 	requester := appRequestFunc(func(ctx context.Context, method string, payload any) (json.RawMessage, error) {
-		if method != methodConversationMessagesList {
+		switch method {
+		case methodConversationMessagesList:
+			return json.Marshal(appListConversationMessagesResponsePayload{
+				Messages: []historyMessagePayload{
+					historyTextMessage("message-1", 1, "user-1", "Alice", "请处理 {(@app/"+mentionedAppID+")}"),
+				},
+			})
+		case methodConversationTopicCreate:
+			return testTopicMutationResponse("topic-1", "请处理")
+		default:
 			t.Fatalf("unexpected app request method %q", method)
+			return nil, nil
 		}
-		return json.Marshal(appListConversationMessagesResponsePayload{
-			Messages: []historyMessagePayload{
-				historyTextMessage("message-1", 1, "user-1", "Alice", "请处理 {(@app/"+mentionedAppID+")}"),
-			},
-		})
 	})
 	replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
 		agentRequests = append(agentRequests, request)
@@ -415,6 +445,136 @@ func TestHandleParsedServerMessageRunsGroupMessageWithUppercaseDirectAppMention(
 
 	if len(agentRequests) != 1 {
 		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
+	}
+}
+
+func TestHandleParsedServerMessageRecoversAgentSessionFromTopic(t *testing.T) {
+	appID := "00000000-0000-0000-0000-000000000001"
+	body, err := json.Marshal(messageBody{Type: "text", Content: "继续处理"})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	payload, err := json.Marshal(messageCreatedPayload{
+		Conversation: conversationPayload{ID: "topic-1", Name: "发布计划", Type: "topic"},
+		Message:      messagePayload{Body: body, ID: "topic-message-2", Seq: 2, Summary: "继续处理"},
+		Sender:       senderPayload{ID: "user-2", Name: "Bob", Type: "user"},
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	message := envelope{V: protocolVersion, Kind: kindEvent, Event: eventMessageCreated, Payload: payload}
+	var agentRequests []agent.Request
+	var sent []envelope
+	requester := appRequestFunc(func(_ context.Context, method string, request any) (json.RawMessage, error) {
+		if method != methodConversationMessagesList {
+			t.Fatalf("unexpected app request method %q", method)
+		}
+		var historyRequest appListConversationMessagesRequestPayload
+		raw, err := json.Marshal(request)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &historyRequest); err != nil {
+			return nil, err
+		}
+		if historyRequest.ConversationID != "topic-1" || historyRequest.RunAs == nil ||
+			historyRequest.RunAs.AuthorizationConversationID != "topic-1" || historyRequest.RunAs.ID != "user-2" {
+			t.Fatalf("topic history request = %#v", historyRequest)
+		}
+		return json.Marshal(appListConversationMessagesResponsePayload{
+			Messages: []historyMessagePayload{
+				historyTextMessage("topic-message-1", 1, appID, "茉莉", "已经开始处理"),
+				historyTextMessage("topic-message-2", 2, "user-2", "Bob", "继续处理"),
+			},
+			Topic: &topicContextPayload{
+				ParentConversation: conversationReferencePayload{
+					ID: "parent-group", Name: "产品讨论组", Type: "group",
+				},
+				ParentConversationID: "parent-group",
+				SourceMessage:        historyTextMessage("parent-message-42", 42, "user-1", "Alice", "请整理发布计划"),
+			},
+		})
+	})
+	replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
+		agentRequests = append(agentRequests, request)
+		return sink.SendMarkdown(ctx, "继续处理中")
+	})
+
+	handleParsedServerMessage(context.Background(), message, appID, requester, replyAgent, directAgentRunner{}, func(_ context.Context, message envelope) error {
+		sent = append(sent, message)
+		return nil
+	})
+
+	if len(agentRequests) != 1 {
+		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
+	}
+	request := agentRequests[0]
+	if request.Conversation.ID != "topic-1" || request.Conversation.Type != "topic" || request.Sender.ID != "user-2" ||
+		request.Conversation.Parent == nil || request.Conversation.Parent.ID != "parent-group" || request.Conversation.Parent.Type != "group" {
+		t.Fatalf("recovered agent request = %#v", request)
+	}
+	if len(request.History) != 2 || request.History[0].Seq != 0 || request.History[0].Summary != "请整理发布计划" || request.History[1].Summary != "已经开始处理" {
+		t.Fatalf("recovered topic history = %#v", request.History)
+	}
+	if len(sent) != 1 {
+		t.Fatalf("sent replies = %d, want 1", len(sent))
+	}
+	var reply sendMessageRequestPayload
+	if err := json.Unmarshal(sent[0].Payload, &reply); err != nil {
+		t.Fatalf("decode reply: %v", err)
+	}
+	if reply.Target.Type != "topic" || reply.Target.ConversationID != "topic-1" {
+		t.Fatalf("reply target = %#v", reply.Target)
+	}
+}
+
+func TestHandleParsedServerMessageReportsTopicPreparationFailureToParent(t *testing.T) {
+	body, err := json.Marshal(messageBody{Type: "text", Content: "继续处理"})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	payload, err := json.Marshal(messageCreatedPayload{
+		Conversation: conversationPayload{
+			ID: "topic-1", Name: "发布计划", Type: "topic",
+			Parent: &conversationReferencePayload{ID: "parent-group", Name: "产品讨论组", Type: "group"},
+		},
+		Message: messagePayload{Body: body, ID: "topic-message-2", Seq: 2, Summary: "继续处理"},
+		Sender:  senderPayload{ID: "user-2", Name: "Bob", Type: "user"},
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	requester := appRequestFunc(func(context.Context, string, any) (json.RawMessage, error) {
+		return nil, errors.New("history unavailable")
+	})
+	var sent []envelope
+	handled := handleParsedServerMessage(
+		context.Background(),
+		envelope{V: protocolVersion, Kind: kindEvent, Event: eventMessageCreated, Payload: payload},
+		"assistant-app",
+		requester,
+		replyAgentFunc(func(context.Context, agent.Request, agent.OutputSink) error {
+			t.Fatal("agent should not run when preparation fails")
+			return nil
+		}),
+		directAgentRunner{},
+		func(_ context.Context, message envelope) error {
+			sent = append(sent, message)
+			return nil
+		},
+	)
+	if !handled {
+		t.Fatal("preparation failure was not handled after notifying the parent")
+	}
+	if len(sent) != 1 {
+		t.Fatalf("sent replies = %d, want 1", len(sent))
+	}
+	var reply sendMessageRequestPayload
+	if err := json.Unmarshal(sent[0].Payload, &reply); err != nil {
+		t.Fatalf("decode fallback reply: %v", err)
+	}
+	if reply.Target.Type != "group" || reply.Target.ConversationID != "parent-group" || reply.Message.Content != agent.ModelErrorFallback {
+		t.Fatalf("preparation fallback = %#v, want parent group", reply)
 	}
 }
 
@@ -995,7 +1155,7 @@ func TestConversationAgentRunnerDoesNotRunAppendedMessageWhileSendIsInProgress(t
 
 func TestConversationAgentRunnerAppendsSameConversationMessageToActiveSession(t *testing.T) {
 	model := &recordingLoopModel{
-		secondRequestSeen: make(chan struct{}),
+		thirdRequestSeen: make(chan struct{}),
 	}
 	registry := &blockingToolRegistry{
 		started: make(chan struct{}),
@@ -1061,9 +1221,9 @@ func TestConversationAgentRunnerAppendsSameConversationMessageToActiveSession(t 
 	)
 
 	close(registry.release)
-	waitForSignal(t, model.secondRequestSeen, "second model request")
+	waitForSignal(t, model.thirdRequestSeen, "queued trigger model request")
 
-	secondRequest := model.requestAt(t, 1)
+	secondRequest := model.requestAt(t, 2)
 	secondRequestJSON, err := json.Marshal(secondRequest.Messages)
 	if err != nil {
 		t.Fatalf("marshal second request messages: %v", err)
@@ -1141,9 +1301,9 @@ func TestAuthorizationForMessageSupportsUserAndAppActors(t *testing.T) {
 }
 
 type recordingLoopModel struct {
-	mu                sync.Mutex
-	requests          []llm.Request
-	secondRequestSeen chan struct{}
+	mu               sync.Mutex
+	requests         []llm.Request
+	thirdRequestSeen chan struct{}
 }
 
 func (m *recordingLoopModel) CreateMessage(ctx context.Context, request llm.Request) (llm.Response, error) {
@@ -1158,7 +1318,9 @@ func (m *recordingLoopModel) CreateMessage(ctx context.Context, request llm.Requ
 			{Type: llm.BlockTypeToolUse, ToolUseID: "toolu_wait", ToolName: "test__wait", ToolInput: json.RawMessage(`{}`)},
 		}}, nil
 	case 2:
-		close(m.secondRequestSeen)
+		return llm.Response{Blocks: []llm.Block{{Type: llm.BlockTypeText, Text: "第一条处理完成"}}}, nil
+	case 3:
+		close(m.thirdRequestSeen)
 		return llm.Response{Blocks: []llm.Block{{Type: llm.BlockTypeText, Text: "处理第二条"}}}, nil
 	default:
 		return llm.Response{Blocks: []llm.Block{{Type: llm.BlockTypeText, Text: "完成"}}}, nil
@@ -1377,6 +1539,13 @@ func historyTextMessage(messageID string, seq int64, senderID string, senderName
 		Summary: content,
 		Body:    body,
 	}
+}
+
+func testTopicMutationResponse(topicID, name string) (json.RawMessage, error) {
+	return json.Marshal(topicMutationResponsePayload{
+		Conversation: conversationPayload{ID: topicID, Name: name, Type: "topic"},
+		Created:      true,
+	})
 }
 
 func waitForSignal(t *testing.T, ch <-chan struct{}, label string) {

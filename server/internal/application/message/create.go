@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func (s *Service) Create(ctx context.Context, cmd CreateCommand) (CreateResult, error) {
@@ -80,22 +79,11 @@ func (s *Service) PrepareUpload(ctx context.Context, cmd PrepareUploadCommand) (
 		return PrepareUploadResult{}, InvalidRequestError(err.Error(), err)
 	}
 	db := s.db.WithContext(ctx)
-	var conversation store.Conversation
-	if err := db.First(&conversation, "id = ?", conversationID).Error; err != nil {
+	access, err := loadUserConversationAccess(db, conversationID, cmd.AccountID, false)
+	if err != nil {
 		return PrepareUploadResult{}, mapCreateError(err)
 	}
-	if err := ensureConversationSendable(db, conversation); err != nil {
-		return PrepareUploadResult{}, mapCreateError(err)
-	}
-	var member store.ConversationMember
-	if err := db.First(
-		&member,
-		"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-		conversationID, store.ConversationMemberTypeUser, cmd.AccountID,
-	).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = errConversationAccessDenied
-		}
+	if err := validateUserConversationSendable(db, access); err != nil {
 		return PrepareUploadResult{}, mapCreateError(err)
 	}
 	existing, ok, err := findExistingMessageByClientMessageID(
@@ -105,7 +93,7 @@ func (s *Service) PrepareUpload(ctx context.Context, cmd PrepareUploadCommand) (
 		return PrepareUploadResult{}, internalError(err)
 	}
 	if ok {
-		if err := advanceConversationMemberReadSeq(db, conversationID, cmd.AccountID, existing.Seq); err != nil {
+		if err := advanceUserConversationReadSeq(db, access.Context, cmd.AccountID, existing.Seq, &existing.ID, time.Now().UTC()); err != nil {
 			return PrepareUploadResult{}, internalError(err)
 		}
 		converted, err := newMessageForUser(db, existing, cmd.AccountID)
@@ -114,7 +102,7 @@ func (s *Service) PrepareUpload(ctx context.Context, cmd PrepareUploadCommand) (
 		}
 		return PrepareUploadResult{Existing: &converted}, nil
 	}
-	if err := validateReplyToMessage(db, conversationID, member.HistoryVisibleFromSeq, replyToMessageID); err != nil {
+	if err := validateReplyToMessage(db, conversationID, access.visibleFromSeq(), replyToMessageID); err != nil {
 		return PrepareUploadResult{}, mapCreateError(err)
 	}
 	return PrepareUploadResult{}, nil
@@ -186,22 +174,12 @@ func (s *Service) createUserMessage(
 	mentionedUserIDs := []string{}
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var conversation store.Conversation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+		access, err := loadUserConversationAccess(tx, conversationID, userID, true)
+		if err != nil {
 			return err
 		}
-		if err := ensureConversationSendable(tx, conversation); err != nil {
-			return err
-		}
-		var member store.ConversationMember
-		if err := tx.First(
-			&member,
-			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-			conversationID, store.ConversationMemberTypeUser, userID,
-		).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errConversationAccessDenied
-			}
+		conversation := access.Context.Conversation
+		if err := ensureUserConversationSendable(tx, access, userID, 0, time.Now().UTC()); err != nil {
 			return err
 		}
 		existing, ok, err := findExistingMessageByClientMessageID(
@@ -212,12 +190,12 @@ func (s *Service) createUserMessage(
 		}
 		if ok {
 			message = existing
-			if err := advanceConversationMemberReadSeq(tx, conversationID, userID, existing.Seq); err != nil {
+			if err := advanceUserConversationReadSeq(tx, access.Context, userID, existing.Seq, &existing.ID, time.Now().UTC()); err != nil {
 				return err
 			}
 			return nil
 		}
-		if err := validateReplyToMessage(tx, conversationID, member.HistoryVisibleFromSeq, replyToMessageID); err != nil {
+		if err := validateReplyToMessage(tx, conversationID, access.visibleFromSeq(), replyToMessageID); err != nil {
 			return err
 		}
 		finalBody, summary, err := finalize(ctx, body)
@@ -240,14 +218,14 @@ func (s *Service) createUserMessage(
 		}).Error; err != nil {
 			return err
 		}
-		if err := advanceConversationMemberReadSeq(tx, conversationID, userID, message.Seq); err != nil {
+		if err := advanceUserConversationReadSeq(tx, access.Context, userID, message.Seq, &message.ID, now); err != nil {
 			return err
 		}
-		mentionedUserIDs, err = updateConversationMentionedSeq(tx, conversation.Kind, conversationID, message.Seq, finalBody)
+		mentionedUserIDs, err = updateConversationMentionedSeq(tx, access.Context, message.Seq, finalBody, now)
 		if err != nil {
 			return err
 		}
-		memberUserIDs, err = loadActiveConversationUserIDs(tx, conversationID)
+		memberUserIDs, err = loadConversationDeliveryUserIDs(tx, access.Context)
 		if err != nil {
 			return err
 		}
@@ -264,7 +242,7 @@ func (s *Service) createUserMessage(
 			s.appEventLocker.Lock()
 			lockHeld = true
 		}
-		events, err = createAppMessageEventOutbox(tx, conversation, sender, message)
+		events, err = createAppMessageEventOutbox(tx, access.Context, sender, message)
 		return err
 	})
 	return message, created, memberUserIDs, mentionedUserIDs, events, lockHeld, err

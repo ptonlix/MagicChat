@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -168,7 +169,7 @@ func (s *Server) handleAppListOwnConversations(appID string, req appListConversa
 	query := db.
 		Joins("JOIN conversation_members cm ON cm.conversation_id = conversations.id").
 		Where("cm.member_type = ? AND cm.member_id = ? AND cm.left_at IS NULL", store.ConversationMemberTypeApp, appID).
-		Where("conversations.status = ?", store.ConversationStatusActive)
+		Where("conversations.kind <> ? AND conversations.status = ?", store.ConversationKindTopic, store.ConversationStatusActive)
 	if keyword != "" {
 		query = query.Where("LOWER(conversations.name) LIKE ?", "%"+keyword+"%")
 	}
@@ -176,6 +177,40 @@ func (s *Server) handleAppListOwnConversations(appID string, req appListConversa
 		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
 		Order("conversations.id ASC").Limit(limit).Find(&conversations).Error; err != nil {
 		return appListConversationsResponse{}, err
+	}
+	var topics []store.Conversation
+	topicQuery := s.db.Model(&store.Conversation{}).
+		Joins("JOIN conversation_topic_participants ctp ON ctp.conversation_id = conversations.id").
+		Joins("JOIN conversation_topics ct ON ct.conversation_id = conversations.id").
+		Joins("JOIN conversation_members parent_cm ON parent_cm.conversation_id = ct.parent_conversation_id").
+		Where("ctp.participant_type = ? AND ctp.participant_id = ?", store.ConversationMemberTypeApp, appID).
+		Where("parent_cm.member_type = ? AND parent_cm.member_id = ? AND parent_cm.left_at IS NULL", store.ConversationMemberTypeApp, appID).
+		Where("conversations.status = ?", store.ConversationStatusActive)
+	if keyword != "" {
+		topicQuery = topicQuery.Where("LOWER(conversations.name) LIKE ?", "%"+keyword+"%")
+	}
+	if err := topicQuery.
+		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
+		Order("conversations.id ASC").Limit(limit).Find(&topics).Error; err != nil {
+		return appListConversationsResponse{}, err
+	}
+	conversations = append(conversations, topics...)
+	sort.Slice(conversations, func(left, right int) bool {
+		leftAt := conversations[left].CreatedAt
+		if conversations[left].LastMessageAt != nil {
+			leftAt = *conversations[left].LastMessageAt
+		}
+		rightAt := conversations[right].CreatedAt
+		if conversations[right].LastMessageAt != nil {
+			rightAt = *conversations[right].LastMessageAt
+		}
+		if !leftAt.Equal(rightAt) {
+			return leftAt.After(rightAt)
+		}
+		return conversations[left].ID < conversations[right].ID
+	})
+	if len(conversations) > limit {
+		conversations = conversations[:limit]
 	}
 	responses := make([]appConversationSummaryPayload, 0, len(conversations))
 	for _, conversation := range conversations {
@@ -186,6 +221,10 @@ func (s *Server) handleAppListOwnConversations(appID string, req appListConversa
 		var memberCount int64
 		memberQuery := s.db.Model(&store.ConversationMember{}).
 			Where("conversation_id = ? AND left_at IS NULL", conversation.ID)
+		if conversation.Kind == store.ConversationKindTopic {
+			memberQuery = s.db.Model(&store.ConversationTopicParticipant{}).
+				Where("conversation_id = ?", conversation.ID)
+		}
 		if err := memberQuery.Count(&memberCount).Error; err != nil {
 			return appListConversationsResponse{}, err
 		}

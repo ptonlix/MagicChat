@@ -2,6 +2,8 @@ package conversation
 
 import (
 	"context"
+	"encoding/json"
+	"sync"
 
 	projectapp "app/internal/application/project"
 )
@@ -12,5 +14,22 @@ type ProjectReader interface {
 
 type NotificationPort interface {
 	PublishConversationMessage(context.Context, []string, Message)
+	PublishConversationPinUpdated(context.Context, []string, ConversationPinEvent)
 	PublishConversationRemoved(context.Context, []string, string)
+	PublishTopicEvent(context.Context, []string, TopicEvent)
+}
+
+type AppEvent struct {
+	AppID   string
+	Cursor  int64
+	Event   string
+	Payload json.RawMessage
+}
+
+type AppEventPort interface {
+	DeliverConversationAppEvents(context.Context, []AppEvent)
+}
+
+type AppEventLocker interface {
+	sync.Locker
 }

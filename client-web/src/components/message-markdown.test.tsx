@@ -6,10 +6,15 @@ import { MessageMarkdown } from "@/components/message-markdown"
 describe("MessageMarkdown", () => {
   it("uses the mono font and highlights fenced code", async () => {
     const { container } = render(
-      <MessageMarkdown content={"`inline`\n\n```ts\nconst value = 1\n```"} />
+      <MessageMarkdown
+        content={
+          "`inline`\n\n```\ndef func():\n    pass\n```\n\n```python\ndef func():\n    pass\n```"
+        }
+      />
     )
 
     expect(container.querySelector("p code")).toHaveClass("font-mono!")
+    expect(container.querySelector("pre > code")).toHaveClass("font-mono!")
     await waitFor(
       () => {
         expect(
@@ -20,6 +25,9 @@ describe("MessageMarkdown", () => {
     )
     expect(container.querySelector(".shiki")?.getAttribute("style")).toContain(
       "--shiki-dark"
+    )
+    expect(container.querySelector(".markdown-code-highlight")).toHaveClass(
+      "font-mono!"
     )
   })
 

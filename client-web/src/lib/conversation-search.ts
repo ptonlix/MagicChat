@@ -2,6 +2,7 @@ import type {
   ClientConversation,
   ClientConversationMember,
 } from "@/lib/client-data-api"
+import { getConversationDisplayName } from "@/lib/conversation-avatar-presentation"
 import {
   createPinyinSearchTokens,
   normalizePinyinSearchQuery,
@@ -109,6 +110,8 @@ function canReuseSearchFields(
     previousEntry.currentUserId === currentUserId &&
     previousEntry.conversation.name === conversation.name &&
     previousEntry.conversation.type === conversation.type &&
+    previousEntry.conversation.topic?.parentConversationName ===
+      conversation.topic?.parentConversationName &&
     previousEntry.conversation.members === conversation.members
   )
 }
@@ -119,7 +122,11 @@ function createConversationSearchFields(
 ) {
   const fields: ConversationSearchField[] = []
 
-  addField(fields, "conversation_name", conversation.name)
+  addField(
+    fields,
+    "conversation_name",
+    getConversationDisplayName(conversation)
+  )
 
   if (conversation.type === "app") {
     return fields

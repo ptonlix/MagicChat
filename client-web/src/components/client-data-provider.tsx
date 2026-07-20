@@ -10,8 +10,10 @@ import {
   listClientConversations,
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
+  setConversationPinned as setConversationPinnedRequest,
   type ClientConversation,
   type ClientMessage,
+  type ClientMessageTopic,
   type ClientUser,
   type ContactApp,
   type ContactGroup,
@@ -63,6 +65,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const [conversationMessageStates, setConversationMessageStates] = useState<
     Record<string, ClientConversationMessageState>
   >({})
+  const [foregroundConversationId, setForegroundConversationId] = useState("")
   const [contactApps, setContactApps] = useState<ContactApp[]>([])
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([])
   const [contacts, setContacts] = useState<ContactUser[]>([])
@@ -345,6 +348,60 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [applyConversationMessageToList]
   )
 
+  const updateTopicSourcePreview = useCallback((message: ClientMessage) => {
+    const topicConversation = conversationsRef.current.find(
+      (conversation) =>
+        conversation.id === message.conversationId &&
+        conversation.type === "topic"
+    )
+    const topic = topicConversation?.topic
+    if (!topic || message.sender.type === "system") {
+      return
+    }
+
+    setConversationMessageStates((currentStates) => {
+      const parentState = currentStates[topic.parentConversationId]
+      if (!parentState) {
+        return currentStates
+      }
+      let changed = false
+      const messages = parentState.messages.map((sourceMessage) => {
+        if (
+          sourceMessage.id !== topic.sourceMessageId ||
+          !sourceMessage.topic
+        ) {
+          return sourceMessage
+        }
+        const existingReplies = (
+          sourceMessage.topic.recentReplies ?? []
+        ).filter((reply) => reply.id !== message.id)
+        const recentReplies =
+          message.body.type === "revoked"
+            ? existingReplies
+            : [
+                ...existingReplies,
+                {
+                  createdAt: message.createdAt,
+                  id: message.id,
+                  sender: message.sender,
+                  summary: getMessageSummary(message),
+                },
+              ].slice(-3)
+        changed = true
+        return {
+          ...sourceMessage,
+          topic: { ...sourceMessage.topic, recentReplies },
+        }
+      })
+      return changed
+        ? {
+            ...currentStates,
+            [topic.parentConversationId]: { ...parentState, messages },
+          }
+        : currentStates
+    })
+  }, [])
+
   const mergeIncomingConversationMessage = useCallback(
     (
       message: ClientMessage,
@@ -361,11 +418,16 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           page: updatePageWithMessage(state.page, messages),
         }
       })
+      updateTopicSourcePreview(message)
       if (options.updateList !== false) {
         rememberConversationMessage(message)
       }
     },
-    [rememberConversationMessage, updateConversationMessageState]
+    [
+      rememberConversationMessage,
+      updateConversationMessageState,
+      updateTopicSourcePreview,
+    ]
   )
 
   const currentUserId = me?.id ?? ""
@@ -413,8 +475,9 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           },
         }
       })
+      updateTopicSourcePreview(message)
     },
-    []
+    [updateTopicSourcePreview]
   )
 
   const updateConversationLastMentionedSeq = useCallback(
@@ -436,6 +499,86 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
             : conversation
         )
       )
+    },
+    []
+  )
+
+  const updateConversationPinned = useCallback(
+    (conversationId: string, pinned: boolean) => {
+      if (!conversationId) {
+        return
+      }
+      setConversations((currentConversations) =>
+        orderConversations(
+          currentConversations.map((conversation) =>
+            conversation.id === conversationId
+              ? { ...conversation, pinned }
+              : conversation
+          )
+        )
+      )
+    },
+    []
+  )
+
+  const setConversationPinned = useCallback(
+    async (conversationId: string, pinned: boolean) => {
+      try {
+        const result = await setConversationPinnedRequest(
+          conversationId,
+          pinned
+        )
+        updateConversationPinned(result.conversationId, result.pinned)
+      } catch (error) {
+        throw handleError(error, pinned ? "置顶会话失败" : "取消置顶失败")
+      }
+    },
+    [handleError, updateConversationPinned]
+  )
+
+  const updateMessageTopic = useCallback(
+    (
+      parentConversationId: string,
+      sourceMessageId: string,
+      topic: Pick<ClientMessageTopic, "archived" | "conversationId">
+    ) => {
+      setConversations((currentConversations) =>
+        currentConversations.map((conversation) =>
+          conversation.id === topic.conversationId && conversation.topic
+            ? {
+                ...conversation,
+                topic: { ...conversation.topic, archived: topic.archived },
+              }
+            : conversation
+        )
+      )
+      setConversationMessageStates((currentStates) => {
+        const state = currentStates[parentConversationId]
+        if (!state) {
+          return currentStates
+        }
+        let changed = false
+        const messages = state.messages.map((message) => {
+          if (message.id !== sourceMessageId) {
+            return message
+          }
+          changed = true
+          return {
+            ...message,
+            topic: {
+              ...message.topic,
+              ...topic,
+              recentReplies: message.topic?.recentReplies ?? [],
+            },
+          }
+        })
+        return changed
+          ? {
+              ...currentStates,
+              [parentConversationId]: { ...state, messages },
+            }
+          : currentStates
+      })
     },
     []
   )
@@ -825,12 +968,14 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     createProject,
     dissolveGroupConversation,
     ensureConversationMessages,
+    foregroundConversationId,
     getConversation,
     getConversationMessageState,
     joinGroupConversation,
     leaveGroupConversation,
     loadBeforeConversationMessages,
     markConversationRead,
+    setConversationPinned,
     handleIncomingConversationMessage,
     handleIncomingConversationMessageUpdate,
     me,
@@ -862,11 +1007,14 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     sendConversationCard,
     sendConversationText,
     sendConversationVoice,
+    setForegroundConversationId,
     setGroupConversationPrivate,
     setGroupConversationPublic,
     syncLoadedConversationMessages,
     updateConversationLastMessage,
     updateConversationLastMentionedSeq,
+    updateConversationPinned,
+    updateMessageTopic,
     updateGroupConversationAvatar,
     updateGroupConversationName,
   }

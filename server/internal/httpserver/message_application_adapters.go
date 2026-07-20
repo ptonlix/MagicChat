@@ -73,6 +73,19 @@ func legacyMessageResponse(value messageapp.Message) messageResponse {
 			Seq: value.ReplyTo.Seq, Summary: value.ReplyTo.Summary,
 		}
 	}
+	if value.Topic != nil {
+		recentReplies := make([]messageTopicReplyResponse, len(value.Topic.RecentReplies))
+		for index, reply := range value.Topic.RecentReplies {
+			recentReplies[index] = messageTopicReplyResponse{
+				CreatedAt: reply.CreatedAt, ID: reply.ID,
+				Sender: messageSenderResponse{ID: reply.Sender.ID, Type: reply.Sender.Type}, Summary: reply.Summary,
+			}
+		}
+		response.Topic = &messageTopicResponse{
+			Archived: value.Topic.Archived, ConversationID: value.Topic.ConversationID,
+			RecentReplies: recentReplies,
+		}
+	}
 	return response
 }
 

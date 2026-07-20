@@ -12,6 +12,7 @@ import type {
   MessageUpdatedEventPayloadResponse,
   ConversationRemovedEventPayloadResponse,
   ConversationMemberMentionedEventPayloadResponse,
+  TopicEventPayloadResponse,
   ReadTemporaryFileURLsResponse,
   ClientMessageBody,
   ClientMessage,
@@ -713,6 +714,26 @@ export function normalizeConversationMemberMentionedEventPayload(
   }
 }
 
+export function normalizeTopicEventPayload(payload: unknown) {
+  if (!isObject(payload)) {
+    throw new ClientDataRequestError("话题推送格式不正确")
+  }
+  const event = payload as TopicEventPayloadResponse
+  if (
+    !event.conversation_id ||
+    !event.parent_conversation_id ||
+    !event.source_message_id
+  ) {
+    throw new ClientDataRequestError("话题推送格式不正确")
+  }
+  return {
+    archived: Boolean(event.archived),
+    conversationId: event.conversation_id,
+    parentConversationId: event.parent_conversation_id,
+    sourceMessageId: event.source_message_id,
+  }
+}
+
 export function formatClientMessageBodySummary(body: ClientMessageBody) {
   if (body.type === "text") {
     return body.content
@@ -763,6 +784,10 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
 
   if (body.event === "message_revoked") {
     return `${body.actor.displayName} 撤回了一条消息`
+  }
+
+  if (body.event === "topic_closed") {
+    return `${body.actor.displayName} 已将话题关闭`
   }
 
   if (body.event === "group_avatar_updated") {
@@ -857,7 +882,8 @@ export function isClientMessageInitiatedByUser(
     message.body.event === "group_member_left" ||
     message.body.event === "group_member_removed" ||
     message.body.event === "group_name_updated" ||
-    message.body.event === "message_revoked"
+    message.body.event === "message_revoked" ||
+    message.body.event === "topic_closed"
   ) {
     return message.body.actor.id === userId
   }

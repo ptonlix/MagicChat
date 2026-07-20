@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	DefaultAgentMaxTurns = 50
-	AIAssistantAppID     = "00000000-0000-0000-0000-000000000001"
-	mcpGatewayName       = "baizhi_gateway"
+	DefaultAgentMaxTurns    = 50
+	DefaultAgentMaxSessions = 1000
+	AIAssistantAppID        = "00000000-0000-0000-0000-000000000001"
+	mcpGatewayName          = "baizhi_gateway"
 )
 
 type Config struct {
@@ -24,7 +25,8 @@ type Config struct {
 }
 
 type AgentConfig struct {
-	MaxTurns int
+	MaxSessions int
+	MaxTurns    int
 }
 
 type LLMConfig struct {
@@ -63,6 +65,10 @@ func LoadFromEnv(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	maxSessions, err := positiveIntFromEnv(getenv, "AGENT_MAX_SESSIONS", DefaultAgentMaxSessions)
+	if err != nil {
+		return Config{}, err
+	}
 
 	llmBaseURL, err := requiredEnv(getenv, "LLM_BASE_URL")
 	if err != nil {
@@ -93,7 +99,7 @@ func LoadFromEnv(getenv func(string) string) (Config, error) {
 	}
 
 	return Config{
-		Agent:        AgentConfig{MaxTurns: maxTurns},
+		Agent:        AgentConfig{MaxSessions: maxSessions, MaxTurns: maxTurns},
 		AppID:        AIAssistantAppID,
 		AppSecret:    appSecret,
 		WebSocketURL: webSocketURL,

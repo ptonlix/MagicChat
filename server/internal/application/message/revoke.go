@@ -53,6 +53,11 @@ func (s *Service) Revoke(ctx context.Context, cmd RevokeCommand) (RevokeResult, 
 	if err != nil {
 		return RevokeResult{}, internalError(err)
 	}
+	responseWithTopic := []Message{response}
+	if err := attachMessageTopics(db, responseWithTopic); err != nil {
+		return RevokeResult{}, internalError(err)
+	}
+	response = responseWithTopic[0]
 
 	if s.notifications != nil {
 		updated := make([]Delivery, 0, len(memberUserIDs))
@@ -61,6 +66,10 @@ func (s *Service) Revoke(ctx context.Context, cmd RevokeCommand) (RevokeResult, 
 			updatedMessage, viewErr := newMessageForUser(db, message, userID)
 			if viewErr != nil {
 				updatedMessage = newMessage(message)
+			}
+			updatedWithTopic := []Message{updatedMessage}
+			if topicErr := attachMessageTopics(db, updatedWithTopic); topicErr == nil {
+				updatedMessage = updatedWithTopic[0]
 			}
 			createdMessage, viewErr := newMessageForUser(db, systemMessage, userID)
 			if viewErr != nil {
@@ -82,24 +91,18 @@ func (s *Service) revokeForUser(ctx context.Context, userID, conversationID, mes
 	memberUserIDs := []string{}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var conversation store.Conversation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+		access, err := loadUserConversationAccess(tx, conversationID, userID, true)
+		if err != nil {
 			return err
 		}
-		if conversation.Status != store.ConversationStatusActive {
-			return errConversationAccessDenied
+		conversation := access.Context.Conversation
+		if err := ensureConversationSendable(tx, conversation); err != nil {
+			return err
 		}
-
-		var member store.ConversationMember
-		if err := tx.First(
-			&member,
-			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-			conversationID, store.ConversationMemberTypeUser, userID,
-		).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errConversationAccessDenied
+		if access.Context.ParentConversation != nil {
+			if err := ensureConversationSendable(tx, *access.Context.ParentConversation); err != nil {
+				return err
 			}
-			return err
 		}
 
 		messagePartitionYear := 0
@@ -128,7 +131,7 @@ func (s *Service) revokeForUser(ctx context.Context, userID, conversationID, mes
 		if message.SenderType == store.MessageSenderTypeSystem {
 			return errMessageRevokeUnsupported
 		}
-		if !canRevokeMessage(userID, member, conversation, message) {
+		if !canRevokeMessage(userID, access.Member, access.Context.EffectiveConversation(), message) {
 			return errMessageRevokeForbidden
 		}
 
@@ -161,10 +164,12 @@ func (s *Service) revokeForUser(ctx context.Context, userID, conversationID, mes
 			return err
 		}
 		systemMessage = createdSystemMessage
-		if err := advanceConversationMemberReadSeq(tx, conversationID, userID, systemMessage.Seq); err != nil {
-			return err
+		if !access.Context.IsTopic() || access.Participant != nil {
+			if err := advanceUserConversationReadSeq(tx, access.Context, userID, systemMessage.Seq, &systemMessage.ID, now); err != nil {
+				return err
+			}
 		}
-		memberUserIDs, err = loadActiveConversationUserIDs(tx, conversationID)
+		memberUserIDs, err = loadConversationDeliveryUserIDs(tx, access.Context)
 		return err
 	})
 	return message, systemMessage, memberUserIDs, err
@@ -221,6 +226,8 @@ func mapRevokeError(err error) error {
 		return NotFoundError("消息不存在", err)
 	case errors.Is(err, errConversationAccessDenied), errors.Is(err, errMessageRevokeForbidden):
 		return forbidden("无权撤回消息", err)
+	case errors.Is(err, errConversationNotSendable):
+		return forbidden("当前会话不能撤回消息", err)
 	case errors.Is(err, errMessageRevokeUnsupported):
 		return InvalidRequestError("不能撤回该消息", err)
 	case errors.Is(err, errMessageAlreadyRevoked):

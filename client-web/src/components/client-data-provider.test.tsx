@@ -84,12 +84,75 @@ describe("ClientDataProvider", () => {
     expect(contactsRequestCount).toBe(2)
     expect(conversationRequestCount).toBe(2)
   })
+
+  it("applies topic archive events to the loaded conversation immediately", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(
+          jsonResponse(
+            createConversationsResponse([createTopicConversationResponse()])
+          )
+        )
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <TopicArchiveProbe />
+        </ClientDataProvider>
+      </MemoryRouter>
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.getByTestId("topic-archived")).toHaveTextContent("false")
+    act(() => screen.getByRole("button", { name: "archive topic" }).click())
+    expect(screen.getByTestId("topic-archived")).toHaveTextContent("true")
+  })
 })
 
 function ConversationCount() {
   const { conversations } = useClientData()
 
   return <div data-testid="conversation-count">{conversations.length}</div>
+}
+
+function TopicArchiveProbe() {
+  const { conversations, updateMessageTopic } = useClientData()
+  const topic = conversations[0]
+
+  return (
+    <>
+      <button
+        aria-label="archive topic"
+        onClick={() =>
+          updateMessageTopic?.("parent-1", "message-1", {
+            archived: true,
+            conversationId: "topic-1",
+          })
+        }
+        type="button"
+      />
+      <div data-testid="topic-archived">
+        {String(topic?.topic?.archived ?? false)}
+      </div>
+    </>
+  )
 }
 
 function jsonResponse(body: unknown) {
@@ -176,5 +239,29 @@ function createConversationResponse(id: string) {
     id,
     name: id,
     type: "direct",
+  }
+}
+
+function createTopicConversationResponse() {
+  return {
+    created_at: "2026-07-09T00:00:00Z",
+    id: "topic-1",
+    name: "Topic",
+    type: "topic",
+    topic: {
+      archived: false,
+      parent_conversation_id: "parent-1",
+      parent_conversation_name: "Parent",
+      parent_conversation_type: "group",
+      participating: true,
+      source_message_id: "message-1",
+      source_message_seq: 1,
+      source_sender: {
+        avatar: "/avatars/alice.webp",
+        id: "user-1",
+        name: "Alice",
+        type: "user",
+      },
+    },
   }
 }

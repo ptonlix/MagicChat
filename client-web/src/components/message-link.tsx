@@ -9,7 +9,7 @@ type MessageLinkProps = {
 export function MessageLink({ link }: MessageLinkProps) {
   return (
     <a
-      className="flex w-72 max-w-full items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="flex w-80 max-w-full items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       href={link.url}
       rel="noopener noreferrer"
       target="_blank"
@@ -18,7 +18,7 @@ export function MessageLink({ link }: MessageLinkProps) {
         <LinkIcon className="size-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm leading-snug font-medium">
+        <div className="truncate text-sm leading-snug font-medium transition-colors group-hover/message-bubble:text-sky-500">
           {link.title}
         </div>
         <div className="truncate text-xs leading-snug text-muted-foreground">

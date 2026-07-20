@@ -152,7 +152,7 @@
   }
 
   .markdown-code-highlight .shiki * {
-    font-family: inherit !important;
+    font-family: var(--font-mono) !important;
   }
 
   .dark .markdown-code-highlight .shiki,

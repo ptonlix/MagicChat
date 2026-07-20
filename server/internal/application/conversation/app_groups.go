@@ -428,6 +428,7 @@ func (s *Service) RemoveGroupMemberAsApplication(ctx context.Context, cmd Remove
 	var storedMessage *store.Message
 	userIDs := []string{}
 	removedUserID := ""
+	removedTopicIDs := []string{}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		actor, err := appapp.LockUsableApp(tx, appID)
 		if err != nil {
@@ -478,6 +479,10 @@ func (s *Service) RemoveGroupMemberAsApplication(ctx context.Context, cmd Remove
 			Update("left_at", now).Error; err != nil {
 			return err
 		}
+		removedTopicIDs, err = removeParentMemberTopicParticipations(tx, conversationID, memberType, memberID)
+		if err != nil {
+			return err
+		}
 		created, err := createGroupMemberRemovedByApplicationSystemMessage(tx, &conversation, actor, targetRef, now)
 		if err != nil {
 			return err
@@ -501,6 +506,9 @@ func (s *Service) RemoveGroupMemberAsApplication(ctx context.Context, cmd Remove
 	}
 	if removedUserID != "" && s.notifications != nil {
 		s.notifications.PublishConversationRemoved(ctx, []string{removedUserID}, conversationID)
+		for _, topicID := range removedTopicIDs {
+			s.notifications.PublishConversationRemoved(ctx, []string{removedUserID}, topicID)
+		}
 	}
 	return s.loadApplicationGroupMutationResult(ctx, appID, conversationID, storedMessage)
 }
@@ -651,122 +659,26 @@ func (s *Service) DissolveGroupAsApplication(ctx context.Context, cmd DissolveGr
 	if err != nil {
 		return DissolveResult{}, err
 	}
-	userIDs, err := s.dissolveGroupAsApplication(ctx, appID, conversationID)
+	userIDs, topicIDs, err := s.dissolveAsMember(
+		ctx,
+		store.ConversationMemberTypeApp,
+		appID,
+		conversationID,
+		func(tx *gorm.DB) error {
+			_, err := appapp.LockUsableApp(tx, appID)
+			return err
+		},
+	)
 	if err != nil {
 		return DissolveResult{}, mapApplicationGroupMutationError(err)
 	}
 	if s.notifications != nil {
 		s.notifications.PublishConversationRemoved(ctx, userIDs, conversationID)
+		for _, topicID := range topicIDs {
+			s.notifications.PublishConversationRemoved(ctx, userIDs, topicID)
+		}
 	}
 	return DissolveResult{ConversationID: conversationID}, nil
-}
-
-func (s *Service) dissolveGroupAsApplication(ctx context.Context, appID, conversationID string) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	db := s.db.WithContext(ctx)
-	for attempt := 0; attempt < maxProjectDissolveAttempts; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		userIDs := []string{}
-		err := db.Transaction(func(tx *gorm.DB) error {
-			if _, err := appapp.LockUsableApp(tx, appID); err != nil {
-				return err
-			}
-			projectIDs, err := loadProjectIDs(tx, conversationID)
-			if err != nil {
-				return err
-			}
-			projectsByID, err := lockProjectsForDissolution(tx, projectIDs)
-			if err != nil {
-				return err
-			}
-			var conversation store.Conversation
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
-				return err
-			}
-			currentProjectIDs, err := loadProjectIDs(tx, conversationID)
-			if err != nil {
-				return err
-			}
-			if containsAdditionalProjectID(projectIDs, currentProjectIDs) {
-				return ErrProjectLockChange
-			}
-			if conversation.Status != store.ConversationStatusActive {
-				return ErrAccessDenied
-			}
-			if conversation.Kind != store.ConversationKindGroup {
-				return ErrNotGroup
-			}
-			var current store.ConversationMember
-			if err := tx.First(&current,
-				"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-				conversationID, store.ConversationMemberTypeApp, appID,
-			).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ErrAccessDenied
-				}
-				return err
-			}
-			if current.Role != store.ConversationMemberRoleOwner {
-				return ErrAccessDenied
-			}
-			ids, err := loadActiveUserIDs(tx, conversationID)
-			if err != nil {
-				return err
-			}
-			userIDs = ids
-			now := s.now().UTC()
-			deleted := tx.Where("conversation_id = ?", conversationID).Delete(&store.ProjectGroup{})
-			if deleted.Error != nil {
-				return deleted.Error
-			}
-			if deleted.RowsAffected != int64(len(currentProjectIDs)) {
-				return ErrProjectMutation
-			}
-			activeProjectIDs := make([]string, 0, len(currentProjectIDs))
-			for _, projectID := range currentProjectIDs {
-				project, exists := projectsByID[projectID]
-				if exists && !project.DeletedAt.Valid {
-					activeProjectIDs = append(activeProjectIDs, projectID)
-				}
-			}
-			if len(activeProjectIDs) > 0 {
-				updated := tx.Model(&store.Project{}).Where("id IN ?", activeProjectIDs).Update("updated_at", now)
-				if updated.Error != nil {
-					return updated.Error
-				}
-				if updated.RowsAffected != int64(len(activeProjectIDs)) {
-					return ErrProjectMutation
-				}
-			}
-			updated := tx.Model(&store.Conversation{}).Where("id = ?", conversationID).
-				Updates(map[string]any{"dissolved_at": now, "status": store.ConversationStatusDissolved, "updated_at": now})
-			if updated.Error != nil {
-				return updated.Error
-			}
-			if updated.RowsAffected != 1 {
-				return ErrProjectMutation
-			}
-			return nil
-		})
-		if errors.Is(err, ErrProjectLockChange) {
-			if contextErr := ctx.Err(); contextErr != nil {
-				return nil, contextErr
-			}
-			if attempt == maxProjectDissolveAttempts-1 {
-				return nil, ErrProjectDissolveConflict
-			}
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		return userIDs, nil
-	}
-	return nil, ErrProjectDissolveConflict
 }
 
 func (s *Service) loadApplicationGroupMutationResult(ctx context.Context, appID, conversationID string, message *store.Message) (ApplicationGroupMutationResult, error) {

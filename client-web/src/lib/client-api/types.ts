@@ -100,10 +100,63 @@ export type ConversationResponse = {
   member_count?: number
   members?: ConversationMemberResponse[]
   name?: string
+  pinned?: boolean
   projects?: ConversationProjectResponse[]
   type?: string
+  topic?: ConversationTopicMetadataResponse | null
   unread_count?: number
   visibility?: string
+}
+
+export type ConversationTopicMetadataResponse = {
+  archived?: boolean
+  parent_conversation_id?: string
+  parent_conversation_name?: string
+  parent_conversation_type?: string
+  participating?: boolean
+  source_message_id?: string
+  source_message_seq?: number
+  source_sender?: TopicSourceSenderResponse
+}
+
+export type TopicReferenceResponse = {
+  id?: string
+  name?: string
+  type?: string
+}
+
+export type TopicSourceSenderResponse = {
+  avatar?: string
+  id?: string
+  name?: string
+  type?: string
+}
+
+export type TopicSourceMessageResponse = {
+  body?: MessageBodyResponse
+  created_at?: string
+  id?: string
+  revoked_at?: string | null
+  sender?: TopicSourceSenderResponse
+  seq?: number
+  summary?: string
+}
+
+export type TopicDetailResponse = {
+  can_archive?: boolean
+  can_participate?: boolean
+  conversation?: ConversationResponse
+  parent_conversation?: TopicReferenceResponse
+  source_message?: TopicSourceMessageResponse
+}
+
+export type CreateTopicResponse = {
+  conversation?: ConversationResponse
+  created?: boolean
+}
+
+export type TopicConversationResponse = {
+  conversation?: ConversationResponse
 }
 
 export type ConversationProjectResponse = {
@@ -126,6 +179,11 @@ export type ConversationMemberResponse = {
 
 export type ListClientConversationsResponse = {
   conversations?: ConversationResponse[]
+}
+
+export type SetConversationPinResponse = {
+  conversation_id?: string
+  pinned?: boolean
 }
 
 export type CreateDirectConversationResponse = {
@@ -326,6 +384,12 @@ export type MessageRevokedSystemEventBodyResponse = {
   type?: "system_event"
 }
 
+export type TopicClosedSystemEventBodyResponse = {
+  actor?: SystemEventUserRefResponse
+  event?: "topic_closed"
+  type?: "system_event"
+}
+
 export type MessageBodyResponse =
   | TextMessageBodyResponse
   | MarkdownMessageBodyResponse
@@ -344,6 +408,7 @@ export type MessageBodyResponse =
   | GroupMemberRemovedSystemEventBodyResponse
   | GroupNameUpdatedSystemEventBodyResponse
   | MessageRevokedSystemEventBodyResponse
+  | TopicClosedSystemEventBodyResponse
 
 export type MessageResponse = {
   body?: MessageBodyResponse
@@ -358,6 +423,20 @@ export type MessageResponse = {
   revoked_by_user_id?: string
   sender?: MessageSenderResponse
   seq?: number
+  topic?: MessageTopicResponse | null
+}
+
+export type MessageTopicResponse = {
+  archived?: boolean
+  conversation_id?: string
+  recent_replies?: MessageTopicReplyResponse[]
+}
+
+export type MessageTopicReplyResponse = {
+  created_at?: string
+  id?: string
+  sender?: MessageSenderResponse
+  summary?: string
 }
 
 export type MessagePageResponse = {
@@ -421,6 +500,18 @@ export type ConversationRemovedEventPayloadResponse = {
 export type ConversationMemberMentionedEventPayloadResponse = {
   conversation_id?: string
   last_mentioned_seq?: number
+}
+
+export type ConversationPinUpdatedEventPayloadResponse = {
+  conversation_id?: string
+  pinned?: boolean
+}
+
+export type TopicEventPayloadResponse = {
+  archived?: boolean
+  conversation_id?: string
+  parent_conversation_id?: string
+  source_message_id?: string
 }
 
 export type TemporaryFileReadURLResponse = {
@@ -504,10 +595,55 @@ export type ClientConversation = {
   memberCount: number
   members?: ClientConversationMember[]
   name: string
+  pinned?: boolean
   projects?: ClientConversationProject[]
-  type: "direct" | "group" | "app"
+  type: "direct" | "group" | "app" | "topic"
+  topic?: ClientConversationTopic
   unreadCount: number
   visibility: "private" | "public"
+}
+
+export type ClientConversationTopic = {
+  archived: boolean
+  parentConversationId: string
+  parentConversationName: string
+  parentConversationType: "direct" | "group" | "app"
+  participating: boolean
+  sourceMessageId: string
+  sourceMessageSeq: number
+  sourceSender: {
+    avatar: string
+    id: string
+    name: string
+    type: "user" | "app"
+  }
+}
+
+export type ClientTopicSourceMessage = {
+  body: ClientMessageBody
+  createdAt: string
+  id: string
+  revokedAt: string | null
+  sender: {
+    avatar: string
+    id: string
+    name: string
+    type: "user" | "app"
+  }
+  seq: number
+  summary: string
+}
+
+export type ClientTopicDetail = {
+  canArchive: boolean
+  canParticipate: boolean
+  conversation: ClientConversation
+  parentConversation: {
+    id: string
+    name: string
+    type: "direct" | "group" | "app"
+  }
+  sourceMessage: ClientTopicSourceMessage
 }
 
 export type ClientConversationProject = {
@@ -764,6 +900,12 @@ export type ClientMessageRevokedSystemEventBody = {
   type: "system_event"
 }
 
+export type ClientTopicClosedSystemEventBody = {
+  actor: ClientSystemEventUserRef
+  event: "topic_closed"
+  type: "system_event"
+}
+
 export type ClientMessageBody =
   | ClientTextMessageBody
   | ClientMarkdownMessageBody
@@ -784,6 +926,7 @@ export type ClientMessageBody =
   | ClientGroupMemberRemovedSystemEventBody
   | ClientGroupNameUpdatedSystemEventBody
   | ClientMessageRevokedSystemEventBody
+  | ClientTopicClosedSystemEventBody
 
 export type ClientMessage = {
   body: ClientMessageBody
@@ -798,6 +941,20 @@ export type ClientMessage = {
   revokedByUserId?: string
   sender: ClientMessageSender
   seq: number
+  topic?: ClientMessageTopic
+}
+
+export type ClientMessageTopic = {
+  archived: boolean
+  conversationId: string
+  recentReplies: ClientMessageTopicReply[]
+}
+
+export type ClientMessageTopicReply = {
+  createdAt: string
+  id: string
+  sender: ClientMessageSender
+  summary: string
 }
 
 export type ClientMessagePage = {

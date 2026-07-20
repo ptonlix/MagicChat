@@ -39,10 +39,14 @@ const (
 	kindResponse            = "response"
 	kindEvent               = "event"
 	eventMessageCreated     = "message.created"
+	eventTopicClosed        = "topic.closed"
 	methodMessageSend       = "message.send"
 	methodMessageSendAsUser = "message.send_as_user"
 
 	methodConversationMessagesList = "conversation.messages.list"
+	methodConversationTopicCreate  = "conversation.topic.create"
+	methodConversationTopicGet     = "conversation.topic.get"
+	methodConversationTopicClose   = "conversation.topic.close"
 	methodTemporaryFilesReadURLs   = "temporary_files.read_urls"
 	methodEventsAck                = "events.ack"
 
@@ -83,6 +87,10 @@ type incomingConversationMessageClaimer interface {
 	ClaimIncomingConversationMessage(conversationID string, seq int64, senderType string, senderID string) bool
 }
 
+type conversationSessionCloser interface {
+	CloseConversationSession(conversationID string)
+}
+
 type appRequester interface {
 	Request(ctx context.Context, method string, payload any) (json.RawMessage, error)
 }
@@ -112,6 +120,13 @@ type messageCreatedPayload struct {
 }
 
 type conversationPayload struct {
+	ID     string                        `json:"id"`
+	Name   string                        `json:"name"`
+	Parent *conversationReferencePayload `json:"parent,omitempty"`
+	Type   string                        `json:"type"`
+}
+
+type conversationReferencePayload struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type string `json:"type"`
@@ -175,6 +190,30 @@ type appListConversationMessagesRequestPayload struct {
 type appListConversationMessagesResponsePayload struct {
 	Messages       []historyMessagePayload `json:"messages"`
 	ProjectContext *projectContextPayload  `json:"project_context,omitempty"`
+	Topic          *topicContextPayload    `json:"topic,omitempty"`
+}
+
+type topicContextPayload struct {
+	ParentConversation   conversationReferencePayload `json:"parent_conversation"`
+	ParentConversationID string                       `json:"parent_conversation_id"`
+	SourceMessage        historyMessagePayload        `json:"source_message"`
+}
+
+type topicMutationRequestPayload struct {
+	ConversationID         string `json:"conversation_id"`
+	ExpectedLastMessageSeq int64  `json:"expected_last_message_seq,omitempty"`
+	SourceMessageID        string `json:"source_message_id,omitempty"`
+}
+
+type topicMutationResponsePayload struct {
+	Archived       bool                `json:"archived"`
+	Conversation   conversationPayload `json:"conversation"`
+	Created        bool                `json:"created"`
+	LastMessageSeq int64               `json:"last_message_seq"`
+}
+
+type topicEventPayload struct {
+	ConversationID string `json:"conversation_id"`
 }
 
 type appRunAsRequestPayload struct {
@@ -230,9 +269,11 @@ func New(ctx context.Context, cfg config.Config) (*Client, error) {
 		dialer:         websocket.DefaultDialer,
 		assistantAgent: agent.New(llm.NewAnthropicClient(cfg.LLM), agent.WithToolRegistry(registry), agent.WithMaxTurns(cfg.Agent.MaxTurns)),
 		mcpSources:     sources,
-		runner:         newConversationAgentRunner(ctx),
-		transport:      transport,
-		requester:      newReliableRequester(transport, reliableRequesterOptions{}),
+		runner: newConversationAgentRunner(ctx, conversationAgentRunnerOptions{
+			MaxSessions: cfg.Agent.MaxSessions,
+		}),
+		transport: transport,
+		requester: newReliableRequester(transport, reliableRequesterOptions{}),
 	}, nil
 }
 
@@ -538,6 +579,17 @@ func handleParsedServerMessage(ctx context.Context, message envelope, appID stri
 	if message.Kind == kindResponse {
 		return true
 	}
+	if message.Kind == kindEvent && message.Event == eventTopicClosed {
+		var payload topicEventPayload
+		if err := json.Unmarshal(message.Payload, &payload); err != nil {
+			log.Printf("ignore invalid topic.closed payload: %v", err)
+			return true
+		}
+		if closer, ok := runner.(conversationSessionCloser); ok {
+			closer.CloseConversationSession(payload.ConversationID)
+		}
+		return true
+	}
 	if message.Kind != kindEvent || message.Event != eventMessageCreated {
 		return true
 	}
@@ -580,19 +632,81 @@ func handleParsedServerMessage(ctx context.Context, message envelope, appID stri
 		body.Content,
 	)
 
-	sink := agent.OutputSinkFunc(func(ctx context.Context, content string) error {
-		return sendMarkdownReply(ctx, writeJSON, payload.Conversation, content)
-	})
 	prepared, err := prepareAgentRun(ctx, requester, payload, body, senderName)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return false
 		}
 		log.Printf("prepare agent run failed: %v", err)
-		return sendAgentFallback(ctx, sink) == nil
+		errorConversation := agentErrorConversation(payload.Conversation, nil)
+		fallbackSink := agent.OutputSinkFunc(func(ctx context.Context, content string) error {
+			return sendMarkdownReply(ctx, writeJSON, errorConversation, content)
+		})
+		return sendAgentFallback(ctx, fallbackSink) == nil
 	}
+	errorConversation := agentErrorConversation(payload.Conversation, &prepared)
+	prepared.ErrorSink = agent.OutputSinkFunc(func(ctx context.Context, content string) error {
+		return sendMarkdownReply(ctx, writeJSON, errorConversation, content)
+	})
+	replyConversation := payload.Conversation
+	if payload.Conversation.Type != "topic" && strings.TrimSpace(appID) != "" {
+		topic, err := createConversationTopic(ctx, requester, payload.Conversation.ID, payload.Message.ID)
+		if err != nil {
+			log.Printf("create agent topic failed: %v", err)
+			return sendAgentFallback(ctx, prepared.ErrorSink) == nil
+		}
+		replyConversation = topic
+		parentConversation := prepared.Request.Conversation
+		prepared.Request.Conversation = agent.Conversation{
+			ID: topic.ID, Name: topic.Name, Type: topic.Type,
+			Parent: &agent.ConversationReference{
+				ID: parentConversation.ID, Name: parentConversation.Name, Type: parentConversation.Type,
+			},
+		}
+		prepared.Scope.ConversationID = topic.ID
+		prepared.Scope.ConversationType = topic.Type
+		prepared.Scope.ParentConversationID = parentConversation.ID
+		prepared.Scope.ParentConversationType = parentConversation.Type
+		prepared.CloseTopicOnSessionFailure = true
+	}
+	sink := agent.OutputSinkFunc(func(ctx context.Context, content string) error {
+		return sendMarkdownReply(ctx, writeJSON, replyConversation, content)
+	})
 	prepared.Scope.CurrentAppID = strings.TrimSpace(appID)
-	return runner.Start(ctx, payload.Conversation.ID, sink, assistantAgent, prepared)
+	return runner.Start(ctx, replyConversation.ID, sink, assistantAgent, prepared)
+}
+
+func agentErrorConversation(conversation conversationPayload, prepared *preparedAgentRun) conversationPayload {
+	if conversation.Type != "topic" {
+		return conversation
+	}
+	if conversation.Parent != nil && strings.TrimSpace(conversation.Parent.ID) != "" {
+		return conversationPayload{
+			ID: conversation.Parent.ID, Name: conversation.Parent.Name, Type: conversation.Parent.Type,
+		}
+	}
+	if prepared != nil && prepared.Request.Conversation.Parent != nil && strings.TrimSpace(prepared.Request.Conversation.Parent.ID) != "" {
+		parent := prepared.Request.Conversation.Parent
+		return conversationPayload{ID: parent.ID, Name: parent.Name, Type: parent.Type}
+	}
+	return conversation
+}
+
+func createConversationTopic(ctx context.Context, requester appRequester, conversationID, sourceMessageID string) (conversationPayload, error) {
+	raw, err := requester.Request(ctx, methodConversationTopicCreate, topicMutationRequestPayload{
+		ConversationID: conversationID, SourceMessageID: sourceMessageID,
+	})
+	if err != nil {
+		return conversationPayload{}, err
+	}
+	var response topicMutationResponsePayload
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return conversationPayload{}, err
+	}
+	if strings.TrimSpace(response.Conversation.ID) == "" || response.Conversation.Type != "topic" {
+		return conversationPayload{}, errors.New("topic creation response is invalid")
+	}
+	return response.Conversation, nil
 }
 
 func prepareAgentRun(ctx context.Context, requester appRequester, payload messageCreatedPayload, body messageBody, senderName string) (preparedAgentRun, error) {
@@ -609,21 +723,42 @@ func prepareAgentRun(ctx context.Context, requester appRequester, payload messag
 	if err != nil {
 		return preparedAgentRun{}, fmt.Errorf("prepare agent message content: %w", err)
 	}
-	history, err := buildAgentHistory(payload.Message.ID, conversationContext.Messages)
+	historyMessages := conversationContext.Messages
+	if conversationContext.Topic != nil {
+		source := conversationContext.Topic.SourceMessage
+		source.Seq = 0
+		historyMessages = append([]historyMessagePayload{source}, historyMessages...)
+	}
+	history, err := buildAgentHistory(payload.Message.ID, historyMessages)
 	if err != nil {
 		return preparedAgentRun{}, fmt.Errorf("prepare conversation history: %w", err)
 	}
+	requestConversation := agent.Conversation{
+		ID: payload.Conversation.ID, Name: payload.Conversation.Name, Type: payload.Conversation.Type,
+	}
+	scope := builtintools.Scope{
+		AuthorizationConversationID: payload.Conversation.ID,
+		ConversationID:              payload.Conversation.ID,
+		ConversationType:            payload.Conversation.Type,
+		Requester:                   requester,
+	}
+	if conversationContext.Topic != nil {
+		parent := conversationContext.Topic.ParentConversation
+		if parent.ID == "" {
+			parent.ID = conversationContext.Topic.ParentConversationID
+		}
+		requestConversation.Parent = &agent.ConversationReference{ID: parent.ID, Name: parent.Name, Type: parent.Type}
+		scope.ParentConversationID = parent.ID
+		scope.ParentConversationType = parent.Type
+	}
 
 	return preparedAgentRun{
-		Authorization: authorization,
-		MessageSeq:    payload.Message.Seq,
+		Authorization:       authorization,
+		EventConversationID: payload.Conversation.ID,
+		MessageSeq:          payload.Message.Seq,
 		Request: agent.Request{
 			AuthorizationRef: authorization.Ref,
-			Conversation: agent.Conversation{
-				ID:   payload.Conversation.ID,
-				Name: payload.Conversation.Name,
-				Type: payload.Conversation.Type,
-			},
+			Conversation:     requestConversation,
 			Sender: agent.Sender{
 				Email: payload.Sender.Email,
 				ID:    payload.Sender.ID,
@@ -636,11 +771,7 @@ func prepareAgentRun(ctx context.Context, requester appRequester, payload messag
 			History:        history,
 			ProjectContext: buildAgentProjectContext(conversationContext.ProjectContext),
 		},
-		Scope: builtintools.Scope{
-			ConversationID:   payload.Conversation.ID,
-			ConversationType: payload.Conversation.Type,
-			Requester:        requester,
-		},
+		Scope: scope,
 	}, nil
 }
 
@@ -698,6 +829,8 @@ func shouldHandleIncomingMessage(appID string, payload messageCreatedPayload, bo
 		default:
 			return false
 		}
+	case "topic":
+		return payload.Sender.Type == "user"
 	default:
 		return false
 	}
@@ -985,7 +1118,7 @@ func buildHistoryMessageBody(raw json.RawMessage) (json.RawMessage, error) {
 func sendMarkdownReply(ctx context.Context, writeJSON func(context.Context, envelope) error, conversation conversationPayload, content string) error {
 	targetType := conversation.Type
 	switch targetType {
-	case "app", "group":
+	case "app", "group", "topic":
 	default:
 		return nil
 	}

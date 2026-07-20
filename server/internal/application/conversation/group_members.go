@@ -154,11 +154,11 @@ func (s *Service) addMembers(db *gorm.DB, actor store.User, conversationID strin
 		if err := advanceReadSeq(tx, conversationID, actor.ID, created.Seq); err != nil {
 			return err
 		}
-		ids, err := loadActiveUserIDs(tx, conversationID)
+		activeUserIDs, err := loadActiveUserIDs(tx, conversationID)
 		if err != nil {
 			return err
 		}
-		userIDs = ids
+		userIDs = activeUserIDs
 		return nil
 	})
 	if err != nil {
@@ -206,7 +206,7 @@ func (s *Service) RemoveMember(ctx context.Context, cmd RemoveMemberCommand) (Co
 		return ConversationMutationResult{}, invalidRequest(err.Error(), err)
 	}
 	actor := actorUser(cmd.Actor)
-	conversation, message, userIDs, removedUserID, err := s.removeMember(s.db, actor, conversationID, memberType, memberID)
+	conversation, message, userIDs, removedUserID, removedTopicIDs, err := s.removeMember(s.db, actor, conversationID, memberType, memberID)
 	if err != nil {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
@@ -231,15 +231,19 @@ func (s *Service) RemoveMember(ctx context.Context, cmd RemoveMemberCommand) (Co
 	}
 	if removedUserID != "" && s.notifications != nil {
 		s.notifications.PublishConversationRemoved(ctx, []string{removedUserID}, conversation.ID)
+		for _, topicID := range removedTopicIDs {
+			s.notifications.PublishConversationRemoved(ctx, []string{removedUserID}, topicID)
+		}
 	}
 	return ConversationMutationResult{Conversation: item, Message: resultMessage}, nil
 }
 
-func (s *Service) removeMember(db *gorm.DB, actor store.User, conversationID, memberType, memberID string) (store.Conversation, *store.Message, []string, string, error) {
+func (s *Service) removeMember(db *gorm.DB, actor store.User, conversationID, memberType, memberID string) (store.Conversation, *store.Message, []string, string, []string, error) {
 	var conversation store.Conversation
 	var message *store.Message
 	userIDs := []string{}
 	removedUserID := ""
+	removedTopicIDs := []string{}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
 			return err
@@ -278,6 +282,11 @@ func (s *Service) removeMember(db *gorm.DB, actor store.User, conversationID, me
 		if err := tx.Model(&store.ConversationMember{}).Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, memberType, memberID).Updates(map[string]any{"left_at": now}).Error; err != nil {
 			return err
 		}
+		ids, err := removeParentMemberTopicParticipations(tx, conversationID, memberType, memberID)
+		if err != nil {
+			return err
+		}
+		removedTopicIDs = ids
 		created, err := createGroupMemberRemovedSystemMessage(tx, &conversation, actor, targetRef, now)
 		if err != nil {
 			return err
@@ -286,18 +295,18 @@ func (s *Service) removeMember(db *gorm.DB, actor store.User, conversationID, me
 		if err := advanceReadSeq(tx, conversationID, actor.ID, created.Seq); err != nil {
 			return err
 		}
-		ids, err := loadActiveUserIDs(tx, conversationID)
+		activeUserIDs, err := loadActiveUserIDs(tx, conversationID)
 		if err != nil {
 			return err
 		}
-		userIDs = ids
+		userIDs = activeUserIDs
 		if memberType == store.ConversationMemberTypeUser {
 			removedUserID = memberID
 		}
 		return nil
 	})
 	if err != nil {
-		return store.Conversation{}, nil, nil, "", err
+		return store.Conversation{}, nil, nil, "", nil, err
 	}
-	return conversation, message, userIDs, removedUserID, nil
+	return conversation, message, userIDs, removedUserID, removedTopicIDs, nil
 }

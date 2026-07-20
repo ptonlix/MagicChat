@@ -38,9 +38,10 @@ type Reference struct {
 }
 
 type MessageIdentity struct {
-	ID   string
-	Name string
-	Type string
+	Avatar string
+	ID     string
+	Name   string
+	Type   string
 }
 
 type Message struct {
@@ -89,10 +90,108 @@ type Item struct {
 	MemberCount        int
 	Members            []Member
 	Name               string
+	Pinned             bool
 	Projects           *[]Project
 	Type               string
+	Topic              *TopicMetadata
 	UnreadCount        int64
 	Visibility         string
+}
+
+type TopicMetadata struct {
+	Archived               bool
+	ParentConversationID   string
+	ParentConversationName string
+	ParentConversationType string
+	Participating          bool
+	SourceMessageID        string
+	SourceMessageSeq       int64
+	SourceSender           MessageIdentity
+}
+
+type TopicSourceMessage struct {
+	Body      json.RawMessage
+	CreatedAt time.Time
+	ID        string
+	RevokedAt *time.Time
+	Sender    MessageIdentity
+	Seq       int64
+	Summary   string
+}
+
+type TopicDetail struct {
+	CanArchive         bool
+	CanParticipate     bool
+	Conversation       Item
+	ParentConversation Reference
+	SourceMessage      TopicSourceMessage
+}
+
+type CreateTopicCommand struct {
+	Actor                Actor
+	ParentConversationID string
+	SourceMessageID      string
+}
+
+type CreateTopicResult struct {
+	Conversation Item
+	Created      bool
+}
+
+type GetTopicCommand struct {
+	Actor               Actor
+	TopicConversationID string
+}
+
+type ParticipateTopicCommand struct {
+	Actor               Actor
+	TopicConversationID string
+}
+
+type ArchiveTopicCommand struct {
+	Actor               Actor
+	TopicConversationID string
+}
+
+type AppCreateTopicCommand struct {
+	AppID                string
+	ParentConversationID string
+	SourceMessageID      string
+}
+
+type AppCloseTopicCommand struct {
+	AppID                  string
+	ExpectedLastMessageSeq int64
+	TopicConversationID    string
+}
+
+type AppGetTopicCommand struct {
+	AppID               string
+	TopicConversationID string
+}
+
+type AppTopicResult struct {
+	Archived             bool
+	ConversationID       string
+	Created              bool
+	LastMessageSeq       int64
+	Name                 string
+	ParentConversationID string
+	SourceMessageID      string
+	Type                 string
+}
+
+type TopicEvent struct {
+	Archived             bool
+	ConversationID       string
+	ParentConversationID string
+	SourceMessageID      string
+	Type                 string
+}
+
+type ConversationPinEvent struct {
+	ConversationID string
+	Pinned         bool
 }
 
 type Group struct {
@@ -156,6 +255,17 @@ type ReadResult struct {
 	ConversationID string
 	LastReadSeq    int64
 	UnreadCount    int64
+}
+
+type SetPinCommand struct {
+	AccountID      string
+	ConversationID string
+	Pinned         bool
+}
+
+type SetPinResult struct {
+	ConversationID string
+	Pinned         bool
 }
 
 type CreateDirectCommand struct {
@@ -266,6 +376,7 @@ type UpdateAvatarResult struct {
 type ClientService interface {
 	List(context.Context, ListCommand) (ListResult, error)
 	MarkRead(context.Context, ReadCommand) (ReadResult, error)
+	SetPinned(context.Context, SetPinCommand) (SetPinResult, error)
 	CreateDirect(context.Context, CreateDirectCommand) (OpenResult, error)
 	CreateApp(context.Context, CreateAppCommand) (OpenResult, error)
 	CreateGroup(context.Context, CreateGroupCommand) (CreateGroupResult, error)
@@ -278,6 +389,10 @@ type ClientService interface {
 	Dissolve(context.Context, DissolveCommand) (DissolveResult, error)
 	AuthorizeAvatarUpdate(context.Context, AuthorizeAvatarCommand) (AvatarUploadAuthorization, error)
 	UploadAvatar(context.Context, UploadAvatarCommand) (UpdateAvatarResult, error)
+	CreateTopic(context.Context, CreateTopicCommand) (CreateTopicResult, error)
+	GetTopic(context.Context, GetTopicCommand) (TopicDetail, error)
+	ParticipateTopic(context.Context, ParticipateTopicCommand) (Item, error)
+	ArchiveTopic(context.Context, ArchiveTopicCommand) (Item, error)
 }
 
 type AppService interface {
@@ -287,4 +402,7 @@ type AppService interface {
 	AddMembers(context.Context, AddMembersCommand) (ConversationMutationResult, error)
 	OpenDirectForUsers(context.Context, Identity, Identity) (Reference, bool, error)
 	OpenAppForUser(context.Context, Identity, string) (Reference, bool, error)
+	CreateTopicAsApp(context.Context, AppCreateTopicCommand) (AppTopicResult, error)
+	GetTopicAsApp(context.Context, AppGetTopicCommand) (AppTopicResult, error)
+	CloseTopicAsApp(context.Context, AppCloseTopicCommand) (AppTopicResult, error)
 }

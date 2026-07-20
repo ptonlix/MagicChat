@@ -80,11 +80,14 @@ type MessageBubbleProps = {
   mentionLabelResolver: MentionLabelResolver
   onInsertMention: (target: ConversationPanelMentionTarget) => void
   onForward?: (message: ConversationPanelMessage) => void
+  onCreateTopic?: (message: ConversationPanelMessage) => void
   onMultiSelect?: (message: ConversationPanelMessage) => void
-  onReply: (message: ConversationPanelMessage) => void
+  onReply?: (message: ConversationPanelMessage) => void
+  onOpenTopic?: (conversationId: string) => void
   onRevoke: (message: ConversationPanelMessage) => void
   onToggleSelected?: (message: ConversationPanelMessage) => void
   selectable?: boolean
+  canReply?: boolean
   selected?: boolean
   selectionMode?: boolean
 }
@@ -96,11 +99,14 @@ export const MessageBubble = React.memo(function MessageBubble({
   mentionLabelResolver,
   onInsertMention,
   onForward,
+  onCreateTopic,
   onMultiSelect,
   onReply,
+  onOpenTopic,
   onRevoke,
   onToggleSelected,
   selectable = true,
+  canReply = true,
   selected = false,
   selectionMode = false,
 }: MessageBubbleProps) {
@@ -113,7 +119,10 @@ export const MessageBubble = React.memo(function MessageBubble({
     getAvatarInitial(conversation.name)
   )
   const canInsertAuthorMention =
-    conversation.type === "group" && message.mentionTarget !== null
+    canReply &&
+    (conversation.type === "group" ||
+      conversation.topic?.parentConversationType === "group") &&
+    message.mentionTarget !== null
   const unavailable =
     message.body.type === "revoked" || message.body.type === "unsupported"
   const copyText = getMessageCopyText(message, mentionLabelResolver)
@@ -161,10 +170,14 @@ export const MessageBubble = React.memo(function MessageBubble({
     onToggleSelected(message)
   }
 
+  const flushImageBubble =
+    message.body.type === "image" && !message.replyTo && !message.topic
+
   const messageBody = (
     <div
       className={cn(
-        "max-w-full rounded-md p-3 text-sm leading-relaxed shadow-sm",
+        "group/message-bubble max-w-full rounded-md text-sm leading-relaxed shadow-sm",
+        flushImageBubble ? "overflow-hidden p-0" : "p-3",
         fromMe
           ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
           : "bg-zinc-100 text-foreground dark:bg-zinc-800",
@@ -187,6 +200,16 @@ export const MessageBubble = React.memo(function MessageBubble({
         currentUserId={currentUserId}
         mentionLabelResolver={mentionLabelResolver}
       />
+      {message.topic && onOpenTopic && (
+        <TopicReplyPreview
+          onOpen={
+            selectionMode
+              ? undefined
+              : () => onOpenTopic(message.topic!.conversationId)
+          }
+          topic={message.topic}
+        />
+      )}
     </div>
   )
 
@@ -241,12 +264,17 @@ export const MessageBubble = React.memo(function MessageBubble({
             <MessageActionMenu
               canRevoke={message.canRevoke}
               copyDisabled={message.body.type !== "image" && !copyText}
+              onCreateTopic={
+                onCreateTopic && !message.topic
+                  ? () => onCreateTopic(message)
+                  : undefined
+              }
               onCopy={handleCopyMessage}
               onForward={onForward ? () => onForward(message) : undefined}
               onMultiSelect={
                 onMultiSelect ? () => onMultiSelect(message) : undefined
               }
-              onReply={() => onReply(message)}
+              onReply={canReply && onReply ? () => onReply(message) : undefined}
               onRevoke={() => onRevoke(message)}
             >
               {messageBody}
@@ -299,9 +327,12 @@ function areMessageBubblePropsEqual(
     previous.conversation.type === next.conversation.type &&
     previous.currentUserId === next.currentUserId &&
     previous.onForward === next.onForward &&
+    previous.onCreateTopic === next.onCreateTopic &&
     previous.onInsertMention === next.onInsertMention &&
     previous.onMultiSelect === next.onMultiSelect &&
     previous.onReply === next.onReply &&
+    previous.canReply === next.canReply &&
+    previous.onOpenTopic === next.onOpenTopic &&
     previous.onRevoke === next.onRevoke &&
     previous.onToggleSelected === next.onToggleSelected &&
     previous.selectable === next.selectable &&
@@ -328,10 +359,39 @@ function arePanelMessagesEqual(
     previous.senderAppId === next.senderAppId &&
     previous.senderUserId === next.senderUserId &&
     previous.time === next.time &&
+    areMessageTopicsEqual(previous.topic, next.topic) &&
     areMentionTargetsEqual(previous.mentionTarget, next.mentionTarget) &&
     areReplyTargetsEqual(previous.replyTo, next.replyTo) &&
     areAppProfilesEqual(previous.senderAppProfile, next.senderAppProfile)
   )
+}
+
+function areMessageTopicsEqual(
+  previous: ConversationPanelMessage["topic"],
+  next: ConversationPanelMessage["topic"]
+) {
+  if (previous === next) {
+    return true
+  }
+  if (
+    !previous ||
+    !next ||
+    previous.archived !== next.archived ||
+    previous.conversationId !== next.conversationId ||
+    previous.recentReplies.length !== next.recentReplies.length
+  ) {
+    return false
+  }
+  return previous.recentReplies.every((reply, index) => {
+    const nextReply = next.recentReplies[index]
+    return (
+      reply.id === nextReply.id &&
+      reply.author === nextReply.author &&
+      reply.avatar === nextReply.avatar &&
+      reply.summary === nextReply.summary &&
+      reply.time === nextReply.time
+    )
+  })
 }
 
 function areMentionTargetsEqual(
@@ -499,6 +559,74 @@ function MessageReplyReference({
   )
 }
 
+function TopicReplyPreview({
+  onOpen,
+  topic,
+}: {
+  onOpen?: () => void
+  topic: NonNullable<ConversationPanelMessage["topic"]>
+}) {
+  const latestReplyTime = topic.recentReplies.at(-1)?.time ?? ""
+
+  return (
+    <div className="mt-3 w-full min-w-80 border-t border-foreground/10 pt-2">
+      {topic.recentReplies.length > 0 && (
+        <>
+          <button
+            aria-label="查看话题最近回复"
+            className="block w-full space-y-1.5 rounded-sm text-left transition-opacity outline-none hover:opacity-80 disabled:pointer-events-none"
+            disabled={!onOpen}
+            onClick={onOpen}
+            type="button"
+          >
+            {topic.recentReplies.map((reply) => (
+              <div className="flex min-w-0 items-center gap-2" key={reply.id}>
+                <Avatar className="size-5 shrink-0 rounded-sm bg-background after:rounded-sm">
+                  {reply.avatar && (
+                    <AvatarImage
+                      alt={reply.author}
+                      className="rounded-sm"
+                      src={reply.avatar}
+                    />
+                  )}
+                  <AvatarFallback className="rounded-sm text-[9px]">
+                    {getAvatarInitial(reply.author)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 truncate text-xs">
+                  <span className="font-medium text-foreground/90">
+                    {reply.author}
+                  </span>
+                  <span className="text-muted-foreground">
+                    ：{reply.summary}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </button>
+          <div className="my-3 border-t border-foreground/10" />
+        </>
+      )}
+      <div className="flex w-full items-center justify-between gap-3">
+        <button
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 transition-colors hover:text-teal-500 disabled:pointer-events-none dark:text-teal-400 dark:hover:text-teal-300"
+          disabled={!onOpen}
+          onClick={onOpen}
+          type="button"
+        >
+          <MessagesSquare className="size-4" />
+          {topic.archived ? "查看已关闭话题" : "查看话题"}
+        </button>
+        {latestReplyTime && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {latestReplyTime}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function MessageAvatar({
   fallback,
   fallbackClassName,
@@ -558,7 +686,7 @@ type MessageBodyRendererProps = {
   mentionLabelResolver: MentionLabelResolver
 }
 
-const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
+export const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
   body,
   currentUserId,
   mentionLabelResolver,
@@ -665,7 +793,7 @@ function ForwardBundleMessage({
     <Dialog>
       <DialogTrigger asChild>
         <button
-          className="flex w-72 max-w-full cursor-pointer items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-80 max-w-full cursor-pointer items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
         >
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background/70 text-muted-foreground">

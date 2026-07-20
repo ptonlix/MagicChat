@@ -118,10 +118,15 @@ export const ConversationPanelComposer = React.forwardRef<
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
   const mentionCandidates = React.useMemo(
     () =>
-      conversation.type === "group"
+      conversation.type === "group" ||
+      conversation.topic?.parentConversationType === "group"
         ? createMentionCandidates(conversation.members ?? [])
         : [],
-    [conversation.members, conversation.type]
+    [
+      conversation.members,
+      conversation.topic?.parentConversationType,
+      conversation.type,
+    ]
   )
   const filteredMentionCandidates = React.useMemo(
     () =>
@@ -212,7 +217,11 @@ export const ConversationPanelComposer = React.forwardRef<
   }
 
   function updateMentionTrigger(value: string, cursor: number) {
-    if (conversation.type !== "group" || mentionCandidates.length === 0) {
+    if (
+      (conversation.type !== "group" &&
+        conversation.topic?.parentConversationType !== "group") ||
+      mentionCandidates.length === 0
+    ) {
       setMentionTrigger(null)
       setSelectedMentionIndex(0)
       return

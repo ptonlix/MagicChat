@@ -39,6 +39,9 @@ func (s *Service) CreateDirect(ctx context.Context, cmd CreateDirectCommand) (Op
 		},
 		map[string]store.User{current.ID: current, target.ID: target}, nil,
 	)
+	if err := s.loadItemPinState(db, &item, current.ID); err != nil {
+		return OpenResult{}, internalError(err)
+	}
 	return OpenResult{Conversation: item, Created: created}, nil
 }
 

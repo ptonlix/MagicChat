@@ -34,6 +34,9 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00019_default_email_login_to_tls.sql",
 		"00020_add_password_login_setting.sql",
 		"00021_add_app_owned_groups.sql",
+		"00022_add_conversation_topics.sql",
+		"00023_add_conversation_pins.sql",
+		"00024_repair_conversation_topic_app_columns.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -41,6 +44,45 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
+	}
+}
+
+func TestConversationTopicAppColumnsRepairMigration(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00024_repair_conversation_topic_app_columns.sql")
+	if err != nil {
+		t.Fatalf("read conversation topic app columns repair migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+	for _, required := range []string{
+		"add column if not exists created_by_app_id uuid references apps(id) on delete restrict",
+		"add column if not exists archived_by_app_id uuid references apps(id) on delete set null",
+		"create index if not exists conversation_topics_created_by_app_id_index",
+		"-- +goose down",
+		"select 1",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("conversation topic app columns repair migration missing %q", required)
+		}
+	}
+}
+
+func TestConversationPinsMigration(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00023_add_conversation_pins.sql")
+	if err != nil {
+		t.Fatalf("read conversation pins migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+	for _, required := range []string{
+		"create table conversation_pins",
+		"user_id uuid not null references users(id) on delete cascade",
+		"conversation_id uuid not null references conversations(id) on delete cascade",
+		"primary key (user_id, conversation_id)",
+		"create index conversation_pins_conversation_id_index",
+		"drop table conversation_pins",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("conversation pins migration missing %q", required)
 		}
 	}
 }
@@ -59,6 +101,30 @@ func TestAppOwnedGroupsMigration(t *testing.T) {
 	} {
 		if !strings.Contains(sql, required) {
 			t.Fatalf("app-owned groups migration missing %q", required)
+		}
+	}
+}
+
+func TestConversationTopicsMigration(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00022_add_conversation_topics.sql")
+	if err != nil {
+		t.Fatalf("read conversation topics migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+	for _, required := range []string{
+		"check (kind in ('direct', 'group', 'app', 'topic'))",
+		"create table conversation_topics",
+		"created_by_app_id uuid references apps(id) on delete restrict",
+		"archived_by_app_id uuid references apps(id) on delete set null",
+		"constraint conversation_topics_source_message_unique unique (source_message_id)",
+		"create index conversation_topics_created_by_app_id_index",
+		"create table conversation_topic_participants",
+		"delete from conversations where kind = 'topic'",
+		"drop table conversation_topic_participants",
+		"drop table conversation_topics",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("conversation topics migration missing %q", required)
 		}
 	}
 }

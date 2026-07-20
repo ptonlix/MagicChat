@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appapp "app/internal/application/app"
+	"app/internal/application/conversationaccess"
 	"app/internal/store"
 
 	"gorm.io/gorm"
@@ -20,9 +21,22 @@ type appMessageCreatedPayload struct {
 }
 
 type appMessageConversationPayload struct {
+	ID     string                           `json:"id"`
+	Name   string                           `json:"name"`
+	Parent *appMessageConversationReference `json:"parent,omitempty"`
+	Source *appMessageTopicSourcePayload    `json:"source_message,omitempty"`
+	Type   string                           `json:"type"`
+}
+
+type appMessageConversationReference struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type string `json:"type"`
+}
+
+type appMessageTopicSourcePayload struct {
+	ID  string `json:"id"`
+	Seq int64  `json:"seq"`
 }
 
 type appMessagePayload struct {
@@ -41,7 +55,8 @@ type appMessageSenderPayload struct {
 	Type     string `json:"type"`
 }
 
-func createAppMessageEventOutbox(db *gorm.DB, conversation store.Conversation, sender store.User, message store.Message) ([]AppEvent, error) {
+func createAppMessageEventOutbox(db *gorm.DB, access conversationaccess.Context, sender store.User, message store.Message) ([]AppEvent, error) {
+	conversation := access.Conversation
 	var appIDs []string
 	switch conversation.Kind {
 	case store.ConversationKindApp:
@@ -56,18 +71,31 @@ func createAppMessageEventOutbox(db *gorm.DB, conversation store.Conversation, s
 		if err != nil {
 			return nil, err
 		}
+	case store.ConversationKindTopic:
+		var err error
+		appIDs, err = conversationaccess.ActiveTopicParticipantIDs(db, access, store.ConversationMemberTypeApp)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, nil
 	}
-	appIDs, err := lockAndFilterActiveConversationApps(db, conversation.ID, appIDs)
+	appIDs, err := lockAndFilterActiveConversationApps(db, access.MembershipConversationID, appIDs)
 	if err != nil {
 		return nil, err
 	}
 	if len(appIDs) == 0 {
 		return nil, nil
 	}
+	conversationPayload := appMessageConversationPayload{ID: conversation.ID, Name: conversation.Name, Type: conversation.Kind}
+	if access.IsTopic() && access.ParentConversation != nil && access.Topic != nil {
+		conversationPayload.Parent = &appMessageConversationReference{
+			ID: access.ParentConversation.ID, Name: access.ParentConversation.Name, Type: access.ParentConversation.Kind,
+		}
+		conversationPayload.Source = &appMessageTopicSourcePayload{ID: access.Topic.SourceMessageID, Seq: access.Topic.SourceMessageSeq}
+	}
 	payload := appMessageCreatedPayload{
-		Conversation: appMessageConversationPayload{ID: conversation.ID, Name: conversation.Name, Type: conversation.Kind},
+		Conversation: conversationPayload,
 		Message:      appMessagePayload{Body: message.Body, CreatedAt: message.CreatedAt, ID: message.ID, Seq: message.Seq, Summary: message.Summary},
 		Sender:       appMessageSenderPayload{Email: sender.Email, ID: sender.ID, Name: sender.Name, Nickname: sender.Nickname, Type: store.MessageSenderTypeUser},
 	}

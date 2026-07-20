@@ -63,6 +63,20 @@ type messageResponse struct {
 	RevokedByUserID  string                      `json:"revoked_by_user_id,omitempty" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 	Sender           messageSenderResponse       `json:"sender"`
 	Seq              int64                       `json:"seq" example:"13"`
+	Topic            *messageTopicResponse       `json:"topic,omitempty"`
+}
+
+type messageTopicResponse struct {
+	Archived       bool                        `json:"archived"`
+	ConversationID string                      `json:"conversation_id"`
+	RecentReplies  []messageTopicReplyResponse `json:"recent_replies"`
+}
+
+type messageTopicReplyResponse struct {
+	CreatedAt time.Time             `json:"created_at"`
+	ID        string                `json:"id"`
+	Sender    messageSenderResponse `json:"sender"`
+	Summary   string                `json:"summary"`
 }
 
 type createMessageResponse struct {
@@ -223,6 +237,19 @@ func newClientMessageResponse(value messageapp.Message) messageResponse {
 				ID: value.ReplyTo.Sender.ID, Name: value.ReplyTo.Sender.Name, Type: value.ReplyTo.Sender.Type,
 			},
 			Seq: value.ReplyTo.Seq, Summary: value.ReplyTo.Summary,
+		}
+	}
+	if value.Topic != nil {
+		recentReplies := make([]messageTopicReplyResponse, len(value.Topic.RecentReplies))
+		for index, reply := range value.Topic.RecentReplies {
+			recentReplies[index] = messageTopicReplyResponse{
+				CreatedAt: reply.CreatedAt, ID: reply.ID,
+				Sender: messageSenderResponse{ID: reply.Sender.ID, Type: reply.Sender.Type}, Summary: reply.Summary,
+			}
+		}
+		result.Topic = &messageTopicResponse{
+			Archived: value.Topic.Archived, ConversationID: value.Topic.ConversationID,
+			RecentReplies: recentReplies,
 		}
 	}
 	return result

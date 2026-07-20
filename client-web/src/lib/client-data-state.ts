@@ -96,7 +96,13 @@ function deduplicateAndSortMessages(messages: ClientMessage[]) {
   const messagesById = new Map<string, ClientMessage>()
 
   for (const message of messages) {
-    messagesById.set(message.id, message)
+    const existing = messagesById.get(message.id)
+    messagesById.set(
+      message.id,
+      existing?.topic && !message.topic
+        ? { ...message, topic: existing.topic }
+        : message
+    )
   }
 
   return Array.from(messagesById.values()).sort(compareMessages)
@@ -176,6 +182,12 @@ export function orderConversations(conversations: ClientConversation[]) {
       return leftIsBuiltinAssistant ? -1 : 1
     }
 
+    const leftPinned = Boolean(left.pinned)
+    const rightPinned = Boolean(right.pinned)
+    if (leftPinned !== rightPinned) {
+      return leftPinned ? -1 : 1
+    }
+
     const leftActivity = getConversationActivityTimestamp(left)
     const rightActivity = getConversationActivityTimestamp(right)
     if (leftActivity !== rightActivity) {
@@ -186,7 +198,9 @@ export function orderConversations(conversations: ClientConversation[]) {
   })
 }
 
-function isBuiltinAssistantConversation(conversation: ClientConversation) {
+export function isBuiltinAssistantConversation(
+  conversation: ClientConversation
+) {
   return (
     conversation.type === "app" &&
     conversation.members?.some(

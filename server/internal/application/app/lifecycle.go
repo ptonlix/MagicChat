@@ -228,7 +228,13 @@ func dissolveApplicationOwnedGroup(
 	if updated.RowsAffected != 1 {
 		return errApplicationOwnedGroupProjectLockChange
 	}
-	return nil
+	return tx.Model(&store.Conversation{}).
+		Where("id IN (?)", tx.Model(&store.ConversationTopic{}).
+			Select("conversation_id").Where("parent_conversation_id = ?", conversationID)).
+		Updates(map[string]any{
+			"dissolved_at": now, "status": store.ConversationStatusDissolved,
+			"posting_policy": store.ConversationPostingPolicyMuted, "updated_at": now,
+		}).Error
 }
 
 func deleteUnauthorizedAppEvents(tx *gorm.DB, appID string, allowedUserIDs []string) error {

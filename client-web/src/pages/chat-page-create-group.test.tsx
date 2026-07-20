@@ -1,10 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChatPage } from "@/pages/chat-page"
-import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
+import type {
+  ClientConversation,
+  ClientMessage,
+  ClientUser,
+} from "@/lib/client-data-api"
 import {
   ClientDataContext,
   type ClientDataContextValue,
@@ -13,6 +17,15 @@ import {
   readLastConversationId,
   writeLastConversationId,
 } from "@/lib/last-conversation"
+
+const mocks = vi.hoisted(() => ({
+  createConversationTopic: vi.fn(),
+}))
+
+vi.mock("@/lib/client-data-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/client-data-api")>()
+  return { ...actual, createConversationTopic: mocks.createConversationTopic }
+})
 
 describe("ChatPage create group dialog", () => {
   it("creates groups with and without selected apps", async () => {
@@ -40,6 +53,56 @@ describe("ChatPage create group dialog", () => {
 
       view.unmount()
     }
+  })
+})
+
+describe("ChatPage create topic confirmation", () => {
+  it("creates the topic only after confirmation", async () => {
+    const user = userEvent.setup()
+    const conversation = createConversation("conversation-1", "产品群")
+    const sourceMessage = createSourceMessage(conversation.id)
+    mocks.createConversationTopic.mockReset()
+    mocks.createConversationTopic.mockImplementation(
+      () => new Promise(() => undefined)
+    )
+    renderChatPage(
+      {
+        ...createConversationOverrides([conversation]),
+        getConversationMessageState: vi.fn(() => ({
+          error: null,
+          loaded: true,
+          loading: false,
+          loadingBefore: false,
+          messages: [sourceMessage],
+          page: null,
+          sending: false,
+        })),
+        updateMessageTopic: vi.fn(),
+      },
+      `/chat/${conversation.id}`
+    )
+
+    const sourceBody = await screen.findByText("讨论发布计划")
+    const actionTrigger = sourceBody.closest("[data-message-action-trigger]")
+    expect(actionTrigger).not.toBeNull()
+    fireEvent.contextMenu(actionTrigger!)
+    await user.click(await screen.findByRole("menuitem", { name: "创建话题" }))
+
+    expect(mocks.createConversationTopic).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "将以这条消息作为起点创建一个独立话题，方便围绕它继续讨论。"
+      )
+    ).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "确认创建" }))
+
+    await waitFor(() =>
+      expect(mocks.createConversationTopic).toHaveBeenCalledWith(
+        conversation.id,
+        sourceMessage.id
+      )
+    )
   })
 })
 
@@ -228,6 +291,7 @@ function createClientDataValue(
     loadBeforeConversationMessages: vi.fn(),
     loadMoreProjects: vi.fn(),
     markConversationRead: vi.fn(),
+    setConversationPinned: vi.fn(),
     mergeIncomingConversationMessage: vi.fn(),
     openAppConversation: vi.fn(),
     openDirectConversation: vi.fn(),
@@ -250,6 +314,7 @@ function createClientDataValue(
     syncLoadedConversationMessages: vi.fn(),
     updateConversationLastMentionedSeq: vi.fn(),
     updateConversationLastMessage: vi.fn(),
+    updateConversationPinned: vi.fn(),
     updateGroupConversationAvatar: vi.fn(),
     updateGroupConversationName: vi.fn(),
     ...overrides,
@@ -305,5 +370,17 @@ function createConversation(id: string, name: string): ClientConversation {
     type: "group",
     unreadCount: 0,
     visibility: "private",
+  }
+}
+
+function createSourceMessage(conversationId: string): ClientMessage {
+  return {
+    body: { content: "讨论发布计划", type: "text" },
+    clientMessageId: "client-message-1",
+    conversationId,
+    createdAt: "2026-07-20T10:00:00Z",
+    id: "message-1",
+    sender: { id: "user-1", type: "user" },
+    seq: 1,
   }
 }

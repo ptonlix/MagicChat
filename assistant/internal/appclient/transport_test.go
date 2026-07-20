@@ -301,6 +301,18 @@ func TestClientRetriesInFlightRequestAcrossReconnect(t *testing.T) {
 			return
 		}
 
+		var topicRequest envelope
+		if err := conn.ReadJSON(&topicRequest); err != nil {
+			return
+		}
+		if topicRequest.Method != methodConversationTopicCreate {
+			return
+		}
+		topicPayload := json.RawMessage(`{"conversation":{"id":"topic-1","name":"第一条","type":"topic"},"created":true}`)
+		if err := conn.WriteJSON(envelope{V: protocolVersion, Kind: kindResponse, ReplyTo: topicRequest.ID, OK: &ok, Payload: topicPayload}); err != nil {
+			return
+		}
+
 		var replyRequest envelope
 		if err := conn.ReadJSON(&replyRequest); err != nil {
 			return
@@ -407,6 +419,8 @@ func TestClientRecoversFromEventQueueOverflowWithPrioritizedResponses(t *testing
 			switch request.Method {
 			case methodConversationMessagesList:
 				payload = json.RawMessage(`{"messages":[]}`)
+			case methodConversationTopicCreate:
+				payload = json.RawMessage(`{"conversation":{"id":"topic-1","name":"第一条","type":"topic"},"created":true}`)
 			case methodEventsAck:
 				var ack struct {
 					Cursor int64 `json:"cursor"`
@@ -473,6 +487,20 @@ func TestClientRecoversFromEventQueueOverflowWithPrioritizedResponses(t *testing
 		}
 		historyRequestIDs <- replayedHistoryRequest.ID
 		if _, err := writeResponse(replayedHistoryRequest); err != nil {
+			reportServerError(err)
+			return
+		}
+
+		var topicRequest envelope
+		if err := conn.ReadJSON(&topicRequest); err != nil {
+			reportServerError(fmt.Errorf("read replayed topic request: %w", err))
+			return
+		}
+		if topicRequest.Method != methodConversationTopicCreate {
+			reportServerError(fmt.Errorf("replayed request method = %q, want %q", topicRequest.Method, methodConversationTopicCreate))
+			return
+		}
+		if _, err := writeResponse(topicRequest); err != nil {
 			reportServerError(err)
 			return
 		}
@@ -639,6 +667,8 @@ func TestClientAcknowledgesAcceptedCursorEvent(t *testing.T) {
 		switch message.Method {
 		case methodConversationMessagesList:
 			payload = json.RawMessage(`{"messages":[]}`)
+		case methodConversationTopicCreate:
+			payload = json.RawMessage(`{"conversation":{"id":"topic-1","name":"第一条","type":"topic"},"created":true}`)
 		case methodEventsAck:
 			var ack struct {
 				Cursor int64 `json:"cursor"`
@@ -699,6 +729,8 @@ func TestClientRoutesCursorEventsInArrivalOrder(t *testing.T) {
 				close(secondHistoryStarted)
 			}
 			payload = json.RawMessage(`{"messages":[]}`)
+		case methodConversationTopicCreate:
+			payload = json.RawMessage(`{"conversation":{"id":"topic-1","name":"第一条","type":"topic"},"created":true}`)
 		case methodEventsAck:
 			var ack struct {
 				Cursor int64 `json:"cursor"`
@@ -810,6 +842,8 @@ func TestClientReplayRetriesAcknowledgementWithoutReprocessingEvent(t *testing.T
 		switch message.Method {
 		case methodConversationMessagesList:
 			payload = json.RawMessage(`{"messages":[]}`)
+		case methodConversationTopicCreate:
+			payload = json.RawMessage(`{"conversation":{"id":"topic-1","name":"第一条","type":"topic"},"created":true}`)
 		case methodMessageSend:
 			replyCalls.Add(1)
 		case methodEventsAck:

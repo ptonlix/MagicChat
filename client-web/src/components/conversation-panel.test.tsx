@@ -14,6 +14,92 @@ import {
 } from "@/lib/client-data-context"
 
 describe("ConversationPanel", () => {
+  it("treats a history header as the first message instead of showing an empty state", () => {
+    render(
+      <ConversationPanel
+        conversation={createConversation("topic-1")}
+        currentUserId="user-1"
+        draft=""
+        historyError={null}
+        historyHeader={<div>话题来源消息</div>}
+        historyLoading={false}
+        historyLoadingBefore={false}
+        messages={[]}
+        onCancelReply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onLoadBeforeMessages={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onRevokeMessage={vi.fn()}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendVoice={async () => null}
+        onSendMessage={vi.fn()}
+        replyTarget={null}
+        richTextMode={false}
+        sending={false}
+      />
+    )
+
+    expect(screen.getByText("话题来源消息")).toBeInTheDocument()
+    expect(screen.queryByTestId("conversation-history-empty")).toBeNull()
+    expect(screen.queryByText("暂无消息")).toBeNull()
+    expect(screen.getByTestId("chat-detail-shell")).toHaveClass("min-h-0")
+  })
+
+  it("shows a closed-topic system message without a locked composer footer", () => {
+    render(
+      <ConversationPanel
+        conversation={createConversation("topic-1")}
+        currentUserId="user-1"
+        draft=""
+        historyError={null}
+        historyLoading={false}
+        historyLoadingBefore={false}
+        messages={[
+          {
+            author: "系统",
+            avatar: "",
+            body: {
+              actor: { displayName: "Alice", id: "user-1" },
+              event: "topic_closed",
+              type: "system_event",
+            },
+            canRevoke: false,
+            delegatedByName: "",
+            id: "message-1",
+            mentionTarget: null,
+            role: "system",
+            senderAppId: null,
+            senderAppProfile: null,
+            senderUserId: null,
+            time: "12:00",
+          },
+        ]}
+        onCancelReply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onLoadBeforeMessages={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onRevokeMessage={vi.fn()}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendVoice={async () => null}
+        onSendMessage={vi.fn()}
+        readOnly
+        replyTarget={null}
+        richTextMode={false}
+        sending={false}
+      />
+    )
+
+    expect(screen.getByText("Alice 已将话题关闭")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("输入消息")).not.toBeInTheDocument()
+    expect(
+      screen.queryByText("话题已归档，无法继续发言")
+    ).not.toBeInTheDocument()
+  })
+
   it("refocuses the composer textarea when a reply target is selected", async () => {
     const { rerender } = render(
       <ConversationPanel

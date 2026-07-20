@@ -2847,7 +2847,7 @@ const docTemplate = `{
         },
         "/api/client/conversations": {
             "get": {
-                "description": "普通用户获取自己参与的最近 100 个会话，按照最后消息时间倒序排列。",
+                "description": "普通用户获取自己参与的最近 100 个会话。茉莉固定第一，其他置顶会话和未置顶会话分别按照最后消息时间倒序排列。",
                 "produces": [
                     "application/json"
                 ],
@@ -4569,6 +4569,152 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/client.revokeConversationMessageResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/conversations/{conversation_id}/pin": {
+            "put": {
+                "description": "为当前用户置顶一个有权访问的会话。置顶状态仅影响当前用户。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "置顶会话",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.setConversationPinResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "为当前用户取消置顶。内置应用茉莉不能取消置顶。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "取消置顶会话",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.setConversationPinResponse"
                                         }
                                     }
                                 }
@@ -7368,11 +7514,18 @@ const docTemplate = `{
                     "type": "string",
                     "example": "张三"
                 },
+                "pinned": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "projects": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/client.conversationProjectResponse"
                     }
+                },
+                "topic": {
+                    "$ref": "#/definitions/client.conversationTopicMetadataResponse"
                 },
                 "type": {
                     "type": "string",
@@ -7439,6 +7592,35 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "client.conversationTopicMetadataResponse": {
+            "type": "object",
+            "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
+                "parent_conversation_id": {
+                    "type": "string"
+                },
+                "parent_conversation_name": {
+                    "type": "string"
+                },
+                "parent_conversation_type": {
+                    "type": "string"
+                },
+                "participating": {
+                    "type": "boolean"
+                },
+                "source_message_id": {
+                    "type": "string"
+                },
+                "source_message_seq": {
+                    "type": "integer"
+                },
+                "source_sender": {
+                    "$ref": "#/definitions/client.topicSourceSenderResponse"
                 }
             }
         },
@@ -8147,6 +8329,9 @@ const docTemplate = `{
                 "seq": {
                     "type": "integer",
                     "example": 13
+                },
+                "topic": {
+                    "$ref": "#/definitions/client.messageTopicResponse"
                 }
             }
         },
@@ -8160,6 +8345,40 @@ const docTemplate = `{
                 "type": {
                     "type": "string",
                     "example": "user"
+                }
+            }
+        },
+        "client.messageTopicReplyResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sender": {
+                    "$ref": "#/definitions/client.messageSenderResponse"
+                },
+                "summary": {
+                    "type": "string"
+                }
+            }
+        },
+        "client.messageTopicResponse": {
+            "type": "object",
+            "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
+                "conversation_id": {
+                    "type": "string"
+                },
+                "recent_replies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/client.messageTopicReplyResponse"
+                    }
                 }
             }
         },
@@ -8441,6 +8660,19 @@ const docTemplate = `{
                 }
             }
         },
+        "client.setConversationPinResponse": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "pinned": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "client.successEnvelope": {
             "type": "object",
             "properties": {
@@ -8610,6 +8842,23 @@ const docTemplate = `{
                 "size_bytes": {
                     "type": "integer",
                     "example": 123456
+                }
+            }
+        },
+        "client.topicSourceSenderResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },

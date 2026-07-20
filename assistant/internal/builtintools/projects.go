@@ -64,7 +64,7 @@ func callProjects(ctx context.Context, input json.RawMessage) (mcpclient.ToolRes
 		return mcpclient.ToolResult{}, fmt.Errorf("parse projects %s arguments: %w", parsed.Operation, err)
 	}
 	arguments["runas"] = runAsPayload{
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		ID:                          authorization.ActorID,
 		TriggerMessageID:            authorization.TriggerMessageID,
 		Type:                        authorization.ActorType,

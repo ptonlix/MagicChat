@@ -1,4 +1,5 @@
 import * as React from "react"
+import { LoaderCircle } from "lucide-react"
 import { useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
@@ -7,12 +8,14 @@ import { useClientData } from "@/lib/client-data-context"
 import { useConversationDrafts } from "@/hooks/use-conversation-drafts"
 import { useMessageSelection } from "@/hooks/use-message-selection"
 import {
+  createConversationTopic,
   forwardConversationMessages,
   type ClientConversation,
   type ClientMessage,
   type ContactApp,
   type ContactUser,
 } from "@/lib/client-data-api"
+import { getClientDataErrorMessage } from "@/lib/client-data-state"
 import { createClientMessageId } from "@/lib/message-id"
 import {
   clearLastConversationId,
@@ -32,10 +35,25 @@ import { CreateGroupConversationDialog } from "@/components/conversation/create-
 import { ForwardMessageDialog } from "@/components/conversation/forward-message-dialog"
 import { ConversationSidebar } from "@/components/conversation/conversation-sidebar"
 import {
+  TopicArchiveAction,
+  TopicDrawer,
+  TopicSourceBanner,
+} from "@/components/conversation/topic-drawer"
+import {
   ConversationPanel,
   type ConversationPanelForwardMode,
   type ConversationPanelMessage,
 } from "@/components/conversation-panel"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { SidebarProvider } from "@/components/ui/sidebar"
 
 const emptyClientMessages: ClientMessage[] = []
@@ -45,6 +63,11 @@ type ForwardOperation = {
   messageIds: string[]
   mode: ConversationPanelForwardMode
   sourceConversationId: string
+}
+
+type CreateTopicOperation = {
+  conversationId: string
+  message: ConversationPanelMessage
 }
 
 function normalizeSingleLinkMessageURL(content: string) {
@@ -87,6 +110,7 @@ export function ChatPage() {
     markConversationRead,
     me,
     mergeIncomingConversationMessage,
+    refreshConversations,
     revokeConversationMessage,
     sendConversationFile,
     sendConversationImage,
@@ -94,6 +118,9 @@ export function ChatPage() {
     sendConversationMarkdown,
     sendConversationText,
     sendConversationVoice,
+    setConversationPinned,
+    setForegroundConversationId,
+    updateMessageTopic,
   } = useClientData()
   const {
     clearConversationDraft,
@@ -106,6 +133,15 @@ export function ChatPage() {
     React.useState(false)
   const [forwardOperation, setForwardOperation] =
     React.useState<ForwardOperation | null>(null)
+  const [createTopicOperation, setCreateTopicOperation] =
+    React.useState<CreateTopicOperation | null>(null)
+  const [creatingTopic, setCreatingTopic] = React.useState(false)
+  const [topicDrawerConversationId, setTopicDrawerConversationId] =
+    React.useState("")
+  React.useEffect(
+    () => () => setForegroundConversationId?.(""),
+    [setForegroundConversationId]
+  )
   const requestedConversationId = conversationId ?? ""
   const storedConversationId = React.useMemo(
     () => (requestedConversationId ? "" : readLastConversationId(me.id)),
@@ -562,6 +598,52 @@ export function ChatPage() {
     navigate(`/chat/${encodeURIComponent(conversation.id)}`)
   }
 
+  function requestCreateTopic(message: ConversationPanelMessage) {
+    if (!activeConversation || activeConversation.type === "topic") {
+      return
+    }
+    setCreateTopicOperation({
+      conversationId: activeConversation.id,
+      message,
+    })
+  }
+
+  async function confirmCreateTopic() {
+    if (!createTopicOperation || creatingTopic) {
+      return
+    }
+    const operation = createTopicOperation
+    setCreatingTopic(true)
+    try {
+      const result = await createConversationTopic(
+        operation.conversationId,
+        operation.message.id
+      )
+      updateMessageTopic?.(operation.conversationId, operation.message.id, {
+        archived: Boolean(result.conversation.topic?.archived),
+        conversationId: result.conversation.id,
+      })
+      setCreateTopicOperation(null)
+      toast.success(result.created ? "话题已创建" : "已打开现有话题")
+      openTopicDrawer(result.conversation.id)
+      void refreshConversations().catch(() => undefined)
+    } catch (error) {
+      toast.error(getClientDataErrorMessage(error, "创建话题失败"))
+    } finally {
+      setCreatingTopic(false)
+    }
+  }
+
+  function openTopicDrawer(conversationId: string) {
+    setTopicDrawerConversationId(conversationId)
+    setForegroundConversationId?.(conversationId)
+  }
+
+  function closeTopicDrawer() {
+    setTopicDrawerConversationId("")
+    setForegroundConversationId?.("")
+  }
+
   return (
     <SidebarProvider
       className="min-h-0 min-w-0 flex-1"
@@ -580,6 +662,7 @@ export function ChatPage() {
         drafts={drafts}
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
         onSelectConversation={selectConversation}
+        onSetConversationPinned={setConversationPinned}
       />
 
       <ConversationPanel
@@ -592,6 +675,20 @@ export function ChatPage() {
         historyError={activeMessageState?.error ?? null}
         historyLoading={historyLoading}
         historyLoadingBefore={Boolean(activeMessageState?.loadingBefore)}
+        historyHeader={
+          activeConversation?.type === "topic" ? (
+            <TopicSourceBanner
+              conversationId={activeConversation.id}
+              currentUserId={me.id}
+              mentionLabelResolver={activeMentionLabelResolver}
+            />
+          ) : undefined
+        }
+        headerActions={
+          activeConversation?.type === "topic" ? (
+            <TopicArchiveAction conversationId={activeConversation.id} />
+          ) : undefined
+        }
         mentionLabelResolver={activeMentionLabelResolver}
         messages={activeMessages}
         messageSelection={visibleMessageSelection}
@@ -599,6 +696,9 @@ export function ChatPage() {
         onCancelReply={clearReplyTarget}
         onDraftBlur={flushDrafts}
         onDraftChange={setDraft}
+        onCreateTopic={
+          activeConversation?.type === "topic" ? undefined : requestCreateTopic
+        }
         onForwardMessage={forwardSingleMessage}
         onForwardSelectedMessages={forwardSelectedMessages}
         onReplyToMessage={replyToMessage}
@@ -608,11 +708,13 @@ export function ChatPage() {
         onSendImage={sendImageMessage}
         onSendVoice={sendVoiceMessage}
         onLoadBeforeMessages={loadBeforeMessages}
+        onOpenTopic={openTopicDrawer}
         onSendMessage={sendMessage}
         onStartMessageSelection={startMessageSelection}
         onToggleMessageSelection={toggleMessageSelection}
         replyTarget={replyTarget}
         richTextMode={richTextMode}
+        readOnly={activeConversation?.topic?.archived}
         sending={Boolean(activeMessageState?.sending)}
       />
       <CreateGroupConversationDialog
@@ -622,6 +724,16 @@ export function ChatPage() {
         open={createGroupDialogOpen}
         onCreate={startGroupConversation}
         onOpenChange={setCreateGroupDialogOpen}
+      />
+      <CreateTopicConfirmDialog
+        onConfirm={() => void confirmCreateTopic()}
+        onOpenChange={(open) => {
+          if (!open && !creatingTopic) {
+            setCreateTopicOperation(null)
+          }
+        }}
+        open={Boolean(createTopicOperation)}
+        saving={creatingTopic}
       />
       {forwardOperation && (
         <ForwardMessageDialog
@@ -638,7 +750,54 @@ export function ChatPage() {
           open
         />
       )}
+      <TopicDrawer
+        conversationId={topicDrawerConversationId}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeTopicDrawer()
+          }
+        }}
+        open={Boolean(topicDrawerConversationId)}
+      />
     </SidebarProvider>
+  )
+}
+
+function CreateTopicConfirmDialog({
+  onConfirm,
+  onOpenChange,
+  open,
+  saving,
+}: {
+  onConfirm: () => void
+  onOpenChange: (open: boolean) => void
+  open: boolean
+  saving: boolean
+}) {
+  return (
+    <AlertDialog onOpenChange={onOpenChange} open={open}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>创建话题</AlertDialogTitle>
+          <AlertDialogDescription>
+            将以这条消息作为起点创建一个独立话题，方便围绕它继续讨论。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={saving}>取消</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={saving}
+            onClick={(event) => {
+              event.preventDefault()
+              onConfirm()
+            }}
+          >
+            {saving && <LoaderCircle className="size-4 animate-spin" />}
+            确认创建
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

@@ -145,6 +145,41 @@ describe("ConversationPanel header profile", () => {
       await screen.findByRole("dialog", { name: "项目群头像预览" })
     ).toBeInTheDocument()
   })
+
+  it("shows the topic type and parent conversation name", () => {
+    const conversation = createConversation({
+      id: "topic-1",
+      name: "接口方案",
+      topic: {
+        archived: false,
+        parentConversationId: "group-1",
+        parentConversationName: "产品研发群",
+        parentConversationType: "group",
+        participating: true,
+        sourceMessageId: "message-1",
+        sourceMessageSeq: 12,
+        sourceSender: {
+          avatar: "/avatars/alice.webp",
+          id: "user-2",
+          name: "Alice",
+          type: "user",
+        },
+      },
+      type: "topic",
+    })
+
+    renderConversationHeader(conversation)
+
+    const header = screen.getByTestId("conversation-panel-header")
+    expect(within(header).getByText("接口方案")).toBeInTheDocument()
+    const typeLabel = within(header).getByText("话题 - 产品研发群")
+    expect(typeLabel).toBeInTheDocument()
+    expect(
+      typeLabel.parentElement?.querySelector(".lucide-messages-square")
+    ).toBeInTheDocument()
+    expect(within(header).getByLabelText("产品研发群")).toBeInTheDocument()
+    expect(within(header).getByLabelText("Alice")).toBeInTheDocument()
+  })
 })
 
 function renderConversationHeader(

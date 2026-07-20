@@ -261,7 +261,8 @@ func (s *Service) Leave(ctx context.Context, cmd LeaveCommand) (LeaveResult, err
 	if err != nil {
 		return LeaveResult{}, invalidRequest(err.Error(), err)
 	}
-	message, userIDs, err := s.leave(s.db, actorUser(cmd.Actor), conversationID)
+	actor := actorUser(cmd.Actor)
+	message, userIDs, topicIDs, err := s.leave(s.db, actor, conversationID)
 	if err != nil {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
@@ -277,13 +278,17 @@ func (s *Service) Leave(ctx context.Context, cmd LeaveCommand) (LeaveResult, err
 	resultMessage := newMessage(message)
 	if s.notifications != nil {
 		s.notifications.PublishConversationMessage(ctx, userIDs, resultMessage)
+		for _, topicID := range topicIDs {
+			s.notifications.PublishConversationRemoved(ctx, []string{actor.ID}, topicID)
+		}
 	}
 	return LeaveResult{ConversationID: conversationID, Message: resultMessage}, nil
 }
 
-func (s *Service) leave(db *gorm.DB, actor store.User, conversationID string) (store.Message, []string, error) {
+func (s *Service) leave(db *gorm.DB, actor store.User, conversationID string) (store.Message, []string, []string, error) {
 	var message store.Message
 	userIDs := []string{}
+	topicIDs := []string{}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var conversation store.Conversation
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
@@ -309,6 +314,11 @@ func (s *Service) leave(db *gorm.DB, actor store.User, conversationID string) (s
 		if err := tx.Model(&store.ConversationMember{}).Where("conversation_id = ? AND member_type = ? AND member_id = ?", conversationID, store.ConversationMemberTypeUser, actor.ID).Updates(map[string]any{"left_at": now}).Error; err != nil {
 			return err
 		}
+		removedTopicIDs, cleanupErr := removeParentMemberTopicParticipations(tx, conversationID, store.ConversationMemberTypeUser, actor.ID)
+		if cleanupErr != nil {
+			return cleanupErr
+		}
+		topicIDs = removedTopicIDs
 		created, err := createGroupMemberLeftSystemMessage(tx, &conversation, actor, now)
 		if err != nil {
 			return err
@@ -321,7 +331,7 @@ func (s *Service) leave(db *gorm.DB, actor store.User, conversationID string) (s
 		userIDs = ids
 		return nil
 	})
-	return message, userIDs, err
+	return message, userIDs, topicIDs, err
 }
 
 func (s *Service) Dissolve(ctx context.Context, cmd DissolveCommand) (DissolveResult, error) {
@@ -329,7 +339,8 @@ func (s *Service) Dissolve(ctx context.Context, cmd DissolveCommand) (DissolveRe
 	if err != nil {
 		return DissolveResult{}, invalidRequest(err.Error(), err)
 	}
-	userIDs, err := s.dissolve(ctx, actorUser(cmd.Actor), conversationID)
+	actor := actorUser(cmd.Actor)
+	userIDs, topicIDs, err := s.dissolveAsMember(ctx, store.ConversationMemberTypeUser, actor.ID, conversationID, nil)
 	if err != nil {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
@@ -344,24 +355,39 @@ func (s *Service) Dissolve(ctx context.Context, cmd DissolveCommand) (DissolveRe
 	}
 	if s.notifications != nil {
 		s.notifications.PublishConversationRemoved(ctx, userIDs, conversationID)
+		for _, topicID := range topicIDs {
+			s.notifications.PublishConversationRemoved(ctx, userIDs, topicID)
+		}
 	}
 	return DissolveResult{ConversationID: conversationID}, nil
 }
 
-func (s *Service) dissolve(ctx context.Context, actor store.User, conversationID string) ([]string, error) {
+func (s *Service) dissolveAsMember(
+	ctx context.Context,
+	memberType string,
+	memberID string,
+	conversationID string,
+	authorize func(*gorm.DB) error,
+) ([]string, []string, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	db := s.db.WithContext(ctx)
-	if err := preflightDissolution(db, actor.ID, conversationID); err != nil {
-		return nil, err
+	if err := preflightDissolution(db, memberType, memberID, conversationID); err != nil {
+		return nil, nil, err
 	}
 	for attempt := 0; attempt < maxProjectDissolveAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		userIDs := []string{}
+		topicIDs := []string{}
 		err := db.Transaction(func(tx *gorm.DB) error {
+			if authorize != nil {
+				if err := authorize(tx); err != nil {
+					return err
+				}
+			}
 			projectIDs, err := loadProjectIDs(tx, conversationID)
 			if err != nil {
 				return err
@@ -388,7 +414,7 @@ func (s *Service) dissolve(ctx context.Context, actor store.User, conversationID
 				return ErrNotGroup
 			}
 			var current store.ConversationMember
-			if err := tx.First(&current, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL", conversationID, store.ConversationMemberTypeUser, actor.ID).Error; err != nil {
+			if err := tx.First(&current, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL", conversationID, memberType, memberID).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return ErrAccessDenied
 				}
@@ -403,6 +429,11 @@ func (s *Service) dissolve(ctx context.Context, actor store.User, conversationID
 			}
 			userIDs = ids
 			now := s.now().UTC()
+			if err := tx.Model(&store.ConversationTopic{}).
+				Where("parent_conversation_id = ?", conversationID).
+				Order("conversation_id ASC").Pluck("conversation_id", &topicIDs).Error; err != nil {
+				return err
+			}
 			deleted := tx.Where("conversation_id = ?", conversationID).Delete(&store.ProjectGroup{})
 			if deleted.Error != nil {
 				return deleted.Error
@@ -433,26 +464,34 @@ func (s *Service) dissolve(ctx context.Context, actor store.User, conversationID
 			if updated.RowsAffected != 1 {
 				return ErrProjectMutation
 			}
+			if err := tx.Model(&store.Conversation{}).
+				Where("id IN (?)", tx.Model(&store.ConversationTopic{}).Select("conversation_id").Where("parent_conversation_id = ?", conversationID)).
+				Updates(map[string]any{
+					"dissolved_at": now, "status": store.ConversationStatusDissolved,
+					"posting_policy": store.ConversationPostingPolicyMuted, "updated_at": now,
+				}).Error; err != nil {
+				return err
+			}
 			return nil
 		})
 		if errors.Is(err, ErrProjectLockChange) {
 			if contextErr := ctx.Err(); contextErr != nil {
-				return nil, contextErr
+				return nil, nil, contextErr
 			}
 			if attempt == maxProjectDissolveAttempts-1 {
-				return nil, ErrProjectDissolveConflict
+				return nil, nil, ErrProjectDissolveConflict
 			}
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return userIDs, nil
+		return userIDs, topicIDs, nil
 	}
-	return nil, ErrProjectDissolveConflict
+	return nil, nil, ErrProjectDissolveConflict
 }
 
-func preflightDissolution(db *gorm.DB, userID, conversationID string) error {
+func preflightDissolution(db *gorm.DB, memberType, memberID, conversationID string) error {
 	var conversation store.Conversation
 	if err := db.Select("id", "kind", "status").First(&conversation, "id = ?", conversationID).Error; err != nil {
 		return err
@@ -464,7 +503,7 @@ func preflightDissolution(db *gorm.DB, userID, conversationID string) error {
 		return ErrNotGroup
 	}
 	var current store.ConversationMember
-	if err := db.Select("role").First(&current, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL", conversationID, store.ConversationMemberTypeUser, userID).Error; err != nil {
+	if err := db.Select("role").First(&current, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL", conversationID, memberType, memberID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrAccessDenied
 		}

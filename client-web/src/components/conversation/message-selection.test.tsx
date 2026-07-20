@@ -127,7 +127,7 @@ describe("conversation message selection", () => {
     const nestedCard = screen.getByRole("button", {
       name: /\[聊天记录\] 1 条 - 内层消息/,
     })
-    expect(nestedCard).toHaveClass("w-72", "max-w-full")
+    expect(nestedCard).toHaveClass("w-80", "max-w-full")
     expect(nestedCard.parentElement).toHaveAttribute(
       "data-forward-bundle-item-body"
     )

@@ -31,6 +31,7 @@ services:
       AI_ASSISTANT_SECRET: ${AI_ASSISTANT_SECRET:-change-me}
       ASSISTANT_WEBSOCKET_URL: ${ASSISTANT_WEBSOCKET_URL:-ws://server:20080/api/app/ws}
       AGENT_MAX_TURNS: ${AGENT_MAX_TURNS:-50}
+      AGENT_MAX_SESSIONS: ${AGENT_MAX_SESSIONS:-1000}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.example.com}
       LLM_API_KEY: ${LLM_API_KEY:-change-me}
       LLM_MODEL_NAME: ${LLM_MODEL_NAME:-change-me}

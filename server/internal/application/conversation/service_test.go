@@ -229,6 +229,11 @@ func (r *conversationNotificationRecorder) PublishConversationRemoved(_ context.
 	}
 }
 
+func (*conversationNotificationRecorder) PublishConversationPinUpdated(context.Context, []string, ConversationPinEvent) {
+}
+
+func (*conversationNotificationRecorder) PublishTopicEvent(context.Context, []string, TopicEvent) {}
+
 func openConversationTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
@@ -237,7 +242,10 @@ func openConversationTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&store.User{}, &store.App{}, &store.AppUserGrant{}, &store.Conversation{}, &store.ConversationMember{},
-		&store.DirectConversation{}, &store.AppConversation{}, &store.Message{},
+		&store.ConversationPin{},
+		&store.DirectConversation{}, &store.AppConversation{}, &store.Message{}, &store.MessageRegistry{},
+		&store.ConversationTopic{}, &store.ConversationTopicParticipant{},
+		&store.AppEventOutbox{},
 		&store.Project{}, &store.ProjectGroup{},
 	); err != nil {
 		t.Fatalf("migrate database: %v", err)

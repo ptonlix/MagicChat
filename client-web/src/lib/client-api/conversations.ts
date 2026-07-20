@@ -4,7 +4,10 @@ import {
   normalizeVisibility,
   readJson,
 } from "./core"
-import { normalizeMessage } from "./message-normalizers"
+import {
+  normalizeClientMessageBody,
+  normalizeMessage,
+} from "./message-normalizers"
 import type {
   ClientDataFetch,
   ClientDataSuccessEnvelope,
@@ -32,6 +35,12 @@ import type {
   UploadGroupConversationAvatarResult,
   LeaveGroupConversationResult,
   DissolveGroupConversationResult,
+  CreateTopicResponse,
+  TopicConversationResponse,
+  TopicDetailResponse,
+  ClientTopicDetail,
+  SetConversationPinResponse,
+  ConversationPinUpdatedEventPayloadResponse,
 } from "./types"
 
 export async function listClientConversations(
@@ -60,6 +69,63 @@ export async function listClientConversations(
   }
 
   return conversations.map(normalizeConversation)
+}
+
+export async function setConversationPinned(
+  conversationId: string,
+  pinned: boolean,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/pin`,
+    {
+      credentials: "include",
+      method: pinned ? "PUT" : "DELETE",
+    }
+  )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<SetConversationPinResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(
+      payload,
+      response,
+      pinned ? "置顶会话失败" : "取消置顶失败"
+    )
+  }
+  const data = (
+    payload as ClientDataSuccessEnvelope<SetConversationPinResponse> | undefined
+  )?.data
+  if (
+    typeof data?.conversation_id !== "string" ||
+    data.conversation_id.trim() === "" ||
+    typeof data.pinned !== "boolean"
+  ) {
+    throw new ClientDataRequestError("会话置顶响应格式不正确")
+  }
+  return {
+    conversationId: data.conversation_id,
+    pinned: data.pinned,
+  }
+}
+
+export function normalizeConversationPinUpdatedEventPayload(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new ClientDataRequestError("会话置顶推送格式不正确")
+  }
+  const event = payload as ConversationPinUpdatedEventPayloadResponse
+  if (
+    typeof event.conversation_id !== "string" ||
+    event.conversation_id.trim() === "" ||
+    typeof event.pinned !== "boolean"
+  ) {
+    throw new ClientDataRequestError("会话置顶推送格式不正确")
+  }
+  return {
+    conversationId: event.conversation_id,
+    pinned: event.pinned,
+  }
 }
 
 export async function createDirectConversation(
@@ -154,6 +220,100 @@ export async function createGroupConversation(
       ClientDataSuccessEnvelope<CreateGroupConversationResponse> | undefined
   )?.data?.conversation
 
+  return normalizeConversation(conversation)
+}
+
+export async function createConversationTopic(
+  conversationId: string,
+  messageId: string,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/topic`,
+    { credentials: "include", method: "POST" }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateTopicResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "创建话题失败")
+  }
+  const data = (payload as ClientDataSuccessEnvelope<CreateTopicResponse>)?.data
+  if (!data?.conversation) {
+    throw new ClientDataRequestError("创建话题响应格式不正确")
+  }
+  return {
+    conversation: normalizeConversation(data.conversation),
+    created: Boolean(data.created),
+  }
+}
+
+export async function getConversationTopic(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch
+): Promise<ClientTopicDetail> {
+  const response = await fetcher(
+    `/api/client/conversations/topics/${encodeURIComponent(conversationId)}`,
+    { credentials: "include", method: "GET" }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<TopicDetailResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "加载话题失败")
+  }
+  return normalizeTopicDetail(
+    (payload as ClientDataSuccessEnvelope<TopicDetailResponse>)?.data
+  )
+}
+
+export async function participateConversationTopic(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch
+) {
+  return mutateConversationTopic(
+    conversationId,
+    "participate",
+    "参与话题失败",
+    fetcher
+  )
+}
+
+export async function archiveConversationTopic(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch
+) {
+  return mutateConversationTopic(
+    conversationId,
+    "archive",
+    "关闭话题失败",
+    fetcher
+  )
+}
+
+async function mutateConversationTopic(
+  conversationId: string,
+  action: "participate" | "archive",
+  fallbackMessage: string,
+  fetcher: ClientDataFetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/topics/${encodeURIComponent(conversationId)}/${action}`,
+    { credentials: "include", method: "POST" }
+  )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<TopicConversationResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, fallbackMessage)
+  }
+  const conversation = (
+    payload as ClientDataSuccessEnvelope<TopicConversationResponse>
+  )?.data?.conversation
+  if (!conversation) {
+    throw new ClientDataRequestError(`${fallbackMessage}响应格式不正确`)
+  }
   return normalizeConversation(conversation)
 }
 
@@ -480,6 +640,7 @@ function normalizeConversation(
     lastReadSeq: conversation.last_read_seq ?? 0,
     memberCount: conversation.member_count ?? 0,
     name: conversation.name,
+    pinned: Boolean(conversation.pinned),
     type: normalizeConversationType(conversation.type),
     unreadCount: conversation.unread_count ?? 0,
     visibility: normalizeVisibility(conversation.visibility),
@@ -495,6 +656,37 @@ function normalizeConversation(
     normalizedConversation.projects = conversation.projects.map(
       normalizeConversationProject
     )
+  }
+
+  if (conversation.topic) {
+    const topic = conversation.topic
+    if (
+      !topic.parent_conversation_id ||
+      !topic.parent_conversation_name ||
+      !topic.source_message_id ||
+      !topic.source_sender?.id ||
+      !topic.source_sender.name ||
+      typeof topic.source_message_seq !== "number"
+    ) {
+      throw new ClientDataRequestError("会话话题信息响应格式不正确")
+    }
+    normalizedConversation.topic = {
+      archived: Boolean(topic.archived),
+      parentConversationId: topic.parent_conversation_id,
+      parentConversationName: topic.parent_conversation_name,
+      parentConversationType: normalizeParentConversationType(
+        topic.parent_conversation_type
+      ),
+      participating: Boolean(topic.participating),
+      sourceMessageId: topic.source_message_id,
+      sourceMessageSeq: topic.source_message_seq,
+      sourceSender: {
+        avatar: topic.source_sender.avatar ?? "",
+        id: topic.source_sender.id,
+        name: topic.source_sender.name,
+        type: normalizeTopicSourceSenderType(topic.source_sender.type),
+      },
+    }
   }
 
   return normalizedConversation
@@ -544,9 +736,71 @@ function normalizeConversationMemberRole(role: string | undefined) {
 }
 
 function normalizeConversationType(type: string | undefined) {
-  if (type === "direct" || type === "app") {
+  if (type === "direct" || type === "app" || type === "topic") {
     return type
   }
 
   return "group"
+}
+
+function normalizeParentConversationType(type: string | undefined) {
+  if (type === "direct" || type === "app") {
+    return type
+  }
+  return "group"
+}
+
+function normalizeTopicSourceSenderType(type: string | undefined) {
+  if (type === "user" || type === "app") {
+    return type
+  }
+  throw new ClientDataRequestError("话题来源消息发送者响应格式不正确")
+}
+
+function normalizeTopicDetail(
+  detail: TopicDetailResponse | undefined
+): ClientTopicDetail {
+  const parent = detail?.parent_conversation
+  const source = detail?.source_message
+  const senderType = source?.sender?.type
+  if (
+    !detail?.conversation ||
+    !parent?.id ||
+    !parent.name ||
+    !source?.created_at ||
+    !source.id ||
+    !source.sender?.id ||
+    !source.sender.name ||
+    (senderType !== "user" && senderType !== "app") ||
+    typeof source.seq !== "number" ||
+    typeof source.summary !== "string"
+  ) {
+    throw new ClientDataRequestError("话题详情响应格式不正确")
+  }
+  return {
+    canArchive: Boolean(detail.can_archive),
+    canParticipate: Boolean(detail.can_participate),
+    conversation: normalizeConversation(detail.conversation),
+    parentConversation: {
+      id: parent.id,
+      name: parent.name,
+      type: normalizeParentConversationType(parent.type),
+    },
+    sourceMessage: {
+      body: source.revoked_at
+        ? { type: "revoked" }
+        : normalizeClientMessageBody(source.body),
+      createdAt: source.created_at,
+      id: source.id,
+      revokedAt: source.revoked_at ?? null,
+      sender: {
+        avatar: source.sender.avatar ?? "",
+        id: source.sender.id,
+        name: source.sender.name,
+        type: senderType,
+      },
+      seq: source.seq,
+      summary: source.summary,
+    },
+  }
 }

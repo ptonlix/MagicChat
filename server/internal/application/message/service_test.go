@@ -561,6 +561,7 @@ func openMessageTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.App{}, &store.Conversation{}, &store.ConversationMember{},
 		&store.Message{}, &store.AppEventOutbox{}, &store.AppConversation{},
+		&store.ConversationTopic{}, &store.ConversationTopicParticipant{},
 		&store.Project{}, &store.ProjectGroup{},
 	); err != nil {
 		t.Fatalf("migrate database: %v", err)

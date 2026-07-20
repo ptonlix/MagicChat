@@ -1,6 +1,13 @@
 import * as React from "react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
-import { Copy, Forward, ListChecks, Reply, Undo2 } from "lucide-react"
+import {
+  Copy,
+  Forward,
+  ListChecks,
+  MessageSquareText,
+  Reply,
+  Undo2,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -9,6 +16,7 @@ type MessageActionMenuProps = {
   canRevoke?: boolean
   copyDisabled?: boolean
   onCopy?: () => void
+  onCreateTopic?: () => void
   onForward?: () => void
   onMultiSelect?: () => void
   onReply?: () => void
@@ -27,6 +35,7 @@ export function MessageActionMenu({
   children,
   copyDisabled = false,
   onCopy,
+  onCreateTopic,
   onForward,
   onMultiSelect,
   onReply,
@@ -53,11 +62,13 @@ export function MessageActionMenu({
               disabled={
                 action.type === "copy"
                   ? copyDisabled
-                  : action.type === "forward"
-                    ? !onForward
-                    : action.type === "multi-select"
-                      ? !onMultiSelect
-                      : false
+                  : action.type === "reply"
+                    ? !onReply
+                    : action.type === "forward"
+                      ? !onForward
+                      : action.type === "multi-select"
+                        ? !onMultiSelect
+                        : false
               }
               key={action.label}
               onSelect={
@@ -74,6 +85,12 @@ export function MessageActionMenu({
               <span>{action.label}</span>
             </MessageActionMenuItem>
           ))}
+          {onCreateTopic && (
+            <MessageActionMenuItem onSelect={onCreateTopic}>
+              <MessageSquareText aria-hidden="true" className="size-4" />
+              <span>创建话题</span>
+            </MessageActionMenuItem>
+          )}
           {canRevoke && (
             <>
               <ContextMenuPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />

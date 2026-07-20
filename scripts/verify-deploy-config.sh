@@ -75,6 +75,7 @@ assert_contains "compose.yml" 'TEMPORARY_ASSETS_HOSTNAME: ${TEMPORARY_ASSETS_HOS
 assert_contains "compose.yml" 'AI_ASSISTANT_SECRET: ${AI_ASSISTANT_SECRET:-change-me}'
 assert_contains "compose.yml" 'ASSISTANT_WEBSOCKET_URL: ${ASSISTANT_WEBSOCKET_URL:-ws://server:20080/api/app/ws}'
 assert_contains "compose.yml" 'AGENT_MAX_TURNS: ${AGENT_MAX_TURNS:-50}'
+assert_contains "compose.yml" 'AGENT_MAX_SESSIONS: ${AGENT_MAX_SESSIONS:-1000}'
 assert_contains "compose.yml" 'LLM_BASE_URL: ${LLM_BASE_URL:-https://api.example.com}'
 assert_contains "compose.yml" 'LLM_API_KEY: ${LLM_API_KEY:-change-me}'
 assert_contains "compose.yml" 'LLM_MODEL_NAME: ${LLM_MODEL_NAME:-change-me}'
@@ -148,6 +149,7 @@ assert_contains ".env.example" "PRIVATE_ASSETS_HOSTNAME=private-assets.localhost
 assert_contains ".env.example" "TEMPORARY_ASSETS_HOSTNAME=temporary-assets.localhost"
 assert_contains ".env.example" "ASSISTANT_WEBSOCKET_URL=ws://server:20080/api/app/ws"
 assert_contains ".env.example" "AGENT_MAX_TURNS=50"
+assert_contains ".env.example" "AGENT_MAX_SESSIONS=1000"
 assert_contains ".env.example" "LLM_BASE_URL=https://api.example.com"
 assert_contains ".env.example" "LLM_API_KEY=change-me"
 assert_contains ".env.example" "LLM_MODEL_NAME=change-me"
@@ -194,8 +196,9 @@ assert_contains "server/Dockerfile" "COPY server/migrations"
 assert_contains "server/Dockerfile" "COPY api-docs"
 assert_not_contains "server/Dockerfile" "config.example.yaml"
 assert_contains "assistant/Dockerfile" "go build"
-assert_contains "assistant/internal/config/config.go" 'AIAssistantAppID     = "00000000-0000-0000-0000-000000000001"'
-assert_contains "assistant/internal/config/config.go" "DefaultAgentMaxTurns = 50"
+assert_contains "assistant/internal/config/config.go" 'AIAssistantAppID        = "00000000-0000-0000-0000-000000000001"'
+assert_contains "assistant/internal/config/config.go" "DefaultAgentMaxTurns    = 50"
+assert_contains "assistant/internal/config/config.go" "DefaultAgentMaxSessions = 1000"
 assert_contains "server/internal/appregistry/ai_assistant.go" 'AIAssistantAppID          = "00000000-0000-0000-0000-000000000001"'
 
 assert_contains "deploy/caddy/Dockerfile" "pnpm build"

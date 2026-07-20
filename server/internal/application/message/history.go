@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"time"
 
 	"app/internal/store"
 
@@ -58,12 +59,81 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 	if err != nil {
 		return ListResult{}, internalError(err)
 	}
+	if err := attachMessageTopics(db, messages); err != nil {
+		return ListResult{}, internalError(err)
+	}
 	page := Page{HasMoreAfter: hasMoreAfter, HasMoreBefore: hasMoreBefore, Limit: limit}
 	if len(stored) > 0 {
 		page.OldestSeq = stored[0].Seq
 		page.NewestSeq = stored[len(stored)-1].Seq
 	}
 	return ListResult{Messages: messages, Page: page}, nil
+}
+
+func attachMessageTopics(db *gorm.DB, messages []Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+	messageIDs := make([]string, 0, len(messages))
+	for _, message := range messages {
+		messageIDs = append(messageIDs, message.ID)
+	}
+	var topics []store.ConversationTopic
+	if err := db.Select("conversation_id", "source_message_id", "archived_at").Where("source_message_id IN ?", messageIDs).Find(&topics).Error; err != nil {
+		return err
+	}
+	byMessageID := make(map[string]store.ConversationTopic, len(topics))
+	for _, topic := range topics {
+		byMessageID[topic.SourceMessageID] = topic
+	}
+	for index := range messages {
+		if topic, ok := byMessageID[messages[index].ID]; ok {
+			recentReplies, err := loadRecentTopicReplies(db, topic.ConversationID)
+			if err != nil {
+				return err
+			}
+			messages[index].Topic = &MessageTopic{
+				Archived: topic.ArchivedAt != nil, ConversationID: topic.ConversationID,
+				RecentReplies: recentReplies,
+			}
+		}
+	}
+	return nil
+}
+
+type recentTopicReplyRecord struct {
+	CreatedAt  time.Time
+	ID         string
+	SenderID   *string
+	SenderType string
+	Summary    string
+}
+
+func loadRecentTopicReplies(db *gorm.DB, conversationID string) ([]MessageTopicReply, error) {
+	model := any(&store.Message{})
+	if store.MessagePartitioningEnabled(db) {
+		model = &store.MessageRegistry{}
+	}
+	var records []recentTopicReplyRecord
+	if err := applyOnlineStoredMessageWindow(db.Model(model)).
+		Select("created_at", "id", "sender_id", "sender_type", "summary").
+		Where("conversation_id = ? AND deleted_at IS NULL AND revoked_at IS NULL", conversationID).
+		Where("sender_type IN ?", []string{store.MessageSenderTypeUser, store.MessageSenderTypeApp}).
+		Order("seq DESC").Limit(3).Scan(&records).Error; err != nil {
+		return nil, err
+	}
+	replies := make([]MessageTopicReply, len(records))
+	for index, record := range records {
+		senderID := ""
+		if record.SenderID != nil {
+			senderID = *record.SenderID
+		}
+		replies[len(records)-1-index] = MessageTopicReply{
+			CreatedAt: record.CreatedAt, ID: record.ID,
+			Sender: Identity{ID: senderID, Type: record.SenderType}, Summary: record.Summary,
+		}
+	}
+	return replies, nil
 }
 
 func newMessagesForUser(db *gorm.DB, values []store.Message, visibleFromSeq int64) ([]Message, error) {
@@ -195,24 +265,12 @@ func newMessagesForUser(db *gorm.DB, values []store.Message, visibleFromSeq int6
 }
 
 func requireReadableConversationMember(db *gorm.DB, userID, conversationID string) (store.ConversationMember, error) {
-	var conversation store.Conversation
-	if err := db.First(&conversation, "id = ?", conversationID).Error; err != nil {
+	access, err := loadUserConversationAccess(db, conversationID, userID, false)
+	if err != nil {
 		return store.ConversationMember{}, err
 	}
-	if conversation.Status != store.ConversationStatusActive {
-		return store.ConversationMember{}, errConversationAccessDenied
-	}
-	var member store.ConversationMember
-	if err := db.First(
-		&member,
-		"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-		conversationID, store.ConversationMemberTypeUser, userID,
-	).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return store.ConversationMember{}, errConversationAccessDenied
-		}
-		return store.ConversationMember{}, err
-	}
+	member := access.Member
+	member.HistoryVisibleFromSeq = access.visibleFromSeq()
 	return member, nil
 }
 

@@ -93,14 +93,24 @@ type ConversationWaitRegistrar interface {
 }
 
 type Scope struct {
-	AuthorizationResolver AuthorizationResolver
-	ConversationWaiter    ConversationWaitRegistrar
-	ConversationID        string
-	ConversationType      string
-	CurrentAppID          string
-	CurrentUserID         string
-	Requester             AppRequester
-	TriggerMessageID      string
+	AuthorizationConversationID string
+	AuthorizationResolver       AuthorizationResolver
+	ConversationWaiter          ConversationWaitRegistrar
+	ConversationID              string
+	ConversationType            string
+	CurrentAppID                string
+	CurrentUserID               string
+	ParentConversationID        string
+	ParentConversationType      string
+	Requester                   AppRequester
+	TriggerMessageID            string
+}
+
+func scopeAuthorizationConversationID(scope Scope) string {
+	if value := strings.TrimSpace(scope.AuthorizationConversationID); value != "" {
+		return value
+	}
+	return strings.TrimSpace(scope.ConversationID)
 }
 
 type Source struct {
@@ -582,7 +592,7 @@ func (s *Source) callWaitForReply(ctx context.Context, input conversationsInput)
 func latestConversationMessages(ctx context.Context, scope Scope, _ *runAsInput, actor Authorization, conversationID string, limit int) ([]json.RawMessage, error) {
 	raw, err := scope.Requester.Request(ctx, methodConversationHistoryRead, readHistoryPayload{
 		ActorUserID:                 actor.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		ConversationID:              conversationID,
 		Limit:                       limit,
 		TriggerMessageID:            actor.TriggerMessageID,
@@ -707,7 +717,7 @@ func resolveRunAs(scope Scope, input *runAsInput) (*runAsPayload, error) {
 	}
 
 	return &runAsPayload{
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		ID:                          runAs.ID,
 		TriggerMessageID:            authorization.TriggerMessageID,
 		Type:                        runAs.Type,
@@ -757,7 +767,7 @@ func callRecentConversations(ctx context.Context, input json.RawMessage) (mcpcli
 
 	return requestTool(ctx, scope.Requester, methodConversationsList, recentConversationsPayload{
 		ActorUserID:                 auth.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		Keyword:                     strings.TrimSpace(parsed.Keyword),
 		Limit:                       parsed.Limit,
 		TriggerMessageID:            auth.TriggerMessageID,
@@ -783,7 +793,7 @@ func callReadHistory(ctx context.Context, input json.RawMessage) (mcpclient.Tool
 	payload := readHistoryPayload{
 		ActorUserID:                 auth.ActorID,
 		AppID:                       strings.TrimSpace(parsed.AppID),
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		BeforeSeq:                   parsed.BeforeSeq,
 		ConversationID:              strings.TrimSpace(parsed.ConversationID),
 		Limit:                       parsed.Limit,
@@ -853,7 +863,7 @@ func callSendAsUser(ctx context.Context, input json.RawMessage) (mcpclient.ToolR
 
 	return requestTool(ctx, scope.Requester, methodMessageSendAsUser, sendAsUserPayload{
 		ActorUserID:                 auth.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		Target:                      target,
 		TargetUserID:                targetUserID,
 		TriggerMessageID:            auth.TriggerMessageID,
@@ -880,7 +890,7 @@ func callReplyEntityCard(ctx context.Context, input json.RawMessage) (mcpclient.
 
 	result, err := requestTool(ctx, scope.Requester, methodMessageSend, sendMessagePayload{
 		ActorUserID:                 auth.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		Message:                     message,
 		Target: sendMessageTargetPayload{
 			Type:           strings.TrimSpace(scope.ConversationType),
@@ -914,7 +924,7 @@ func callSendEntityCard(ctx context.Context, input json.RawMessage) (mcpclient.T
 
 	return requestTool(ctx, scope.Requester, methodMessageSendAsUser, sendAsUserPayload{
 		ActorUserID:                 auth.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		Message:                     message,
 		Target:                      target,
 		TargetUserID:                targetUserID,
@@ -947,7 +957,7 @@ func callCreateGroup(ctx context.Context, input json.RawMessage) (mcpclient.Tool
 
 	return requestTool(ctx, scope.Requester, methodCreateGroup, createGroupPayload{
 		ActorUserID:                 auth.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		TriggerMessageID:            auth.TriggerMessageID,
 		Name:                        name,
 		MemberIDs:                   memberIDs,
@@ -970,10 +980,14 @@ func callAddGroupMembers(ctx context.Context, input json.RawMessage) (mcpclient.
 	}
 	conversationID := strings.TrimSpace(parsed.ConversationID)
 	if conversationID == "" {
-		if strings.TrimSpace(scope.ConversationType) != "group" || strings.TrimSpace(scope.ConversationID) == "" {
+		switch {
+		case strings.TrimSpace(scope.ConversationType) == "group" && strings.TrimSpace(scope.ConversationID) != "":
+			conversationID = strings.TrimSpace(scope.ConversationID)
+		case strings.TrimSpace(scope.ConversationType) == "topic" && strings.TrimSpace(scope.ParentConversationType) == "group" && strings.TrimSpace(scope.ParentConversationID) != "":
+			conversationID = strings.TrimSpace(scope.ParentConversationID)
+		default:
 			return mcpclient.ToolResult{}, fmt.Errorf("conversation_id is required outside a group conversation")
 		}
-		conversationID = strings.TrimSpace(scope.ConversationID)
 	}
 	memberIDs, err := normalizeToolMemberIDs(parsed.MemberIDs)
 	if err != nil {
@@ -982,7 +996,7 @@ func callAddGroupMembers(ctx context.Context, input json.RawMessage) (mcpclient.
 
 	return requestTool(ctx, scope.Requester, methodAddGroupMembers, addGroupMembersPayload{
 		ActorUserID:                 auth.ActorID,
-		AuthorizationConversationID: strings.TrimSpace(scope.ConversationID),
+		AuthorizationConversationID: scopeAuthorizationConversationID(scope),
 		ConversationID:              conversationID,
 		TriggerMessageID:            auth.TriggerMessageID,
 		MemberIDs:                   memberIDs,

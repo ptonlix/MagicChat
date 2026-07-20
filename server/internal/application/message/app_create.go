@@ -6,11 +6,11 @@ import (
 	"time"
 
 	appapp "app/internal/application/app"
+	"app/internal/application/conversationaccess"
 	"app/internal/store"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func (s *Service) CreateAsApp(ctx context.Context, cmd CreateAsAppCommand) (CreateResult, error) {
@@ -23,27 +23,29 @@ func (s *Service) CreateAsApp(ctx context.Context, cmd CreateAsAppCommand) (Crea
 	mentionedUserIDs := []string{}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var conversation store.Conversation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", cmd.ConversationID).Error; err != nil {
-			return err
-		}
-		if conversation.Status != store.ConversationStatusActive || conversation.PostingPolicy != store.ConversationPostingPolicyOpen {
-			return errConversationNotSendable
-		}
 		if _, err := appapp.LockUsableApp(tx, cmd.AppID); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errConversationAccessDenied
 			}
 			return err
 		}
-		var member store.ConversationMember
-		if err := tx.First(
-			&member, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-			cmd.ConversationID, store.ConversationMemberTypeApp, cmd.AppID,
-		).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errConversationAccessDenied
+		access, _, _, err := requireAppConversationAccess(tx, cmd.ConversationID, cmd.AppID, true, false)
+		if err != nil {
+			return err
+		}
+		conversation := access.Conversation
+		if err := ensureConversationSendable(tx, conversation); err != nil {
+			return err
+		}
+		if access.ParentConversation != nil {
+			if err := ensureConversationSendable(tx, *access.ParentConversation); err != nil {
+				return err
 			}
+		}
+		if err := conversationaccess.EnsureTopicParticipant(
+			tx, access, store.ConversationMemberTypeApp, cmd.AppID,
+			store.TopicParticipantReasonMessage, 0, 0, time.Now().UTC(),
+		); err != nil {
 			return err
 		}
 		existing, ok, err := findExistingMessageByClientMessageID(
@@ -75,11 +77,11 @@ func (s *Service) CreateAsApp(ctx context.Context, cmd CreateAsAppCommand) (Crea
 		}).Error; err != nil {
 			return err
 		}
-		memberUserIDs, err = loadActiveConversationUserIDs(tx, cmd.ConversationID)
+		mentionedUserIDs, err = updateConversationMentionedSeq(tx, access, message.Seq, finalBody, now)
 		if err != nil {
 			return err
 		}
-		mentionedUserIDs, err = updateConversationMentionedSeq(tx, conversation.Kind, cmd.ConversationID, message.Seq, finalBody)
+		memberUserIDs, err = loadConversationDeliveryUserIDs(tx, access)
 		if err != nil {
 			return err
 		}
@@ -107,21 +109,12 @@ func (s *Service) CreateDelegated(ctx context.Context, cmd CreateDelegatedComman
 	mentionedUserIDs := []string{}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var conversation store.Conversation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", cmd.ConversationID).Error; err != nil {
+		access, err := loadUserConversationAccess(tx, cmd.ConversationID, cmd.AccountID, true)
+		if err != nil {
 			return err
 		}
-		if conversation.Status != store.ConversationStatusActive || conversation.PostingPolicy != store.ConversationPostingPolicyOpen {
-			return errConversationNotSendable
-		}
-		var member store.ConversationMember
-		if err := tx.First(
-			&member, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-			cmd.ConversationID, store.ConversationMemberTypeUser, cmd.AccountID,
-		).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errConversationAccessDenied
-			}
+		conversation := access.Context.Conversation
+		if err := ensureUserConversationSendable(tx, access, cmd.AccountID, 0, time.Now().UTC()); err != nil {
 			return err
 		}
 		existing, ok, err := findExistingMessageByClientMessageID(
@@ -132,7 +125,7 @@ func (s *Service) CreateDelegated(ctx context.Context, cmd CreateDelegatedComman
 		}
 		if ok {
 			message = existing
-			return advanceConversationMemberReadSeq(tx, cmd.ConversationID, cmd.AccountID, existing.Seq)
+			return advanceUserConversationReadSeq(tx, access.Context, cmd.AccountID, existing.Seq, &existing.ID, time.Now().UTC())
 		}
 		finalBody, summary, err := cmd.Finalize(ctx, cmd.Body)
 		if err != nil {
@@ -156,14 +149,14 @@ func (s *Service) CreateDelegated(ctx context.Context, cmd CreateDelegatedComman
 		}).Error; err != nil {
 			return err
 		}
-		if err := advanceConversationMemberReadSeq(tx, cmd.ConversationID, cmd.AccountID, message.Seq); err != nil {
+		if err := advanceUserConversationReadSeq(tx, access.Context, cmd.AccountID, message.Seq, &message.ID, now); err != nil {
 			return err
 		}
-		mentionedUserIDs, err = updateConversationMentionedSeq(tx, conversation.Kind, cmd.ConversationID, message.Seq, finalBody)
+		mentionedUserIDs, err = updateConversationMentionedSeq(tx, access.Context, message.Seq, finalBody, now)
 		if err != nil {
 			return err
 		}
-		memberUserIDs, err = loadActiveConversationUserIDs(tx, cmd.ConversationID)
+		memberUserIDs, err = loadConversationDeliveryUserIDs(tx, access.Context)
 		if err != nil {
 			return err
 		}

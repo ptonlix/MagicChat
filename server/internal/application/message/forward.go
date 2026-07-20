@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const (
@@ -460,21 +459,12 @@ func (s *Service) createForwardedMessagesForTarget(ctx context.Context, user sto
 	appEventLockHeld := false
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var conversation store.Conversation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+		access, err := loadUserConversationAccess(tx, conversationID, user.ID, true)
+		if err != nil {
 			return err
 		}
-		if err := ensureConversationSendable(tx, conversation); err != nil {
-			return err
-		}
-		var member store.ConversationMember
-		if err := tx.First(
-			&member, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-			conversationID, store.ConversationMemberTypeUser, user.ID,
-		).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errConversationAccessDenied
-			}
+		conversation := access.Context.Conversation
+		if err := ensureUserConversationSendable(tx, access, user.ID, 0, time.Now().UTC()); err != nil {
 			return err
 		}
 
@@ -542,18 +532,18 @@ func (s *Service) createForwardedMessagesForTarget(ctx context.Context, user sto
 			}).Error; err != nil {
 				return err
 			}
-			ids, err := loadActiveConversationUserIDs(tx, conversationID)
+			ids, err := loadConversationDeliveryUserIDs(tx, access.Context)
 			if err != nil {
 				return err
 			}
 			memberUserIDs = ids
-			if conversation.Kind == store.ConversationKindApp {
+			if conversation.Kind == store.ConversationKindApp || conversation.Kind == store.ConversationKindTopic {
 				if s.appEventLocker != nil {
 					s.appEventLocker.Lock()
 					appEventLockHeld = true
 				}
 				for _, message := range createdMessages {
-					events, err := createAppMessageEventOutbox(tx, conversation, user, message)
+					events, err := createAppMessageEventOutbox(tx, access.Context, user, message)
 					if err != nil {
 						return err
 					}
@@ -568,7 +558,7 @@ func (s *Service) createForwardedMessagesForTarget(ctx context.Context, user sto
 			}
 		}
 		if maxSeq > 0 {
-			return advanceConversationMemberReadSeq(tx, conversationID, user.ID, maxSeq)
+			return advanceUserConversationReadSeq(tx, access.Context, user.ID, maxSeq, nil, now)
 		}
 		return nil
 	})

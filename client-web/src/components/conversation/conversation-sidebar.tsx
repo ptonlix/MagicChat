@@ -1,9 +1,10 @@
-import { Bot, Plus } from "lucide-react"
+import * as React from "react"
+import { Plus } from "lucide-react"
+import { toast } from "sonner"
 
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
+import { ConversationAvatar } from "@/components/conversation/conversation-avatar"
 import { ConversationSearchPopover } from "@/components/conversation/conversation-search-popover"
-import { GroupAvatar } from "@/components/group-avatar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,12 +28,18 @@ import type {
   ContactApp,
   ContactUser,
 } from "@/lib/client-data-api"
+import { getConversationDisplayName } from "@/lib/conversation-avatar-presentation"
+import {
+  getClientDataErrorMessage,
+  isBuiltinAssistantConversation,
+} from "@/lib/client-data-state"
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import type { ConversationDrafts } from "@/lib/conversation-drafts"
 import {
   formatMentionTemplateText,
   type MentionLabelResolver,
 } from "@/lib/message-mentions"
+import { cn } from "@/lib/utils"
 
 export function ConversationSidebar({
   activeConversationId,
@@ -43,6 +50,7 @@ export function ConversationSidebar({
   drafts,
   onCreateGroup,
   onSelectConversation,
+  onSetConversationPinned,
 }: {
   activeConversationId: string
   appsById: ReadonlyMap<string, ContactApp>
@@ -52,7 +60,36 @@ export function ConversationSidebar({
   drafts: ConversationDrafts
   onCreateGroup: () => void
   onSelectConversation: (conversationId: string) => void
+  onSetConversationPinned: (
+    conversationId: string,
+    pinned: boolean
+  ) => Promise<void>
 }) {
+  const [pinningConversationId, setPinningConversationId] = React.useState("")
+
+  async function handlePinnedChange(
+    conversation: ClientConversation,
+    pinned: boolean
+  ) {
+    if (pinningConversationId) {
+      return
+    }
+    setPinningConversationId(conversation.id)
+    try {
+      await onSetConversationPinned(conversation.id, pinned)
+      toast.success(pinned ? "会话已置顶" : "已取消置顶")
+    } catch (error) {
+      toast.error(
+        getClientDataErrorMessage(
+          error,
+          pinned ? "置顶会话失败" : "取消置顶失败"
+        )
+      )
+    } finally {
+      setPinningConversationId("")
+    }
+  }
+
   function handleConversationListContextMenu(
     event: React.MouseEvent<HTMLDivElement>
   ) {
@@ -138,7 +175,9 @@ export function ConversationSidebar({
             const hasUnreadMention =
               conversation.lastMentionedSeq > conversation.lastReadSeq
             const preview = getConversationListPreview({
-              draftText: drafts[conversation.id]?.text,
+              draftText: conversation.topic?.archived
+                ? undefined
+                : drafts[conversation.id]?.text,
               hasUnreadMention,
               messageDescription: getConversationListDescription(
                 conversation,
@@ -148,10 +187,22 @@ export function ConversationSidebar({
             })
 
             return (
-              <ConversationListItemMenu key={conversation.id}>
+              <ConversationListItemMenu
+                key={conversation.id}
+                onPinnedChange={(pinned) =>
+                  void handlePinnedChange(conversation, pinned)
+                }
+                pinned={Boolean(conversation.pinned)}
+                pinning={pinningConversationId === conversation.id}
+                showPinAction={!isBuiltinAssistantConversation(conversation)}
+              >
                 <SidebarMenuItem data-conversation-list-item-trigger>
                   <SidebarMenuButton
-                    className="h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900"
+                    className={cn(
+                      "h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
+                      conversation.pinned &&
+                        "bg-neutral-100 hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-900"
+                    )}
                     isActive={selected}
                     onClick={() => onSelectConversation(conversation.id)}
                     size="lg"
@@ -162,8 +213,13 @@ export function ConversationSidebar({
                       <div className="flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-sm leading-snug font-medium underline-offset-4">
                         <span className="flex min-w-0 flex-1 items-center overflow-hidden">
                           <span className="block min-w-0 flex-1 truncate">
-                            {conversation.name}
+                            {getConversationDisplayName(conversation)}
                           </span>
+                          {conversation.topic?.archived && (
+                            <span className="ml-1.5 shrink-0 text-[10px] font-normal text-muted-foreground">
+                              已关闭
+                            </span>
+                          )}
                         </span>
                         {lastMessageTime && (
                           <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
@@ -247,31 +303,11 @@ function ConversationListAvatar({
 }) {
   return (
     <div className="relative shrink-0">
-      {conversation.type === "group" ? (
-        <GroupAvatar
-          avatar={conversation.avatar}
-          className="size-10"
-          members={conversation.members}
-          name={conversation.name}
-        />
-      ) : (
-        <Avatar className="size-10 rounded-sm bg-muted after:rounded-sm">
-          {conversation.avatar && (
-            <AvatarImage
-              alt={conversation.name}
-              className="rounded-sm"
-              src={conversation.avatar}
-            />
-          )}
-          <AvatarFallback className="rounded-sm">
-            {conversation.type === "app" ? (
-              <Bot className="size-4" />
-            ) : (
-              getConversationInitial(conversation.name)
-            )}
-          </AvatarFallback>
-        </Avatar>
-      )}
+      <ConversationAvatar
+        className="size-10"
+        conversation={conversation}
+        sourceAvatarClassName="size-5"
+      />
       {conversation.unreadCount > 0 && (
         <span className="absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/3">
           <ConversationUnreadBadge count={conversation.unreadCount} />
@@ -279,10 +315,6 @@ function ConversationListAvatar({
       )}
     </div>
   )
-}
-
-function getConversationInitial(name: string) {
-  return Array.from(name.trim())[0]?.toUpperCase() ?? "?"
 }
 
 function ConversationUnreadBadge({ count }: { count: number }) {

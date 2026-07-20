@@ -579,10 +579,15 @@ definitions:
       name:
         example: 张三
         type: string
+      pinned:
+        example: false
+        type: boolean
       projects:
         items:
           $ref: '#/definitions/client.conversationProjectResponse'
         type: array
+      topic:
+        $ref: '#/definitions/client.conversationTopicMetadataResponse'
       type:
         example: direct
         type: string
@@ -630,6 +635,25 @@ definitions:
         type: string
       name:
         type: string
+    type: object
+  client.conversationTopicMetadataResponse:
+    properties:
+      archived:
+        type: boolean
+      parent_conversation_id:
+        type: string
+      parent_conversation_name:
+        type: string
+      parent_conversation_type:
+        type: string
+      participating:
+        type: boolean
+      source_message_id:
+        type: string
+      source_message_seq:
+        type: integer
+      source_sender:
+        $ref: '#/definitions/client.topicSourceSenderResponse'
     type: object
   client.createAppConversationRequest:
     properties:
@@ -1118,6 +1142,8 @@ definitions:
       seq:
         example: 13
         type: integer
+      topic:
+        $ref: '#/definitions/client.messageTopicResponse'
     type: object
   client.messageSenderResponse:
     properties:
@@ -1127,6 +1153,28 @@ definitions:
       type:
         example: user
         type: string
+    type: object
+  client.messageTopicReplyResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      sender:
+        $ref: '#/definitions/client.messageSenderResponse'
+      summary:
+        type: string
+    type: object
+  client.messageTopicResponse:
+    properties:
+      archived:
+        type: boolean
+      conversation_id:
+        type: string
+      recent_replies:
+        items:
+          $ref: '#/definitions/client.messageTopicReplyResponse'
+        type: array
     type: object
   client.projectGroupListResponse:
     properties:
@@ -1311,6 +1359,15 @@ definitions:
       system_message:
         $ref: '#/definitions/client.messageResponse'
     type: object
+  client.setConversationPinResponse:
+    properties:
+      conversation_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      pinned:
+        example: true
+        type: boolean
+    type: object
   client.successEnvelope:
     properties:
       data: {}
@@ -1425,6 +1482,17 @@ definitions:
       size_bytes:
         example: 123456
         type: integer
+    type: object
+  client.topicSourceSenderResponse:
+    properties:
+      avatar:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
     type: object
   client.updateClientAppRequest:
     properties:
@@ -3289,7 +3357,7 @@ paths:
       - 客户端通讯录
   /api/client/conversations:
     get:
-      description: 普通用户获取自己参与的最近 100 个会话，按照最后消息时间倒序排列。
+      description: 普通用户获取自己参与的最近 100 个会话。茉莉固定第一，其他置顶会话和未置顶会话分别按照最后消息时间倒序排列。
       produces:
       - application/json
       responses:
@@ -3869,6 +3937,97 @@ paths:
       summary: 发送语音消息
       tags:
       - 客户端消息
+  /api/client/conversations/{conversation_id}/pin:
+    delete:
+      description: 为当前用户取消置顶。内置应用茉莉不能取消置顶。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.setConversationPinResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 取消置顶会话
+      tags:
+      - 客户端会话
+    put:
+      description: 为当前用户置顶一个有权访问的会话。置顶状态仅影响当前用户。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.setConversationPinResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 置顶会话
+      tags:
+      - 客户端会话
   /api/client/conversations/{conversation_id}/projects/{project_id}:
     delete:
       description: 群主或群管理员解除当前群聊与协作项目的关联；未关联时保持成功。

@@ -1930,6 +1930,39 @@ func TestAddGroupMembersToolDefaultsToCurrentGroupConversation(t *testing.T) {
 	}
 }
 
+func TestAddGroupMembersToolDefaultsToTopicParentGroup(t *testing.T) {
+	requester := &fakeRequester{}
+	ctx := WithScope(context.Background(), Scope{
+		AuthorizationConversationID: "topic-1",
+		AuthorizationResolver: AuthorizationResolverFunc(func(ref string) (Authorization, bool) {
+			return Authorization{ActorID: "user-1", ActorType: "user", TriggerMessageID: "topic-message-1"}, ref == "auth_1"
+		}),
+		ConversationID:         "topic-1",
+		ConversationType:       "topic",
+		ParentConversationID:   "group-1",
+		ParentConversationType: "group",
+		Requester:              requester,
+	})
+
+	_, err := callAddGroupMembers(ctx, json.RawMessage(`{"authorization_ref":"auth_1","member_ids":["user-2"]}`))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if len(requester.calls) != 1 {
+		t.Fatalf("request call count = %d, want 1", len(requester.calls))
+	}
+	var payload struct {
+		AuthorizationConversationID string `json:"authorization_conversation_id"`
+		ConversationID              string `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(requester.calls[0].payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.ConversationID != "group-1" || payload.AuthorizationConversationID != "topic-1" {
+		t.Fatalf("topic parent group payload = %#v", payload)
+	}
+}
+
 func TestScopedToolsRequireScope(t *testing.T) {
 	_, err := callReply(context.Background(), json.RawMessage(`{"type":"text","content":"hi"}`))
 	if err == nil {

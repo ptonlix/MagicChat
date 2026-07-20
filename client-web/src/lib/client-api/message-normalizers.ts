@@ -3,6 +3,7 @@ import { normalizeChartMessageBody } from "./chart-message-normalizer"
 import type {
   MessageDelegatedByResponse,
   MessageReplyToResponse,
+  MessageTopicReplyResponse,
   SystemEventUserRefResponse,
   GroupMembersInvitedSystemEventBodyResponse,
   GroupAvatarUpdatedSystemEventBodyResponse,
@@ -12,6 +13,7 @@ import type {
   GroupMemberRemovedSystemEventBodyResponse,
   GroupNameUpdatedSystemEventBodyResponse,
   MessageRevokedSystemEventBodyResponse,
+  TopicClosedSystemEventBodyResponse,
   MessageBodyResponse,
   MessageResponse,
   MessagePageResponse,
@@ -32,9 +34,11 @@ import type {
   ClientGroupMemberRemovedSystemEventBody,
   ClientGroupNameUpdatedSystemEventBody,
   ClientMessageRevokedSystemEventBody,
+  ClientTopicClosedSystemEventBody,
   ClientMessageBody,
   ClientMessage,
   ClientMessagePage,
+  ClientMessageTopicReply,
   TemporaryFileReadURL,
   MarkConversationReadResult,
 } from "./types"
@@ -82,7 +86,7 @@ export function normalizeMessage(
   const normalized: ClientMessage = {
     body: revokedAt
       ? { type: "revoked" }
-      : normalizeMessageBodyOrUnsupported(message.body),
+      : normalizeClientMessageBody(message.body),
     clientMessageId: message.client_message_id ?? "",
     conversationId: message.conversation_id,
     createdAt: message.created_at,
@@ -94,6 +98,18 @@ export function normalizeMessage(
       type: senderType,
     },
     seq: message.seq,
+  }
+  if (message.topic) {
+    if (!message.topic.conversation_id) {
+      throw new ClientDataRequestError("消息话题信息响应格式不正确")
+    }
+    normalized.topic = {
+      archived: Boolean(message.topic.archived),
+      conversationId: message.topic.conversation_id,
+      recentReplies: (message.topic.recent_replies ?? []).map(
+        normalizeMessageTopicReply
+      ),
+    }
   }
   if (message.reply_to_message_id) {
     normalized.replyToMessageId = message.reply_to_message_id
@@ -108,7 +124,30 @@ export function normalizeMessage(
   return normalized
 }
 
-function normalizeMessageBodyOrUnsupported(
+function normalizeMessageTopicReply(
+  reply: MessageTopicReplyResponse
+): ClientMessageTopicReply {
+  const senderType = normalizeMessageSenderType(reply?.sender?.type)
+  const senderId = reply?.sender?.id ?? ""
+  if (
+    !reply?.id ||
+    !reply.created_at ||
+    !reply.sender ||
+    !senderId ||
+    (senderType !== "user" && senderType !== "app") ||
+    typeof reply.summary !== "string"
+  ) {
+    throw new ClientDataRequestError("话题回复摘要响应格式不正确")
+  }
+  return {
+    createdAt: reply.created_at,
+    id: reply.id,
+    sender: { id: senderId, type: senderType },
+    summary: reply.summary,
+  }
+}
+
+export function normalizeClientMessageBody(
   body: MessageBodyResponse | undefined
 ): ClientMessageBody {
   try {
@@ -372,6 +411,7 @@ function normalizeSystemEventMessageBody(
     | GroupMemberRemovedSystemEventBodyResponse
     | GroupNameUpdatedSystemEventBodyResponse
     | MessageRevokedSystemEventBodyResponse
+    | TopicClosedSystemEventBodyResponse
 ):
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
@@ -380,7 +420,20 @@ function normalizeSystemEventMessageBody(
   | ClientGroupMemberLeftSystemEventBody
   | ClientGroupMemberRemovedSystemEventBody
   | ClientGroupNameUpdatedSystemEventBody
-  | ClientMessageRevokedSystemEventBody {
+  | ClientMessageRevokedSystemEventBody
+  | ClientTopicClosedSystemEventBody {
+  if (body.event === "topic_closed") {
+    if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
+      throw new ClientDataRequestError("消息响应格式不正确")
+    }
+
+    return {
+      actor: normalizeSystemEventUserRef(body.actor),
+      event: "topic_closed",
+      type: "system_event",
+    }
+  }
+
   if (body.event === "message_revoked") {
     if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
       throw new ClientDataRequestError("消息响应格式不正确")

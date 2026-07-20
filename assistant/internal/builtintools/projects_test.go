@@ -28,8 +28,9 @@ func TestProjectsOperationsUseAuthorizedUserRunAs(t *testing.T) {
 				AuthorizationResolver: AuthorizationResolverFunc(func(ref string) (Authorization, bool) {
 					return Authorization{ActorType: "user", ActorID: "user-1", TriggerMessageID: "message-1"}, ref == "auth-user-1"
 				}),
-				ConversationID: "authorization-conversation-1",
-				Requester:      requester,
+				AuthorizationConversationID: "authorization-conversation-1",
+				ConversationID:              "reply-topic-1",
+				Requester:                   requester,
 			})
 			input := `{"operation":"` + tt.operation + `","runas":{"type":"user","id":"user-1","authorization_ref":"auth-user-1"},"arguments":` + tt.arguments + `}`
 			result, err := NewSource().CallTool(ctx, projectsToolName, json.RawMessage(input))

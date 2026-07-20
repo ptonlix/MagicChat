@@ -15,6 +15,7 @@ const (
 	ConversationKindDirect = "direct"
 	ConversationKindGroup  = "group"
 	ConversationKindApp    = "app"
+	ConversationKindTopic  = "topic"
 
 	ConversationStatusActive    = "active"
 	ConversationStatusDissolved = "dissolved"
@@ -42,6 +43,12 @@ const (
 	ConversationMemberRoleOwner  = "owner"
 	ConversationMemberRoleAdmin  = "admin"
 	ConversationMemberRoleMember = "member"
+
+	TopicParticipantReasonCreator   = "creator"
+	TopicParticipantReasonAutomatic = "automatic"
+	TopicParticipantReasonManual    = "manual"
+	TopicParticipantReasonMessage   = "message"
+	TopicParticipantReasonMention   = "mention"
 
 	ProjectRoleOwner  = "owner"
 	ProjectRoleMember = "member"
@@ -137,6 +144,18 @@ type ConversationMember struct {
 	LastMentionedSeq      int64        `gorm:"not null;default:0"`
 }
 
+type ConversationPin struct {
+	UserID         string       `gorm:"type:uuid;primaryKey;index"`
+	User           User         `gorm:"constraint:OnDelete:CASCADE;"`
+	ConversationID string       `gorm:"type:uuid;primaryKey;index"`
+	Conversation   Conversation `gorm:"constraint:OnDelete:CASCADE;"`
+	CreatedAt      time.Time    `gorm:"not null"`
+}
+
+func (ConversationPin) TableName() string {
+	return "conversation_pins"
+}
+
 type Message struct {
 	ID               string          `gorm:"type:uuid;primaryKey"`
 	ConversationID   string          `gorm:"type:uuid;not null;uniqueIndex:messages_conversation_seq_unique,priority:1;uniqueIndex:messages_client_message_unique,priority:1;index:messages_conversation_seq_index,priority:1"`
@@ -172,6 +191,48 @@ type MessageRegistry struct {
 	RevokedAt        *time.Time `gorm:"index"`
 	RevokedByUserID  *string    `gorm:"type:uuid"`
 	DeletedAt        *time.Time `gorm:"index"`
+}
+
+type ConversationTopic struct {
+	ConversationID         string          `gorm:"type:uuid;primaryKey"`
+	ParentConversationID   string          `gorm:"type:uuid;not null;index"`
+	SourceMessageID        string          `gorm:"type:uuid;not null;uniqueIndex"`
+	SourceMessageSeq       int64           `gorm:"not null"`
+	SourceMessageBody      json.RawMessage `gorm:"type:jsonb;not null;serializer:json"`
+	SourceMessageSummary   string          `gorm:"not null;default:''"`
+	SourceSenderType       string          `gorm:"size:32;not null"`
+	SourceSenderID         *string         `gorm:"type:uuid;not null"`
+	SourceSenderName       string          `gorm:"not null;default:''"`
+	SourceMessageCreatedAt time.Time       `gorm:"not null"`
+	CreatedByUserID        string          `gorm:"type:uuid;not null;index"`
+	CreatedByAppID         *string         `gorm:"type:uuid;index"`
+	ArchivedAt             *time.Time      `gorm:"index"`
+	ArchivedByUserID       *string         `gorm:"type:uuid"`
+	ArchivedByAppID        *string         `gorm:"type:uuid"`
+	CreatedAt              time.Time       `gorm:"not null"`
+	UpdatedAt              time.Time       `gorm:"not null"`
+}
+
+func (ConversationTopic) TableName() string {
+	return "conversation_topics"
+}
+
+type ConversationTopicParticipant struct {
+	ConversationID        string    `gorm:"type:uuid;primaryKey"`
+	ParticipantType       string    `gorm:"size:32;primaryKey"`
+	ParticipantID         string    `gorm:"type:uuid;primaryKey;index"`
+	JoinedReason          string    `gorm:"size:32;not null"`
+	JoinedAt              time.Time `gorm:"not null"`
+	HistoryVisibleFromSeq int64     `gorm:"not null;default:1"`
+	LastReadMessageID     *string   `gorm:"type:uuid"`
+	LastReadSeq           int64     `gorm:"not null;default:0"`
+	LastMentionedSeq      int64     `gorm:"not null;default:0"`
+	CreatedAt             time.Time `gorm:"not null"`
+	UpdatedAt             time.Time `gorm:"not null"`
+}
+
+func (ConversationTopicParticipant) TableName() string {
+	return "conversation_topic_participants"
 }
 
 func (MessageRegistry) TableName() string {

@@ -77,6 +77,40 @@ describe("ConversationSearchPopover", () => {
     ).toBeInTheDocument()
   })
 
+  it("shows and searches a topic with its parent conversation name", async () => {
+    const user = userEvent.setup()
+    renderSearch([
+      createConversation({
+        name: "发布计划",
+        topic: {
+          archived: false,
+          parentConversationId: "parent-1",
+          parentConversationName: "产品群",
+          parentConversationType: "group",
+          participating: true,
+          sourceMessageId: "message-1",
+          sourceMessageSeq: 1,
+          sourceSender: {
+            avatar: "/avatars/alice.webp",
+            id: "user-2",
+            name: "Alice",
+            type: "user",
+          },
+        },
+        type: "topic",
+      }),
+    ])
+
+    await user.type(
+      screen.getByRole("combobox", { name: "搜索消息" }),
+      "产品群"
+    )
+
+    expect(
+      screen.getByRole("option", { name: /发布计划 - 产品群/ })
+    ).toBeVisible()
+  })
+
   it("searches by pinyin and selects a result with the mouse", async () => {
     const user = userEvent.setup()
     const onSelectConversation = vi.fn()

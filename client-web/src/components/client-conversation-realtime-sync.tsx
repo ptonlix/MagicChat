@@ -2,10 +2,12 @@ import * as React from "react"
 import { matchPath, useLocation, useNavigate } from "react-router"
 
 import {
+  normalizeConversationPinUpdatedEventPayload,
   normalizeConversationMemberMentionedEventPayload,
   normalizeConversationRemovedEventPayload,
   normalizeMessageCreatedEventPayload,
   normalizeMessageUpdatedEventPayload,
+  normalizeTopicEventPayload,
 } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
@@ -15,12 +17,15 @@ export function ClientConversationRealtimeSync() {
   const navigate = useNavigate()
   const { ready: realtimeReady, subscribeRealtimeEvent } = useRealtime()
   const {
+    foregroundConversationId,
     handleIncomingConversationMessage,
     handleIncomingConversationMessageUpdate,
     refreshConversations,
     removeConversation,
     syncLoadedConversationMessages,
     updateConversationLastMentionedSeq,
+    updateConversationPinned,
+    updateMessageTopic,
   } = useClientData()
   const hasSeenRealtimeReadyRef = React.useRef(realtimeReady)
   const previousRealtimeReadyRef = React.useRef(realtimeReady)
@@ -30,13 +35,14 @@ export function ClientConversationRealtimeSync() {
         .conversationId ?? "",
     [location.pathname]
   )
+  const visibleConversationId = foregroundConversationId || activeConversationId
 
   React.useEffect(() => {
     return subscribeRealtimeEvent("message.created", (payload) => {
       try {
         const message = normalizeMessageCreatedEventPayload(payload)
         handleIncomingConversationMessage(message, {
-          activeConversationId,
+          activeConversationId: visibleConversationId,
           visible: document.visibilityState === "visible",
         })
         if (
@@ -53,10 +59,10 @@ export function ClientConversationRealtimeSync() {
       }
     })
   }, [
-    activeConversationId,
     handleIncomingConversationMessage,
     refreshConversations,
     subscribeRealtimeEvent,
+    visibleConversationId,
   ])
 
   React.useEffect(() => {
@@ -90,6 +96,17 @@ export function ClientConversationRealtimeSync() {
   ])
 
   React.useEffect(() => {
+    return subscribeRealtimeEvent("conversation.pin_updated", (payload) => {
+      try {
+        const event = normalizeConversationPinUpdatedEventPayload(payload)
+        updateConversationPinned(event.conversationId, event.pinned)
+      } catch {
+        // Ignore malformed realtime events. The websocket remains usable.
+      }
+    })
+  }, [subscribeRealtimeEvent, updateConversationPinned])
+
+  React.useEffect(() => {
     return subscribeRealtimeEvent(
       "conversation.member_mentioned",
       (payload) => {
@@ -106,6 +123,35 @@ export function ClientConversationRealtimeSync() {
       }
     )
   }, [subscribeRealtimeEvent, updateConversationLastMentionedSeq])
+
+  React.useEffect(() => {
+    const handleTopicEvent = (payload: unknown) => {
+      try {
+        const event = normalizeTopicEventPayload(payload)
+        updateMessageTopic?.(
+          event.parentConversationId,
+          event.sourceMessageId,
+          {
+            archived: event.archived,
+            conversationId: event.conversationId,
+          }
+        )
+        void refreshConversations().catch(() => undefined)
+      } catch {
+        // Ignore malformed realtime events. The websocket remains usable.
+      }
+    }
+    const unsubscribers = [
+      subscribeRealtimeEvent("topic.created", handleTopicEvent),
+      subscribeRealtimeEvent("topic.participated", handleTopicEvent),
+      subscribeRealtimeEvent("topic.archived", handleTopicEvent),
+    ]
+    return () => {
+      for (const unsubscribe of unsubscribers) {
+        unsubscribe()
+      }
+    }
+  }, [refreshConversations, subscribeRealtimeEvent, updateMessageTopic])
 
   React.useEffect(() => {
     const wasReady = previousRealtimeReadyRef.current

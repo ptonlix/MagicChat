@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,15 +27,65 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 	if hasAssistant {
 		limit--
 	}
+	var pins []store.ConversationPin
+	if err := db.Where("user_id = ?", accountID).Find(&pins).Error; err != nil {
+		return ListResult{}, internalError(err)
+	}
+	pinnedConversationIDs := make(map[string]struct{}, len(pins))
+	for _, pin := range pins {
+		pinnedConversationIDs[pin.ConversationID] = struct{}{}
+	}
 	var conversations []store.Conversation
 	if err := db.Model(&store.Conversation{}).
 		Joins("JOIN conversation_members cm ON cm.conversation_id = conversations.id").
+		Joins("LEFT JOIN conversation_pins cp ON cp.conversation_id = conversations.id AND cp.user_id = ?", accountID).
 		Where("cm.member_type = ? AND cm.member_id = ? AND cm.left_at IS NULL", store.ConversationMemberTypeUser, accountID).
 		Where("conversations.id <> ?", assistantID).
+		Where("conversations.kind <> ?", store.ConversationKindTopic).
 		Where("conversations.status = ?", store.ConversationStatusActive).
+		Order("CASE WHEN cp.user_id IS NULL THEN 1 ELSE 0 END ASC").
 		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
 		Order("conversations.id ASC").Limit(limit).Find(&conversations).Error; err != nil {
 		return ListResult{}, internalError(err)
+	}
+	var topicConversations []store.Conversation
+	if err := db.Model(&store.Conversation{}).
+		Joins("JOIN conversation_topic_participants ctp ON ctp.conversation_id = conversations.id").
+		Joins("JOIN conversation_topics ct ON ct.conversation_id = conversations.id").
+		Joins("JOIN conversations parent_conversations ON parent_conversations.id = ct.parent_conversation_id").
+		Joins("JOIN conversation_members parent_cm ON parent_cm.conversation_id = ct.parent_conversation_id").
+		Joins("LEFT JOIN conversation_pins cp ON cp.conversation_id = conversations.id AND cp.user_id = ?", accountID).
+		Where("ctp.participant_type = ? AND ctp.participant_id = ?", store.ConversationMemberTypeUser, accountID).
+		Where("parent_cm.member_type = ? AND parent_cm.member_id = ? AND parent_cm.left_at IS NULL", store.ConversationMemberTypeUser, accountID).
+		Where("ct.source_message_seq >= CASE WHEN parent_cm.history_visible_from_seq < 1 THEN 1 ELSE parent_cm.history_visible_from_seq END").
+		Where("conversations.status = ? AND parent_conversations.status = ?", store.ConversationStatusActive, store.ConversationStatusActive).
+		Order("CASE WHEN cp.user_id IS NULL THEN 1 ELSE 0 END ASC").
+		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
+		Order("conversations.id ASC").Limit(limit).Find(&topicConversations).Error; err != nil {
+		return ListResult{}, internalError(err)
+	}
+	conversations = append(conversations, topicConversations...)
+	sort.Slice(conversations, func(left, right int) bool {
+		_, leftPinned := pinnedConversationIDs[conversations[left].ID]
+		_, rightPinned := pinnedConversationIDs[conversations[right].ID]
+		if leftPinned != rightPinned {
+			return leftPinned
+		}
+		leftAt := conversations[left].CreatedAt
+		if conversations[left].LastMessageAt != nil {
+			leftAt = *conversations[left].LastMessageAt
+		}
+		rightAt := conversations[right].CreatedAt
+		if conversations[right].LastMessageAt != nil {
+			rightAt = *conversations[right].LastMessageAt
+		}
+		if !leftAt.Equal(rightAt) {
+			return leftAt.After(rightAt)
+		}
+		return conversations[left].ID < conversations[right].ID
+	})
+	if len(conversations) > limit {
+		conversations = conversations[:limit]
 	}
 	ids := make([]string, 0, len(conversations)+1)
 	if hasAssistant {
@@ -47,13 +98,28 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 	if err != nil {
 		return ListResult{}, internalError(err)
 	}
+	topicPresentations, err := loadTopicPresentations(db, conversations, accountID)
+	if err != nil {
+		return ListResult{}, internalError(err)
+	}
 	projects := make(map[string][]Project, len(ids))
 	if s.projects != nil {
-		values, err := s.projects.ListForConversations(ctx, ids)
+		projectConversationSet := make(map[string]struct{}, len(ids))
+		projectConversationByItem := make(map[string]string, len(ids))
+		for _, conversationID := range ids {
+			projectConversationID := conversationID
+			if presentation, ok := topicPresentations[conversationID]; ok {
+				projectConversationID = presentation.topic.ParentConversationID
+			}
+			projectConversationByItem[conversationID] = projectConversationID
+			projectConversationSet[projectConversationID] = struct{}{}
+		}
+		values, err := s.projects.ListForConversations(ctx, sortedKeys(projectConversationSet))
 		if err != nil {
 			return ListResult{}, internalError(err)
 		}
-		for conversationID, items := range values {
+		for conversationID, projectConversationID := range projectConversationByItem {
+			items := values[projectConversationID]
 			projects[conversationID] = make([]Project, 0, len(items))
 			for _, item := range items {
 				projects[conversationID] = append(projects[conversationID], Project{Avatar: item.Avatar, Description: item.Description, ID: item.ID, Name: item.Name})
@@ -63,9 +129,16 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 	result := ListResult{Conversations: make([]Item, 0, len(conversations)+1)}
 	appendItem := func(conversation store.Conversation) {
 		item := newItem(conversation, accountID, membersByConversation[conversation.ID], users, apps)
+		if presentation, ok := topicPresentations[conversation.ID]; ok {
+			item = newTopicItem(conversation, accountID, membersByConversation[conversation.ID], users, apps, presentation)
+		}
 		conversationProjects := projects[conversation.ID]
 		if conversationProjects == nil {
 			conversationProjects = []Project{}
+		}
+		_, item.Pinned = pinnedConversationIDs[conversation.ID]
+		if conversation.ID == assistantID {
+			item.Pinned = true
 		}
 		item.Projects = &conversationProjects
 		result.Conversations = append(result.Conversations, item)

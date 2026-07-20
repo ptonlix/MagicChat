@@ -46,6 +46,20 @@ type Message struct {
 	Sender           Identity
 	Seq              int64
 	Summary          string
+	Topic            *MessageTopic
+}
+
+type MessageTopic struct {
+	Archived       bool
+	ConversationID string
+	RecentReplies  []MessageTopicReply
+}
+
+type MessageTopicReply struct {
+	CreatedAt time.Time
+	ID        string
+	Sender    Identity
+	Summary   string
 }
 
 type Page struct {
@@ -256,6 +270,7 @@ type AppService interface {
 	CreateAsApp(context.Context, CreateAsAppCommand) (CreateResult, error)
 	CreateDelegated(context.Context, CreateDelegatedCommand) (CreateResult, error)
 	AuthorizeAppConversation(context.Context, AppConversationAccessCommand) (AppConversationAccess, error)
+	AuthorizeAppConversationSend(context.Context, AppConversationAccessCommand) error
 	AuthorizeRunAsTrigger(context.Context, RunAsTriggerCommand) error
 	ListForApp(context.Context, ListForAppCommand) (ListForAppResult, error)
 	ReadForUser(context.Context, ReadForUserCommand) (ReadForUserResult, error)

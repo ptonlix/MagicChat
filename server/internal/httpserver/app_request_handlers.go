@@ -32,6 +32,9 @@ const (
 	appMethodConversationsList          = "conversations.list"
 	appMethodConversationMessagesList   = "conversation.messages.list"
 	appMethodConversationHistoryRead    = "conversation.history.read"
+	appMethodConversationTopicCreate    = "conversation.topic.create"
+	appMethodConversationTopicGet       = "conversation.topic.get"
+	appMethodConversationTopicClose     = "conversation.topic.close"
 	appMethodGroupConversationsList     = "group_conversations.list"
 	appMethodGroupConversationsCreate   = "group_conversations.create"
 	appMethodGroupConversationsGet      = "group_conversations.get"
@@ -58,6 +61,7 @@ const (
 	appMessageTargetUser         = "user"
 	appMessageTargetGroup        = "group"
 	appMessageTargetApp          = "app"
+	appMessageTargetTopic        = "topic"
 	appMessageTargetConversation = "conversation"
 )
 
@@ -85,6 +89,25 @@ type appSendMessageResponse struct {
 type appCreateGroupConversationResponse struct {
 	Conversation groupConversationResponse `json:"conversation"`
 	Message      *appMessagePayload        `json:"message"`
+}
+
+type appCreateTopicRequest struct {
+	ConversationID  string `json:"conversation_id"`
+	SourceMessageID string `json:"source_message_id"`
+}
+
+type appCloseTopicRequest struct {
+	ConversationID         string `json:"conversation_id"`
+	ExpectedLastMessageSeq int64  `json:"expected_last_message_seq"`
+}
+
+type appTopicResponse struct {
+	Archived             bool                          `json:"archived"`
+	Conversation         appMessageConversationPayload `json:"conversation"`
+	Created              bool                          `json:"created"`
+	LastMessageSeq       int64                         `json:"last_message_seq"`
+	ParentConversationID string                        `json:"parent_conversation_id"`
+	SourceMessageID      string                        `json:"source_message_id"`
 }
 
 type appAddGroupConversationMembersResponse struct {
@@ -181,6 +204,13 @@ type appListConversationMessagesResponse struct {
 	Limit          int                                    `json:"limit"`
 	Messages       []appConversationHistoryMessagePayload `json:"messages"`
 	ProjectContext *appConversationProjectContext         `json:"project_context,omitempty"`
+	Topic          *appConversationTopicContext           `json:"topic,omitempty"`
+}
+
+type appConversationTopicContext struct {
+	ParentConversation   appMessageConversationPayload        `json:"parent_conversation"`
+	ParentConversationID string                               `json:"parent_conversation_id"`
+	SourceMessage        appConversationHistoryMessagePayload `json:"source_message"`
 }
 
 type appConversationProjectContext struct {
@@ -331,6 +361,24 @@ func (s *Server) handleAppRequest(appID string, request realtime.Envelope) realt
 			return appRequestErrorResponse(request.ID, err)
 		}
 		return realtime.NewResponse(request.ID, response)
+	case appMethodConversationTopicCreate:
+		response, err := s.handleAppCreateTopic(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodConversationTopicGet:
+		response, err := s.handleAppGetTopic(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
+	case appMethodConversationTopicClose:
+		response, err := s.handleAppCloseTopic(appID, request)
+		if err != nil {
+			return appRequestErrorResponse(request.ID, err)
+		}
+		return realtime.NewResponse(request.ID, response)
 	case appMethodGroupConversationsList:
 		response, err := s.handleAppListGroupConversations(appID, request)
 		if err != nil {
@@ -445,6 +493,9 @@ func isThirdPartyAppMethod(method string) bool {
 		appMethodAppsGet,
 		appMethodConversationsList,
 		appMethodConversationMessagesList,
+		appMethodConversationTopicCreate,
+		appMethodConversationTopicGet,
+		appMethodConversationTopicClose,
 		appMethodGroupConversationsCreate,
 		appMethodGroupConversationsGet,
 		appMethodGroupConversationsUpdate,
@@ -458,6 +509,62 @@ func isThirdPartyAppMethod(method string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func (s *Server) handleAppCreateTopic(appID string, request realtime.Envelope) (appTopicResponse, error) {
+	var req appCreateTopicRequest
+	if err := json.Unmarshal(request.Payload, &req); err != nil {
+		return appTopicResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+	}
+	result, err := s.conversations.CreateTopicAsApp(context.Background(), conversationapp.AppCreateTopicCommand{
+		AppID: appID, ParentConversationID: req.ConversationID, SourceMessageID: req.SourceMessageID,
+	})
+	if err != nil {
+		return appTopicResponse{}, mapConversationApplicationErrorForApp(err)
+	}
+	return newAppTopicResponse(result), nil
+}
+
+func (s *Server) handleAppCloseTopic(appID string, request realtime.Envelope) (appTopicResponse, error) {
+	var req appCloseTopicRequest
+	if err := json.Unmarshal(request.Payload, &req); err != nil {
+		return appTopicResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+	}
+	result, err := s.conversations.CloseTopicAsApp(context.Background(), conversationapp.AppCloseTopicCommand{
+		AppID: appID, ExpectedLastMessageSeq: req.ExpectedLastMessageSeq,
+		TopicConversationID: req.ConversationID,
+	})
+	if err != nil {
+		return appTopicResponse{}, mapConversationApplicationErrorForApp(err)
+	}
+	return newAppTopicResponse(result), nil
+}
+
+func (s *Server) handleAppGetTopic(appID string, request realtime.Envelope) (appTopicResponse, error) {
+	var req struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(request.Payload, &req); err != nil {
+		return appTopicResponse{}, newAppRequestFailure("invalid_request", "请求格式错误")
+	}
+	result, err := s.conversations.GetTopicAsApp(context.Background(), conversationapp.AppGetTopicCommand{
+		AppID: appID, TopicConversationID: req.ConversationID,
+	})
+	if err != nil {
+		return appTopicResponse{}, mapConversationApplicationErrorForApp(err)
+	}
+	return newAppTopicResponse(result), nil
+}
+
+func newAppTopicResponse(result conversationapp.AppTopicResult) appTopicResponse {
+	return appTopicResponse{
+		Archived: result.Archived,
+		Conversation: appMessageConversationPayload{
+			ID: result.ConversationID, Name: result.Name, Type: result.Type,
+		},
+		Created: result.Created, LastMessageSeq: result.LastMessageSeq,
+		ParentConversationID: result.ParentConversationID, SourceMessageID: result.SourceMessageID,
 	}
 }
 
@@ -546,7 +653,16 @@ func (s *Server) handleAppSendMessage(appID string, request realtime.Envelope) (
 		if err := s.requireAppSendAsUserTrigger(appID, actorUserID, triggerMessageID, req.AuthorizationConversationID); err != nil {
 			return appSendMessageResponse{}, err
 		}
-		if strings.TrimSpace(req.AuthorizationConversationID) != conversation.ID {
+		allowedReplyTarget := strings.TrimSpace(req.AuthorizationConversationID) == conversation.ID
+		if !allowedReplyTarget {
+			allowedReplyTarget, err = s.isTopicCreatedFromAuthorizationTrigger(
+				conversation.ID, req.AuthorizationConversationID, triggerMessageID,
+			)
+			if err != nil {
+				return appSendMessageResponse{}, err
+			}
+		}
+		if !allowedReplyTarget {
 			return appSendMessageResponse{}, newAppRequestFailure("forbidden", "对象卡片只能回复到授权会话")
 		}
 		if _, err := s.findActiveAppActor(actorUserID); err != nil {
@@ -587,6 +703,15 @@ func (s *Server) handleAppSendMessage(appID string, request realtime.Envelope) (
 			Summary: message.Summary,
 		},
 	}, nil
+}
+
+func (s *Server) isTopicCreatedFromAuthorizationTrigger(conversationID, authorizationConversationID, triggerMessageID string) (bool, error) {
+	var count int64
+	err := s.db.Model(&store.ConversationTopic{}).Where(
+		"conversation_id = ? AND parent_conversation_id = ? AND source_message_id = ?",
+		strings.TrimSpace(conversationID), strings.TrimSpace(authorizationConversationID), strings.TrimSpace(triggerMessageID),
+	).Count(&count).Error
+	return count > 0, err
 }
 
 func (s *Server) handleAppSendMessageAsUser(appID string, request realtime.Envelope) (appSendMessageResponse, error) {
@@ -1045,11 +1170,49 @@ func (s *Server) handleAppListConversationMessages(appID string, request realtim
 	if err != nil {
 		return appListConversationMessagesResponse{}, mapMessageApplicationErrorForApp(err)
 	}
+	topicContext, err := s.loadAppConversationTopicContext(req.ConversationID)
+	if err != nil {
+		return appListConversationMessagesResponse{}, err
+	}
 
 	return appListConversationMessagesResponse{
 		Limit:          req.Limit,
 		Messages:       legacyAppHistoryMessages(listed.Messages),
 		ProjectContext: projectContext,
+		Topic:          topicContext,
+	}, nil
+}
+
+func (s *Server) loadAppConversationTopicContext(conversationID string) (*appConversationTopicContext, error) {
+	var topic store.ConversationTopic
+	query := s.db.Where("conversation_id = ?", conversationID).Limit(1).Find(&topic)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected == 0 {
+		return nil, nil
+	}
+	var parent store.Conversation
+	if err := s.db.Select("id", "name", "kind").First(&parent, "id = ?", topic.ParentConversationID).Error; err != nil {
+		return nil, err
+	}
+	senderID := ""
+	if topic.SourceSenderID != nil {
+		senderID = *topic.SourceSenderID
+	}
+	return &appConversationTopicContext{
+		ParentConversation: appMessageConversationPayload{
+			ID: parent.ID, Name: parent.Name, Type: parent.Kind,
+		},
+		ParentConversationID: topic.ParentConversationID,
+		SourceMessage: appConversationHistoryMessagePayload{
+			Body: topic.SourceMessageBody, CreatedAt: topic.SourceMessageCreatedAt,
+			ID: topic.SourceMessageID, Seq: topic.SourceMessageSeq,
+			Sender: appMessageSenderPayload{
+				ID: senderID, Name: topic.SourceSenderName, Type: topic.SourceSenderType,
+			},
+			Summary: topic.SourceMessageSummary,
+		},
 	}, nil
 }
 
@@ -1057,6 +1220,14 @@ func (s *Server) loadAppConversationProjectContext(conversationID string, userID
 	result := appConversationProjectContext{
 		ConversationProjects: []appConversationProjectContextProject{},
 	}
+	projectConversationID := conversationID
+	var topic store.ConversationTopic
+	if query := s.db.Where("conversation_id = ?", conversationID).Limit(1).Find(&topic); query.Error != nil {
+		return appConversationProjectContext{}, query.Error
+	} else if query.RowsAffected > 0 {
+		projectConversationID = topic.ParentConversationID
+	}
+
 	var personal store.Project
 	err := s.db.
 		Select("id", "name", "description").
@@ -1078,7 +1249,7 @@ func (s *Server) loadAppConversationProjectContext(conversationID string, userID
 		Model(&store.Project{}).
 		Select("projects.id", "projects.name", "projects.description").
 		Joins("JOIN project_groups pg ON pg.project_id = projects.id").
-		Where("pg.conversation_id = ?", conversationID).
+		Where("pg.conversation_id = ?", projectConversationID).
 		Order("projects.updated_at DESC").
 		Order("projects.id DESC").
 		Find(&projects).Error; err != nil {
@@ -1628,7 +1799,7 @@ func normalizeAppSendMessageTarget(req appSendMessageRequest) (appSendMessageTar
 		if _, err := uuid.Parse(target.UserID); err != nil {
 			return appSendMessageTarget{}, newAppRequestFailure("invalid_request", "用户 ID 格式错误")
 		}
-	case appMessageTargetGroup, appMessageTargetApp, appMessageTargetConversation:
+	case appMessageTargetGroup, appMessageTargetApp, appMessageTargetTopic, appMessageTargetConversation:
 		if _, err := uuid.Parse(target.ConversationID); err != nil {
 			return appSendMessageTarget{}, newAppRequestFailure("invalid_request", "会话 ID 格式错误")
 		}
@@ -1778,6 +1949,8 @@ func (s *Server) findAppSendMessageConversation(appID string, target appSendMess
 		return store.Conversation{ID: opened.ID, Name: opened.Name, Kind: opened.Type}, nil
 	case appMessageTargetGroup, appMessageTargetApp:
 		return s.findAppWritableConversation(appID, target.ConversationID, target.Type)
+	case appMessageTargetTopic:
+		return s.findAppWritableTopicConversation(appID, target.ConversationID)
 	case appMessageTargetConversation:
 		var conversation store.Conversation
 		if err := s.db.First(&conversation, "id = ?", target.ConversationID).Error; err != nil {
@@ -1789,24 +1962,34 @@ func (s *Server) findAppSendMessageConversation(appID string, target appSendMess
 		if conversation.Kind == store.ConversationKindDirect {
 			return store.Conversation{}, newAppRequestFailure("forbidden", "应用不能向用户私聊发送消息")
 		}
-		if conversation.Status != store.ConversationStatusActive ||
-			conversation.PostingPolicy != store.ConversationPostingPolicyOpen {
-			return store.Conversation{}, newAppRequestFailure("forbidden", "当前会话不能发送消息")
-		}
-		var member store.ConversationMember
-		if err := s.db.First(&member,
-			"conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-			conversation.ID, store.ConversationMemberTypeApp, appID,
-		).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return store.Conversation{}, newAppRequestFailure("forbidden", "应用不在当前会话中")
-			}
-			return store.Conversation{}, err
+		if err := s.messages.AuthorizeAppConversationSend(context.Background(), messageapp.AppConversationAccessCommand{
+			AppID: appID, ConversationID: target.ConversationID,
+		}); err != nil {
+			return store.Conversation{}, mapMessageApplicationErrorForApp(err)
 		}
 		return conversation, nil
 	default:
 		return store.Conversation{}, newAppRequestFailure("invalid_request", "消息目标类型不支持")
 	}
+}
+
+func (s *Server) findAppWritableTopicConversation(appID string, conversationID string) (store.Conversation, error) {
+	var conversation store.Conversation
+	if err := s.db.First(&conversation, "id = ?", conversationID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return store.Conversation{}, newAppRequestFailure("not_found", "话题不存在")
+		}
+		return store.Conversation{}, err
+	}
+	if conversation.Kind != store.ConversationKindTopic {
+		return store.Conversation{}, newAppRequestFailure("invalid_request", "会话类型不匹配")
+	}
+	if err := s.messages.AuthorizeAppConversationSend(context.Background(), messageapp.AppConversationAccessCommand{
+		AppID: appID, ConversationID: conversationID,
+	}); err != nil {
+		return store.Conversation{}, mapMessageApplicationErrorForApp(err)
+	}
+	return conversation, nil
 }
 
 func (s *Server) findAppWritableConversation(appID string, conversationID string, expectedKind string) (store.Conversation, error) {

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"app/internal/application/conversationaccess"
 	"app/internal/store"
 
 	"gorm.io/gorm"
@@ -13,32 +14,47 @@ import (
 
 func (s *Service) AuthorizeAppConversation(ctx context.Context, cmd AppConversationAccessCommand) (AppConversationAccess, error) {
 	db := s.db.WithContext(ctx)
-	var conversation store.Conversation
-	if err := db.First(&conversation, "id = ?", cmd.ConversationID).Error; err != nil {
+	_, member, participant, err := requireAppConversationAccess(db, cmd.ConversationID, cmd.AppID, false, true)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return AppConversationAccess{}, NotFoundError("会话不存在", err)
 		}
-		return AppConversationAccess{}, internalError(err)
-	}
-	if conversation.Status != store.ConversationStatusActive {
-		return AppConversationAccess{}, forbidden("无权访问会话", errConversationAccessDenied)
-	}
-	var member store.ConversationMember
-	err := db.First(
-		&member, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL",
-		cmd.ConversationID, store.ConversationMemberTypeApp, cmd.AppID,
-	).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return AppConversationAccess{}, forbidden("无权访问会话", errConversationAccessDenied)
-	}
-	if err != nil {
+		if errors.Is(err, errConversationAccessDenied) {
+			return AppConversationAccess{}, forbidden("无权访问会话", err)
+		}
 		return AppConversationAccess{}, internalError(err)
 	}
 	visibleFromSeq := member.HistoryVisibleFromSeq
+	if participant != nil {
+		visibleFromSeq = participant.HistoryVisibleFromSeq
+	}
 	if visibleFromSeq < 1 {
 		visibleFromSeq = 1
 	}
 	return AppConversationAccess{HistoryVisibleFromSeq: visibleFromSeq}, nil
+}
+
+func (s *Service) AuthorizeAppConversationSend(ctx context.Context, cmd AppConversationAccessCommand) error {
+	db := s.db.WithContext(ctx)
+	access, _, _, err := requireAppConversationAccess(db, cmd.ConversationID, cmd.AppID, false, false)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return NotFoundError("会话不存在", err)
+		}
+		if errors.Is(err, errConversationAccessDenied) {
+			return forbidden("无权访问会话", err)
+		}
+		return internalError(err)
+	}
+	if err := ensureConversationSendable(db, access.Conversation); err != nil {
+		return forbidden("当前会话不能发送消息", err)
+	}
+	if access.ParentConversation != nil {
+		if err := ensureConversationSendable(db, *access.ParentConversation); err != nil {
+			return forbidden("当前会话不能发送消息", err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) AuthorizeRunAsTrigger(ctx context.Context, cmd RunAsTriggerCommand) error {
@@ -248,8 +264,12 @@ func appHistorySender(message store.Message, users map[string]store.User, apps m
 }
 
 func newAppConversationSummary(db *gorm.DB, conversation store.Conversation, currentUserID string) (AppConversationSummary, error) {
+	access, err := conversationaccess.Load(db, conversation.ID, false)
+	if err != nil {
+		return AppConversationSummary{}, err
+	}
 	var members []store.ConversationMember
-	if err := db.Where("conversation_id = ? AND left_at IS NULL", conversation.ID).
+	if err := db.Where("conversation_id = ? AND left_at IS NULL", access.MembershipConversationID).
 		Order("conversation_id ASC").Order("joined_at ASC").Find(&members).Error; err != nil {
 		return AppConversationSummary{}, err
 	}

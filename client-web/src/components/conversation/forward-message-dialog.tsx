@@ -66,12 +66,15 @@ export function ForwardMessageDialog({
   const [submitting, setSubmitting] = React.useState(false)
 
   const visibleConversations = React.useMemo(() => {
+    const sendableConversations = conversations.filter(
+      (conversation) => !conversation.topic?.archived
+    )
     const normalizedKeyword = keyword.trim().toLocaleLowerCase()
     if (!normalizedKeyword) {
-      return conversations
+      return sendableConversations
     }
 
-    return conversations.filter((conversation) =>
+    return sendableConversations.filter((conversation) =>
       conversation.name.toLocaleLowerCase().includes(normalizedKeyword)
     )
   }, [conversations, keyword])

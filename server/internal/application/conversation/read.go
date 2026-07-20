@@ -3,11 +3,12 @@ package conversation
 import (
 	"context"
 	"errors"
+	"time"
 
+	"app/internal/application/conversationaccess"
 	"app/internal/store"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func (s *Service) MarkRead(ctx context.Context, cmd ReadCommand) (ReadResult, error) {
@@ -34,25 +35,48 @@ func (s *Service) MarkRead(ctx context.Context, cmd ReadCommand) (ReadResult, er
 func (s *Service) markRead(db *gorm.DB, userID, conversationID string, upToSeq *int64) (ReadResult, error) {
 	var response ReadResult
 	err := db.Transaction(func(tx *gorm.DB) error {
-		var conversation store.Conversation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&conversation, "id = ?", conversationID).Error; err != nil {
+		access, err := conversationaccess.Load(tx, conversationID, true)
+		if err != nil {
 			return err
 		}
+		conversation := access.Conversation
 		if conversation.Status != store.ConversationStatusActive {
 			return ErrAccessDenied
 		}
-		var member store.ConversationMember
-		if err := tx.First(&member, "conversation_id = ? AND member_type = ? AND member_id = ? AND left_at IS NULL", conversationID, store.ConversationMemberTypeUser, userID).Error; err != nil {
+		member, err := conversationaccess.RequireUserMember(tx, access, userID)
+		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrAccessDenied
 			}
 			return err
 		}
+		if !conversationaccess.TopicSourceVisibleToMember(access, member) {
+			return ErrAccessDenied
+		}
+		if access.ParentConversation != nil && access.ParentConversation.Status != store.ConversationStatusActive {
+			return ErrAccessDenied
+		}
 		targetSeq := conversation.LastMessageSeq
 		if upToSeq != nil && *upToSeq < targetSeq {
 			targetSeq = *upToSeq
 		}
-		if err := advanceReadSeq(tx, conversationID, userID, targetSeq); err != nil {
+		if access.IsTopic() {
+			participant, err := conversationaccess.TopicParticipant(tx, conversationID, store.ConversationMemberTypeUser, userID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrAccessDenied
+				}
+				return err
+			}
+			var targetMessageID *string
+			if targetSeq == conversation.LastMessageSeq {
+				targetMessageID = conversation.LastMessageID
+			}
+			if err := conversationaccess.AdvanceTopicParticipantReadSeq(tx, conversationID, store.ConversationMemberTypeUser, userID, targetSeq, targetMessageID, time.Now().UTC()); err != nil {
+				return err
+			}
+			member.LastReadSeq = participant.LastReadSeq
+		} else if err := advanceReadSeq(tx, conversationID, userID, targetSeq); err != nil {
 			return err
 		}
 		if targetSeq > member.LastReadSeq {

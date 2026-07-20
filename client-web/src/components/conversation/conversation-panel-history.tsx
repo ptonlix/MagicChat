@@ -23,39 +23,48 @@ import type {
 
 export const ConversationPanelHistory = React.memo(
   function ConversationPanelHistory({
+    canReply = true,
     conversation,
     currentUserId,
     error,
     loading,
     loadingBefore,
+    header,
     mentionLabelResolver,
     messages,
     messageSelection,
     onForwardMessage,
+    onCreateTopic,
     onLoadBeforeMessages,
     onStartMessageSelection,
     onInsertMention,
+    onOpenTopic,
     onReplyToMessage,
     onRevokeMessage,
     onToggleMessageSelection,
   }: {
+    canReply?: boolean
     conversation: ClientConversation
     currentUserId: string
     error: string | null
     loading: boolean
     loadingBefore: boolean
+    header?: React.ReactNode
     mentionLabelResolver: MentionLabelResolver
     messages: ConversationPanelMessage[]
     messageSelection?: ConversationPanelMessageSelection
     onForwardMessage?: (message: ConversationPanelMessage) => void
+    onCreateTopic?: (message: ConversationPanelMessage) => void
     onLoadBeforeMessages: () => void
     onStartMessageSelection?: (message: ConversationPanelMessage) => void
     onInsertMention: (target: ConversationPanelMentionTarget) => void
+    onOpenTopic?: (conversationId: string) => void
     onReplyToMessage: (message: ConversationPanelMessage) => void
     onRevokeMessage: (message: ConversationPanelMessage) => void
     onToggleMessageSelection?: (message: ConversationPanelMessage) => void
   }) {
     const viewportRef = React.useRef<HTMLDivElement | null>(null)
+    const contentResizeObserverRef = React.useRef<ResizeObserver | null>(null)
     const nearBottomRef = React.useRef(true)
     const previousConversationIdRef = React.useRef<string | null>(null)
     const previousFirstMessageIdRef = React.useRef<string | null>(null)
@@ -64,6 +73,29 @@ export const ConversationPanelHistory = React.memo(
     const beforeLoadSnapshotRef = React.useRef<ScrollSnapshot | null>(null)
     const [pendingNewMessageCount, setPendingNewMessageCount] =
       React.useState(0)
+
+    const setHistoryContentRef = React.useCallback(
+      (content: HTMLDivElement | null) => {
+        contentResizeObserverRef.current?.disconnect()
+        contentResizeObserverRef.current = null
+
+        if (!content) {
+          return
+        }
+
+        const observer = new ResizeObserver(() => {
+          const viewport = viewportRef.current
+          if (!viewport || !nearBottomRef.current) {
+            return
+          }
+
+          scrollToBottom(viewport)
+        })
+        observer.observe(content)
+        contentResizeObserverRef.current = observer
+      },
+      []
+    )
 
     React.useLayoutEffect(() => {
       const viewport = viewportRef.current
@@ -191,7 +223,7 @@ export const ConversationPanelHistory = React.memo(
       event.preventDefault()
     }
 
-    if (loading) {
+    if (loading && !header) {
       return (
         <div
           className="flex min-h-0 flex-1 items-center justify-center gap-2 bg-muted/10 text-sm text-muted-foreground"
@@ -203,7 +235,7 @@ export const ConversationPanelHistory = React.memo(
       )
     }
 
-    if (error && messages.length === 0) {
+    if (error && messages.length === 0 && !header) {
       return (
         <div
           className="flex min-h-0 flex-1 items-center justify-center bg-muted/10 px-6 text-center text-sm text-muted-foreground"
@@ -214,20 +246,57 @@ export const ConversationPanelHistory = React.memo(
       )
     }
 
+    if (messages.length === 0 && header) {
+      return (
+        <div className="relative min-h-0 flex-1">
+          <ScrollArea
+            className="size-full bg-muted/10"
+            data-testid="conversation-panel-history"
+            viewportProps={{
+              className: "[&>div]:block! [&>div]:w-full! [&>div]:min-w-0!",
+              onContextMenu: handleHistoryContextMenu,
+            }}
+            viewportRef={viewportRef}
+          >
+            <div
+              ref={setHistoryContentRef}
+              className="flex w-full flex-col gap-5 px-5 py-6"
+              data-testid="conversation-history-content"
+            >
+              {header}
+              {loading && (
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                  <span>正在加载话题回复</span>
+                </div>
+              )}
+              {error && (
+                <div className="text-center text-xs text-muted-foreground">
+                  {error}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )
+    }
+
     if (messages.length === 0) {
       return (
-        <Empty
-          className="h-full min-h-0 flex-1 rounded-none bg-muted/10"
-          data-testid="conversation-history-empty"
-        >
-          <EmptyMedia>
-            <MessageCircle className="size-14 text-muted-foreground/25" />
-          </EmptyMedia>
-          <EmptyHeader>
-            <EmptyTitle>暂无消息</EmptyTitle>
-            <EmptyDescription>发送第一条消息开始对话</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <div className="flex min-h-0 flex-1 flex-col bg-muted/10">
+          <Empty
+            className="h-full min-h-0 flex-1 rounded-none"
+            data-testid="conversation-history-empty"
+          >
+            <EmptyMedia>
+              <MessageCircle className="size-14 text-muted-foreground/25" />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>暂无消息</EmptyTitle>
+              <EmptyDescription>发送第一条消息开始对话</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
       )
     }
 
@@ -244,9 +313,11 @@ export const ConversationPanelHistory = React.memo(
           viewportRef={viewportRef}
         >
           <div
+            ref={setHistoryContentRef}
             className="flex w-full flex-col gap-5 px-5 py-6"
             data-testid="conversation-history-content"
           >
+            {header}
             {loadingBefore && (
               <div
                 className="flex items-center justify-center gap-2 text-xs text-muted-foreground"
@@ -266,6 +337,7 @@ export const ConversationPanelHistory = React.memo(
                 />
               ) : (
                 <MessageBubble
+                  canReply={canReply}
                   key={message.id}
                   message={message}
                   conversation={conversation}
@@ -274,7 +346,9 @@ export const ConversationPanelHistory = React.memo(
                   onForward={
                     isMessageAvailable(message) ? onForwardMessage : undefined
                   }
+                  onCreateTopic={onCreateTopic}
                   onInsertMention={onInsertMention}
+                  onOpenTopic={onOpenTopic}
                   onMultiSelect={
                     isMessageAvailable(message)
                       ? onStartMessageSelection

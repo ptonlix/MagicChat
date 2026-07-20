@@ -21,6 +21,10 @@ import {
 import { getConversationAppDisplayName } from "@/lib/conversation-app-profile"
 import { useClientData } from "@/lib/client-data-context"
 import { formatMentionTemplateText } from "@/lib/message-mentions"
+import {
+  playMessageNotificationSound,
+  prepareMessageNotificationSound,
+} from "@/lib/message-notification-sound"
 import { useRealtime } from "@/lib/realtime-context"
 
 const enableNotificationToastId = "enable-browser-message-notifications"
@@ -31,7 +35,8 @@ export function ClientMessageNotificationSync() {
   const location = useLocation()
   const navigate = useNavigate()
   const { subscribeRealtimeEvent } = useRealtime()
-  const { contactApps, contacts, conversations, me } = useClientData()
+  const { contactApps, contacts, conversations, foregroundConversationId, me } =
+    useClientData()
   const contactAppsById = React.useMemo(
     () => new Map(contactApps.map((app) => [app.id, app])),
     [contactApps]
@@ -42,6 +47,11 @@ export function ClientMessageNotificationSync() {
         .conversationId ?? "",
     [location.pathname]
   )
+  const visibleConversationId = foregroundConversationId || activeConversationId
+
+  React.useEffect(() => {
+    prepareMessageNotificationSound()
+  }, [])
 
   React.useEffect(() => {
     return subscribeRealtimeEvent("message.created", (payload) => {
@@ -50,9 +60,12 @@ export function ClientMessageNotificationSync() {
         if (isClientMessageInitiatedByUser(message, me.id)) {
           return
         }
+        if (message.sender.type !== "system") {
+          playMessageNotificationSound()
+        }
         if (
           document.visibilityState === "visible" &&
-          message.conversationId === activeConversationId
+          message.conversationId === visibleConversationId
         ) {
           return
         }
@@ -102,13 +115,13 @@ export function ClientMessageNotificationSync() {
       }
     })
   }, [
-    activeConversationId,
     contactAppsById,
     contacts,
     conversations,
     me,
     navigate,
     subscribeRealtimeEvent,
+    visibleConversationId,
   ])
 
   return null

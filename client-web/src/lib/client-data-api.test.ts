@@ -9,6 +9,7 @@ import {
   listClientConversations,
   listConversationMessages,
   normalizeMessageCreatedEventPayload,
+  normalizeConversationPinUpdatedEventPayload,
   sendConversationFileMessage,
   sendConversationImageMessage,
   sendConversationLinkMessage,
@@ -16,6 +17,7 @@ import {
   sendConversationCardMessage,
   sendConversationEntityCardMessage,
   sendConversationTextMessage,
+  setConversationPinned,
 } from "@/lib/client-data-api"
 
 describe("client data API", () => {
@@ -218,6 +220,7 @@ describe("client data API", () => {
         lastReadSeq: 0,
         memberCount: 2,
         name: "Bob Li",
+        pinned: false,
         type: "direct",
         unreadCount: 0,
         visibility: "private",
@@ -227,6 +230,52 @@ describe("client data API", () => {
       credentials: "include",
       method: "GET",
     })
+  })
+
+  it("sets conversation pin state with credentials", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { conversation_id: "conversation-1", pinned: true },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 }
+      )
+    )
+
+    await expect(
+      setConversationPinned("conversation-1", true, fetcher)
+    ).resolves.toEqual({ conversationId: "conversation-1", pinned: true })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-1/pin",
+      { credentials: "include", method: "PUT" }
+    )
+
+    fetcher.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { conversation_id: "conversation-1", pinned: false },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 }
+      )
+    )
+    await expect(
+      setConversationPinned("conversation-1", false, fetcher)
+    ).resolves.toEqual({ conversationId: "conversation-1", pinned: false })
+    expect(fetcher).toHaveBeenLastCalledWith(
+      "/api/client/conversations/conversation-1/pin",
+      { credentials: "include", method: "DELETE" }
+    )
+  })
+
+  it("normalizes conversation pin realtime events", () => {
+    expect(
+      normalizeConversationPinUpdatedEventPayload({
+        conversation_id: "conversation-1",
+        pinned: false,
+      })
+    ).toEqual({ conversationId: "conversation-1", pinned: false })
   })
 
   it("creates a group conversation with credentials", async () => {
@@ -320,6 +369,7 @@ describe("client data API", () => {
         },
       ],
       name: "新品讨论组",
+      pinned: false,
       type: "group",
       unreadCount: 0,
       visibility: "private",

@@ -94,6 +94,7 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.UserSession{},
 		&store.Conversation{},
 		&store.ConversationMember{},
+		&store.ConversationPin{},
 		&store.Message{},
 		&store.DirectConversation{},
 		&store.Project{},
@@ -104,6 +105,8 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.App{},
 		&store.AppConversation{},
 		&store.AppUserGrant{},
+		&store.ConversationTopic{},
+		&store.ConversationTopicParticipant{},
 		&store.AppEventOutbox{},
 		&store.AppEventAck{},
 		&store.AppSettings{},
@@ -3556,7 +3559,7 @@ func TestAppWebSocketMessageSendAsUserCanSendToGroupConversation(t *testing.T) {
 	}
 }
 
-func TestAppWebSocketMessageSendSupportsUserGroupAndAppTargets(t *testing.T) {
+func TestAppWebSocketMessageSendSupportsUserGroupAppAndTopicTargets(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
 
@@ -3700,15 +3703,249 @@ func TestAppWebSocketMessageSendSupportsUserGroupAndAppTargets(t *testing.T) {
 		t.Fatalf("group target pushed id = %v, want %v", pushedGroupMessage["id"], groupMessage["id"])
 	}
 	requireReplayedAppResponse(t, appConn, groupRequest, groupResponse)
-	requireNoRealtimeEvent(t, userConn)
+
+	topic := store.Conversation{
+		ID: uuid.NewString(), Kind: store.ConversationKindTopic, Name: "发布计划",
+		CreatedByUserID: alice.ID, Status: store.ConversationStatusActive,
+		PostingPolicy: store.ConversationPostingPolicyOpen, Visibility: store.ConversationVisibilityPrivate,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(&topic).Error; err != nil {
+		t.Fatalf("create topic conversation: %v", err)
+	}
+	sourceSenderID := alice.ID
+	if err := db.Create(&store.ConversationTopic{
+		ConversationID: topic.ID, ParentConversationID: group.ID,
+		SourceMessageID: uuid.NewString(), SourceMessageSeq: 1,
+		SourceMessageBody:    json.RawMessage(`{"type":"text","content":"发布计划"}`),
+		SourceMessageSummary: "发布计划", SourceSenderType: store.MessageSenderTypeUser,
+		SourceSenderID: &sourceSenderID, SourceSenderName: alice.Name,
+		SourceMessageCreatedAt: now, CreatedByUserID: alice.ID,
+		CreatedAt: now, UpdatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create topic metadata: %v", err)
+	}
+	if err := db.Create(&store.ConversationTopicParticipant{
+		ConversationID: topic.ID, ParticipantType: store.ConversationMemberTypeUser,
+		ParticipantID: alice.ID, JoinedReason: store.TopicParticipantReasonCreator,
+		JoinedAt: now, HistoryVisibleFromSeq: 1, CreatedAt: now, UpdatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create topic creator participant: %v", err)
+	}
+	topicRequest := realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "app-request-topic", Method: appMethodMessageSend,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"target":  map[string]any{"type": "topic", "conversation_id": topic.ID},
+			"message": map[string]any{"type": "text", "content": "话题回复"},
+		}),
+	}
+	topicResponse := sendAppRequest(t, appConn, topicRequest)
+	topicPayload := requireAppSendMessageResponsePayload(t, topicResponse)
+	topicConversation := topicPayload["conversation"].(map[string]any)
+	if topicConversation["id"] != topic.ID || topicConversation["type"] != store.ConversationKindTopic {
+		t.Fatalf("topic target conversation = %#v", topicConversation)
+	}
+	topicMessage := topicPayload["message"].(map[string]any)
+	pushedTopicMessage := readMessageCreatedEvent(t, userConn)
+	if pushedTopicMessage["id"] != topicMessage["id"] {
+		t.Fatalf("topic target pushed id = %v, want %v", pushedTopicMessage["id"], topicMessage["id"])
+	}
+	var appTopicParticipantCount int64
+	if err := db.Model(&store.ConversationTopicParticipant{}).Where(
+		"conversation_id = ? AND participant_type = ? AND participant_id = ?",
+		topic.ID, store.ConversationMemberTypeApp, app.ID,
+	).Count(&appTopicParticipantCount).Error; err != nil {
+		t.Fatalf("count app topic participant: %v", err)
+	}
+	if appTopicParticipantCount != 1 {
+		t.Fatalf("app topic participant count = %d, want 1", appTopicParticipantCount)
+	}
+	topicHistoryResponse := sendAppRequest(t, appConn, realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "app-topic-history", Method: appMethodConversationMessagesList,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"conversation_id": topic.ID, "before_or_equal_seq": 1, "limit": 30,
+		}),
+	})
+	var topicHistoryPayload map[string]any
+	if err := json.Unmarshal(topicHistoryResponse.Payload, &topicHistoryPayload); err != nil {
+		t.Fatalf("unmarshal topic history response: %v", err)
+	}
+	topicContext := topicHistoryPayload["topic"].(map[string]any)
+	parentContext := topicContext["parent_conversation"].(map[string]any)
+	if parentContext["id"] != group.ID || parentContext["name"] != group.Name || parentContext["type"] != store.ConversationKindGroup {
+		t.Fatalf("topic parent context = %#v", parentContext)
+	}
+	if topicContext["parent_conversation_id"] != group.ID {
+		t.Fatalf("topic parent conversation id = %v", topicContext["parent_conversation_id"])
+	}
+	sourceContext := topicContext["source_message"].(map[string]any)
+	if sourceContext["summary"] != "发布计划" || sourceContext["seq"] != float64(1) {
+		t.Fatalf("topic source context = %#v", sourceContext)
+	}
 
 	var storedMessages []store.Message
 	if err := db.Order("created_at ASC").Find(&storedMessages, "sender_type = ? AND sender_id = ?", store.MessageSenderTypeApp, app.ID).Error; err != nil {
 		t.Fatalf("find app messages: %v", err)
 	}
-	if len(storedMessages) != 3 {
-		t.Fatalf("stored app message count = %d, want 3", len(storedMessages))
+	if len(storedMessages) != 4 {
+		t.Fatalf("stored app message count = %d, want 4", len(storedMessages))
 	}
+}
+
+func TestThirdPartyAppsMayUseTopicMethods(t *testing.T) {
+	for _, method := range []string{
+		appMethodConversationTopicCreate,
+		appMethodConversationTopicGet,
+		appMethodConversationTopicClose,
+	} {
+		if !isThirdPartyAppMethod(method) {
+			t.Fatalf("isThirdPartyAppMethod(%q) = false, want true", method)
+		}
+	}
+}
+
+func TestAppWebSocketTopicCreateGetAndCloseLifecycle(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 20, 9, 0, 0, 0, time.UTC)
+	owner := insertTestUser(t, db, "app-topic-ws-owner@example.com", "Owner", store.UserStatusActive, now)
+	app := insertTestApp(t, db, store.App{
+		Name: "Topic WebSocket App", Enabled: true, Visibility: store.AppVisibilityPublic,
+		ConnectionSecret: "topic-websocket-secret", CreatedAt: now, UpdatedAt: now,
+	})
+	parent := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: owner.ID, kind: store.ConversationKindGroup,
+		lastMessageAt: &now, lastMessageSeq: 1, lastMessageSummary: "请开始处理",
+		memberIDs: []string{owner.ID}, name: "应用话题测试群", now: now,
+	})
+	insertTestAppConversationMember(t, db, app.ID, parent.ID, now)
+	source := insertTestMessage(t, db, parent.ID, owner.ID, 1, "请开始处理", now)
+	appConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+
+	createPayload := mustMarshalPayloadForTest(t, map[string]any{
+		"conversation_id": parent.ID, "source_message_id": source.ID,
+	})
+	first := sendAppRequest(t, appConn, realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "topic-create-first", Method: appMethodConversationTopicCreate, Payload: createPayload,
+	})
+	var firstPayload map[string]any
+	if err := json.Unmarshal(first.Payload, &firstPayload); err != nil {
+		t.Fatalf("unmarshal topic create response: %v", err)
+	}
+	conversation := firstPayload["conversation"].(map[string]any)
+	topicID := conversation["id"].(string)
+	if firstPayload["created"] != true || conversation["type"] != store.ConversationKindTopic ||
+		firstPayload["parent_conversation_id"] != parent.ID || firstPayload["source_message_id"] != source.ID {
+		t.Fatalf("topic create response = %#v", firstPayload)
+	}
+	protocolServer := &Server{db: db}
+	allowedEntityReply, err := protocolServer.isTopicCreatedFromAuthorizationTrigger(topicID, parent.ID, source.ID)
+	if err != nil || !allowedEntityReply {
+		t.Fatalf("topic source authorization = %v, err = %v", allowedEntityReply, err)
+	}
+	allowedEntityReply, err = protocolServer.isTopicCreatedFromAuthorizationTrigger(topicID, parent.ID, uuid.NewString())
+	if err != nil || allowedEntityReply {
+		t.Fatalf("unrelated trigger topic authorization = %v, err = %v", allowedEntityReply, err)
+	}
+	retried := sendAppRequest(t, appConn, realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "topic-create-retry", Method: appMethodConversationTopicCreate, Payload: createPayload,
+	})
+	var retriedPayload map[string]any
+	if err := json.Unmarshal(retried.Payload, &retriedPayload); err != nil {
+		t.Fatalf("unmarshal topic retry response: %v", err)
+	}
+	if retriedPayload["created"] != false || retriedPayload["conversation"].(map[string]any)["id"] != topicID {
+		t.Fatalf("topic retry response = %#v", retriedPayload)
+	}
+
+	getResponse := sendAppRequest(t, appConn, realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "topic-get", Method: appMethodConversationTopicGet,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{"conversation_id": topicID}),
+	})
+	var getPayload map[string]any
+	if err := json.Unmarshal(getResponse.Payload, &getPayload); err != nil {
+		t.Fatalf("unmarshal topic get response: %v", err)
+	}
+	if getPayload["archived"] != false || getPayload["last_message_seq"] != float64(0) {
+		t.Fatalf("topic get response = %#v", getPayload)
+	}
+
+	staleClose := sendRawAppRequest(t, appConn, realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "topic-close-stale", Method: appMethodConversationTopicClose,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"conversation_id": topicID, "expected_last_message_seq": 1,
+		}),
+	})
+	if staleClose.OK == nil || *staleClose.OK || staleClose.Error == nil || staleClose.Error.Code != "conflict" {
+		t.Fatalf("stale topic close response = %#v", staleClose)
+	}
+
+	closeRequest := realtime.Envelope{
+		V: realtime.ProtocolVersion, Kind: realtime.KindRequest,
+		ID: "topic-close", Method: appMethodConversationTopicClose,
+		Payload: mustMarshalPayloadForTest(t, map[string]any{
+			"conversation_id": topicID, "expected_last_message_seq": 0,
+		}),
+	}
+	if err := appConn.WriteJSON(closeRequest); err != nil {
+		t.Fatalf("write topic close request: %v", err)
+	}
+	var closeResponse *realtime.Envelope
+	var closeEvent *realtime.Envelope
+	_ = appConn.SetReadDeadline(time.Now().Add(time.Second))
+	for closeResponse == nil || closeEvent == nil {
+		var received realtime.Envelope
+		if err := appConn.ReadJSON(&received); err != nil {
+			t.Fatalf("read topic close response/event: %v", err)
+		}
+		switch {
+		case received.Kind == realtime.KindResponse && received.ReplyTo == closeRequest.ID:
+			copy := received
+			closeResponse = &copy
+		case received.Kind == realtime.KindEvent && received.Event == realtime.EventTopicClosed:
+			copy := received
+			closeEvent = &copy
+		default:
+			t.Fatalf("unexpected topic close envelope: %#v", received)
+		}
+	}
+	if closeResponse.OK == nil || !*closeResponse.OK {
+		t.Fatalf("topic close response = %#v", closeResponse)
+	}
+	var closePayload map[string]any
+	if err := json.Unmarshal(closeResponse.Payload, &closePayload); err != nil {
+		t.Fatalf("unmarshal topic close response: %v", err)
+	}
+	if closePayload["archived"] != true || closePayload["last_message_seq"] != float64(1) {
+		t.Fatalf("topic close payload = %#v", closePayload)
+	}
+	var eventPayload map[string]any
+	if err := json.Unmarshal(closeEvent.Payload, &eventPayload); err != nil {
+		t.Fatalf("unmarshal topic closed event: %v", err)
+	}
+	if eventPayload["conversation_id"] != topicID || eventPayload["archived"] != true {
+		t.Fatalf("topic closed event = %#v", eventPayload)
+	}
+	if closeEvent.Cursor <= 0 {
+		t.Fatalf("topic closed cursor = %d, want positive cursor", closeEvent.Cursor)
+	}
+	_ = appConn.Close()
+	replayConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	replayed := readRealtimeEvent(t, replayConn)
+	if replayed.Cursor != closeEvent.Cursor || replayed.Event != closeEvent.Event || string(replayed.Payload) != string(closeEvent.Payload) {
+		t.Fatalf("replayed topic closed event = %#v, want %#v", replayed, closeEvent)
+	}
+	ackAppEvent(t, replayConn, replayed.Cursor)
+	_ = replayConn.Close()
+	afterAckConn := dialAppWebSocket(t, server, app.ID, app.ConnectionSecret)
+	defer afterAckConn.Close()
+	requireNoRealtimeEvent(t, afterAckConn)
 }
 
 func TestClientWebSocketSendsSystemReadyAfterLogin(t *testing.T) {
@@ -3928,6 +4165,97 @@ func TestListClientConversationsReturnsRecentCurrentUserConversations(t *testing
 	}
 }
 
+func TestClientConversationPinLifecycleSortsAndPublishesRealtimeEvent(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 21, 4, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "pin-http-alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "pin-http-bob@example.com", "Bob", store.UserStatusActive, now)
+	oldActivity := now.Add(-2 * time.Hour)
+	recentActivity := now.Add(-time.Hour)
+	oldConversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID, kind: store.ConversationKindGroup,
+		lastMessageAt: &oldActivity, memberIDs: []string{alice.ID, bob.ID}, name: "旧会话", now: now.Add(-3 * time.Hour),
+	})
+	recentConversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID, kind: store.ConversationKindGroup,
+		lastMessageAt: &recentActivity, memberIDs: []string{alice.ID, bob.ID}, name: "新会话", now: now.Add(-3 * time.Hour),
+	})
+	cookie := loginAsUser(t, server, alice.Email)
+	if resp, body := getJSON(t, server, "/api/client/conversations", cookie); resp.StatusCode != http.StatusOK {
+		t.Fatalf("initial list status = %d, body = %#v", resp.StatusCode, body)
+	}
+	conn := dialClientWebSocket(t, server, cookie)
+	defer conn.Close()
+	if ready := readRealtimeEvent(t, conn); ready.Event != realtime.EventSystemReady {
+		t.Fatalf("ready event = %#v", ready)
+	}
+
+	pinResp, pinBody := putJSON(t, server, "/api/client/conversations/"+oldConversation.ID+"/pin", map[string]any{}, cookie)
+	if pinResp.StatusCode != http.StatusOK {
+		t.Fatalf("pin status = %d, body = %#v", pinResp.StatusCode, pinBody)
+	}
+	pinData := requireSuccess(t, pinBody)
+	if pinData["conversation_id"] != oldConversation.ID || pinData["pinned"] != true {
+		t.Fatalf("pin response = %#v", pinData)
+	}
+	pinEvent := readRealtimeEvent(t, conn)
+	if pinEvent.Event != realtime.EventConversationPinUpdated {
+		t.Fatalf("pin event = %#v", pinEvent)
+	}
+	var pinPayload map[string]any
+	if err := json.Unmarshal(pinEvent.Payload, &pinPayload); err != nil {
+		t.Fatalf("decode pin event: %v", err)
+	}
+	if pinPayload["conversation_id"] != oldConversation.ID || pinPayload["pinned"] != true {
+		t.Fatalf("pin event payload = %#v", pinPayload)
+	}
+
+	listResp, listBody := getJSON(t, server, "/api/client/conversations", cookie)
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("pinned list status = %d, body = %#v", listResp.StatusCode, listBody)
+	}
+	conversations := requireConversations(t, requireSuccess(t, listBody))
+	if len(conversations) != 3 {
+		t.Fatalf("pinned conversation count = %d", len(conversations))
+	}
+	assistant := conversations[0].(map[string]any)
+	pinned := conversations[1].(map[string]any)
+	unpinned := conversations[2].(map[string]any)
+	if assistant["id"] != builtinAssistantConversationID(alice.ID) || assistant["pinned"] != true {
+		t.Fatalf("assistant conversation = %#v", assistant)
+	}
+	if pinned["id"] != oldConversation.ID || pinned["pinned"] != true || unpinned["id"] != recentConversation.ID || unpinned["pinned"] != false {
+		t.Fatalf("pinned list order = %#v", conversations)
+	}
+
+	unpinResp, unpinBody := requestJSON(t, server, http.MethodDelete, "/api/client/conversations/"+oldConversation.ID+"/pin", map[string]any{}, cookie)
+	if unpinResp.StatusCode != http.StatusOK {
+		t.Fatalf("unpin status = %d, body = %#v", unpinResp.StatusCode, unpinBody)
+	}
+	unpinEvent := readRealtimeEvent(t, conn)
+	if unpinEvent.Event != realtime.EventConversationPinUpdated {
+		t.Fatalf("unpin event = %#v", unpinEvent)
+	}
+	var unpinPayload map[string]any
+	if err := json.Unmarshal(unpinEvent.Payload, &unpinPayload); err != nil {
+		t.Fatalf("decode unpin event: %v", err)
+	}
+	if unpinPayload["conversation_id"] != oldConversation.ID || unpinPayload["pinned"] != false {
+		t.Fatalf("unpin event payload = %#v", unpinPayload)
+	}
+
+	assistantUnpinResp, assistantUnpinBody := requestJSON(
+		t, server, http.MethodDelete,
+		"/api/client/conversations/"+builtinAssistantConversationID(alice.ID)+"/pin",
+		map[string]any{}, cookie,
+	)
+	if assistantUnpinResp.StatusCode != http.StatusConflict {
+		t.Fatalf("assistant unpin status = %d, body = %#v", assistantUnpinResp.StatusCode, assistantUnpinBody)
+	}
+	requireError(t, assistantUnpinBody, "conflict")
+}
+
 func TestListClientConversationsCreatesBuiltinAssistantConversationOnce(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -4002,9 +4330,10 @@ func TestListClientConversationsLimitsToRecent100(t *testing.T) {
 	alice := insertTestUser(t, db, "alice@example.com", "Alice", store.UserStatusActive, now)
 	bob := insertTestUser(t, db, "bob@example.com", "Bob", store.UserStatusActive, now)
 
+	var oldestConversation store.Conversation
 	for i := 0; i < 101; i++ {
 		lastMessageAt := now.Add(-time.Duration(i) * time.Minute)
-		insertTestConversation(t, db, testConversationInput{
+		conversation := insertTestConversation(t, db, testConversationInput{
 			createdByUserID:    alice.ID,
 			kind:               store.ConversationKindGroup,
 			lastMessageAt:      &lastMessageAt,
@@ -4014,6 +4343,14 @@ func TestListClientConversationsLimitsToRecent100(t *testing.T) {
 			name:               fmt.Sprintf("Group %03d", i),
 			now:                now.Add(-time.Hour),
 		})
+		if i == 100 {
+			oldestConversation = conversation
+		}
+	}
+	if err := db.Create(&store.ConversationPin{
+		UserID: alice.ID, ConversationID: oldestConversation.ID, CreatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("pin oldest conversation: %v", err)
 	}
 
 	resp, body := getJSON(t, server, "/api/client/conversations", loginAsUser(t, server, alice.Email))
@@ -4030,11 +4367,11 @@ func TestListClientConversationsLimitsToRecent100(t *testing.T) {
 	if first["type"] != store.ConversationKindApp {
 		t.Fatalf("first type = %v, want app", first["type"])
 	}
-	if second["name"] != "Group 000" {
-		t.Fatalf("second name = %v, want Group 000", second["name"])
+	if second["name"] != "Group 100" || second["pinned"] != true {
+		t.Fatalf("second conversation = %#v, want pinned Group 100", second)
 	}
-	if last["name"] != "Group 098" {
-		t.Fatalf("last name = %v, want Group 098", last["name"])
+	if last["name"] != "Group 097" {
+		t.Fatalf("last name = %v, want Group 097", last["name"])
 	}
 }
 

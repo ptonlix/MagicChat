@@ -5,6 +5,7 @@ import {
   type ClientDataRequestError,
   type MarkConversationReadOptions,
   type ClientMessage,
+  type ClientMessageTopic,
   type ClientCardSendInput,
   type ClientMessagePage,
   type ClientUser,
@@ -40,6 +41,7 @@ export type ClientDataContextValue = {
   contactsError: ClientDataRequestError | null
   contactsLoading: boolean
   contactsRefreshing: boolean
+  foregroundConversationId?: string
   me: ClientUser
   meError: ClientDataRequestError | null
   meLoading: boolean
@@ -76,6 +78,10 @@ export type ClientDataContextValue = {
     conversationId: string,
     options?: MarkConversationReadOptions
   ) => Promise<void>
+  setConversationPinned: (
+    conversationId: string,
+    pinned: boolean
+  ) => Promise<void>
   handleIncomingConversationMessage: (
     message: ClientMessage,
     options?: { activeConversationId?: string; visible?: boolean }
@@ -84,6 +90,11 @@ export type ClientDataContextValue = {
   updateConversationLastMentionedSeq: (
     conversationId: string,
     lastMentionedSeq: number
+  ) => void
+  updateMessageTopic?: (
+    parentConversationId: string,
+    sourceMessageId: string,
+    topic: Pick<ClientMessageTopic, "archived" | "conversationId">
   ) => void
   mergeIncomingConversationMessage: (
     message: ClientMessage,
@@ -153,8 +164,10 @@ export type ClientDataContextValue = {
     voice: VoiceMessageRecording,
     options?: SendConversationMessageOptions
   ) => Promise<ClientMessage | null>
+  setForegroundConversationId?: (conversationId: string) => void
   syncLoadedConversationMessages: () => void
   updateConversationLastMessage: (message: ClientMessage) => void
+  updateConversationPinned: (conversationId: string, pinned: boolean) => void
   updateGroupConversationAvatar: (
     conversationId: string,
     file: File

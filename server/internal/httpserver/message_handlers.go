@@ -92,6 +92,20 @@ type messageResponse struct {
 	RevokedByUserID  string                      `json:"revoked_by_user_id,omitempty" example:"7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"`
 	Sender           messageSenderResponse       `json:"sender"`
 	Seq              int64                       `json:"seq" example:"13"`
+	Topic            *messageTopicResponse       `json:"topic,omitempty"`
+}
+
+type messageTopicResponse struct {
+	Archived       bool                        `json:"archived"`
+	ConversationID string                      `json:"conversation_id"`
+	RecentReplies  []messageTopicReplyResponse `json:"recent_replies"`
+}
+
+type messageTopicReplyResponse struct {
+	CreatedAt time.Time             `json:"created_at"`
+	ID        string                `json:"id"`
+	Sender    messageSenderResponse `json:"sender"`
+	Summary   string                `json:"summary"`
 }
 
 type createMessageResponse struct {

@@ -45,7 +45,7 @@ export function MarkdownCodeBlock({
 
   return (
     <div
-      className="markdown-code-highlight max-w-full overflow-x-auto rounded bg-foreground/8 text-[0.92em]"
+      className="markdown-code-highlight max-w-full overflow-x-auto rounded bg-foreground/8 font-mono! text-[0.92em]"
       dangerouslySetInnerHTML={{ __html: result.html }}
     />
   )
@@ -54,7 +54,7 @@ export function MarkdownCodeBlock({
 function PlainMarkdownCodeBlock({ code }: { code: string }) {
   return (
     <pre className="max-w-full overflow-x-auto rounded bg-foreground/8 p-3 font-mono! text-[0.92em]">
-      <code>{code}</code>
+      <code className="font-mono!">{code}</code>
     </pre>
   )
 }

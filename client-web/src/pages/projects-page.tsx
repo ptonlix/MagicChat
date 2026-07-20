@@ -718,7 +718,7 @@ function CreateProjectDialog({
 function ProjectNavigation() {
   const items = [
     { value: "tasks", label: "任务" },
-    { value: "topics", label: "话题" },
+    { value: "topics", label: "讨论" },
     { value: "documents", label: "文档" },
     { value: "members", label: "成员" },
   ]

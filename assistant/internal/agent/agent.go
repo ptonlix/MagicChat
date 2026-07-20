@@ -248,6 +248,13 @@ func (f OutputSinkFunc) SendMarkdown(ctx context.Context, content string) error 
 }
 
 type Conversation struct {
+	ID     string                 `json:"id"`
+	Name   string                 `json:"name"`
+	Parent *ConversationReference `json:"parent,omitempty"`
+	Type   string                 `json:"type"`
+}
+
+type ConversationReference struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type string `json:"type"`

@@ -13,9 +13,24 @@ export type ConversationPanelMessage = {
   mentionTarget: ConversationPanelMentionTarget | null
   replyTo?: ConversationPanelReplyTarget
   time: string
+  topic?: ConversationPanelMessageTopic
   senderAppId: string | null
   senderAppProfile: ConversationPanelAppProfile | null
   senderUserId: string | null
+}
+
+export type ConversationPanelMessageTopic = {
+  archived: boolean
+  conversationId: string
+  recentReplies: ConversationPanelTopicReply[]
+}
+
+export type ConversationPanelTopicReply = {
+  author: string
+  avatar: string
+  id: string
+  summary: string
+  time: string
 }
 
 export type ConversationPanelMessageSelection = {

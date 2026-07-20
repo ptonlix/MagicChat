@@ -39,6 +39,9 @@ func (s *Service) CreateApp(ctx context.Context, cmd CreateAppCommand) (OpenResu
 		},
 		map[string]store.User{current.ID: current}, map[string]store.App{app.ID: app},
 	)
+	if err := s.loadItemPinState(s.db.WithContext(ctx), &item, current.ID); err != nil {
+		return OpenResult{}, internalError(err)
+	}
 	return OpenResult{Conversation: item, Created: created}, nil
 }
 

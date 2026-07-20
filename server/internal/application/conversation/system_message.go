@@ -20,6 +20,7 @@ const (
 	systemEventGroupMemberLeft          = "group_member_left"
 	systemEventGroupMemberRemoved       = "group_member_removed"
 	systemEventGroupNameUpdated         = "group_name_updated"
+	systemEventTopicClosed              = "topic_closed"
 	groupMembersInvitedSummarySeparator = ","
 )
 
@@ -72,6 +73,12 @@ type groupNameUpdatedSystemEventBody struct {
 	Actor systemEventUserRef `json:"actor"`
 	Event string             `json:"event"`
 	Name  string             `json:"name"`
+	Type  string             `json:"type"`
+}
+
+type topicClosedSystemEventBody struct {
+	Actor systemEventUserRef `json:"actor"`
+	Event string             `json:"event"`
 	Type  string             `json:"type"`
 }
 
@@ -147,6 +154,35 @@ func createGroupNameUpdatedSystemMessage(db *gorm.DB, conversation *store.Conver
 		return store.Message{}, err
 	}
 	return createSystemMessage(db, conversation, body, displayName+" 修改群聊名称为 "+name, now)
+}
+
+func createTopicClosedSystemMessage(db *gorm.DB, conversation *store.Conversation, actor store.User, now time.Time) (store.Message, error) {
+	displayName := userDisplayName(actor)
+	return createTopicClosedSystemMessageForActor(db, conversation, systemEventUserRef{
+		DisplayName: displayName, ID: actor.ID, Type: store.MessageSenderTypeUser,
+	}, now)
+}
+
+func createTopicClosedByAppSystemMessage(db *gorm.DB, conversation *store.Conversation, actor store.App, now time.Time) (store.Message, error) {
+	displayName := strings.TrimSpace(actor.Name)
+	if displayName == "" {
+		displayName = "应用"
+	}
+	return createTopicClosedSystemMessageForActor(db, conversation, systemEventUserRef{
+		DisplayName: displayName, ID: actor.ID, Type: store.MessageSenderTypeApp,
+	}, now)
+}
+
+func createTopicClosedSystemMessageForActor(db *gorm.DB, conversation *store.Conversation, actor systemEventUserRef, now time.Time) (store.Message, error) {
+	body, err := json.Marshal(topicClosedSystemEventBody{
+		Actor: actor,
+		Event: systemEventTopicClosed,
+		Type:  messageTypeSystemEvent,
+	})
+	if err != nil {
+		return store.Message{}, err
+	}
+	return createSystemMessage(db, conversation, body, actor.DisplayName+" 已将话题关闭", now)
 }
 
 func createSystemMessage(db *gorm.DB, conversation *store.Conversation, body json.RawMessage, summary string, now time.Time) (store.Message, error) {

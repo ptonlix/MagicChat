@@ -46,12 +46,15 @@ type ConversationPanelProps = {
   historyError: string | null
   historyLoading: boolean
   historyLoadingBefore: boolean
+  historyHeader?: React.ReactNode
+  headerActions?: React.ReactNode
   mentionLabelResolver?: MentionLabelResolver
   messages: ConversationPanelMessage[]
   messageSelection?: ConversationPanelMessageSelection
   onCancelMessageSelection?: () => void
   onDraftBlur?: () => void
   onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
+  onCreateTopic?: (message: ConversationPanelMessage) => void
   onForwardMessage?: (message: ConversationPanelMessage) => void
   onForwardSelectedMessages?: (mode: ConversationPanelForwardMode) => void
   onCancelReply: () => void
@@ -61,12 +64,16 @@ type ConversationPanelProps = {
   onSendImage: (image: File) => Promise<ClientMessage | null>
   onSendVoice: (voice: VoiceMessageRecording) => Promise<ClientMessage | null>
   onLoadBeforeMessages: () => void
+  onOpenTopic?: (conversationId: string) => void
   onRichTextModeChange: (richTextMode: boolean) => void
   onSendMessage: (content?: string) => void
   onStartMessageSelection?: (message: ConversationPanelMessage) => void
   onToggleMessageSelection?: (message: ConversationPanelMessage) => void
   replyTarget: ConversationPanelReplyTarget | null
   richTextMode: boolean
+  readOnly?: boolean
+  readOnlyReason?: string
+  readOnlyFooter?: React.ReactNode
   sending: boolean
 }
 
@@ -79,12 +86,15 @@ export function ConversationPanel({
   historyError,
   historyLoading,
   historyLoadingBefore,
+  historyHeader,
+  headerActions,
   mentionLabelResolver = fallbackMentionLabelResolver,
   messages,
   messageSelection,
   onCancelMessageSelection,
   onDraftBlur,
   onDraftChange,
+  onCreateTopic,
   onForwardMessage,
   onForwardSelectedMessages,
   onCancelReply,
@@ -94,43 +104,68 @@ export function ConversationPanel({
   onSendImage,
   onSendVoice,
   onLoadBeforeMessages,
+  onOpenTopic,
   onRichTextModeChange,
   onSendMessage,
   onStartMessageSelection,
   onToggleMessageSelection,
   replyTarget,
   richTextMode,
+  readOnly = false,
+  readOnlyReason,
+  readOnlyFooter,
   sending,
 }: ConversationPanelProps) {
   const composerRef = React.useRef<ConversationPanelComposerHandle | null>(null)
   const fileDragDepthRef = React.useRef(0)
   const [draggedFileKind, setDraggedFileKind] =
     React.useState<DraggedFileKind | null>(null)
+  const conversationReadOnly = Boolean(
+    readOnly || readOnlyReason || readOnlyFooter
+  )
+  const readOnlyContent =
+    readOnlyFooter ??
+    (readOnlyReason ? (
+      <div className="border-t bg-muted/30 px-5 py-3 text-center text-sm text-muted-foreground">
+        {readOnlyReason}
+      </div>
+    ) : null)
 
   const insertComposerMention = React.useCallback(
     (target: ConversationPanelMentionTarget) => {
-      if (conversation?.type !== "group") {
+      if (
+        conversation?.type !== "group" &&
+        conversation?.topic?.parentConversationType !== "group"
+      ) {
         composerRef.current?.focus()
         return
       }
 
       composerRef.current?.insertMention(target)
     },
-    [conversation?.type]
+    [conversation?.topic?.parentConversationType, conversation?.type]
   )
 
   const handleReplyToMessage = React.useCallback(
     (message: ConversationPanelMessage) => {
       onReplyToMessage(message)
 
-      if (conversation?.type === "group" && message.mentionTarget) {
+      if (
+        (conversation?.type === "group" ||
+          conversation?.topic?.parentConversationType === "group") &&
+        message.mentionTarget
+      ) {
         composerRef.current?.insertMention(message.mentionTarget)
         return
       }
 
       composerRef.current?.focus()
     },
-    [conversation?.type, onReplyToMessage]
+    [
+      conversation?.topic?.parentConversationType,
+      conversation?.type,
+      onReplyToMessage,
+    ]
   )
 
   function resetFileDrag() {
@@ -145,9 +180,19 @@ export function ConversationPanel({
 
     event.preventDefault()
     event.dataTransfer.dropEffect =
-      conversation && !sending && !messageSelection?.active ? "copy" : "none"
+      conversation &&
+      !sending &&
+      !messageSelection?.active &&
+      !conversationReadOnly
+        ? "copy"
+        : "none"
 
-    if (!conversation || sending || messageSelection?.active) {
+    if (
+      !conversation ||
+      sending ||
+      messageSelection?.active ||
+      conversationReadOnly
+    ) {
       return
     }
 
@@ -162,7 +207,12 @@ export function ConversationPanel({
 
     event.preventDefault()
     event.dataTransfer.dropEffect =
-      conversation && !sending && !messageSelection?.active ? "copy" : "none"
+      conversation &&
+      !sending &&
+      !messageSelection?.active &&
+      !conversationReadOnly
+        ? "copy"
+        : "none"
   }
 
   function handlePanelDragLeave(event: React.DragEvent<HTMLElement>) {
@@ -188,7 +238,13 @@ export function ConversationPanel({
 
     resetFileDrag()
 
-    if (!conversation || sending || messageSelection?.active || !file) {
+    if (
+      !conversation ||
+      sending ||
+      messageSelection?.active ||
+      conversationReadOnly ||
+      !file
+    ) {
       return
     }
 
@@ -198,7 +254,7 @@ export function ConversationPanel({
   return (
     <main
       className={cn(
-        "relative flex min-w-0 flex-1 flex-col",
+        "relative flex min-h-0 min-w-0 flex-1 flex-col",
         conversation ? "bg-background" : "bg-muted"
       )}
       data-testid="chat-detail-shell"
@@ -212,26 +268,33 @@ export function ConversationPanel({
           <ConversationPanelHeader
             conversation={conversation}
             currentUserId={currentUserId}
+            actions={headerActions}
             online={conversationOnline}
           />
           <ConversationPanelHistory
+            canReply={!conversationReadOnly}
             conversation={conversation}
             error={historyError}
             loading={historyLoading}
             loadingBefore={historyLoadingBefore}
+            header={historyHeader}
             currentUserId={currentUserId}
             mentionLabelResolver={mentionLabelResolver}
             messageSelection={messageSelection}
             messages={messages}
             onForwardMessage={onForwardMessage}
+            onCreateTopic={onCreateTopic}
             onLoadBeforeMessages={onLoadBeforeMessages}
             onStartMessageSelection={onStartMessageSelection}
             onInsertMention={insertComposerMention}
+            onOpenTopic={onOpenTopic}
             onReplyToMessage={handleReplyToMessage}
             onRevokeMessage={onRevokeMessage}
             onToggleMessageSelection={onToggleMessageSelection}
           />
-          {messageSelection?.active ? (
+          {conversationReadOnly ? (
+            readOnlyContent
+          ) : messageSelection?.active ? (
             <MessageSelectionToolbar
               onCancel={() => onCancelMessageSelection?.()}
               onForward={(mode) => onForwardSelectedMessages?.(mode)}
@@ -260,7 +323,7 @@ export function ConversationPanel({
       ) : (
         <ConversationPanelEmptyState />
       )}
-      {conversation && draggedFileKind && (
+      {conversation && draggedFileKind && !conversationReadOnly && (
         <ConversationFileDropOverlay kind={draggedFileKind} />
       )}
     </main>

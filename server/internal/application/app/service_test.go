@@ -404,6 +404,7 @@ func openAppTestDB(t *testing.T) *gorm.DB {
 		&store.User{}, &store.Conversation{}, &store.ConversationMember{},
 		&store.App{}, &store.AppConversation{}, &store.AppUserGrant{},
 		&store.Project{}, &store.ProjectGroup{},
+		&store.ConversationTopic{}, &store.ConversationTopicParticipant{},
 		&store.AppEventOutbox{}, &store.AppEventAck{},
 	); err != nil {
 		t.Fatalf("migrate database: %v", err)

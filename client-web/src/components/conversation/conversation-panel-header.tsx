@@ -1,31 +1,28 @@
+import type { ReactNode } from "react"
 import {
   Bot,
   FolderClosed,
+  MessagesSquare,
   Settings,
   UserRound,
   UsersRound,
 } from "lucide-react"
-import { getAvatarInitial } from "@/lib/avatar"
 import { type ClientConversation } from "@/lib/client-data-api"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { AppProfilePopover } from "@/components/app-profile-popover"
+import { ConversationAvatar } from "@/components/conversation/conversation-avatar"
 import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
-import { GroupAvatar } from "@/components/group-avatar"
 import { GroupProfilePopover } from "@/components/group-profile-popover"
-import {
-  Avatar,
-  AvatarBadge,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { UserProfilePopover } from "@/components/user-profile-popover"
 
 export function ConversationPanelHeader({
+  actions,
   conversation,
   currentUserId,
   online,
 }: {
+  actions?: ReactNode
   conversation: ClientConversation
   currentUserId: string
   online?: boolean
@@ -41,55 +38,71 @@ export function ConversationPanelHeader({
           currentUserId={currentUserId}
           online={online}
         />
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h2 className="min-w-0 truncate text-sm font-medium">
+        <div className="flex min-w-0 flex-col justify-center">
+          <h2 className="min-w-0 truncate text-sm leading-5 font-medium">
             {conversation.name}
           </h2>
           {conversation.type === "group" && (
-            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+            <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <UsersRound className="size-3" />
               {getGroupMemberCount(conversation)} 人
             </span>
           )}
           {conversation.type === "app" && (
-            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+            <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <Bot className="size-3" />
               应用
             </span>
           )}
           {conversation.type === "direct" && (
-            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+            <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <UserRound className="size-3" />
               私聊
+            </span>
+          )}
+          {conversation.type === "topic" && (
+            <span
+              className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground"
+              title={getTopicTypeLabel(conversation)}
+            >
+              <MessagesSquare className="size-3 shrink-0" />
+              <span className="truncate">
+                {getTopicTypeLabel(conversation)}
+              </span>
             </span>
           )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {actions}
         {conversation.type === "group" && (
           <AddGroupMembersDialog conversation={conversation} />
         )}
-        <Button
-          aria-label="历史附件"
-          disabled
-          size="icon-sm"
-          title="历史附件"
-          type="button"
-          variant="ghost"
-        >
-          <FolderClosed className="size-4" />
-        </Button>
-        <ConversationInfoDrawer conversationId={conversation.id}>
+        {conversation.type !== "topic" && (
           <Button
-            aria-label="会话设置"
+            aria-label="历史附件"
+            disabled
             size="icon-sm"
-            title="会话设置"
+            title="历史附件"
             type="button"
             variant="ghost"
           >
-            <Settings className="size-4" />
+            <FolderClosed className="size-4" />
           </Button>
-        </ConversationInfoDrawer>
+        )}
+        {conversation.type !== "topic" && (
+          <ConversationInfoDrawer conversationId={conversation.id}>
+            <Button
+              aria-label="会话设置"
+              size="icon-sm"
+              title="会话设置"
+              type="button"
+              variant="ghost"
+            >
+              <Settings className="size-4" />
+            </Button>
+          </ConversationInfoDrawer>
+        )}
       </div>
     </header>
   )
@@ -97,6 +110,13 @@ export function ConversationPanelHeader({
 
 function getGroupMemberCount(conversation: ClientConversation) {
   return conversation.memberCount || conversation.members?.length || 0
+}
+
+function getTopicTypeLabel(conversation: ClientConversation) {
+  const parentConversationName =
+    conversation.topic?.parentConversationName.trim()
+
+  return parentConversationName ? `话题 - ${parentConversationName}` : "话题"
 }
 
 function ConversationPanelHeaderProfileAvatar({
@@ -114,6 +134,10 @@ function ConversationPanelHeaderProfileAvatar({
       online={online}
     />
   )
+
+  if (conversation.type === "topic") {
+    return avatar
+  }
 
   if (conversation.type === "group") {
     return (
@@ -172,45 +196,12 @@ function ConversationPanelHeaderAvatar({
   conversation: ClientConversation
   online?: boolean
 }) {
-  if (conversation.type === "group") {
-    return (
-      <GroupAvatar
-        avatar={conversation.avatar}
-        className="size-8"
-        members={conversation.members}
-        name={conversation.name}
-      />
-    )
-  }
-
   return (
-    <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
-      {conversation.avatar && (
-        <AvatarImage
-          alt={conversation.name}
-          className="rounded-sm"
-          src={conversation.avatar}
-        />
-      )}
-      <AvatarFallback className="rounded-sm">
-        {conversation.type === "app" ? (
-          <Bot className="size-4" />
-        ) : (
-          getAvatarInitial(conversation.name)
-        )}
-      </AvatarFallback>
-      {online !== undefined && <ConversationAvatarBadge online={online} />}
-    </Avatar>
-  )
-}
-
-function ConversationAvatarBadge({ online }: { online: boolean }) {
-  return (
-    <AvatarBadge
-      aria-label={online ? "在线" : "离线"}
-      className={
-        online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"
-      }
+    <ConversationAvatar
+      className="size-9"
+      conversation={conversation}
+      online={online}
+      sourceAvatarClassName="size-5"
     />
   )
 }
