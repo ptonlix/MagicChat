@@ -382,11 +382,11 @@ func TestServiceTaskNotificationCreationIsIdempotent(t *testing.T) {
 	}
 	assigneeID := fixture.user.ID
 	command := TaskNotificationCommand{
-		AssigneeUserID: &assigneeID, ID: uuid.NewString(),
+		AssigneeUserID: &assigneeID, CreatedByUserID: fixture.user.ID, ID: uuid.NewString(),
 		ProjectID: project.ID, Title: "Task", UpdatedAt: now,
 	}
 	service := NewService(Dependencies{DB: db, TaskNotificationBodies: fixedTaskNotificationBodyBuilder{}})
-	var first *TaskNotificationResult
+	var first *TaskNotificationBatchResult
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		first, err = service.PrepareTaskNotification(context.Background(), tx, command)
@@ -394,7 +394,7 @@ func TestServiceTaskNotificationCreationIsIdempotent(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create first notification: %v", err)
 	}
-	var second *TaskNotificationResult
+	var second *TaskNotificationBatchResult
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		second, err = service.PrepareTaskNotification(context.Background(), tx, command)
@@ -402,11 +402,13 @@ func TestServiceTaskNotificationCreationIsIdempotent(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create duplicate notification: %v", err)
 	}
-	if first == nil || !first.Created || second == nil || second.Created || second.Message.ID != first.Message.ID {
+	if first == nil || len(first.Notifications) != 1 || !first.Notifications[0].Created ||
+		second == nil || len(second.Notifications) != 1 || second.Notifications[0].Created ||
+		second.Notifications[0].Message.ID != first.Notifications[0].Message.ID {
 		t.Fatalf("first = %#v, second = %#v", first, second)
 	}
 	var count int64
-	if err := db.Model(&store.Message{}).Where("client_message_id = ?", first.Message.ClientMessageID).Count(&count).Error; err != nil {
+	if err := db.Model(&store.Message{}).Where("client_message_id = ?", first.Notifications[0].Message.ClientMessageID).Count(&count).Error; err != nil {
 		t.Fatalf("count notifications: %v", err)
 	}
 	if count != 1 {

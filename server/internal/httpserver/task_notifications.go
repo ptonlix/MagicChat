@@ -14,8 +14,9 @@ import (
 
 func (s *Server) PrepareTaskNotification(ctx context.Context, tx *gorm.DB, task store.Task) (any, error) {
 	return s.messages.PrepareTaskNotification(ctx, tx, messageapp.TaskNotificationCommand{
-		AssigneeUserID: task.AssigneeUserID, DueDate: task.DueDate, ID: task.ID,
-		ProjectID: task.ProjectID, Status: task.Status, Title: task.Title, UpdatedAt: task.UpdatedAt,
+		AssigneeUserID: task.AssigneeUserID, CreatedByUserID: task.CreatedByUserID,
+		DueDate: task.DueDate, ID: task.ID, ProjectID: task.ProjectID,
+		Status: task.Status, Title: task.Title, UpdatedAt: task.UpdatedAt,
 	})
 }
 
@@ -23,7 +24,7 @@ func (s *Server) PublishTaskNotification(ctx context.Context, prepared any) {
 	if prepared == nil {
 		return
 	}
-	notification, ok := prepared.(*messageapp.TaskNotificationResult)
+	notification, ok := prepared.(*messageapp.TaskNotificationBatchResult)
 	if !ok {
 		return
 	}

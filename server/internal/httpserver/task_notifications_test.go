@@ -48,6 +48,17 @@ func TestHTTPTaskCreateAndUpdateSendAssistantNotifications(t *testing.T) {
 		"状态: 待办\n负责人: 通知负责人",
 		"/projects/"+project.ID+"?taskId="+taskID,
 	)
+	creatorMessages := loadTaskNotificationMessages(t, db, owner.ID)
+	if len(creatorMessages) != 1 {
+		t.Fatalf("creator create notification count = %d, want 1", len(creatorMessages))
+	}
+	assertTaskNotificationMessage(
+		t,
+		creatorMessages[0],
+		"任务动态 - 编写上线方案",
+		"状态: 待办\n负责人: 通知负责人",
+		"/projects/"+project.ID+"?taskId="+taskID,
+	)
 
 	resp, body = patchJSON(t, server, taskPath(project.ID, taskID), map[string]any{
 		"title":       "完成上线方案",
@@ -68,6 +79,9 @@ func TestHTTPTaskCreateAndUpdateSendAssistantNotifications(t *testing.T) {
 		"状态: 待办\n负责人: 通知负责人",
 		"/projects/"+project.ID+"?taskId="+taskID,
 	)
+	if count := len(loadTaskNotificationMessages(t, db, owner.ID)); count != 2 {
+		t.Fatalf("creator update notification count = %d, want 2", count)
+	}
 
 	resp, body = patchJSON(t, server, taskPath(project.ID, taskID), map[string]any{
 		"title":       "完成上线方案",
@@ -79,6 +93,9 @@ func TestHTTPTaskCreateAndUpdateSendAssistantNotifications(t *testing.T) {
 	if count := len(loadTaskNotificationMessages(t, db, assignee.ID)); count != 2 {
 		t.Fatalf("noop notification count = %d, want 2", count)
 	}
+	if count := len(loadTaskNotificationMessages(t, db, owner.ID)); count != 2 {
+		t.Fatalf("creator noop notification count = %d, want 2", count)
+	}
 
 	resp, body = patchJSON(t, server, taskPath(project.ID, taskID), map[string]any{
 		"assignee_user_id": nil,
@@ -89,9 +106,49 @@ func TestHTTPTaskCreateAndUpdateSendAssistantNotifications(t *testing.T) {
 	if count := len(loadTaskNotificationMessages(t, db, assignee.ID)); count != 2 {
 		t.Fatalf("clear assignee notification count = %d, want 2", count)
 	}
+	creatorMessages = loadTaskNotificationMessages(t, db, owner.ID)
+	if len(creatorMessages) != 3 {
+		t.Fatalf("creator clear assignee notification count = %d, want 3", len(creatorMessages))
+	}
+	assertTaskNotificationMessage(
+		t,
+		creatorMessages[2],
+		"任务动态 - 完成上线方案",
+		"状态: 待办",
+		"/projects/"+project.ID+"?taskId="+taskID,
+	)
 }
 
-func TestHTTPTaskNotificationTargetsNewAssigneeOnly(t *testing.T) {
+func TestHTTPTaskNotificationTargetsCreatorWithoutAssignee(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+
+	now := time.Now().UTC()
+	owner := insertTestUser(t, db, "task-notification-unassigned-owner@example.com", "未分配任务创建人", store.UserStatusActive, now)
+	project := insertProjectFixture(t, db, projectFixtureInput{Owner: owner, Name: "未分配任务项目", UpdatedAt: now})
+	cookie := loginAsUser(t, server, owner.Email)
+
+	resp, body := postJSON(t, server, "/api/client/projects/"+project.ID+"/tasks", map[string]any{
+		"title": "暂未分配负责人",
+	}, cookie)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201, body = %#v", resp.StatusCode, body)
+	}
+	task := requireTaskResponse(t, requireSuccess(t, body))
+	messages := loadTaskNotificationMessages(t, db, owner.ID)
+	if len(messages) != 1 {
+		t.Fatalf("creator notification count = %d, want 1", len(messages))
+	}
+	assertTaskNotificationMessage(
+		t,
+		messages[0],
+		"任务动态 - 暂未分配负责人",
+		"状态: 待办",
+		"/projects/"+project.ID+"?taskId="+task["id"].(string),
+	)
+}
+
+func TestHTTPTaskNotificationTargetsCreatorAndNewAssignee(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
 
@@ -122,6 +179,9 @@ func TestHTTPTaskNotificationTargetsNewAssigneeOnly(t *testing.T) {
 	}
 	if count := len(loadTaskNotificationMessages(t, db, newAssignee.ID)); count != 1 {
 		t.Fatalf("new assignee notification count = %d, want 1", count)
+	}
+	if count := len(loadTaskNotificationMessages(t, db, owner.ID)); count != 1 {
+		t.Fatalf("creator notification count = %d, want 1", count)
 	}
 }
 
@@ -169,6 +229,9 @@ func TestHTTPTaskNotificationSkipsAssigneeWithoutCurrentProjectAccess(t *testing
 	}
 	if count := len(loadTaskNotificationMessages(t, db, assignee.ID)); count != 0 {
 		t.Fatalf("notification count = %d, want 0", count)
+	}
+	if count := len(loadTaskNotificationMessages(t, db, owner.ID)); count != 1 {
+		t.Fatalf("creator notification count = %d, want 1", count)
 	}
 }
 

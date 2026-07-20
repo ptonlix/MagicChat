@@ -233,14 +233,19 @@ type ReadForUserResult struct {
 }
 
 type TaskNotificationCommand struct {
-	AssigneeUserID *string
-	AssigneeName   string
-	DueDate        *time.Time
-	ID             string
-	ProjectID      string
-	Status         string
-	Title          string
-	UpdatedAt      time.Time
+	AssigneeUserID  *string
+	AssigneeName    string
+	CreatedByUserID string
+	DueDate         *time.Time
+	ID              string
+	ProjectID       string
+	Status          string
+	Title           string
+	UpdatedAt       time.Time
+}
+
+type TaskNotificationBatchResult struct {
+	Notifications []TaskNotificationResult
 }
 
 type TaskNotificationResult struct {

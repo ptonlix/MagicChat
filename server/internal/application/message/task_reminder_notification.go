@@ -66,5 +66,5 @@ func (s *Service) PrepareTaskReminderNotification(ctx context.Context, tx *gorm.
 }
 
 func (s *Service) PublishTaskReminderNotification(ctx context.Context, notification *TaskNotificationResult) {
-	s.PublishTaskNotification(ctx, notification)
+	s.publishTaskNotificationResult(ctx, notification)
 }
