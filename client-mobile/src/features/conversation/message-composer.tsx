@@ -15,7 +15,6 @@ import {
 import { Keyboard, Pressable, StyleSheet } from "react-native"
 import {
   Button,
-  Separator,
   Spinner,
   type TamaguiElement,
   useToastController,
@@ -397,7 +396,6 @@ export const MessageComposer = forwardRef<
   return (
     <>
       <YStack bg="$background">
-        <Separator />
         <XStack gap="$1" items="center" px="$3" py="$2">
           <Button
             accessibilityLabel={voiceMode ? "切换到键盘输入" : "切换到语音输入"}

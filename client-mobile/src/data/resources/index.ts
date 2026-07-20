@@ -12,6 +12,10 @@ export {
   useMessageResources,
 } from "@/data/resources/resource-hooks"
 export { openResourceExternally } from "@/data/resources/resource-opener"
+export {
+  MediaLibraryPermissionError,
+  saveImageToMediaLibrary,
+} from "@/data/resources/resource-media-library"
 export type {
   AttachmentResourceKind,
   AttachmentResourceReference,

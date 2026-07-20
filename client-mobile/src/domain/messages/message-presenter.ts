@@ -62,7 +62,7 @@ export function buildPresentedMessages({
 
   return messages.map((message) => {
     const role =
-      message.sender.type === "system"
+      message.body.type === "system_event" || message.sender.type === "system"
         ? "system"
         : message.sender.type === "user" && message.sender.id === currentUser.id
           ? "me"

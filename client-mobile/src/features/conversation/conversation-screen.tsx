@@ -1,4 +1,9 @@
-import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router"
+import {
+  type Href,
+  useIsFocused,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Alert, AppState } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -326,6 +331,13 @@ export function ConversationScreen() {
     }
   }
 
+  function handleImagePress(fileId: string) {
+    router.push({
+      pathname: "/image-preview",
+      params: { fileId },
+    } as unknown as Href)
+  }
+
   async function handleVoiceResourcePress(fileId: string) {
     try {
       await resources.ensure(fileId)
@@ -345,7 +357,7 @@ export function ConversationScreen() {
       />
 
       <KeyboardAwareScreen
-        contentBackground="$color1"
+        contentBackground="$backgroundLight"
         edges={["bottom"]}
         keyboardVerticalOffset={insets.top + PAGE_HEADER_HEIGHT}
         scrollable={false}
@@ -374,6 +386,7 @@ export function ConversationScreen() {
               onContentTouch={() =>
                 composerRef.current?.dismissAccessory()
               }
+              onImagePress={handleImagePress}
               onLoadOlder={handleLoadOlder}
               onRefresh={handleRefresh}
               onResourceError={(fileId) =>

@@ -10,7 +10,7 @@ import {
   MessagesSquare,
 } from "lucide-react-native"
 import { useRef, useState } from "react"
-import { Alert, Linking } from "react-native"
+import { Alert, Linking, Pressable } from "react-native"
 import {
   Button,
   Card,
@@ -39,6 +39,7 @@ import { VoiceMessagePlayer } from "@/features/conversation/voice-message-player
 export function MessageBody({
   body,
   currentUserId,
+  onImagePress,
   onMentionPress,
   onResourceError,
   onResourcePress,
@@ -49,6 +50,7 @@ export function MessageBody({
 }: {
   body: ClientMessageBody
   currentUserId: string
+  onImagePress: (fileId: string) => void
   onMentionPress: (target: EntityReference) => void
   onResourceError: (fileId: string) => void
   onResourcePress: (fileId: string) => void
@@ -168,11 +170,7 @@ export function MessageBody({
           gap="$2"
           items="center"
           minW={160}
-          onPress={
-            state?.status === "error"
-              ? () => onResourcePress(body.fileId)
-              : undefined
-          }
+          onPress={() => onImagePress(body.fileId)}
           p="$2"
         >
           {state?.status === "loading" ? (
@@ -189,20 +187,29 @@ export function MessageBody({
 
     const size = getImageDisplaySize(body.width, body.height)
     return (
-      <Image
+      <Pressable
         accessibilityLabel="查看图片"
-        height={size.height}
-        objectFit="cover"
-        onError={() => {
-          if (retriedImageIds.current.has(body.fileId)) return
-          retriedImageIds.current.add(body.fileId)
-          onResourceError(body.fileId)
+        onPress={() => onImagePress(body.fileId)}
+        style={{
+          borderRadius: 7,
+          height: size.height,
+          overflow: "hidden",
+          width: size.width,
         }}
-        onPress={() => onResourcePress(body.fileId)}
-        rounded="$3"
-        src={resource.uri}
-        width={size.width}
-      />
+      >
+        <Image
+          height={size.height}
+          objectFit="cover"
+          onError={() => {
+            if (retriedImageIds.current.has(body.fileId)) return
+            retriedImageIds.current.add(body.fileId)
+            onResourceError(body.fileId)
+          }}
+          pointerEvents="none"
+          src={resource.uri}
+          width={size.width}
+        />
+      </Pressable>
     )
   }
 
@@ -230,7 +237,7 @@ export function MessageBody({
   }
 
   if (body.type === "revoked") {
-    return <Paragraph color="$color10">该消息已被撤回</Paragraph>
+    return <Paragraph color="$gray11">该消息已被撤回</Paragraph>
   }
 
   if (body.type === "unsupported") {

@@ -43,6 +43,13 @@ export default function AppDrawerLayout() {
           drawerLabel: "搜索",
         }}
       />
+      <Drawer.Screen
+        name="theme-debug"
+        options={{
+          drawerItemStyle: { display: "none" },
+          drawerLabel: "主题调试",
+        }}
+      />
     </Drawer>
   )
 }

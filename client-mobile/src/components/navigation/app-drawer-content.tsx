@@ -1,5 +1,5 @@
 import { usePathname, useRouter, type Href } from "expo-router"
-import { Check, ChevronRight, LogOut } from "lucide-react-native"
+import { Bug, Check, ChevronRight, LogOut } from "lucide-react-native"
 import { Alert } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import {
@@ -50,6 +50,11 @@ export function AppDrawerContent({ closeDrawer }: { closeDrawer: () => void }) {
   function navigateTo(href: Href) {
     closeDrawer()
     router.replace(href)
+  }
+
+  function openThemeDebug() {
+    closeDrawer()
+    router.push("/theme-debug" as Href)
   }
 
   async function handleLogout() {
@@ -120,6 +125,24 @@ export function AppDrawerContent({ closeDrawer }: { closeDrawer: () => void }) {
               </Theme>
             )
           })}
+
+          <Paragraph color="$color10" mt="$3" px="$1" size="$2">
+            工具
+          </Paragraph>
+          <Theme name={pathname.endsWith("/theme-debug") ? "teal" : "gray"}>
+            <AppListItem
+              accessibilityLabel="打开调试页面"
+              bg={pathname.endsWith("/theme-debug") ? "$color2" : undefined}
+              borderColor={
+                pathname.endsWith("/theme-debug") ? "$color10" : "$color7"
+              }
+              icon={<ThemedIcon icon={Bug} />}
+              iconAfter={<ThemedIcon icon={ChevronRight} />}
+              onPress={openThemeDebug}
+              size="$4"
+              title="调试"
+            />
+          </Theme>
         </YStack>
 
         <YStack gap="$3" p="$4">

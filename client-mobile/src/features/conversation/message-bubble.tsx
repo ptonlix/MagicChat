@@ -1,8 +1,8 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
+import { View } from "react-native"
 import {
   Avatar,
   Button,
-  Card,
   Paragraph,
   SizableText,
   XStack,
@@ -25,6 +25,7 @@ export function MessageBubble({
   message,
   onAvatarLongPress,
   onAvatarPress,
+  onImagePress,
   onMentionPress,
   onResourceError,
   onResourcePress,
@@ -37,6 +38,7 @@ export function MessageBubble({
   message: PresentedMessage
   onAvatarLongPress?: (sender: EntityReference) => void
   onAvatarPress: (sender: EntityReference) => void
+  onImagePress: (fileId: string) => void
   onMentionPress: (target: EntityReference) => void
   onResourceError: (fileId: string) => void
   onResourcePress: (fileId: string) => void
@@ -46,6 +48,7 @@ export function MessageBubble({
   server: ServerTarget
 }) {
   const didLongPressAvatarRef = useRef(false)
+  const [bubblePressed, setBubblePressed] = useState(false)
 
   if (message.role === "system") {
     return (
@@ -60,6 +63,11 @@ export function MessageBubble({
   }
 
   const fromMe = message.role === "me"
+  const showsBubblePressFeedback =
+    message.body.type === "text" ||
+    message.body.type === "markdown" ||
+    message.body.type === "revoked" ||
+    message.body.type === "unsupported"
   const sender = message.sender
   const avatar = sender ? (
     <Button
@@ -125,38 +133,71 @@ export function MessageBubble({
           ) : null}
         </XStack>
 
-        <Card
-          bg={fromMe ? "$teal3" : "$background"}
-          rounded="$5"
-          borderTopLeftRadius={fromMe ? "$5" : "$1"}
-          borderTopRightRadius={fromMe ? "$1" : "$5"}
-          borderWidth={0}
-          maxW="100%"
-          overflow="hidden"
-          p="$3"
+        <View
+          onTouchCancel={
+            showsBubblePressFeedback
+              ? () => setBubblePressed(false)
+              : undefined
+          }
+          onTouchEnd={
+            showsBubblePressFeedback
+              ? () => setBubblePressed(false)
+              : undefined
+          }
+          onTouchStart={
+            showsBubblePressFeedback
+              ? () => setBubblePressed(true)
+              : undefined
+          }
+          style={{ maxWidth: "100%" }}
         >
-          {message.replyTo ? (
-            <YStack borderColor="$borderColor" borderLeftWidth={2} mb="$2" pl="$2">
-              <SizableText fontWeight="600" numberOfLines={1} size="$2">
-                {message.replyTo.author}
-              </SizableText>
-              <Paragraph color="$color10" numberOfLines={2} size="$2">
-                {message.replyTo.summary}
-              </Paragraph>
-            </YStack>
-          ) : null}
-          <MessageBody
-            body={message.body}
-            currentUserId={currentUserId}
-            onMentionPress={onMentionPress}
-            onResourceError={onResourceError}
-            onResourcePress={onResourcePress}
-            onVoiceResourcePress={onVoiceResourcePress}
-            resolveMentionLabel={resolveMentionLabel}
-            resourceStates={resourceStates}
-            serverUrl={server.url}
-          />
-        </Card>
+          <YStack
+            bg={
+              bubblePressed
+                ? fromMe
+                  ? "$teal5"
+                  : "$teal2"
+                : fromMe
+                  ? "$teal4"
+                  : "$teal1"
+            }
+            rounded="$5"
+            borderTopLeftRadius={fromMe ? "$5" : "$1"}
+            borderTopRightRadius={fromMe ? "$1" : "$5"}
+            borderWidth={0}
+            maxW="100%"
+            overflow="hidden"
+            p="$3"
+          >
+            {message.replyTo ? (
+              <YStack
+                borderColor="$borderColor"
+                borderLeftWidth={2}
+                mb="$2"
+                pl="$2"
+              >
+                <SizableText fontWeight="600" numberOfLines={1} size="$2">
+                  {message.replyTo.author}
+                </SizableText>
+                <Paragraph color="$color10" numberOfLines={2} size="$2">
+                  {message.replyTo.summary}
+                </Paragraph>
+              </YStack>
+            ) : null}
+            <MessageBody
+              body={message.body}
+              currentUserId={currentUserId}
+              onImagePress={onImagePress}
+              onMentionPress={onMentionPress}
+              onResourceError={onResourceError}
+              onResourcePress={onResourcePress}
+              onVoiceResourcePress={onVoiceResourcePress}
+              resolveMentionLabel={resolveMentionLabel}
+              resourceStates={resourceStates}
+              serverUrl={server.url}
+            />
+          </YStack>
+        </View>
 
         {message.delegatedByName ? (
           <SizableText color="$color10" size="$1">

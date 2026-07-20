@@ -33,13 +33,17 @@ export default function RootLayout() {
         value={colorScheme === "dark" ? darkNavigationTheme : lightNavigationTheme}
       >
         <StatusBar style="auto" />
-        <NavigationBar style="auto" />
+        <NavigationBar hidden={false} style="auto" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="init" />
           <Stack.Screen name="login" />
           <Stack.Screen name="server-management" />
           <Stack.Screen name="(app)" />
+          <Stack.Screen
+            name="image-preview"
+            options={{ animation: "fade", presentation: "fullScreenModal" }}
+          />
         </Stack>
       </ThemeProvider>
     </AppProviders>

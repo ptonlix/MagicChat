@@ -33,6 +33,7 @@ export function MessageList({
   onAvatarPress,
   onAvatarLongPress,
   onContentTouch,
+  onImagePress,
   onLoadOlder,
   onRefresh,
   onResourceError,
@@ -54,6 +55,7 @@ export function MessageList({
   onAvatarLongPress?: (sender: EntityReference) => void
   onAvatarPress: (sender: EntityReference) => void
   onContentTouch: () => void
+  onImagePress: (fileId: string) => void
   onLoadOlder: () => void
   onRefresh: () => void
   onResourceError: (fileId: string) => void
@@ -218,6 +220,7 @@ export function MessageList({
             message={item}
             onAvatarLongPress={onAvatarLongPress}
             onAvatarPress={onAvatarPress}
+            onImagePress={onImagePress}
             onMentionPress={onMentionPress}
             onResourceError={onResourceError}
             onResourcePress={onResourcePress}
