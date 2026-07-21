@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	maxConversationSequenceWatermarks = 10_000
-	retirementRetryDelay              = 5 * time.Second
+	defaultConversationAgentIdleTimeout = 10 * time.Minute
+	maxConversationSequenceWatermarks   = 10_000
+	retirementRetryDelay                = 5 * time.Second
 )
 
 type agentRunner interface {
@@ -112,7 +113,7 @@ func newConversationAgentRunner(ctx context.Context, options ...conversationAgen
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	configured := conversationAgentRunnerOptions{IdleTimeout: time.Hour, MaxSessions: 1000}
+	configured := conversationAgentRunnerOptions{IdleTimeout: defaultConversationAgentIdleTimeout, MaxSessions: 1000}
 	if len(options) > 0 {
 		if options[0].IdleTimeout > 0 {
 			configured.IdleTimeout = options[0].IdleTimeout

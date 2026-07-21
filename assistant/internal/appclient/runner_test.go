@@ -50,6 +50,14 @@ func TestConversationAgentRunnerSessionOutlivesTriggerContext(t *testing.T) {
 	waitForSignal(t, canceled, "agent session to stop with process context")
 }
 
+func TestConversationAgentRunnerDefaultsIdleTimeoutToTenMinutes(t *testing.T) {
+	runner := newConversationAgentRunner(context.Background())
+	defer runner.CancelAll()
+	if runner.idleTimeout != 10*time.Minute {
+		t.Fatalf("idle timeout = %s, want 10m", runner.idleTimeout)
+	}
+}
+
 func TestConversationAgentRunnerKeepsSessionAfterConversationEnd(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
