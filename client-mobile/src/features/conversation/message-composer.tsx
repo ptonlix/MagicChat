@@ -14,6 +14,7 @@ import {
 } from "react"
 import {
   Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Vibration,
@@ -141,7 +142,12 @@ export const MessageComposer = forwardRef<
     : inputHeight
   const composerPanelHeight =
     visibleControlHeight + COMPOSER_PANEL_VERTICAL_CHROME
-  const inputScrollEnabled = inputHeight >= COMPOSER_MAX_CONTROL_HEIGHT
+  const inputVerticalPadding =
+    Platform.OS === "ios" ? COMPOSER_TEXT_VERTICAL_CHROME / 2 : 0
+  // Toggling scrolling changes UITextView.contentSize on iOS, which can feed
+  // back into inputHeight through onContentSizeChange and cause oscillation.
+  const inputScrollEnabled =
+    Platform.OS === "ios" || inputHeight >= COMPOSER_MAX_CONTROL_HEIGHT
 
   useEffect(() => {
     voiceRecordingRef.current = voiceRecorder.recording
@@ -250,13 +256,26 @@ export const MessageComposer = forwardRef<
   function handleInputContentSizeChange(
     event: { nativeEvent: { contentSize: { height: number; width: number } } }
   ) {
+    // iOS includes the placeholder in an empty UITextView's contentSize.
+    // Keep the empty composer at its minimum height regardless of that metric.
+    if (contentRef.current.length === 0) {
+      setInputHeight((currentHeight) =>
+        currentHeight === COMPOSER_CONTROL_HEIGHT
+          ? currentHeight
+          : COMPOSER_CONTROL_HEIGHT
+      )
+      return
+    }
+
     const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height)
+    // UITextView contentSize includes its vertical padding. Android keeps the
+    // existing zero-padding measurement and needs the control chrome added.
+    const measuredControlHeight =
+      measuredHeight +
+      (Platform.OS === "ios" ? 0 : COMPOSER_TEXT_VERTICAL_CHROME)
     const nextHeight = Math.max(
       COMPOSER_CONTROL_HEIGHT,
-      Math.min(
-        COMPOSER_MAX_CONTROL_HEIGHT,
-        measuredHeight + COMPOSER_TEXT_VERTICAL_CHROME
-      )
+      Math.min(COMPOSER_MAX_CONTROL_HEIGHT, measuredControlHeight)
     )
     setInputHeight((currentHeight) =>
       currentHeight === nextHeight ? currentHeight : nextHeight
@@ -526,6 +545,7 @@ export const MessageComposer = forwardRef<
                     fontSize="$4"
                     focusStyle={{ borderWidth: 0, outlineWidth: 0 }}
                     height={inputHeight}
+                    includeFontPadding={false}
                     minH={0}
                     multiline
                     onChangeText={handleContentChange}
@@ -535,12 +555,11 @@ export const MessageComposer = forwardRef<
                     placeholder="发消息 或 按住说话"
                     placeholderTextColor="$gray9"
                     px={COMPOSER_INPUT_HORIZONTAL_PADDING}
-                    py={0}
+                    py={inputVerticalPadding}
                     ref={inputRef}
                     returnKeyType="default"
                     scrollEnabled={inputScrollEnabled}
                     selection={pendingSelection}
-                    style={styles.composerInput}
                     submitBehavior="newline"
                     textAlignVertical="center"
                     unstyled
@@ -697,10 +716,6 @@ function VoiceRecordButton({
 }
 
 const styles = StyleSheet.create({
-  composerInput: {
-    includeFontPadding: false,
-    paddingVertical: 0,
-  },
   inputGestureTarget: {
     ...StyleSheet.absoluteFill,
   },
