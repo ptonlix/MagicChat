@@ -846,29 +846,50 @@ func isSupportedIncomingMessageType(messageType string) bool {
 }
 
 func shouldHandleIncomingMessage(appID string, payload messageCreatedPayload, body messageBody) bool {
-	switch payload.Conversation.Type {
-	case "app":
+	conversationType := strings.ToLower(strings.TrimSpace(payload.Conversation.Type))
+	if conversationType == "topic" {
+		if !strings.EqualFold(strings.TrimSpace(payload.Sender.Type), "user") {
+			return false
+		}
+
+		parentType := ""
+		if payload.Conversation.Parent != nil {
+			parentType = strings.ToLower(strings.TrimSpace(payload.Conversation.Parent.Type))
+		}
+		switch parentType {
+		case "app", "direct":
+			return isAgentTriggerMessageType(body.Type)
+		default:
+			return messageDirectlyMentionsApp(appID, body)
+		}
+	}
+
+	switch conversationType {
+	case "app", "direct":
+		return isAgentTriggerMessageType(body.Type)
+	case "group", "topic":
+		return messageDirectlyMentionsApp(appID, body)
+	default:
+		return false
+	}
+}
+
+func isAgentTriggerMessageType(messageType string) bool {
+	switch strings.ToLower(strings.TrimSpace(messageType)) {
+	case "text", "markdown", "voice":
 		return true
-	case "group":
-		if strings.TrimSpace(appID) == "" {
-			return false
-		}
-		switch body.Type {
-		case "text", "markdown":
-			return contentMentionsApp(body.Content, appID)
-		default:
-			return false
-		}
-	case "topic":
-		if payload.Sender.Type != "user" || strings.TrimSpace(appID) == "" {
-			return false
-		}
-		switch body.Type {
-		case "text", "markdown":
-			return contentMentionsApp(body.Content, appID)
-		default:
-			return false
-		}
+	default:
+		return false
+	}
+}
+
+func messageDirectlyMentionsApp(appID string, body messageBody) bool {
+	if strings.TrimSpace(appID) == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(body.Type)) {
+	case "text", "markdown":
+		return contentMentionsApp(body.Content, appID)
 	default:
 		return false
 	}

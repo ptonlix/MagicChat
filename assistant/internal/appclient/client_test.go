@@ -381,23 +381,43 @@ func TestHandleParsedServerMessageIgnoresTopicMessageWithoutDirectAppMention(t *
 	}
 }
 
-func TestShouldHandleIncomingTopicMessageRequiresDirectMention(t *testing.T) {
+func TestShouldHandleIncomingMessageUsesConversationContextAndTriggerType(t *testing.T) {
 	appID := "00000000-0000-0000-0000-000000000001"
 	for _, test := range []struct {
-		name       string
-		senderType string
-		body       messageBody
-		want       bool
+		name         string
+		conversation conversationPayload
+		senderType   string
+		body         messageBody
+		want         bool
 	}{
-		{name: "text mention", senderType: "user", body: messageBody{Type: "text", Content: "请处理 {(@app/" + appID + ")}"}, want: true},
-		{name: "markdown uppercase mention", senderType: "user", body: messageBody{Type: "markdown", Content: "请处理 {(@app/" + strings.ToUpper(appID) + ")}"}, want: true},
-		{name: "text without mention", senderType: "user", body: messageBody{Type: "text", Content: "我们先讨论一下"}},
-		{name: "image", senderType: "user", body: messageBody{Type: "image", FileID: "file-1"}},
-		{name: "app sender", senderType: "app", body: messageBody{Type: "text", Content: "请处理 {(@app/" + appID + ")}"}},
+		{name: "app text", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "text", Content: "请处理"}, want: true},
+		{name: "app markdown", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "markdown", Content: "请处理"}, want: true},
+		{name: "app voice", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "voice", FileID: "voice-1"}, want: true},
+		{name: "direct text", conversation: conversationPayload{Type: "direct"}, senderType: "user", body: messageBody{Type: "text", Content: "请处理"}, want: true},
+		{name: "app image", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "image", FileID: "image-1"}},
+		{name: "app file", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "file", FileID: "file-1"}},
+		{name: "app link", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "link", URL: "https://example.com"}},
+		{name: "app card", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "card", Title: "测试"}},
+		{name: "app forwarded bundle", conversation: conversationPayload{Type: "app"}, senderType: "user", body: messageBody{Type: "forward_bundle"}},
+		{name: "group text mention", conversation: conversationPayload{Type: "group"}, senderType: "user", body: messageBody{Type: "text", Content: "请处理 {(@app/" + appID + ")}"}, want: true},
+		{name: "group markdown uppercase mention", conversation: conversationPayload{Type: "group"}, senderType: "user", body: messageBody{Type: "markdown", Content: "请处理 {(@app/" + strings.ToUpper(appID) + ")}"}, want: true},
+		{name: "group text without mention", conversation: conversationPayload{Type: "group"}, senderType: "user", body: messageBody{Type: "text", Content: "我们先讨论一下"}},
+		{name: "group voice", conversation: conversationPayload{Type: "group"}, senderType: "user", body: messageBody{Type: "voice", FileID: "voice-1"}},
+		{name: "app topic text", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "app"}}, senderType: "user", body: messageBody{Type: "text", Content: "继续处理"}, want: true},
+		{name: "app topic voice", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "app"}}, senderType: "user", body: messageBody{Type: "voice", FileID: "voice-1"}, want: true},
+		{name: "app topic image", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "app"}}, senderType: "user", body: messageBody{Type: "image", FileID: "image-1"}},
+		{name: "direct topic markdown", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "direct"}}, senderType: "user", body: messageBody{Type: "markdown", Content: "继续处理"}, want: true},
+		{name: "group topic mention", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "group"}}, senderType: "user", body: messageBody{Type: "text", Content: "请处理 {(@app/" + appID + ")}"}, want: true},
+		{name: "group topic without mention", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "group"}}, senderType: "user", body: messageBody{Type: "text", Content: "继续处理"}},
+		{name: "topic without parent falls back to mention", conversation: conversationPayload{Type: "topic"}, senderType: "user", body: messageBody{Type: "text", Content: "请处理 {(@app/" + appID + ")}"}, want: true},
+		{name: "topic without parent and without mention", conversation: conversationPayload{Type: "topic"}, senderType: "user", body: messageBody{Type: "text", Content: "继续处理"}},
+		{name: "topic with missing parent type falls back to mention", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{}}, senderType: "user", body: messageBody{Type: "text", Content: "请处理 {(@app/" + appID + ")}"}, want: true},
+		{name: "topic with missing parent type and without mention", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{}}, senderType: "user", body: messageBody{Type: "text", Content: "继续处理"}},
+		{name: "topic app sender", conversation: conversationPayload{Type: "topic", Parent: &conversationReferencePayload{Type: "app"}}, senderType: "app", body: messageBody{Type: "text", Content: "继续处理"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := shouldHandleIncomingMessage(appID, messageCreatedPayload{
-				Conversation: conversationPayload{ID: "topic-1", Type: "topic"},
+				Conversation: test.conversation,
 				Sender:       senderPayload{ID: "sender-1", Type: test.senderType},
 			}, test.body)
 			if got != test.want {
@@ -710,11 +730,10 @@ func TestNewToolRegistryIncludesBuiltinTools(t *testing.T) {
 	}
 }
 
-func TestHandleServerMessageReadsTemporaryFileURLForImageAndFileMessages(t *testing.T) {
+func TestHandleServerMessageIgnoresImageAndFileMessages(t *testing.T) {
 	tests := []struct {
-		name             string
-		body             map[string]any
-		expectedSnippets []string
+		name string
+		body map[string]any
 	}{
 		{
 			name: "image",
@@ -722,7 +741,6 @@ func TestHandleServerMessageReadsTemporaryFileURLForImageAndFileMessages(t *test
 				"type":    "image",
 				"file_id": "file-image-1",
 			},
-			expectedSnippets: []string{"图片", "file-image-1", "https://assets.example.test/image.webp"},
 		},
 		{
 			name: "file",
@@ -732,54 +750,18 @@ func TestHandleServerMessageReadsTemporaryFileURLForImageAndFileMessages(t *test
 				"name":       "report.pdf",
 				"size_bytes": 1234,
 			},
-			expectedSnippets: []string{"文件", "report.pdf", "1234", "file-report-1", "https://assets.example.test/report.pdf"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var readURLPayload struct {
-				FileIDs []string `json:"file_ids"`
-			}
-			var readURLPayloadMap map[string]any
-			var agentRequests []agent.Request
 			requester := appRequestFunc(func(ctx context.Context, method string, payload any) (json.RawMessage, error) {
-				switch method {
-				case "temporary_files.read_urls":
-					rawPayload, err := json.Marshal(payload)
-					if err != nil {
-						t.Fatalf("marshal read URL payload: %v", err)
-					}
-					if err := json.Unmarshal(rawPayload, &readURLPayloadMap); err != nil {
-						t.Fatalf("unmarshal read URL payload map: %v", err)
-					}
-					if err := json.Unmarshal(rawPayload, &readURLPayload); err != nil {
-						t.Fatalf("unmarshal read URL payload: %v", err)
-					}
-					fileID := readURLPayload.FileIDs[0]
-					readURL := "https://assets.example.test/image.webp"
-					if tt.name == "file" {
-						readURL = "https://assets.example.test/report.pdf"
-					}
-					return json.Marshal(map[string]any{
-						"urls": []map[string]any{
-							{
-								"file_id":    fileID,
-								"url":        readURL,
-								"expires_at": "2026-07-08T12:00:00Z",
-							},
-						},
-					})
-				case methodConversationMessagesList:
-					return json.Marshal(appListConversationMessagesResponsePayload{})
-				default:
-					t.Fatalf("unexpected app request method %q", method)
-					return nil, nil
-				}
+				t.Fatalf("unexpected app request method %q", method)
+				return nil, nil
 			})
 			replyAgent := replyAgentFunc(func(ctx context.Context, request agent.Request, sink agent.OutputSink) error {
-				agentRequests = append(agentRequests, request)
-				return nil
+				t.Fatal("agent should not run")
+				return nil // unreachable
 			})
 
 			handleParsedServerMessage(
@@ -791,21 +773,6 @@ func TestHandleServerMessageReadsTemporaryFileURLForImageAndFileMessages(t *test
 				directAgentRunner{},
 				func(context.Context, envelope) error { return nil },
 			)
-
-			if _, ok := readURLPayloadMap["conversation_id"]; ok {
-				t.Fatalf("read URL payload = %#v, want file_ids only", readURLPayloadMap)
-			}
-			if len(readURLPayload.FileIDs) != 1 || readURLPayload.FileIDs[0] != tt.body["file_id"] {
-				t.Fatalf("read URL file_ids = %#v, want body file id", readURLPayload.FileIDs)
-			}
-			if len(agentRequests) != 1 {
-				t.Fatalf("agent request count = %d, want 1", len(agentRequests))
-			}
-			for _, snippet := range tt.expectedSnippets {
-				if !strings.Contains(agentRequests[0].Content, snippet) {
-					t.Fatalf("agent content = %q, want to contain %q", agentRequests[0].Content, snippet)
-				}
-			}
 		})
 	}
 }
@@ -862,10 +829,12 @@ func TestHandleServerMessagePrefetchesCurrentFileURLAndKeepsHistoryFileIDs(t *te
 							"name": "Alice",
 							"type": "user",
 						},
-						"summary": "当前图片",
+						"summary": "当前语音",
 						"body": map[string]any{
-							"type":    "image",
-							"file_id": "file-current-image",
+							"type":        "voice",
+							"file_id":     "file-current-voice",
+							"duration_ms": 3000,
+							"transcript":  "请总结这些内容",
 						},
 					},
 				},
@@ -903,8 +872,10 @@ func TestHandleServerMessagePrefetchesCurrentFileURLAndKeepsHistoryFileIDs(t *te
 	handleParsedServerMessage(
 		context.Background(),
 		testMessageCreatedEnvelopeWithBody(t, "user-1", "message-current", 3, map[string]any{
-			"type":    "image",
-			"file_id": "file-current-image",
+			"type":        "voice",
+			"file_id":     "file-current-voice",
+			"duration_ms": 3000,
+			"transcript":  "请总结这些内容",
 		}),
 		"",
 		requester,
@@ -916,7 +887,7 @@ func TestHandleServerMessagePrefetchesCurrentFileURLAndKeepsHistoryFileIDs(t *te
 	if _, ok := readURLPayloadMap["conversation_id"]; ok {
 		t.Fatalf("read URL payload = %#v, want file_ids only", readURLPayloadMap)
 	}
-	wantFileIDs := []string{"file-current-image"}
+	wantFileIDs := []string{"file-current-voice"}
 	if !slices.Equal(readURLPayload.FileIDs, wantFileIDs) {
 		t.Fatalf("read URL file_ids = %#v, want %#v", readURLPayload.FileIDs, wantFileIDs)
 	}
@@ -924,8 +895,8 @@ func TestHandleServerMessagePrefetchesCurrentFileURLAndKeepsHistoryFileIDs(t *te
 		t.Fatalf("agent request count = %d, want 1", len(agentRequests))
 	}
 	agentRequest := agentRequests[0]
-	if !strings.Contains(agentRequest.Content, "https://assets.example.test/file-current-image") {
-		t.Fatalf("agent content = %q, want current image URL", agentRequest.Content)
+	if !strings.Contains(agentRequest.Content, "https://assets.example.test/file-current-voice") {
+		t.Fatalf("agent content = %q, want current voice URL", agentRequest.Content)
 	}
 	if len(agentRequest.History) != 2 {
 		t.Fatalf("history count = %d, want 2", len(agentRequest.History))
