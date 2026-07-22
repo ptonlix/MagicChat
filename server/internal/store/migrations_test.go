@@ -38,6 +38,7 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 		"00023_add_conversation_pins.sql",
 		"00024_repair_conversation_topic_app_columns.sql",
 		"00025_add_message_reactions.sql",
+		"00026_add_conversation_user_preferences.sql",
 	}
 	if len(matches) != len(want) {
 		t.Fatalf("migration file count = %d, want %d: %v", len(matches), len(want), matches)
@@ -45,6 +46,31 @@ func TestMigrationDirectoryContainsExpectedMigrations(t *testing.T) {
 	for index, match := range matches {
 		if got := filepath.Base(match); got != want[index] {
 			t.Fatalf("migration file %d = %q, want %q", index, got, want[index])
+		}
+	}
+}
+
+func TestConversationUserPreferencesMigration(t *testing.T) {
+	rawSQL, err := os.ReadFile("../../migrations/00026_add_conversation_user_preferences.sql")
+	if err != nil {
+		t.Fatalf("read conversation user preferences migration: %v", err)
+	}
+	sql := normalizeSQL(string(rawSQL))
+	for _, required := range []string{
+		"create table conversation_user_preferences",
+		"pinned boolean not null default false",
+		"notification_muted boolean not null default false",
+		"hidden_through_seq bigint",
+		"primary key (user_id, conversation_id)",
+		"insert into conversation_user_preferences",
+		"from conversation_pins",
+		"drop table conversation_pins",
+		"create table conversation_pins",
+		"where pinned = true",
+		"drop table conversation_user_preferences",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Fatalf("conversation user preferences migration missing %q", required)
 		}
 	}
 }

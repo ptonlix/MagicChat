@@ -103,6 +103,7 @@ export function ChatPage() {
     contacts,
     conversations,
     createGroupConversation,
+    dismissConversation,
     ensureConversationMessages,
     getConversation,
     getConversationMessageState,
@@ -119,6 +120,7 @@ export function ChatPage() {
     sendConversationText,
     sendConversationVoice,
     setConversationPinned,
+    setConversationMuted,
     setMessageReaction,
     setForegroundConversationId,
     updateMessageTopic,
@@ -645,6 +647,17 @@ export function ChatPage() {
     navigate(`/chat/${encodeURIComponent(conversationId)}`, { replace: true })
   }
 
+  async function deleteConversation(conversationId: string) {
+    await dismissConversation(conversationId)
+    clearConversationDraft(conversationId)
+    if (readLastConversationId(me.id) === conversationId) {
+      clearLastConversationId(me.id)
+    }
+    if (activeConversationId === conversationId) {
+      navigate("/chat", { replace: true })
+    }
+  }
+
   async function startGroupConversation(
     name: string,
     memberIds: string[],
@@ -698,7 +711,9 @@ export function ChatPage() {
         currentUser={me}
         drafts={drafts}
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
+        onDismissConversation={deleteConversation}
         onSelectConversation={selectConversation}
+        onSetConversationMuted={setConversationMuted}
         onSetConversationPinned={setConversationPinned}
       />
 

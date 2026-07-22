@@ -181,44 +181,53 @@ type conversationMemberResponse struct {
 	Type     string `json:"type"`
 }
 
+type conversationLastMessageSenderResponse struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Nickname string `json:"nickname"`
+	Type     string `json:"type"`
+}
+
 type groupConversationResponse struct {
-	Avatar             string                       `json:"avatar"`
-	CreatedAt          time.Time                    `json:"created_at"`
-	CreatedByUserID    string                       `json:"created_by_user_id"`
-	ID                 string                       `json:"id"`
-	LastMessageAt      *time.Time                   `json:"last_message_at"`
-	LastMessageID      *string                      `json:"last_message_id"`
-	LastMessageSeq     int64                        `json:"last_message_seq"`
-	LastMessageSummary string                       `json:"last_message_summary"`
-	LastMentionedSeq   int64                        `json:"last_mentioned_seq"`
-	LastReadSeq        int64                        `json:"last_read_seq"`
-	MemberCount        int                          `json:"member_count"`
-	Members            []conversationMemberResponse `json:"members"`
-	Name               string                       `json:"name"`
-	PostingPolicy      string                       `json:"posting_policy"`
-	Status             string                       `json:"status"`
-	Type               string                       `json:"type"`
-	UnreadCount        int64                        `json:"unread_count"`
-	Visibility         string                       `json:"visibility"`
+	Avatar             string                                 `json:"avatar"`
+	CreatedAt          time.Time                              `json:"created_at"`
+	CreatedByUserID    string                                 `json:"created_by_user_id"`
+	ID                 string                                 `json:"id"`
+	LastMessageAt      *time.Time                             `json:"last_message_at"`
+	LastMessageID      *string                                `json:"last_message_id"`
+	LastMessageSeq     int64                                  `json:"last_message_seq"`
+	LastMessageSender  *conversationLastMessageSenderResponse `json:"last_message_sender"`
+	LastMessageSummary string                                 `json:"last_message_summary"`
+	LastMentionedSeq   int64                                  `json:"last_mentioned_seq"`
+	LastReadSeq        int64                                  `json:"last_read_seq"`
+	MemberCount        int                                    `json:"member_count"`
+	Members            []conversationMemberResponse           `json:"members"`
+	Name               string                                 `json:"name"`
+	PostingPolicy      string                                 `json:"posting_policy"`
+	Status             string                                 `json:"status"`
+	Type               string                                 `json:"type"`
+	UnreadCount        int64                                  `json:"unread_count"`
+	Visibility         string                                 `json:"visibility"`
 }
 
 type conversationListItemResponse struct {
-	Avatar             string                         `json:"avatar"`
-	CreatedAt          time.Time                      `json:"created_at"`
-	ID                 string                         `json:"id"`
-	LastMessageAt      *time.Time                     `json:"last_message_at"`
-	LastMessageID      *string                        `json:"last_message_id"`
-	LastMessageSeq     int64                          `json:"last_message_seq"`
-	LastMessageSummary string                         `json:"last_message_summary"`
-	LastMentionedSeq   int64                          `json:"last_mentioned_seq"`
-	LastReadSeq        int64                          `json:"last_read_seq"`
-	MemberCount        int                            `json:"member_count"`
-	Members            []conversationMemberResponse   `json:"members"`
-	Name               string                         `json:"name"`
-	Projects           *[]conversationProjectResponse `json:"projects,omitempty"`
-	Type               string                         `json:"type"`
-	UnreadCount        int64                          `json:"unread_count"`
-	Visibility         string                         `json:"visibility"`
+	Avatar             string                                 `json:"avatar"`
+	CreatedAt          time.Time                              `json:"created_at"`
+	ID                 string                                 `json:"id"`
+	LastMessageAt      *time.Time                             `json:"last_message_at"`
+	LastMessageID      *string                                `json:"last_message_id"`
+	LastMessageSeq     int64                                  `json:"last_message_seq"`
+	LastMessageSender  *conversationLastMessageSenderResponse `json:"last_message_sender"`
+	LastMessageSummary string                                 `json:"last_message_summary"`
+	LastMentionedSeq   int64                                  `json:"last_mentioned_seq"`
+	LastReadSeq        int64                                  `json:"last_read_seq"`
+	MemberCount        int                                    `json:"member_count"`
+	Members            []conversationMemberResponse           `json:"members"`
+	Name               string                                 `json:"name"`
+	Projects           *[]conversationProjectResponse         `json:"projects,omitempty"`
+	Type               string                                 `json:"type"`
+	UnreadCount        int64                                  `json:"unread_count"`
+	Visibility         string                                 `json:"visibility"`
 }
 
 type systemEventUserRef struct {

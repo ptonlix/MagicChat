@@ -540,6 +540,18 @@ definitions:
         example: user
         type: string
     type: object
+  client.conversationLastMessageSenderResponse:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      nickname:
+        type: string
+      type:
+        example: user
+        type: string
+    type: object
   client.conversationListItemResponse:
     properties:
       avatar:
@@ -563,6 +575,8 @@ definitions:
       last_message_id:
         example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
         type: string
+      last_message_sender:
+        $ref: '#/definitions/client.conversationLastMessageSenderResponse'
       last_message_seq:
         example: 12
         type: integer
@@ -582,6 +596,9 @@ definitions:
       name:
         example: 张三
         type: string
+      notification_muted:
+        example: false
+        type: boolean
       pinned:
         example: false
         type: boolean
@@ -819,6 +836,12 @@ definitions:
         example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
         type: string
     type: object
+  client.dismissConversationResponse:
+    properties:
+      conversation_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+    type: object
   client.dissolveGroupConversationResponse:
     properties:
       conversation_id:
@@ -918,6 +941,8 @@ definitions:
       last_message_id:
         example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
         type: string
+      last_message_sender:
+        $ref: '#/definitions/client.conversationLastMessageSenderResponse'
       last_message_seq:
         example: 12
         type: integer
@@ -1421,12 +1446,26 @@ definitions:
         example: 5
         type: integer
     type: object
+  client.restoreConversationResponse:
+    properties:
+      conversation:
+        $ref: '#/definitions/client.conversationListItemResponse'
+    type: object
   client.revokeConversationMessageResponse:
     properties:
       message:
         $ref: '#/definitions/client.messageResponse'
       system_message:
         $ref: '#/definitions/client.messageResponse'
+    type: object
+  client.setConversationMuteResponse:
+    properties:
+      conversation_id:
+        example: 7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4
+        type: string
+      muted:
+        example: true
+        type: boolean
     type: object
   client.setConversationPinResponse:
     properties:
@@ -3470,6 +3509,50 @@ paths:
       summary: 列出当前用户会话
       tags:
       - 客户端会话
+  /api/client/conversations/{conversation_id}:
+    delete:
+      description: 仅从当前用户的列表暂时移除会话，不删除消息或成员关系；出现新消息后会自动恢复。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.dismissConversationResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 从当前用户的对话列表移除会话
+      tags:
+      - 客户端会话
   /api/client/conversations/{conversation_id}/avatar:
     post:
       consumes:
@@ -4197,6 +4280,93 @@ paths:
       summary: 发送语音消息
       tags:
       - 客户端消息
+  /api/client/conversations/{conversation_id}/mute:
+    delete:
+      description: 为当前用户恢复一个有权访问会话的消息提醒。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.setConversationMuteResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 取消会话消息免打扰
+      tags:
+      - 客户端会话
+    put:
+      description: 为当前用户开启一个有权访问会话的消息免打扰。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.setConversationMuteResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 开启会话消息免打扰
+      tags:
+      - 客户端会话
   /api/client/conversations/{conversation_id}/pin:
     delete:
       description: 为当前用户取消置顶。内置应用茉莉不能取消置顶。
@@ -4438,6 +4608,50 @@ paths:
           schema:
             $ref: '#/definitions/client.errorEnvelope'
       summary: 标记会话已读
+      tags:
+      - 客户端会话
+  /api/client/conversations/{conversation_id}/restore:
+    post:
+      description: 用户主动打开一个之前从列表移除的会话时恢复它，不影响消息、成员关系和免打扰状态。
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: conversation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/client.successEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/client.restoreConversationResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.errorEnvelope'
+      summary: 将会话恢复到当前用户的对话列表
       tags:
       - 客户端会话
   /api/client/conversations/apps:

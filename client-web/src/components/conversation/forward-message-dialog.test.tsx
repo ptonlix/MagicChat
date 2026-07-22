@@ -196,6 +196,7 @@ function createConversation(
     lastMessageAt: null,
     lastMessageId: null,
     lastMessageSeq: 0,
+    lastMessageSender: null,
     lastMessageSummary: "",
     lastMentionedSeq: 0,
     lastReadSeq: 0,

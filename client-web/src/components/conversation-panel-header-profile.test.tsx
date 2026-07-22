@@ -143,7 +143,6 @@ describe("ConversationPanel header profile", () => {
       await screen.findByRole("dialog", { name: "项目群头像预览" })
     ).toBeInTheDocument()
   })
-
 })
 
 function renderConversationHeader(
@@ -202,6 +201,7 @@ function createConversation(
     unreadCount: 0,
     visibility: "private",
     ...overrides,
+    lastMessageSender: overrides.lastMessageSender ?? null,
   }
 }
 

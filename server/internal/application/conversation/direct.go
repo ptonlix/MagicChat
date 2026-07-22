@@ -18,7 +18,7 @@ func (s *Service) CreateDirect(ctx context.Context, cmd CreateDirectCommand) (Op
 	if err != nil {
 		return OpenResult{}, invalidRequest(err.Error(), err)
 	}
-	db := s.db
+	db := s.db.WithContext(ctx)
 	var target store.User
 	err = db.First(&target, "id = ? AND status = ?", targetID, store.UserStatusActive).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -31,6 +31,10 @@ func (s *Service) CreateDirect(ctx context.Context, cmd CreateDirectCommand) (Op
 	if err != nil {
 		return OpenResult{}, internalError(err)
 	}
+	conversation, restored, err := s.restoreConversationPreference(db, current.ID, conversation.ID)
+	if err != nil {
+		return OpenResult{}, internalError(err)
+	}
 	item := newItem(
 		conversation, current.ID,
 		[]store.ConversationMember{
@@ -39,9 +43,15 @@ func (s *Service) CreateDirect(ctx context.Context, cmd CreateDirectCommand) (Op
 		},
 		map[string]store.User{current.ID: current, target.ID: target}, nil,
 	)
-	if err := s.loadItemPinState(db, &item, current.ID); err != nil {
+	lastMessageSenders, err := loadLastMessageSenders(db, []store.Conversation{conversation})
+	if err != nil {
 		return OpenResult{}, internalError(err)
 	}
+	item.LastMessageSender = lastMessageSenders[conversation.ID]
+	if err := s.loadItemPreferenceState(db, &item, current.ID); err != nil {
+		return OpenResult{}, internalError(err)
+	}
+	s.publishConversationRestored(ctx, current.ID, conversation.ID, restored)
 	return OpenResult{Conversation: item, Created: created}, nil
 }
 

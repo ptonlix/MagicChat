@@ -866,8 +866,13 @@ func (r *topicConversationNotificationRecorder) PublishConversationMessage(_ con
 
 func (*topicConversationNotificationRecorder) PublishConversationRemoved(context.Context, []string, string) {
 }
+func (*topicConversationNotificationRecorder) PublishConversationRestored(context.Context, []string, string) {
+}
 
 func (*topicConversationNotificationRecorder) PublishConversationPinUpdated(context.Context, []string, ConversationPinEvent) {
+}
+
+func (*topicConversationNotificationRecorder) PublishConversationMuteUpdated(context.Context, []string, ConversationMuteEvent) {
 }
 
 func (r *topicConversationNotificationRecorder) PublishTopicEvent(_ context.Context, userIDs []string, event TopicEvent) {

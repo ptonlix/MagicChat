@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Plus } from "lucide-react"
+import { BellOff, Pin, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
@@ -7,6 +7,16 @@ import { ConversationAvatar } from "@/components/conversation/conversation-avata
 import { ConversationSearchPopover } from "@/components/conversation/conversation-search-popover"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +59,9 @@ export function ConversationSidebar({
   currentUser,
   drafts,
   onCreateGroup,
+  onDismissConversation,
   onSelectConversation,
+  onSetConversationMuted,
   onSetConversationPinned,
 }: {
   activeConversationId: string
@@ -59,13 +71,23 @@ export function ConversationSidebar({
   currentUser: ClientUser
   drafts: ConversationDrafts
   onCreateGroup: () => void
+  onDismissConversation?: (conversationId: string) => Promise<void>
   onSelectConversation: (conversationId: string) => void
+  onSetConversationMuted?: (
+    conversationId: string,
+    muted: boolean
+  ) => Promise<void>
   onSetConversationPinned: (
     conversationId: string,
     pinned: boolean
   ) => Promise<void>
 }) {
   const [pinningConversationId, setPinningConversationId] = React.useState("")
+  const [mutingConversationId, setMutingConversationId] = React.useState("")
+  const [dismissingConversationId, setDismissingConversationId] =
+    React.useState("")
+  const [dismissCandidate, setDismissCandidate] =
+    React.useState<ClientConversation | null>(null)
 
   async function handlePinnedChange(
     conversation: ClientConversation,
@@ -87,6 +109,50 @@ export function ConversationSidebar({
       )
     } finally {
       setPinningConversationId("")
+    }
+  }
+
+  async function handleMutedChange(
+    conversation: ClientConversation,
+    muted: boolean
+  ) {
+    if (mutingConversationId || !onSetConversationMuted) {
+      return
+    }
+    setMutingConversationId(conversation.id)
+    try {
+      await onSetConversationMuted(conversation.id, muted)
+      toast.success(muted ? "已开启消息免打扰" : "已取消消息免打扰")
+    } catch (error) {
+      toast.error(
+        getClientDataErrorMessage(
+          error,
+          muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
+        )
+      )
+    } finally {
+      setMutingConversationId("")
+    }
+  }
+
+  async function handleDismissConversation() {
+    if (
+      !dismissCandidate ||
+      dismissingConversationId ||
+      !onDismissConversation
+    ) {
+      return
+    }
+    const conversation = dismissCandidate
+    setDismissingConversationId(conversation.id)
+    try {
+      await onDismissConversation(conversation.id)
+      setDismissCandidate(null)
+      toast.success("对话已删除")
+    } catch (error) {
+      toast.error(getClientDataErrorMessage(error, "删除对话失败"))
+    } finally {
+      setDismissingConversationId("")
     }
   }
 
@@ -113,7 +179,8 @@ export function ConversationSidebar({
         contactsById,
         conversation,
         currentUser,
-      })
+      }),
+      currentUser.id
     )
   }
 
@@ -181,14 +248,22 @@ export function ConversationSidebar({
               hasUnreadMention,
               messageDescription: getConversationListDescription(
                 conversation,
-                mentionLabelResolver
+                mentionLabelResolver,
+                currentUser.id
               ),
               selected,
             })
 
             return (
               <ConversationListItemMenu
+                dismissing={dismissingConversationId === conversation.id}
                 key={conversation.id}
+                muted={Boolean(conversation.notificationMuted)}
+                muting={mutingConversationId === conversation.id}
+                onDismiss={() => setDismissCandidate(conversation)}
+                onMutedChange={(muted) =>
+                  void handleMutedChange(conversation, muted)
+                }
                 onPinnedChange={(pinned) =>
                   void handlePinnedChange(conversation, pinned)
                 }
@@ -227,13 +302,32 @@ export function ConversationSidebar({
                           </span>
                         )}
                       </div>
-                      <p className="w-full min-w-0 truncate text-left text-xs leading-normal font-normal text-muted-foreground">
-                        {preview.alertLabel && (
-                          <span className="mr-1 font-medium text-rose-700 dark:text-rose-300">
-                            {preview.alertLabel}
+                      <p className="flex w-full min-w-0 items-center gap-0.5 text-left text-xs leading-normal font-normal text-muted-foreground">
+                        <span className="min-w-0 flex-1 truncate">
+                          {preview.alertLabel && (
+                            <span className="mr-1 font-medium text-rose-700 dark:text-rose-300">
+                              {preview.alertLabel}
+                            </span>
+                          )}
+                          <span>{preview.description}</span>
+                        </span>
+                        {(conversation.pinned ||
+                          conversation.notificationMuted) && (
+                          <span className="mr-2 flex shrink-0 items-center gap-0.5">
+                            {conversation.pinned && (
+                              <Pin
+                                aria-label="已置顶"
+                                className="size-3! shrink-0"
+                              />
+                            )}
+                            {conversation.notificationMuted && (
+                              <BellOff
+                                aria-label="消息免打扰"
+                                className="size-3! shrink-0"
+                              />
+                            )}
                           </span>
                         )}
-                        <span>{preview.description}</span>
                       </p>
                     </div>
                   </SidebarMenuButton>
@@ -243,19 +337,72 @@ export function ConversationSidebar({
           })}
         </SidebarMenu>
       </SidebarContent>
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !dismissingConversationId) {
+            setDismissCandidate(null)
+          }
+        }}
+        open={Boolean(dismissCandidate)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除对话？</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后，该对话将暂时从列表中移除。收到新消息后会重新显示，聊天记录不会删除，也不会退出群聊。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(dismissingConversationId)}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(dismissingConversationId)}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDismissConversation()
+              }}
+              variant="destructive"
+            >
+              {dismissingConversationId ? "删除中..." : "删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   )
 }
 
 function getConversationListDescription(
   conversation: ClientConversation,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
+  currentUserId: string
 ) {
   const summary = conversation.lastMessageSummary.trim()
+  if (!summary) {
+    return "暂无消息"
+  }
 
-  return summary
-    ? formatMentionTemplateText(summary, mentionLabelResolver)
-    : "暂无消息"
+  const description = formatMentionTemplateText(summary, mentionLabelResolver)
+  const senderName = getLastMessageSenderName(conversation, currentUserId)
+  return senderName ? `${senderName}：${description}` : description
+}
+
+function getLastMessageSenderName(
+  conversation: ClientConversation,
+  currentUserId: string
+) {
+  const sender = conversation.lastMessageSender
+  if (!sender) {
+    return ""
+  }
+  if (sender.type === "system") {
+    return "系统"
+  }
+  if (sender.type === "user" && sender.id === currentUserId) {
+    return "我"
+  }
+  return sender.nickname.trim() || sender.name.trim()
 }
 
 function getConversationListPreview({
@@ -310,7 +457,14 @@ function ConversationListAvatar({
       />
       {conversation.unreadCount > 0 && (
         <span className="absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/3">
-          <ConversationUnreadBadge count={conversation.unreadCount} />
+          {conversation.notificationMuted ? (
+            <span
+              aria-label="有未读消息"
+              className="block size-2 rounded-full bg-rose-700"
+            />
+          ) : (
+            <ConversationUnreadBadge count={conversation.unreadCount} />
+          )}
         </span>
       )}
     </div>

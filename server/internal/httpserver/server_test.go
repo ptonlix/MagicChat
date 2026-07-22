@@ -94,7 +94,7 @@ func migrateTestSchema(db *gorm.DB) error {
 		&store.UserSession{},
 		&store.Conversation{},
 		&store.ConversationMember{},
-		&store.ConversationPin{},
+		&store.ConversationUserPreference{},
 		&store.Message{},
 		&store.MessageReaction{},
 		&store.MessageReactionState{},
@@ -4287,6 +4287,119 @@ func TestClientConversationPinLifecycleSortsAndPublishesRealtimeEvent(t *testing
 	requireError(t, assistantUnpinBody, "conflict")
 }
 
+func TestClientConversationMuteAndDismissLifecycle(t *testing.T) {
+	server, db := newTestRouter(t)
+	defer server.Close()
+	now := time.Date(2026, 7, 22, 4, 0, 0, 0, time.UTC)
+	alice := insertTestUser(t, db, "preference-http-alice@example.com", "Alice", store.UserStatusActive, now)
+	bob := insertTestUser(t, db, "preference-http-bob@example.com", "Bob", store.UserStatusActive, now)
+	lastMessageAt := now.Add(-time.Hour)
+	conversation := insertTestConversation(t, db, testConversationInput{
+		createdByUserID: alice.ID, kind: store.ConversationKindGroup,
+		lastMessageAt: &lastMessageAt, lastMessageSeq: 3,
+		memberIDs: []string{alice.ID, bob.ID}, name: "免打扰会话", now: now.Add(-2 * time.Hour),
+	})
+	cookie := loginAsUser(t, server, alice.Email)
+	conn := dialClientWebSocket(t, server, cookie)
+	defer conn.Close()
+	if ready := readRealtimeEvent(t, conn); ready.Event != realtime.EventSystemReady {
+		t.Fatalf("ready event = %#v", ready)
+	}
+
+	muteResp, muteBody := putJSON(t, server, "/api/client/conversations/"+conversation.ID+"/mute", map[string]any{}, cookie)
+	if muteResp.StatusCode != http.StatusOK {
+		t.Fatalf("mute status = %d, body = %#v", muteResp.StatusCode, muteBody)
+	}
+	muteEvent := readRealtimeEvent(t, conn)
+	if muteEvent.Event != realtime.EventConversationMuteUpdated {
+		t.Fatalf("mute event = %#v", muteEvent)
+	}
+	bobCookie := loginAsUser(t, server, bob.Email)
+	messageResp, messageBody := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/messages", map[string]any{
+		"client_message_id": "muted-message-1",
+		"body":              map[string]any{"type": "text", "content": "不会打扰 Alice"},
+	}, bobCookie)
+	if messageResp.StatusCode != http.StatusCreated {
+		t.Fatalf("send muted message status = %d, body = %#v", messageResp.StatusCode, messageBody)
+	}
+	messageEvent := readRealtimeEvent(t, conn)
+	if messageEvent.Event != realtime.EventMessageCreated {
+		t.Fatalf("message event = %#v", messageEvent)
+	}
+	var messagePayload map[string]any
+	if err := json.Unmarshal(messageEvent.Payload, &messagePayload); err != nil {
+		t.Fatalf("decode message event: %v", err)
+	}
+	if messagePayload["notification_muted"] != true {
+		t.Fatalf("message event payload = %#v", messagePayload)
+	}
+
+	listResp, listBody := getJSON(t, server, "/api/client/conversations", cookie)
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("muted list status = %d, body = %#v", listResp.StatusCode, listBody)
+	}
+	muted := findConversationResponseByID(requireConversations(t, requireSuccess(t, listBody)), conversation.ID)
+	if muted == nil || muted["notification_muted"] != true {
+		t.Fatalf("muted conversation = %#v", muted)
+	}
+
+	dismissResp, dismissBody := requestJSON(
+		t, server, http.MethodDelete, "/api/client/conversations/"+conversation.ID, map[string]any{}, cookie,
+	)
+	if dismissResp.StatusCode != http.StatusOK {
+		t.Fatalf("dismiss status = %d, body = %#v", dismissResp.StatusCode, dismissBody)
+	}
+	dismissEvent := readRealtimeEvent(t, conn)
+	if dismissEvent.Event != realtime.EventConversationRemoved {
+		t.Fatalf("dismiss event = %#v", dismissEvent)
+	}
+
+	_, hiddenBody := getJSON(t, server, "/api/client/conversations", cookie)
+	if hidden := findConversationResponseByID(requireConversations(t, requireSuccess(t, hiddenBody)), conversation.ID); hidden != nil {
+		t.Fatalf("dismissed conversation = %#v", hidden)
+	}
+	restoreResp, restoreBody := postJSON(t, server, "/api/client/conversations/"+conversation.ID+"/restore", map[string]any{}, cookie)
+	if restoreResp.StatusCode != http.StatusOK {
+		t.Fatalf("restore status = %d, body = %#v", restoreResp.StatusCode, restoreBody)
+	}
+	restored := requireSuccess(t, restoreBody)["conversation"].(map[string]any)
+	if restored["id"] != conversation.ID || restored["notification_muted"] != true {
+		t.Fatalf("restored conversation = %#v", restored)
+	}
+	restoreEvent := readRealtimeEvent(t, conn)
+	if restoreEvent.Event != realtime.EventConversationRestored {
+		t.Fatalf("restore event = %#v", restoreEvent)
+	}
+	secondDismissResp, secondDismissBody := requestJSON(
+		t, server, http.MethodDelete, "/api/client/conversations/"+conversation.ID, map[string]any{}, cookie,
+	)
+	if secondDismissResp.StatusCode != http.StatusOK {
+		t.Fatalf("second dismiss status = %d, body = %#v", secondDismissResp.StatusCode, secondDismissBody)
+	}
+	if secondDismissEvent := readRealtimeEvent(t, conn); secondDismissEvent.Event != realtime.EventConversationRemoved {
+		t.Fatalf("second dismiss event = %#v", secondDismissEvent)
+	}
+	if err := db.Model(&store.Conversation{}).Where("id = ?", conversation.ID).
+		Update("last_message_seq", 5).Error; err != nil {
+		t.Fatalf("advance conversation: %v", err)
+	}
+	_, reactivatedBody := getJSON(t, server, "/api/client/conversations", cookie)
+	reactivated := findConversationResponseByID(requireConversations(t, requireSuccess(t, reactivatedBody)), conversation.ID)
+	if reactivated == nil || reactivated["notification_muted"] != true || reactivated["pinned"] != false || reactivated["unread_count"] != float64(1) {
+		t.Fatalf("reactivated conversation = %#v", reactivated)
+	}
+}
+
+func findConversationResponseByID(values []any, conversationID string) map[string]any {
+	for _, value := range values {
+		conversation, ok := value.(map[string]any)
+		if ok && conversation["id"] == conversationID {
+			return conversation
+		}
+	}
+	return nil
+}
+
 func TestListClientConversationsCreatesBuiltinAssistantConversationOnce(t *testing.T) {
 	server, db := newTestRouter(t)
 	defer server.Close()
@@ -4378,8 +4491,8 @@ func TestListClientConversationsLimitsToRecent100(t *testing.T) {
 			oldestConversation = conversation
 		}
 	}
-	if err := db.Create(&store.ConversationPin{
-		UserID: alice.ID, ConversationID: oldestConversation.ID, CreatedAt: now,
+	if err := db.Create(&store.ConversationUserPreference{
+		UserID: alice.ID, ConversationID: oldestConversation.ID, Pinned: true, CreatedAt: now, UpdatedAt: now,
 	}).Error; err != nil {
 		t.Fatalf("pin oldest conversation: %v", err)
 	}

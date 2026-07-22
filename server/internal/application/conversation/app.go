@@ -24,11 +24,16 @@ func (s *Service) CreateApp(ctx context.Context, cmd CreateAppCommand) (OpenResu
 			return OpenResult{}, internalError(err)
 		}
 	}
-	conversation, app, created, err := s.getOrCreateAccessibleAppConversation(s.db.WithContext(ctx), current, appID)
+	db := s.db.WithContext(ctx)
+	conversation, app, created, err := s.getOrCreateAccessibleAppConversation(db, current, appID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return OpenResult{}, notFound("应用不存在", err)
 		}
+		return OpenResult{}, internalError(err)
+	}
+	conversation, restored, err := s.restoreConversationPreference(db, current.ID, conversation.ID)
+	if err != nil {
 		return OpenResult{}, internalError(err)
 	}
 	item := newItem(
@@ -39,9 +44,15 @@ func (s *Service) CreateApp(ctx context.Context, cmd CreateAppCommand) (OpenResu
 		},
 		map[string]store.User{current.ID: current}, map[string]store.App{app.ID: app},
 	)
-	if err := s.loadItemPinState(s.db.WithContext(ctx), &item, current.ID); err != nil {
+	lastMessageSenders, err := loadLastMessageSenders(db, []store.Conversation{conversation})
+	if err != nil {
 		return OpenResult{}, internalError(err)
 	}
+	item.LastMessageSender = lastMessageSenders[conversation.ID]
+	if err := s.loadItemPreferenceState(db, &item, current.ID); err != nil {
+		return OpenResult{}, internalError(err)
+	}
+	s.publishConversationRestored(ctx, current.ID, conversation.ID, restored)
 	return OpenResult{Conversation: item, Created: created}, nil
 }
 

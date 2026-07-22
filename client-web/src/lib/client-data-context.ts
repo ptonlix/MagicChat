@@ -70,6 +70,7 @@ export type ClientDataContextValue = {
     groupIds?: string[]
   ) => Promise<ClientProjectDetail>
   dissolveGroupConversation: (conversationId: string) => Promise<void>
+  dismissConversation: (conversationId: string) => Promise<void>
   ensureConversationMessages: (conversationId: string) => void
   getConversation: (conversationId: string) => ClientConversation | null
   getConversationMessageState: (
@@ -83,6 +84,10 @@ export type ClientDataContextValue = {
   setConversationPinned: (
     conversationId: string,
     pinned: boolean
+  ) => Promise<void>
+  setConversationMuted: (
+    conversationId: string,
+    muted: boolean
   ) => Promise<void>
   handleIncomingConversationMessage: (
     message: ClientMessage,
@@ -107,6 +112,7 @@ export type ClientDataContextValue = {
   ) => void
   openDirectConversation: (userId: string) => Promise<ClientConversation>
   openAppConversation: (appId: string) => Promise<ClientConversation>
+  restoreConversation: (conversationId: string) => Promise<ClientConversation>
   joinGroupConversation: (conversationId: string) => Promise<ClientConversation>
   leaveGroupConversation: (conversationId: string) => Promise<void>
   removeConversation: (conversationId: string) => void
@@ -179,6 +185,7 @@ export type ClientDataContextValue = {
   syncLoadedConversationMessages: () => void
   updateConversationLastMessage: (message: ClientMessage) => void
   updateConversationPinned: (conversationId: string, pinned: boolean) => void
+  updateConversationMuted: (conversationId: string, muted: boolean) => void
   updateGroupConversationAvatar: (
     conversationId: string,
     file: File

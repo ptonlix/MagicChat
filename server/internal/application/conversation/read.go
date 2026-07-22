@@ -35,55 +35,63 @@ func (s *Service) MarkRead(ctx context.Context, cmd ReadCommand) (ReadResult, er
 func (s *Service) markRead(db *gorm.DB, userID, conversationID string, upToSeq *int64) (ReadResult, error) {
 	var response ReadResult
 	err := db.Transaction(func(tx *gorm.DB) error {
-		access, err := conversationaccess.Load(tx, conversationID, true)
-		if err != nil {
-			return err
-		}
-		conversation := access.Conversation
-		if conversation.Status != store.ConversationStatusActive {
-			return ErrAccessDenied
-		}
-		member, err := conversationaccess.RequireUserMember(tx, access, userID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrAccessDenied
-			}
-			return err
-		}
-		if !conversationaccess.TopicSourceVisibleToMember(access, member) {
-			return ErrAccessDenied
-		}
-		if access.ParentConversation != nil && access.ParentConversation.Status != store.ConversationStatusActive {
-			return ErrAccessDenied
-		}
-		targetSeq := conversation.LastMessageSeq
-		if upToSeq != nil && *upToSeq < targetSeq {
-			targetSeq = *upToSeq
-		}
-		if access.IsTopic() {
-			participant, err := conversationaccess.TopicParticipant(tx, conversationID, store.ConversationMemberTypeUser, userID)
-			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ErrAccessDenied
-				}
-				return err
-			}
-			var targetMessageID *string
-			if targetSeq == conversation.LastMessageSeq {
-				targetMessageID = conversation.LastMessageID
-			}
-			if err := conversationaccess.AdvanceTopicParticipantReadSeq(tx, conversationID, store.ConversationMemberTypeUser, userID, targetSeq, targetMessageID, time.Now().UTC()); err != nil {
-				return err
-			}
-			member.LastReadSeq = participant.LastReadSeq
-		} else if err := advanceReadSeq(tx, conversationID, userID, targetSeq); err != nil {
-			return err
-		}
-		if targetSeq > member.LastReadSeq {
-			member.LastReadSeq = targetSeq
-		}
-		response = ReadResult{ConversationID: conversationID, LastReadSeq: member.LastReadSeq, UnreadCount: unreadCount(conversation.LastMessageSeq, member.LastReadSeq)}
-		return nil
+		var err error
+		response, err = markReadTransaction(tx, userID, conversationID, upToSeq)
+		return err
 	})
 	return response, err
+}
+
+func markReadTransaction(tx *gorm.DB, userID, conversationID string, upToSeq *int64) (ReadResult, error) {
+	access, err := conversationaccess.Load(tx, conversationID, true)
+	if err != nil {
+		return ReadResult{}, err
+	}
+	conversation := access.Conversation
+	if conversation.Status != store.ConversationStatusActive {
+		return ReadResult{}, ErrAccessDenied
+	}
+	member, err := conversationaccess.RequireUserMember(tx, access, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ReadResult{}, ErrAccessDenied
+		}
+		return ReadResult{}, err
+	}
+	if !conversationaccess.TopicSourceVisibleToMember(access, member) {
+		return ReadResult{}, ErrAccessDenied
+	}
+	if access.ParentConversation != nil && access.ParentConversation.Status != store.ConversationStatusActive {
+		return ReadResult{}, ErrAccessDenied
+	}
+	targetSeq := conversation.LastMessageSeq
+	if upToSeq != nil && *upToSeq < targetSeq {
+		targetSeq = *upToSeq
+	}
+	if access.IsTopic() {
+		participant, err := conversationaccess.TopicParticipant(tx, conversationID, store.ConversationMemberTypeUser, userID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ReadResult{}, ErrAccessDenied
+			}
+			return ReadResult{}, err
+		}
+		var targetMessageID *string
+		if targetSeq == conversation.LastMessageSeq {
+			targetMessageID = conversation.LastMessageID
+		}
+		if err := conversationaccess.AdvanceTopicParticipantReadSeq(tx, conversationID, store.ConversationMemberTypeUser, userID, targetSeq, targetMessageID, time.Now().UTC()); err != nil {
+			return ReadResult{}, err
+		}
+		member.LastReadSeq = participant.LastReadSeq
+	} else if err := advanceReadSeq(tx, conversationID, userID, targetSeq); err != nil {
+		return ReadResult{}, err
+	}
+	if targetSeq > member.LastReadSeq {
+		member.LastReadSeq = targetSeq
+	}
+	return ReadResult{
+		ConversationID: conversationID, LastReadSeq: member.LastReadSeq,
+		UnreadCount: unreadCount(conversation.LastMessageSeq, member.LastReadSeq),
+	}, nil
 }

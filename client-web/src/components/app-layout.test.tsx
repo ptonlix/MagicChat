@@ -11,7 +11,10 @@ import { AppInfoContext } from "@/lib/app-info-context"
 
 const mocks = vi.hoisted(() => ({
   clientData: {
-    conversations: [] as Array<{ unreadCount: number }>,
+    conversations: [] as Array<{
+      notificationMuted?: boolean
+      unreadCount: number
+    }>,
     me: {
       avatar: "",
       createdAt: "2026-07-09T00:00:00Z",
@@ -57,6 +60,21 @@ vi.mock("@/lib/client-data-api", () => ({
 }))
 
 describe("AppLayout", () => {
+  it("does not include muted conversations in the global unread indicator", () => {
+    mocks.clientData.conversations = [
+      { notificationMuted: true, unreadCount: 8 },
+    ]
+
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByLabelText("聊天")).toBeInTheDocument()
+    expect(screen.queryByLabelText("聊天，有未读消息")).not.toBeInTheDocument()
+  })
+
   it("splits profile and settings actions in the user avatar menu", async () => {
     const user = userEvent.setup()
 

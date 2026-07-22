@@ -49,6 +49,7 @@ export function ContactsPage() {
     openDirectConversation,
     refreshContacts,
     refreshConversations,
+    restoreConversation,
   } = useClientData()
   const location = useLocation()
   const navigate = useNavigate()
@@ -210,19 +211,15 @@ export function ContactsPage() {
 
   async function openOrJoinGroupConversation(group: ContactGroup) {
     const itemKey = directoryItemKey("group", group.id)
-
-    if (group.joined) {
-      navigate(`/chat/${encodeURIComponent(group.id)}`)
-      return
-    }
-
     setOpeningDirectoryItemKey(itemKey)
 
     try {
-      const conversation = await joinGroupConversation(group.id)
+      const conversation = group.joined
+        ? await restoreConversation(group.id)
+        : await joinGroupConversation(group.id)
       navigate(`/chat/${encodeURIComponent(conversation.id)}`)
     } catch {
-      toast.error("无法加入群聊")
+      toast.error(group.joined ? "无法打开群聊" : "无法加入群聊")
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
         currentItemKey === itemKey ? "" : currentItemKey

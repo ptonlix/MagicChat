@@ -8,17 +8,27 @@ import (
 	"app/internal/store"
 )
 
-func (s *Server) PublishMessageCreated(_ context.Context, deliveries []messageapp.Delivery) {
+func (s *Server) PublishMessageCreated(ctx context.Context, deliveries []messageapp.Delivery) {
+	mutedTargets := s.loadDeliveryNotificationMutedTargets(ctx, deliveries)
 	for _, delivery := range deliveries {
 		s.realtime.SendToUsers(
 			[]string{delivery.UserID},
-			realtimeMessageCreatedEvent(legacyMessageResponse(delivery.Message)),
+			realtimeMessageCreatedEvent(
+				legacyMessageResponse(delivery.Message),
+				mutedTargets[notificationTargetKey(delivery.Message.ConversationID, delivery.UserID)],
+			),
 		)
 	}
 }
 
-func (s *Server) PublishSharedMessageCreated(_ context.Context, userIDs []string, message messageapp.Message) {
-	s.realtime.SendToUsers(userIDs, realtimeMessageCreatedEvent(legacyMessageResponse(message)))
+func (s *Server) PublishSharedMessageCreated(ctx context.Context, userIDs []string, message messageapp.Message) {
+	mutedTargets := s.loadNotificationMutedTargets(ctx, message.ConversationID, userIDs)
+	for _, userID := range userIDs {
+		s.realtime.SendToUsers(
+			[]string{userID},
+			realtimeMessageCreatedEvent(legacyMessageResponse(message), mutedTargets[userID]),
+		)
+	}
 }
 
 func (s *Server) PublishMessageUpdated(_ context.Context, deliveries []messageapp.Delivery) {

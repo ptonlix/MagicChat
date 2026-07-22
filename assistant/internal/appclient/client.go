@@ -51,7 +51,7 @@ const (
 	methodEventsAck                = "events.ack"
 
 	defaultConversationContextLimit = 30
-	complexTaskTopicNotice          = "这个工作比较复杂，我准备创建一个独立的讨论主题来跟进。"
+	complexTaskTopicNotice          = "这个工作有点复杂，我会创建一个独立的话题来跟进。"
 )
 
 var appMentionTokenPattern = regexp.MustCompile(`\{\(@app/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)\}`)

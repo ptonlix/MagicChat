@@ -95,18 +95,27 @@ export type ConversationResponse = {
   last_message_at?: string | null
   last_message_id?: string | null
   last_message_seq?: number
+  last_message_sender?: ConversationLastMessageSenderResponse | null
   last_message_summary?: string
   last_mentioned_seq?: number
   last_read_seq?: number
   member_count?: number
   members?: ConversationMemberResponse[]
   name?: string
+  notification_muted?: boolean
   pinned?: boolean
   projects?: ConversationProjectResponse[]
   type?: string
   topic?: ConversationTopicMetadataResponse | null
   unread_count?: number
   visibility?: string
+}
+
+export type ConversationLastMessageSenderResponse = {
+  id?: string
+  name?: string
+  nickname?: string
+  type?: string
 }
 
 export type ConversationTopicMetadataResponse = {
@@ -185,6 +194,19 @@ export type ListClientConversationsResponse = {
 export type SetConversationPinResponse = {
   conversation_id?: string
   pinned?: boolean
+}
+
+export type SetConversationMuteResponse = {
+  conversation_id?: string
+  muted?: boolean
+}
+
+export type DismissConversationResponse = {
+  conversation_id?: string
+}
+
+export type RestoreConversationResponse = {
+  conversation?: ConversationResponse
 }
 
 export type CreateDirectConversationResponse = {
@@ -527,6 +549,7 @@ export type MarkConversationReadResponse = {
 
 export type MessageCreatedEventPayloadResponse = {
   message?: MessageResponse
+  notification_muted?: boolean
 }
 
 export type MessageUpdatedEventPayloadResponse = {
@@ -559,6 +582,11 @@ export type ConversationMemberMentionedEventPayloadResponse = {
 export type ConversationPinUpdatedEventPayloadResponse = {
   conversation_id?: string
   pinned?: boolean
+}
+
+export type ConversationMuteUpdatedEventPayloadResponse = {
+  conversation_id?: string
+  muted?: boolean
 }
 
 export type TopicEventPayloadResponse = {
@@ -644,18 +672,27 @@ export type ClientConversation = {
   lastMessageAt: string | null
   lastMessageId: string | null
   lastMessageSeq: number
+  lastMessageSender: ClientConversationLastMessageSender | null
   lastMessageSummary: string
   lastMentionedSeq: number
   lastReadSeq: number
   memberCount: number
   members?: ClientConversationMember[]
   name: string
+  notificationMuted?: boolean
   pinned?: boolean
   projects?: ClientConversationProject[]
   type: "direct" | "group" | "app" | "topic"
   topic?: ClientConversationTopic
   unreadCount: number
   visibility: "private" | "public"
+}
+
+export type ClientConversationLastMessageSender = {
+  id: string
+  name: string
+  nickname: string
+  type: "user" | "app" | "system"
 }
 
 export type ClientConversationTopic = {

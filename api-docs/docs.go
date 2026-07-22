@@ -3728,6 +3728,77 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/client/conversations/{conversation_id}": {
+            "delete": {
+                "description": "仅从当前用户的列表暂时移除会话，不删除消息或成员关系；出现新消息后会自动恢复。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "从当前用户的对话列表移除会话",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.dismissConversationResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/conversations/{conversation_id}/avatar": {
             "post": {
                 "description": "群主或管理员上传裁切后的 WebP 群头像。头像必须是 256x256，文件会写入 public bucket，并生成一条系统消息。",
@@ -4884,6 +4955,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/client/conversations/{conversation_id}/mute": {
+            "put": {
+                "description": "为当前用户开启一个有权访问会话的消息免打扰。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "开启会话消息免打扰",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.setConversationMuteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "为当前用户恢复一个有权访问会话的消息提醒。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "取消会话消息免打扰",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.setConversationMuteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/api/client/conversations/{conversation_id}/pin": {
             "put": {
                 "description": "为当前用户置顶一个有权访问的会话。置顶状态仅影响当前用户。",
@@ -5233,6 +5444,77 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/client.markConversationReadResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/client.errorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/client/conversations/{conversation_id}/restore": {
+            "post": {
+                "description": "用户主动打开一个之前从列表移除的会话时恢复它，不影响消息、成员关系和免打扰状态。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "客户端会话"
+                ],
+                "summary": "将会话恢复到当前用户的对话列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/client.successEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/client.restoreConversationResponse"
                                         }
                                     }
                                 }
@@ -7731,6 +8013,24 @@ const docTemplate = `{
                 }
             }
         },
+        "client.conversationLastMessageSenderResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "user"
+                }
+            }
+        },
         "client.conversationListItemResponse": {
             "type": "object",
             "properties": {
@@ -7762,6 +8062,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
                 },
+                "last_message_sender": {
+                    "$ref": "#/definitions/client.conversationLastMessageSenderResponse"
+                },
                 "last_message_seq": {
                     "type": "integer",
                     "example": 12
@@ -7787,6 +8090,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "张三"
+                },
+                "notification_muted": {
+                    "type": "boolean",
+                    "example": false
                 },
                 "pinned": {
                     "type": "boolean",
@@ -8131,6 +8438,15 @@ const docTemplate = `{
                 }
             }
         },
+        "client.dismissConversationResponse": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                }
+            }
+        },
         "client.dissolveGroupConversationResponse": {
             "type": "object",
             "properties": {
@@ -8277,6 +8593,9 @@ const docTemplate = `{
                 "last_message_id": {
                     "type": "string",
                     "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "last_message_sender": {
+                    "$ref": "#/definitions/client.conversationLastMessageSenderResponse"
                 },
                 "last_message_seq": {
                     "type": "integer",
@@ -9025,6 +9344,14 @@ const docTemplate = `{
                 }
             }
         },
+        "client.restoreConversationResponse": {
+            "type": "object",
+            "properties": {
+                "conversation": {
+                    "$ref": "#/definitions/client.conversationListItemResponse"
+                }
+            }
+        },
         "client.revokeConversationMessageResponse": {
             "type": "object",
             "properties": {
@@ -9033,6 +9360,19 @@ const docTemplate = `{
                 },
                 "system_message": {
                     "$ref": "#/definitions/client.messageResponse"
+                }
+            }
+        },
+        "client.setConversationMuteResponse": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "example": "7f8d8b84-6d2c-4b12-9a8a-019a7e2787d4"
+                },
+                "muted": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },

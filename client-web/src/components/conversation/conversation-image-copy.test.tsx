@@ -161,6 +161,7 @@ function createConversation(): ClientConversation {
     lastMessageAt: null,
     lastMessageId: null,
     lastMessageSeq: 1,
+    lastMessageSender: null,
     lastMessageSummary: "[图片]",
     lastMentionedSeq: 0,
     lastReadSeq: 1,

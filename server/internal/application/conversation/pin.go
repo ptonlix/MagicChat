@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"app/internal/application/conversationaccess"
 	"app/internal/store"
 
 	"gorm.io/gorm"
@@ -23,33 +22,8 @@ func (s *Service) SetPinned(ctx context.Context, cmd SetPinCommand) (SetPinResul
 
 	changed := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := conversationaccess.Load(tx, conversationID, false)
-		if err != nil {
+		if _, err := requireConversationPreferenceAccess(tx, conversationID, accountID); err != nil {
 			return err
-		}
-		if access.Conversation.Status != store.ConversationStatusActive ||
-			(access.ParentConversation != nil && access.ParentConversation.Status != store.ConversationStatusActive) {
-			return ErrAccessDenied
-		}
-		member, err := conversationaccess.RequireUserMember(tx, access, accountID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrAccessDenied
-			}
-			return err
-		}
-		if !conversationaccess.TopicSourceVisibleToMember(access, member) {
-			return ErrAccessDenied
-		}
-		if access.IsTopic() {
-			if _, err := conversationaccess.TopicParticipant(
-				tx, conversationID, store.ConversationMemberTypeUser, accountID,
-			); err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ErrAccessDenied
-				}
-				return err
-			}
 		}
 		if conversationID == builtinAssistantConversationID(accountID) {
 			if !cmd.Pinned {
@@ -58,23 +32,27 @@ func (s *Service) SetPinned(ctx context.Context, cmd SetPinCommand) (SetPinResul
 			return nil
 		}
 
-		if cmd.Pinned {
-			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&store.ConversationPin{
-				UserID: accountID, ConversationID: conversationID, CreatedAt: s.now().UTC(),
-			})
-			if result.Error != nil {
-				return result.Error
-			}
-			changed = result.RowsAffected > 0
+		var current store.ConversationUserPreference
+		query := tx.First(&current, "user_id = ? AND conversation_id = ?", accountID, conversationID)
+		if query.Error != nil && !errors.Is(query.Error, gorm.ErrRecordNotFound) {
+			return query.Error
+		}
+		changed = current.Pinned != cmd.Pinned
+		if !changed {
 			return nil
 		}
-		result := tx.Where("user_id = ? AND conversation_id = ?", accountID, conversationID).
-			Delete(&store.ConversationPin{})
-		if result.Error != nil {
-			return result.Error
+		now := s.now().UTC()
+		preference := store.ConversationUserPreference{
+			UserID: accountID, ConversationID: conversationID, Pinned: cmd.Pinned,
+			CreatedAt: now, UpdatedAt: now,
 		}
-		changed = result.RowsAffected > 0
-		return nil
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}, {Name: "conversation_id"}},
+			DoUpdates: clause.Assignments(map[string]any{"pinned": cmd.Pinned, "updated_at": now}),
+		}).Create(&preference).Error; err != nil {
+			return err
+		}
+		return deleteEmptyConversationPreference(tx, accountID, conversationID)
 	})
 	if err != nil {
 		switch {
