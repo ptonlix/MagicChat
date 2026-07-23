@@ -13,16 +13,25 @@ export type DesktopRendererHost = {
   requestNotificationPermission?: () => Promise<"default" | "denied" | "granted" | "unsupported">
   resolveResourceUrl?: (url: string) => string
   setBadge?: (count: number) => void
+  setTrayMessages?: (messages: ReadonlyArray<TrayMessageInput>) => void
   showMessageNotification?: (input: { conversationId: string; messageId: string; preview: string; sender: string }) => boolean
   subscribeThirdPartyLoginFinished?: (listener: (result: DesktopAuthResult) => void) => () => void
   writeClipboardPng?: (bytes: Uint8Array) => Promise<void>
   writeClipboardText?: (value: string) => Promise<void>
 }
 
+export type TrayMessageInput = {
+  conversationId: string
+  name: string
+  summary: string
+  unreadCount: number
+}
+
 export function getHostNotificationPermission() { return desktopRendererHost.notificationPermission?.() }
 export function requestHostNotificationPermission() { return desktopRendererHost.requestNotificationPermission?.() }
 export function requestHostMicrophonePermission() { return desktopRendererHost.requestMicrophonePermission?.() }
 export function setHostBadge(count: number) { desktopRendererHost.setBadge?.(count) }
+export function setHostTrayMessages(messages: ReadonlyArray<TrayMessageInput>) { desktopRendererHost.setTrayMessages?.(messages) }
 export function resolveHostResourceUrl(url: string) { return desktopRendererHost.resolveResourceUrl?.(url) ?? url }
 export function openHostSettings(): boolean {
   if (!desktopRendererHost.openSettings) return false

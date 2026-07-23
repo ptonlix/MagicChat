@@ -15,6 +15,7 @@ export const IPC = {
   authFinished: "desktop:v1:auth-finished",
   authStart: "desktop:v1:auth-start",
   badgeSet: "desktop:v1:badge-set",
+  trayMessagesSet: "desktop:v1:tray-messages-set",
   clipboardWritePng: "desktop:v1:clipboard-write-png",
   clipboardWriteText: "desktop:v1:clipboard-write-text",
   diagnosticsExport: "desktop:v1:diagnostics-export",
@@ -110,6 +111,7 @@ export interface DesktopBridge {
   readonly version: typeof BRIDGE_VERSION
   app: { info(): Promise<DesktopAppInfo> }
   badge: { set(count: number): Promise<void> }
+  tray: { setMessages(messages: ReadonlyArray<TrayMessage>): Promise<void> }
   clipboard: {
     writePng(bytes: Uint8Array): Promise<void>
     writeText(value: string): Promise<void>
@@ -178,4 +180,12 @@ export type NotificationInput = Readonly<{
   sender?: string
   target: AuthenticatedTarget
   workspace?: string
+}>
+
+export type TrayMessage = Readonly<{
+  conversationId: string
+  name: string
+  serverId: string
+  summary: string
+  unreadCount: number
 }>

@@ -3,10 +3,13 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { app, Menu, nativeImage, session, systemPreferences, Tray } from "electron"
 import { ConfigStore } from "@main/config-store"
+import { formatUnreadBadge } from "@main/unread-badge"
 import { WindowController } from "@main/window-controller"
+import type { TrayMessage } from "@shared/bridge"
 
 export class SystemIntegration {
   private tray?: Tray
+  private trayMessages: ReadonlyArray<TrayMessage> = []
   private readonly granted = new Set<"microphone" | "notifications">()
 
   constructor(private readonly store: ConfigStore, private readonly windows: WindowController) {}
@@ -16,14 +19,9 @@ export class SystemIntegration {
       const image = nativeImage.createFromPath(iconPath)
       if (image.isEmpty()) return false
       this.tray = new Tray(image.resize({ height: 20, width: 20 }))
-      this.tray.setToolTip("MagicChat")
-      this.tray.setContextMenu(Menu.buildFromTemplate([
-        { label: "显示 MagicChat", click: () => this.windows.show() },
-        { label: "隐藏窗口", click: () => this.windows.hide() },
-        { type: "separator" },
-        { label: "退出", click: () => app.quit() },
-      ]))
-      this.tray.on("click", () => this.windows.show())
+      this.tray.setToolTip("即应")
+      this.refreshTrayMenu()
+      this.tray.on("click", () => this.tray?.popUpContextMenu())
       return true
     } catch { return false }
   }
@@ -36,9 +34,42 @@ export class SystemIntegration {
 
   setBadge(count: number): void {
     const normalized = Math.max(0, Math.min(9999, Math.trunc(count)))
-    if (process.platform === "darwin") app.dock?.setBadge(normalized ? String(normalized) : "")
+    if (process.platform === "darwin") {
+      const badge = formatUnreadBadge(normalized)
+      app.dock?.setBadge(badge)
+      this.tray?.setTitle(badge ? ` ${badge}` : "")
+    }
     else if (process.platform === "linux") app.setBadgeCount(normalized)
-    else this.tray?.setToolTip(normalized ? `MagicChat（${normalized} 条未读）` : "MagicChat")
+    else this.tray?.setToolTip(normalized ? `即应（${normalized} 条未读）` : "即应")
+  }
+
+  setTrayMessages(messages: ReadonlyArray<TrayMessage>): void {
+    this.trayMessages = messages
+    this.refreshTrayMenu()
+  }
+
+  private refreshTrayMenu(): void {
+    if (!this.tray) return
+    const messageItems = this.trayMessages.length > 0
+      ? this.trayMessages.map((message) => ({
+          click: () => void this.openTrayMessage(message).catch(() => this.windows.show()),
+          label: trayMessageLabel(message.name, message.unreadCount),
+          sublabel: message.summary,
+        }))
+      : [{ enabled: false, label: "暂无最新消息" }]
+
+    this.tray.setContextMenu(Menu.buildFromTemplate([
+      { enabled: false, label: "最新消息" },
+      ...messageItems,
+      { type: "separator" },
+      { label: "打开即应", click: () => this.windows.show() },
+      { label: "关闭即应", click: () => app.quit() },
+    ]))
+  }
+
+  private async openTrayMessage(message: TrayMessage): Promise<void> {
+    await this.store.setSettings({ selectedServerId: message.serverId })
+    await this.windows.verifyAndNavigate(`/chat/${encodeURIComponent(message.conversationId)}`)
   }
 
   configurePermissions(): void {
@@ -61,6 +92,11 @@ export class SystemIntegration {
     if (permission === "notifications") return this.granted.has("notifications")
     return false
   }
+}
+
+function trayMessageLabel(name: string, unreadCount: number): string {
+  const badge = formatUnreadBadge(unreadCount)
+  return badge ? `${name}  [${badge}]` : name
 }
 
 export function runtimeIconPath(): string {

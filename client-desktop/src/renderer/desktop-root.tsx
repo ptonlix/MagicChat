@@ -98,6 +98,9 @@ function DesktopHostedApp({ profile, target, onAuthenticated, onOpenSettings }: 
       requestNotificationPermission: async () => await window.desktop.permissions.request("notifications") ? "granted" : "denied",
       resolveResourceUrl: (url) => resolveDesktopResourceUrl(profile, url),
       setBadge: (count) => { void window.desktop.badge.set(count) },
+      setTrayMessages: (messages) => {
+        void window.desktop.tray.setMessages(messages.map((message) => ({ ...message, serverId: profile.id })))
+      },
       showMessageNotification: (input) => {
         void window.desktop.notifications.show({ ...input, target, workspace: profile.displayName })
         return true

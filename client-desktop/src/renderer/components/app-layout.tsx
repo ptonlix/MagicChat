@@ -10,7 +10,7 @@ import {
   SunMoon,
   UserRound,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { NavLink, Outlet, useMatch, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -42,7 +42,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { clientLogout } from "@/lib/client-auth"
-import { openHostSettings, setHostBadge } from "@/lib/desktop-host"
+import { openHostSettings, setHostBadge, setHostTrayMessages } from "@/lib/desktop-host"
+import { selectLatestTrayMessages } from "@/lib/tray-messages"
 import {
   updateCurrentClientUser,
   uploadCurrentClientAvatar,
@@ -73,10 +74,18 @@ export function AppLayout() {
     0
   )
   const hasUnreadMessages = totalUnreadCount > 0
+  const trayMessages = useMemo(
+    () => selectLatestTrayMessages(conversations),
+    [conversations]
+  )
   useEffect(() => {
     setHostBadge(totalUnreadCount)
-    return () => setHostBadge(0)
-  }, [totalUnreadCount])
+    setHostTrayMessages(trayMessages)
+    return () => {
+      setHostBadge(0)
+      setHostTrayMessages([])
+    }
+  }, [totalUnreadCount, trayMessages])
   const [notificationAnimation, setNotificationAnimation] = useState({
     active: false,
     unreadCount: totalUnreadCount,

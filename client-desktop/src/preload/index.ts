@@ -6,6 +6,7 @@ const bridge: DesktopBridge = {
   version: BRIDGE_VERSION,
   app: { info: () => ipcRenderer.invoke(IPC.appInfo) },
   badge: { set: (count) => ipcRenderer.invoke(IPC.badgeSet, count) },
+  tray: { setMessages: (messages) => ipcRenderer.invoke(IPC.trayMessagesSet, messages) },
   clipboard: {
     writePng: (bytes) => ipcRenderer.invoke(IPC.clipboardWritePng, bytes),
     writeText: (value) => ipcRenderer.invoke(IPC.clipboardWriteText, value),

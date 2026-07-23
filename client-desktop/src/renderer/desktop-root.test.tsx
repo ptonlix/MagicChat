@@ -103,6 +103,7 @@ function createDesktopBridge(): DesktopBridge {
       subscribeFinished: vi.fn().mockReturnValue(unsubscribe),
     },
     badge: { set: vi.fn() },
+    tray: { setMessages: vi.fn() },
     clipboard: { writePng: vi.fn(), writeText: vi.fn() },
     diagnostics: { export: vi.fn(), reportRuntime: vi.fn() },
     files: {
