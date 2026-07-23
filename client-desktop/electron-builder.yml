@@ -3,8 +3,8 @@ productName: MagicChat
 artifactName: "MagicChat-${version}-${os}-${arch}.${ext}"
 asar: true
 electronDownload:
- mirrorOptions:
-  mirror: https://npmmirror.com/mirrors/electron/
+  mirrorOptions:
+    mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.mjs
 directories:
   output: dist
@@ -50,10 +50,11 @@ mac:
     - target: zip
       arch: [universal]
   identity: null
-  minimumSystemVersion: "22.0.0"
+  minimumSystemVersion: "13.0"
 linux:
   icon: public/logo.png
   category: Network;Chat
+  maintainer: "MagicChat <support@magicchat.com>"
   target:
     - target: AppImage
       arch: [x64, arm64]
