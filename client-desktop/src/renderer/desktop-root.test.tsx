@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DesktopRoot } from "./desktop-root"
+import { releaseChannelLabel } from "@/release-channel"
 import type { DesktopBridge, ServerProfile } from "@shared/bridge"
 
 const profile: ServerProfile = {
@@ -81,6 +82,16 @@ describe("桌面设置服务器管理", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("本地配置写入失败")
     expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument()
+  })
+})
+
+describe("发布通道显示", () => {
+  it.each([
+    ["test", "开发版"],
+    ["preview", "预览版"],
+    ["stable", "正式版"],
+  ] as const)("将 %s 显示为 %s", (channel, label) => {
+    expect(releaseChannelLabel(channel)).toBe(label)
   })
 })
 

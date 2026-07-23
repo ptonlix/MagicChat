@@ -14,6 +14,7 @@ import { DesktopWebSocket, installDesktopFetch } from "./desktop-transport"
 import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
 import { startRuntimeDiagnostics } from "@/lib/runtime-diagnostics"
+import { releaseChannelLabel } from "@/release-channel"
 
 export function DesktopRoot() {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
@@ -192,10 +193,10 @@ function DesktopSettingsPanel({ profile, onOpenChange, onRemoved }: { profile: S
                 <option value="background">保持后台运行</option><option value="quit">退出应用</option>
               </select>
             </label>
-            <label className="desktop-checkbox"><input checked={settings.autoLaunch} type="checkbox" onChange={(event) => void updateSettings({ autoLaunch: event.target.checked })} /><span>登录系统后静默启动</span></label>
-            <label>通知隐私
+            <label className="desktop-checkbox"><input checked={settings.autoLaunch} type="checkbox" onChange={(event) => void updateSettings({ autoLaunch: event.target.checked })} /><span>登录时自动启动</span></label>
+            <label>通知内容
               <select value={settings.notificationPrivacy} onChange={(event) => void updateSettings({ notificationPrivacy: event.target.value as DesktopSettings["notificationPrivacy"] })}>
-                <option value="hidden">完全隐藏</option><option value="metadata">显示发送者或会话</option><option value="preview">显示脱敏正文预览</option>
+                <option value="hidden">隐藏通知内容</option><option value="metadata">仅显示发送者或会话</option><option value="preview">显示消息预览</option>
               </select>
             </label>
           </section>
@@ -208,7 +209,7 @@ function DesktopSettingsPanel({ profile, onOpenChange, onRemoved }: { profile: S
           </section>
           <section className="desktop-setting-section">
             <h3>关于</h3>
-            <div className="desktop-setting-group"><span>版本</span><p>{appInfo ? `${appInfo.version} · ${appInfo.platform} ${appInfo.arch} · ${appInfo.channel}` : "正在读取"}</p><div className="desktop-setting-actions"><button onClick={() => void window.desktop.updater.check().then(setUpdater)}>检查更新</button>{updater.status === "available" && <button onClick={() => void window.desktop.updater.download()}>下载 {updater.version}</button>}{updater.status === "downloaded" && <button onClick={() => void window.desktop.updater.install()}>安装并重启</button>}</div><small>{updateStatusText(updater)}</small></div>
+            <div className="desktop-setting-group"><span>版本</span><p>{appInfo ? `${appInfo.version} · ${appInfo.platform} ${appInfo.arch} · ${releaseChannelLabel(appInfo.channel)}` : "正在读取"}</p><div className="desktop-setting-actions"><button onClick={() => void window.desktop.updater.check().then(setUpdater)}>检查更新</button>{updater.status === "available" && <button onClick={() => void window.desktop.updater.download()}>下载 {updater.version}</button>}{updater.status === "downloaded" && <button onClick={() => void window.desktop.updater.install()}>安装并重启</button>}</div><small>{updateStatusText(updater)}</small></div>
             <div className="desktop-setting-group"><span>诊断</span><button onClick={() => void window.desktop.diagnostics.export()}>导出脱敏诊断</button></div>
           </section>
         </div>}

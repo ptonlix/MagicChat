@@ -3,6 +3,7 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { app, Menu, nativeImage, session, systemPreferences, Tray } from "electron"
 import { ConfigStore } from "@main/config-store"
+import { presentTrayMessage } from "@main/tray-message-presentation"
 import { formatUnreadBadge } from "@main/unread-badge"
 import { WindowController } from "@main/window-controller"
 import type { TrayMessage } from "@shared/bridge"
@@ -48,13 +49,17 @@ export class SystemIntegration {
     this.refreshTrayMenu()
   }
 
+  refreshTray(): void {
+    this.refreshTrayMenu()
+  }
+
   private refreshTrayMenu(): void {
     if (!this.tray) return
+    const privacy = this.store.getSettings().notificationPrivacy
     const messageItems = this.trayMessages.length > 0
       ? this.trayMessages.map((message) => ({
+          ...presentTrayMessage(message, privacy),
           click: () => void this.openTrayMessage(message).catch(() => this.windows.show()),
-          label: trayMessageLabel(message.name, message.unreadCount),
-          sublabel: message.summary,
         }))
       : [{ enabled: false, label: "暂无最新消息" }]
 
@@ -92,11 +97,6 @@ export class SystemIntegration {
     if (permission === "notifications") return this.granted.has("notifications")
     return false
   }
-}
-
-function trayMessageLabel(name: string, unreadCount: number): string {
-  const badge = formatUnreadBadge(unreadCount)
-  return badge ? `${name}  [${badge}]` : name
 }
 
 export function runtimeIconPath(): string {

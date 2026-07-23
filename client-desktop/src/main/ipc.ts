@@ -72,7 +72,9 @@ export function registerIpc(deps: IpcDependencies): () => void {
     const patch = settingsPatch(rawPatch)
     const { autoLaunch, ...remaining } = patch
     if (autoLaunch !== undefined) await deps.system.setAutoLaunch(autoLaunch)
-    return deps.store.setSettings(remaining)
+    const settings = await deps.store.setSettings(remaining)
+    if (remaining.notificationPrivacy !== undefined) deps.system.refreshTray()
+    return settings
   })
   register(IPC.transportRequest, async (event, rawTarget, rawRequest) => {
     const authTarget = target(rawTarget)

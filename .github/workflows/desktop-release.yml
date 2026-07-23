@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   package:
+    env:
+      MAGICCHAT_RELEASE_CHANNEL: stable
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +56,6 @@ jobs:
         working-directory: client-desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          MAGICCHAT_RELEASE_CHANNEL: test
         run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml
       - name: 校验安装包目录元数据与内容
         working-directory: client-desktop
@@ -83,4 +84,4 @@ jobs:
       - name: 创建 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" artifacts/* --draft --prerelease --title "MagicChat Desktop $GITHUB_REF_NAME" --notes "未签名 POC 构建，不属于 Stable 更新通道。"
+        run: gh release create "$GITHUB_REF_NAME" artifacts/* --draft --prerelease --title "MagicChat Desktop $GITHUB_REF_NAME" --notes "未签名 POC 构建，客户端使用 Stable 更新通道。"

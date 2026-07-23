@@ -1,5 +1,5 @@
 import path from "node:path"
-import { defineConfig, externalizeDepsPlugin } from "electron-vite"
+import { defineConfig } from "electron-vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 
@@ -35,19 +35,30 @@ const processAliases = {
   "@shared": path.resolve(__dirname, "src/shared"),
 }
 
+const configuredReleaseChannel = process.env.MAGICCHAT_RELEASE_CHANNEL
+const releaseChannel =
+  configuredReleaseChannel === "stable" || configuredReleaseChannel === "preview"
+    ? configuredReleaseChannel
+    : "test"
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    build: {
+      externalizeDeps: true,
+    },
+    define: {
+      "process.env.MAGICCHAT_RELEASE_CHANNEL": JSON.stringify(releaseChannel),
+    },
     resolve: { alias: processAliases },
   },
   preload: {
     build: {
+      externalizeDeps: true,
       rollupOptions: {
         external: ["electron"],
         output: { entryFileNames: "[name].cjs", format: "cjs" },
       },
     },
-    plugins: [externalizeDepsPlugin()],
     resolve: { alias: processAliases },
   },
   renderer: {
