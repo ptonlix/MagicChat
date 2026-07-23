@@ -8,13 +8,14 @@ export class WindowController {
   private mainWindow?: BrowserWindow
   private quitting = false
 
-  constructor(private readonly store: ConfigStore, private readonly diagnostics: Diagnostics, private readonly preloadPath: string) {}
+  constructor(private readonly store: ConfigStore, private readonly diagnostics: Diagnostics, private readonly preloadPath: string, private readonly iconPath: string) {}
 
   create(startHidden = false): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) return this.mainWindow
     const window = new BrowserWindow({
       backgroundColor: "#ffffff",
       height: 820,
+      icon: this.iconPath,
       minHeight: 560,
       minWidth: 760,
       show: false,
@@ -29,6 +30,7 @@ export class WindowController {
       },
       width: 1280,
     })
+    window.removeMenu()
     this.mainWindow = window
     this.installSecurity(window)
     window.on("ready-to-show", () => { if (!startHidden) window.show() })

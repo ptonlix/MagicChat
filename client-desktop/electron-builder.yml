@@ -31,7 +31,7 @@ win:
   target:
     - target: nsis
       arch: [x64, arm64]
-  signAndEditExecutable: false
+  signAndEditExecutable: true
   verifyUpdateCodeSignature: false
 nsis:
   oneClick: false
