@@ -59,7 +59,7 @@ async function verifyMac(applicationRoot) {
   const localNetworking = await plistValue(plist, "NSAppTransportSecurity.NSAllowsLocalNetworking")
   assert(identifier === "com.magicchat.desktop", "macOS 应用 ID 无效")
   assert(version === packageJson.version, "macOS 应用版本无效")
-  assert(minimum === "22.0.0", "macOS 最低系统版本无效")
+  assert(minimum === "13.0", "macOS 最低系统版本无效")
   assert(
     arbitraryLoads === "false" && localNetworking === "false",
     "macOS ATS 未关闭不安全网络例外",
