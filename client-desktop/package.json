@@ -22,7 +22,7 @@
     "verify:package": "node scripts/verify-package.mjs",
     "pack": "pnpm build && electron-builder --dir --config electron-builder.yml",
     "pack:win": "pnpm build && electron-builder --win nsis --x64 --arm64 --config electron-builder.yml",
-    "pack:mac": "pnpm build && electron-builder --mac dmg zip --universal --config electron-builder.yml",
+    "pack:mac": "pnpm build && ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --mac dmg zip --universal --config electron-builder.yml",
     "pack:linux": "pnpm build && electron-builder --linux AppImage deb --x64 --arm64 --config electron-builder.yml"
   },
   "dependencies": {

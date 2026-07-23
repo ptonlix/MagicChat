@@ -18,7 +18,7 @@ export class WindowController {
       minHeight: 560,
       minWidth: 760,
       show: false,
-      title: "MagicChat",
+      title: "即应",
       webPreferences: {
         contextIsolation: true,
         devTools: !app.isPackaged,

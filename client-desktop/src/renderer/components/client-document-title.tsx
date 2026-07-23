@@ -5,7 +5,7 @@ import { ClientDataContext } from "@/lib/client-data-context"
 
 type ClientDocumentTitleProps = {
   disableMessageAlert?: boolean
-  title: string
+  title?: string
 }
 
 const faviconBlinkIntervalMs = 500
@@ -33,7 +33,7 @@ export function ClientDocumentTitle({
     )
   }, [conversations, disableMessageAlert])
   const hasMessageAlert = unreadCount > 0
-  const pageTitle = `${title} - ${appName}`
+  const pageTitle = title ? `${title} - ${appName}` : appName
 
   useEffect(() => {
     const faviconLink = getFaviconLink()
