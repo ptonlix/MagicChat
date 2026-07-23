@@ -1,4 +1,5 @@
 import {
+  Children,
   useEffect,
   useRef,
   useState,
@@ -40,12 +41,11 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarInput,
-  SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { VirtualList } from "@/components/ui/virtual-list"
 import type {
   ContactApp,
   ContactGroup,
@@ -96,6 +96,9 @@ export function ContactDirectorySidebar({
   const [createAppDialogOpen, setCreateAppDialogOpen] = useState(false)
   const [createdAppCredentials, setCreatedAppCredentials] =
     useState<ClientAppCredentials | null>(null)
+  const userScrollRef = useRef<HTMLDivElement>(null)
+  const appScrollRef = useRef<HTMLDivElement>(null)
+  const groupScrollRef = useRef<HTMLDivElement>(null)
   const activeTabLabel = getDirectoryTabLabel(activeTab)
   const normalizedCurrentUserId = currentUserId.toLowerCase()
   const builtInApps = apps.filter((app) => app.creatorUserId === null)
@@ -155,6 +158,7 @@ export function ContactDirectorySidebar({
         </div>
         <TabsContent
           className="no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-3"
+          ref={userScrollRef}
           value="user"
         >
           <div className="flex flex-col gap-2">
@@ -164,7 +168,7 @@ export function ContactDirectorySidebar({
               count={contacts.length}
               title={organizationName}
             >
-              <DirectoryList ariaLabel={`${organizationName} 联系人列表`}>
+              <DirectoryList ariaLabel={`${organizationName} 联系人列表`} scrollRef={userScrollRef}>
                 {contacts.map((contact) => (
                   <ContactListItem
                     key={contact.id}
@@ -195,6 +199,7 @@ export function ContactDirectorySidebar({
         </TabsContent>
         <TabsContent
           className="no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-3"
+          ref={appScrollRef}
           value="app"
         >
           <div className="flex flex-col gap-2">
@@ -211,6 +216,7 @@ export function ContactDirectorySidebar({
                 onSelect={onSelect}
                 onStartAppConversation={onStartAppConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
+                scrollRef={appScrollRef}
               />
             </DirectorySectionCollapsible>
 
@@ -227,6 +233,7 @@ export function ContactDirectorySidebar({
                 onSelect={onSelect}
                 onStartAppConversation={onStartAppConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
+                scrollRef={appScrollRef}
               />
               <div className="px-2 pb-2">
                 <Button
@@ -254,12 +261,14 @@ export function ContactDirectorySidebar({
                 onSelect={onSelect}
                 onStartAppConversation={onStartAppConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
+                scrollRef={appScrollRef}
               />
             </DirectorySectionCollapsible>
           </div>
         </TabsContent>
         <TabsContent
           className="no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-3"
+          ref={groupScrollRef}
           value="group"
         >
           <div className="flex flex-col gap-2">
@@ -276,6 +285,7 @@ export function ContactDirectorySidebar({
                 onSelect={onSelect}
                 onStartGroupConversation={onStartGroupConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
+                scrollRef={groupScrollRef}
               />
             </DirectorySectionCollapsible>
 
@@ -292,6 +302,7 @@ export function ContactDirectorySidebar({
                 onSelect={onSelect}
                 onStartGroupConversation={onStartGroupConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
+                scrollRef={groupScrollRef}
               />
             </DirectorySectionCollapsible>
           </div>
@@ -327,14 +338,22 @@ export function ContactDirectorySidebar({
 function DirectoryList({
   ariaLabel,
   children,
+  scrollRef,
 }: {
   ariaLabel: string
   children: ReactNode
+  scrollRef: React.RefObject<HTMLElement | null>
 }) {
+  const items = Children.toArray(children)
   return (
-    <SidebarMenu aria-label={ariaLabel} className="px-2 pb-3" role="listbox">
-      {children}
-    </SidebarMenu>
+    <VirtualList
+      className="flex flex-col gap-1 px-2 pb-3"
+      estimateSize={48}
+      items={items}
+      renderItem={(item) => item}
+      role="listbox"
+      scrollRef={scrollRef}
+    />
   )
 }
 
@@ -411,6 +430,7 @@ function GroupDirectoryList({
   onSelect,
   onStartGroupConversation,
   openingDirectoryItemKey,
+  scrollRef,
 }: {
   activeSelection: DirectorySelection | null
   ariaLabel: string
@@ -418,9 +438,10 @@ function GroupDirectoryList({
   onSelect: (selection: DirectorySelection) => void
   onStartGroupConversation: (group: ContactGroup) => void
   openingDirectoryItemKey: string
+  scrollRef: React.RefObject<HTMLElement | null>
 }) {
   return (
-    <DirectoryList ariaLabel={ariaLabel}>
+    <DirectoryList ariaLabel={ariaLabel} scrollRef={scrollRef}>
       {groups.map((group) => (
         <GroupListItem
           key={group.id}
@@ -445,6 +466,7 @@ function AppDirectoryList({
   onSelect,
   onStartAppConversation,
   openingDirectoryItemKey,
+  scrollRef,
 }: {
   activeSelection: DirectorySelection | null
   apps: ContactApp[]
@@ -452,9 +474,10 @@ function AppDirectoryList({
   onSelect: (selection: DirectorySelection) => void
   onStartAppConversation: (app: ContactApp) => void
   openingDirectoryItemKey: string
+  scrollRef: React.RefObject<HTMLElement | null>
 }) {
   return (
-    <DirectoryList ariaLabel={ariaLabel}>
+    <DirectoryList ariaLabel={ariaLabel} scrollRef={scrollRef}>
       {apps.map((app) => (
         <AppListItem
           key={app.id}
@@ -474,11 +497,11 @@ function AppDirectoryList({
 
 function DirectoryEmptyState({ label }: { label: string }) {
   return (
-    <SidebarMenuItem>
+    <div className="group/menu-item relative">
       <div className="px-3 py-8 text-center text-sm text-muted-foreground">
         没有匹配的{label}
       </div>
-    </SidebarMenuItem>
+    </div>
   )
 }
 
@@ -637,7 +660,7 @@ function DirectoryListItem({
   }
 
   return (
-    <SidebarMenuItem>
+    <div className="group/menu-item relative">
       <SidebarMenuButton
         aria-label={title}
         aria-selected={selected}
@@ -673,7 +696,7 @@ function DirectoryListItem({
           )}
         </SidebarMenuAction>
       )}
-    </SidebarMenuItem>
+    </div>
   )
 }
 

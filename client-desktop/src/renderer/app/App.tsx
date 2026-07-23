@@ -7,7 +7,6 @@ import { ClientDataProvider } from "@/components/client-data-provider"
 import { ClientDocumentTitle } from "@/components/client-document-title"
 import { ClientMessageNotificationSync } from "@/components/client-message-notification-sync"
 import { ClientRealtimeProvider } from "@/components/client-realtime-provider"
-import { GlobalBeforeUnloadGuard } from "@/components/global-before-unload-guard"
 import { AppInfoProvider } from "@/components/app-info-provider"
 import { ChatPage } from "@/pages/chat-page"
 import { ContactsPage } from "@/pages/contacts-page"
@@ -32,7 +31,6 @@ export function App() {
         <Route
           element={
             <>
-              <GlobalBeforeUnloadGuard />
               <ClientDataProvider>
                 <ClientRealtimeProvider>
                   <ClientConversationRealtimeSync />

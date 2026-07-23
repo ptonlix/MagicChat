@@ -5,6 +5,7 @@ import { app, crashReporter, dialog } from "electron"
 export type DiagnosticRecord = {
   arch: string
   code: string
+  durationMs?: number
   platform: string
   processType: "gpu" | "main" | "renderer"
   timestamp: string
@@ -23,10 +24,17 @@ export class Diagnostics {
     crashReporter.start({ companyName: "MagicChat", productName: "MagicChat", submitURL: "", uploadToServer: false, compress: false })
   }
 
-  async record(processType: DiagnosticRecord["processType"], code: string): Promise<void> {
+  async record(
+    processType: DiagnosticRecord["processType"],
+    code: string,
+    details: { durationMs?: number } = {}
+  ): Promise<void> {
     const record: DiagnosticRecord = {
       arch: process.arch,
       code: sanitizeCode(code),
+      ...(Number.isFinite(details.durationMs)
+        ? { durationMs: Math.max(0, Math.round(details.durationMs ?? 0)) }
+        : {}),
       platform: process.platform,
       processType,
       timestamp: new Date().toISOString(),
@@ -41,10 +49,10 @@ export class Diagnostics {
     const records = await this.readRecords()
     const payload = {
       application: { arch: process.arch, build: process.env.MAGICCHAT_BUILD_ID ?? "local", channel: releaseChannel(), platform: process.platform, version: app.getVersion() },
-      crashes: records,
+      events: records,
       exportedAt: new Date().toISOString(),
       remoteTelemetryEnabled: false,
-      schemaVersion: 1,
+      schemaVersion: 2,
     }
     await writeFile(result.filePath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 })
     return { path: result.filePath }
@@ -68,5 +76,12 @@ function sanitizeCode(value: string): string {
 }
 
 function isDiagnosticRecord(value: DiagnosticRecord): boolean {
-  return Boolean(value.timestamp && value.version && value.processType && value.code.length <= 160)
+  return Boolean(
+    value.timestamp &&
+      value.version &&
+      value.processType &&
+      value.code.length <= 160 &&
+      (value.durationMs === undefined ||
+        (Number.isFinite(value.durationMs) && value.durationMs >= 0))
+  )
 }

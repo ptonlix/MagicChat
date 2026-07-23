@@ -1,7 +1,9 @@
 import path from "node:path"
-import { app, BrowserWindow, dialog, shell, type Event } from "electron"
+import { app, BrowserWindow, shell, type Event } from "electron"
 import { ConfigStore } from "@main/config-store"
 import { Diagnostics } from "@main/diagnostics"
+import { resolveWindowCloseAction } from "@main/window-close-policy"
+import { monitorWindowResponsiveness } from "@main/window-responsiveness"
 
 export class WindowController {
   private mainWindow?: BrowserWindow
@@ -36,10 +38,7 @@ export class WindowController {
       void this.diagnostics.record("renderer", details.reason)
       if (!this.quitting) void window.loadURL("magicchat-app://app/recovery.html")
     })
-    window.on("unresponsive", () => {
-      const choice = dialog.showMessageBoxSync(window, { type: "warning", buttons: ["等待", "重新加载"], defaultId: 0, cancelId: 0, message: "MagicChat 暂时没有响应" })
-      if (choice === 1) window.webContents.reload()
-    })
+    monitorWindowResponsiveness(window, this.diagnostics)
     const developmentUrl = process.env.ELECTRON_RENDERER_URL
     if (!app.isPackaged && developmentUrl) void window.loadURL(developmentUrl)
     else void window.loadURL("magicchat-app://app/index.html")
@@ -88,12 +87,16 @@ export class WindowController {
   }
 
   private handleClose(event: Event): void {
-    if (this.quitting) return
-    if (process.platform === "darwin") return
-    if (this.store.getSettings().closeBehavior === "background" && app.isReady()) {
-      event.preventDefault()
-      this.mainWindow?.hide()
-    }
+    const action = resolveWindowCloseAction({
+      appReady: app.isReady(),
+      closeBehavior: this.store.getSettings().closeBehavior,
+      quitting: this.quitting,
+    })
+    if (action === "allow") return
+
+    event.preventDefault()
+    if (action === "hide") this.mainWindow?.hide()
+    else app.quit()
   }
 }
 

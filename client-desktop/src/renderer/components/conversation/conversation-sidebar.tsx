@@ -7,6 +7,7 @@ import { ConversationAvatar } from "@/components/conversation/conversation-avata
 import { ConversationSearchPopover } from "@/components/conversation/conversation-search-popover"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { VirtualList } from "@/components/ui/virtual-list"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +18,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
-  SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { formatActivityTime } from "@/lib/activity-time"
 import type {
@@ -66,6 +65,7 @@ export function ConversationSidebar({
   ) => Promise<void>
 }) {
   const [pinningConversationId, setPinningConversationId] = React.useState("")
+  const scrollRef = React.useRef<HTMLDivElement>(null)
 
   async function handlePinnedChange(
     conversation: ClientConversation,
@@ -117,6 +117,92 @@ export function ConversationSidebar({
     )
   }
 
+  function renderConversationItem(conversation: ClientConversation) {
+    const selected = conversation.id === activeConversationId
+    const lastMessageTime = formatActivityTime(
+      conversation.lastMessageAt ?? conversation.createdAt
+    )
+    const mentionLabelResolver = createConversationMentionLabelResolver({
+      appsById,
+      contactsById,
+      conversation,
+      currentUser,
+    })
+    const hasUnreadMention =
+      conversation.lastMentionedSeq > conversation.lastReadSeq
+    const preview = getConversationListPreview({
+      draftText: conversation.topic?.archived
+        ? undefined
+        : drafts[conversation.id]?.text,
+      hasUnreadMention,
+      messageDescription: getConversationListDescription(
+        conversation,
+        mentionLabelResolver
+      ),
+      selected,
+    })
+
+    return (
+      <ConversationListItemMenu
+        key={conversation.id}
+        onPinnedChange={(pinned) =>
+          void handlePinnedChange(conversation, pinned)
+        }
+        pinned={Boolean(conversation.pinned)}
+        pinning={pinningConversationId === conversation.id}
+        showPinAction={!isBuiltinAssistantConversation(conversation)}
+      >
+        <div
+          className="group/menu-item relative"
+          data-conversation-list-item-trigger
+        >
+          <SidebarMenuButton
+            aria-selected={selected}
+            className={cn(
+              "h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
+              conversation.pinned &&
+                "bg-neutral-100 hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-900"
+            )}
+            isActive={selected}
+            onClick={() => onSelectConversation(conversation.id)}
+            role="option"
+            size="lg"
+            type="button"
+          >
+            <ConversationListAvatar conversation={conversation} />
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-sm leading-snug font-medium underline-offset-4">
+                <span className="flex min-w-0 flex-1 items-center overflow-hidden">
+                  <span className="block min-w-0 flex-1 truncate">
+                    {getConversationDisplayName(conversation)}
+                  </span>
+                  {conversation.topic?.archived && (
+                    <span className="ml-1.5 shrink-0 text-[10px] font-normal text-muted-foreground">
+                      已关闭
+                    </span>
+                  )}
+                </span>
+                {lastMessageTime && (
+                  <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
+                    {lastMessageTime}
+                  </span>
+                )}
+              </div>
+              <p className="w-full min-w-0 truncate text-left text-xs leading-normal font-normal text-muted-foreground">
+                {preview.alertLabel && (
+                  <span className="mr-1 font-medium text-rose-700 dark:text-rose-300">
+                    {preview.alertLabel}
+                  </span>
+                )}
+                <span>{preview.description}</span>
+              </p>
+            </div>
+          </SidebarMenuButton>
+        </div>
+      </ConversationListItemMenu>
+    )
+  }
+
   return (
     <Sidebar className="border-r bg-background" collapsible="none">
       <SidebarHeader className="gap-0 p-0">
@@ -150,98 +236,29 @@ export function ConversationSidebar({
           />
         </div>
       </SidebarHeader>
-      <SidebarContent onContextMenu={handleConversationListContextMenu}>
-        <SidebarMenu className="px-2 pb-3">
-          {conversations.length === 0 && (
-            <SidebarMenuItem>
+      <SidebarContent
+        ref={scrollRef}
+        onContextMenu={handleConversationListContextMenu}
+      >
+        {conversations.length === 0 ? (
+          <div className="px-2 pb-3" role="listbox">
+            <div className="group/menu-item relative">
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
                 暂无会话
               </div>
-            </SidebarMenuItem>
-          )}
-          {conversations.map((conversation) => {
-            const selected = conversation.id === activeConversationId
-            const lastMessageTime = formatActivityTime(
-              conversation.lastMessageAt ?? conversation.createdAt
-            )
-            const mentionLabelResolver = createConversationMentionLabelResolver(
-              {
-                appsById,
-                contactsById,
-                conversation,
-                currentUser,
-              }
-            )
-            const hasUnreadMention =
-              conversation.lastMentionedSeq > conversation.lastReadSeq
-            const preview = getConversationListPreview({
-              draftText: conversation.topic?.archived
-                ? undefined
-                : drafts[conversation.id]?.text,
-              hasUnreadMention,
-              messageDescription: getConversationListDescription(
-                conversation,
-                mentionLabelResolver
-              ),
-              selected,
-            })
-
-            return (
-              <ConversationListItemMenu
-                key={conversation.id}
-                onPinnedChange={(pinned) =>
-                  void handlePinnedChange(conversation, pinned)
-                }
-                pinned={Boolean(conversation.pinned)}
-                pinning={pinningConversationId === conversation.id}
-                showPinAction={!isBuiltinAssistantConversation(conversation)}
-              >
-                <SidebarMenuItem data-conversation-list-item-trigger>
-                  <SidebarMenuButton
-                    className={cn(
-                      "h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
-                      conversation.pinned &&
-                        "bg-neutral-100 hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-900"
-                    )}
-                    isActive={selected}
-                    onClick={() => onSelectConversation(conversation.id)}
-                    size="lg"
-                    type="button"
-                  >
-                    <ConversationListAvatar conversation={conversation} />
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-sm leading-snug font-medium underline-offset-4">
-                        <span className="flex min-w-0 flex-1 items-center overflow-hidden">
-                          <span className="block min-w-0 flex-1 truncate">
-                            {getConversationDisplayName(conversation)}
-                          </span>
-                          {conversation.topic?.archived && (
-                            <span className="ml-1.5 shrink-0 text-[10px] font-normal text-muted-foreground">
-                              已关闭
-                            </span>
-                          )}
-                        </span>
-                        {lastMessageTime && (
-                          <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
-                            {lastMessageTime}
-                          </span>
-                        )}
-                      </div>
-                      <p className="w-full min-w-0 truncate text-left text-xs leading-normal font-normal text-muted-foreground">
-                        {preview.alertLabel && (
-                          <span className="mr-1 font-medium text-rose-700 dark:text-rose-300">
-                            {preview.alertLabel}
-                          </span>
-                        )}
-                        <span>{preview.description}</span>
-                      </p>
-                    </div>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </ConversationListItemMenu>
-            )
-          })}
-        </SidebarMenu>
+            </div>
+          </div>
+        ) : (
+          <VirtualList
+            className="flex flex-col gap-1 px-2 pb-3"
+            estimateSize={68}
+            getKey={(conversation) => conversation.id}
+            items={conversations}
+            renderItem={renderConversationItem}
+            role="listbox"
+            scrollRef={scrollRef}
+          />
+        )}
       </SidebarContent>
     </Sidebar>
   )

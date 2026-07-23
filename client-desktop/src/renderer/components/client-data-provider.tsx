@@ -54,6 +54,7 @@ import { ClientLoadingPage } from "@/components/client-loading-page"
 import { useConversationActions } from "@/hooks/use-conversation-actions"
 import { useConversationSenders } from "@/hooks/use-conversation-senders"
 import { useAppInfo } from "@/lib/app-info-context"
+import { startStaggeredRefresh } from "@/lib/staggered-refresh"
 
 type BootstrapState = "loading" | "ready" | "error"
 
@@ -1103,6 +1104,19 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     await bootstrap()
   }, [bootstrap])
 
+  const refreshTasksRef = useRef([
+    refreshMe,
+    refreshConversations,
+    refreshContacts,
+    refreshProjects,
+  ])
+  refreshTasksRef.current = [
+    refreshMe,
+    refreshConversations,
+    refreshContacts,
+    refreshProjects,
+  ]
+
   useEffect(() => {
     let active = true
 
@@ -1124,36 +1138,28 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    function refresh() {
-      void refreshMe().catch(() => undefined)
-      void refreshContacts().catch(() => undefined)
-      void refreshConversations().catch(() => undefined)
-      void refreshProjects().catch(() => undefined)
-    }
-
-    const interval = window.setInterval(refresh, refreshIntervalMs)
+    const poller = startStaggeredRefresh(
+      refreshTasksRef.current.map(
+        (_task, index) => () => refreshTasksRef.current[index]()
+      ),
+      refreshIntervalMs
+    )
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
-        refresh()
+        poller.refreshNext()
       }
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange)
-    window.addEventListener("magicchat:realtime-ready", refresh)
+    window.addEventListener("magicchat:realtime-ready", poller.refreshNext)
 
     return () => {
-      window.clearInterval(interval)
+      poller.stop()
       document.removeEventListener("visibilitychange", handleVisibilityChange)
-      window.removeEventListener("magicchat:realtime-ready", refresh)
+      window.removeEventListener("magicchat:realtime-ready", poller.refreshNext)
     }
-  }, [
-    bootstrapState,
-    refreshContacts,
-    refreshConversations,
-    refreshMe,
-    refreshProjects,
-  ])
+  }, [bootstrapState])
 
   if (bootstrapState === "loading") {
     return <ClientLoadingPage />
