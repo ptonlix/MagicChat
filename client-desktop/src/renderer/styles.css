@@ -1,0 +1,42 @@
+html, body, #root { height: 100%; margin: 0; }
+.desktop-frame { height: 100%; background: var(--background); color: var(--foreground); }
+.desktop-icon-button { -webkit-app-region: no-drag; align-items: center; background: transparent; border: 0; border-radius: 6px; color: inherit; cursor: pointer; display: inline-flex; height: 30px; justify-content: center; outline: none; padding: 0; width: 30px; }
+.desktop-icon-button:hover { background: var(--muted); }
+.desktop-icon-button:focus-visible { box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 35%, transparent); }
+.desktop-content { height: 100%; min-height: 0; overflow: hidden; }
+.desktop-content > div, .desktop-content > div > div { min-height: 100%; }
+.server-setup, .status-page { align-items: center; background: #fafafa; color: #18181b; display: flex; justify-content: center; min-height: 100%; padding: 24px; }
+.server-setup section { max-width: 420px; width: 100%; }
+.server-setup img { height: 56px; width: 56px; }
+.server-setup h1 { font-size: 24px; font-weight: 600; margin: 20px 0 28px; }
+.server-setup form { display: grid; gap: 18px; }
+.server-setup label { color: #3f3f46; display: grid; font-size: 13px; gap: 7px; }
+.server-setup input { background: #fff; border: 1px solid #a1a1aa; border-radius: 6px; box-sizing: border-box; font: inherit; height: 40px; padding: 0 11px; width: 100%; }
+.server-setup button { background: #18181b; border: 0; border-radius: 6px; color: #fff; cursor: pointer; font: inherit; height: 40px; }
+.server-setup button:disabled { cursor: wait; opacity: .6; }
+.server-setup p[role="alert"] { color: #b91c1c; font-size: 13px; margin: 0; }
+.status-page { font-size: 14px; }
+.desktop-settings { background: var(--popover); border-color: var(--border); box-sizing: border-box; color: var(--popover-foreground); gap: 0; max-width: none; overflow: hidden; padding: 0; width: min(420px, 100vw); }
+.desktop-settings-header { align-items: center; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; justify-content: space-between; margin: 0; padding: 16px 20px; }
+.desktop-settings-header h2 { font-size: 16px; line-height: 1; margin: 0; }
+.desktop-settings > .desktop-setting-list { min-height: 0; overflow: auto; padding: 0 20px 24px; }
+.desktop-settings > p { color: var(--muted-foreground); padding: 20px; }
+.desktop-setting-list { display: grid; gap: 0; }
+.desktop-setting-section { display: grid; gap: 16px; padding: 20px 0; }
+.desktop-setting-section:first-child { padding-top: 0; }
+.desktop-setting-section + .desktop-setting-section { border-top: 1px solid var(--border); }
+.desktop-setting-section h3 { color: var(--muted-foreground); font-size: 12px; font-weight: 600; margin: 0; }
+.desktop-setting-section > label, .desktop-setting-group, .desktop-server-address { display: grid; font-size: 13px; gap: 8px; }
+.desktop-setting-list select, .desktop-setting-list input:not([type="checkbox"]) { background: var(--background); border: 1px solid var(--input); border-radius: 6px; box-sizing: border-box; color: var(--foreground); font: inherit; height: 36px; min-width: 0; padding: 0 9px; width: 100%; }
+.desktop-setting-list select:focus-visible, .desktop-setting-list input:not([type="checkbox"]):focus-visible { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 20%, transparent); outline: none; }
+.desktop-checkbox { align-items: center; grid-template-columns: auto 1fr; }
+.desktop-checkbox input { accent-color: var(--primary); height: 16px; margin: 0; width: 16px; }
+.desktop-inline { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; }
+.desktop-setting-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.desktop-setting-list button:not(.desktop-icon-button) { background: var(--background); border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); cursor: pointer; font: inherit; min-height: 34px; padding: 0 10px; transition: background-color 120ms ease, border-color 120ms ease; }
+.desktop-setting-list button:not(.desktop-icon-button):hover:not(:disabled) { background: var(--muted); border-color: var(--ring); }
+.desktop-setting-list button:disabled { cursor: default; opacity: .5; }
+.desktop-setting-list .desktop-danger { background: color-mix(in oklch, var(--destructive) 10%, transparent); border-color: transparent; color: var(--destructive); justify-self: start; }
+.desktop-setting-list .desktop-danger:hover:not(:disabled) { background: color-mix(in oklch, var(--destructive) 18%, transparent); border-color: transparent; }
+.desktop-setting-group p, .desktop-setting-group small, .desktop-server-address p { color: var(--muted-foreground); margin: 0; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) { .server-setup, .status-page { background: #09090b; color: #fafafa; } .server-setup label { color: #d4d4d8; } .server-setup input { background: #18181b; border-color: #52525b; color: #fafafa; } .server-setup button { background: #fafafa; color: #18181b; } }
