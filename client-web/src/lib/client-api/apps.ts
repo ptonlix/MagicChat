@@ -170,6 +170,26 @@ export async function updateClientApp(
   return normalizeClientApp(data?.app)
 }
 
+export async function deleteClientApp(
+  appId: string,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/apps/${encodeURIComponent(appId)}`,
+    {
+      credentials: "include",
+      method: "DELETE",
+    }
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<Record<string, never>>
+  >(response)
+
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "删除应用失败")
+  }
+}
+
 export async function uploadClientAppAvatar(
   appId: string,
   file: File,

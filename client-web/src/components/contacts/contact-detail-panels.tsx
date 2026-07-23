@@ -1,13 +1,15 @@
-import type { ReactNode } from "react"
+import { useId, useState, type ReactNode } from "react"
 import {
   Bot,
   Loader2Icon,
   Mail,
   Phone,
+  Trash2,
   UserPen,
   UserRound,
   UsersRound,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { GroupAvatar } from "@/components/group-avatar"
 import {
@@ -15,7 +17,19 @@ import {
   type UserProfile,
 } from "@/components/user-profile-popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import type {
   ContactApp,
   ContactGroup,
@@ -30,6 +44,7 @@ export function AppDetailPanel({
   app,
   developer,
   editingProfile = false,
+  onDelete,
   onEditProfile,
   onStartConversation,
   onViewAccessInfo,
@@ -39,12 +54,35 @@ export function AppDetailPanel({
   app: ContactApp
   developer?: UserProfile
   editingProfile?: boolean
+  onDelete?: () => Promise<void>
   onEditProfile?: () => void
   onStartConversation: () => void
   onViewAccessInfo?: () => void
   startingConversation: boolean
   viewingAccessInfo?: boolean
 }) {
+  const deleteConfirmationId = useId()
+  const [deleteConfirmation, setDeleteConfirmation] = useState("")
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    if (!onDelete || deleting || deleteConfirmation !== app.name) {
+      return
+    }
+
+    setDeleting(true)
+    try {
+      await onDelete()
+      toast.success("应用已删除")
+      setDeleteOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除应用失败")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div
       className={CONTACT_DETAIL_PANEL_CLASS}
@@ -134,10 +172,71 @@ export function AppDetailPanel({
                 ) : null}
                 修改资料
               </Button>
+              {onDelete && (
+                <Button
+                  className="w-full"
+                  disabled={deleting}
+                  onClick={() => setDeleteOpen(true)}
+                  type="button"
+                  variant="destructive"
+                >
+                  <Trash2 />
+                  删除应用
+                </Button>
+              )}
             </div>
           )}
         </div>
       </div>
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (deleting) {
+            return
+          }
+          setDeleteOpen(open)
+          if (!open) {
+            setDeleteConfirmation("")
+          }
+        }}
+        open={deleteOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除应用</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后应用将无法继续使用，并会退出所有会话；由应用创建的群聊会转交给可用成员，没有可用成员时将被解散。此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor={deleteConfirmationId}>
+              {`请输入应用名称“${app.name}”以确认删除`}
+            </Label>
+            <Input
+              autoFocus
+              disabled={deleting}
+              id={deleteConfirmationId}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              value={deleteConfirmation}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || deleteConfirmation !== app.name}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDelete()
+              }}
+              variant="destructive"
+            >
+              {deleting && (
+                <Loader2Icon aria-hidden="true" className="animate-spin" />
+              )}
+              删除应用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

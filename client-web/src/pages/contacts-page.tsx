@@ -26,6 +26,7 @@ import type {
   ContactUser,
 } from "@/lib/client-data-api"
 import {
+  deleteClientApp,
   getClientAppCredentials,
   type ClientAppCredentials,
   type ClientOwnedApp,
@@ -292,6 +293,19 @@ export function ContactsPage() {
               app={activeItem.app}
               developer={getAppDeveloper(activeItem.app, contacts, me)}
               editingProfile={loadingProfileAppId === activeItem.app.id}
+              onDelete={
+                activeItem.app.creatorUserId?.toLowerCase() ===
+                me.id.toLowerCase()
+                  ? async () => {
+                      await deleteClientApp(activeItem.app.id)
+                      navigate("/contacts", { replace: true })
+                      await Promise.allSettled([
+                        refreshContacts(),
+                        refreshConversations(),
+                      ])
+                    }
+                  : undefined
+              }
               onEditProfile={
                 activeItem.app.creatorUserId?.toLowerCase() ===
                 me.id.toLowerCase()

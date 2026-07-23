@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   buildAppWebSocketURL,
   createClientApp,
+  deleteClientApp,
   getClientAppCredentials,
   regenerateClientAppSecret,
   updateClientApp,
@@ -182,6 +183,21 @@ describe("client app API", () => {
         "Content-Type": "application/json",
       },
       method: "PATCH",
+    })
+  })
+
+  it("deletes an owned application", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      createJSONResponse({
+        success: true,
+        data: {},
+      })
+    )
+
+    await expect(deleteClientApp("app/1", fetcher)).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenCalledWith("/api/client/apps/app%2F1", {
+      credentials: "include",
+      method: "DELETE",
     })
   })
 
