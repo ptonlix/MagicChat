@@ -1,6 +1,6 @@
 import path from "node:path"
 import { BrowserWindow, ipcMain } from "electron"
-import type { WindowController } from "./window-controller"
+import type { WindowController } from "@main/window-controller"
 
 type LoginCallback = (username?: string, password?: string) => void
 

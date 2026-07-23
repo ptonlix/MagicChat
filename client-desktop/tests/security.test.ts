@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { parseDeepLink } from "../src/main/deep-links"
-import { assertClientPath, normalizeServerUrl, targetKey } from "../src/shared/client-contract"
-import { linuxAutostartEntry } from "../src/main/system-integration"
+import { parseDeepLink } from "@main/deep-links"
+import { assertClientPath, normalizeServerUrl, targetKey } from "@shared/client-contract"
+import { linuxAutostartEntry } from "@main/system-integration"
 
 describe("桌面安全边界", () => {
   it("拒绝越界 API 与不安全服务器地址", () => {

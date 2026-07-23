@@ -5,7 +5,7 @@ import type {
   RealtimeEnvelope,
   RealtimeSnapshot,
   ServerTarget,
-} from "./client-contract"
+} from "@shared/client-contract"
 
 export const BRIDGE_VERSION = 1 as const
 

@@ -1,6 +1,6 @@
 {
   "name": "magicchat-desktop",
-  "version": "0.1.0-poc.1",
+  "version": "0.0.1",
   "private": true,
   "description": "MagicChat 三平台桌面客户端",
   "author": "MagicChat Contributors",
@@ -17,7 +17,7 @@
     "verify:package": "node scripts/verify-package.mjs",
     "pack": "pnpm build && electron-builder --dir --config electron-builder.yml",
     "pack:win": "pnpm build && electron-builder --win nsis --x64 --arm64 --config electron-builder.yml",
-    "pack:mac": "pnpm build && electron-builder --mac dmg zip --x64 --arm64 --config electron-builder.yml",
+    "pack:mac": "pnpm build && electron-builder --mac dmg zip --universal --config electron-builder.yml",
     "pack:linux": "pnpm build && electron-builder --linux AppImage deb --x64 --arm64 --config electron-builder.yml"
   },
   "dependencies": {
@@ -30,7 +30,6 @@
     "electron-log": "5.4.3",
     "electron-updater": "6.8.9",
     "https-proxy-agent": "7.0.6",
-    "harmonyos-sans-sc-webfont-splitted": "1.1.0",
     "lucide-react": "1.22.0",
     "next-themes": "0.4.6",
     "pinyin-pro": "3.28.1",
@@ -63,6 +62,7 @@
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
+    "harmonyos-sans-sc-webfont-splitted": "1.1.0",
     "jsdom": "29.1.1",
     "shadcn": "4.12.0",
     "tailwindcss": "4.2.1",

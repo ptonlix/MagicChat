@@ -18,6 +18,9 @@ const forbidden = [
   /client-web[\\/]public/,
   /\.\.[\\/]client-web/,
   /@magicchat[\\/]client-core/,
+  /@desktop[\\/]/,
+  /from\s+["'](?:\.\.[\\/])+(?:main|preload|shared)[\\/]/,
+  /from\s+["']\.\.[\\/]src[\\/](?:main|preload|shared)[\\/]/,
 ]
 
 for (const root of checkedRoots) {

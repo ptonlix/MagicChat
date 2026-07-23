@@ -8,7 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src/renderer"),
-      "@desktop": path.resolve(__dirname, "src"),
+      "@main": path.resolve(__dirname, "src/main"),
+      "@preload": path.resolve(__dirname, "src/preload"),
+      "@shared": path.resolve(__dirname, "src/shared"),
     },
   },
   test: {

@@ -1,4 +1,4 @@
-import { targetKey, type AuthenticatedTarget, type RealtimeEnvelope } from "../shared/client-contract"
+import { targetKey, type AuthenticatedTarget, type RealtimeEnvelope } from "@shared/client-contract"
 import type { RealtimeWebSocketLike } from "@/lib/realtime-client"
 import { randomUUID } from "./random-id"
 

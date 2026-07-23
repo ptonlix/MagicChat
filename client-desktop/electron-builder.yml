@@ -43,9 +43,9 @@ mac:
       NSAllowsLocalNetworking: false
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: [universal]
     - target: zip
-      arch: [x64, arm64]
+      arch: [universal]
   identity: null
   minimumSystemVersion: "22.0.0"
 linux:

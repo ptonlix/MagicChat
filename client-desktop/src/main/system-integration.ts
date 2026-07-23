@@ -2,8 +2,8 @@ import path from "node:path"
 import { mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { app, Menu, nativeImage, session, systemPreferences, Tray } from "electron"
-import { ConfigStore } from "./config-store"
-import { WindowController } from "./window-controller"
+import { ConfigStore } from "@main/config-store"
+import { WindowController } from "@main/window-controller"
 
 export class SystemIntegration {
   private tray?: Tray

@@ -1,6 +1,6 @@
 import { Readable } from "node:stream"
 import { describe, expect, it, vi } from "vitest"
-import { StreamingUploadController } from "../src/main/streaming-upload"
+import { StreamingUploadController } from "@main/streaming-upload"
 
 const profile = { id: "server-1", normalizedUrl: "https://chat.test" }
 const target = { ...profile, userId: "user-1" }

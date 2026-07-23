@@ -1,6 +1,6 @@
 import { Notification } from "electron"
-import { targetKey } from "../shared/client-contract"
-import type { DesktopSettings, NotificationInput } from "../shared/bridge"
+import { targetKey } from "@shared/client-contract"
+import type { DesktopSettings, NotificationInput } from "@shared/bridge"
 
 const rank = { hidden: 0, metadata: 1, preview: 2 } as const
 

@@ -1,5 +1,5 @@
 import { session, type Session } from "electron"
-import type { ServerProfile } from "../shared/bridge"
+import type { ServerProfile } from "@shared/bridge"
 
 export class SessionController {
   private readonly sessions = new Map<string, Session>()

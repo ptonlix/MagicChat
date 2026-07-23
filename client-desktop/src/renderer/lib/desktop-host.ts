@@ -1,5 +1,5 @@
 import { RealtimeClient } from "@/lib/realtime-client"
-import type { DesktopAuthResult } from "../../shared/bridge"
+import type { DesktopAuthResult } from "@shared/bridge"
 
 export type DesktopRendererHost = {
   createRealtimeClient?: (options: { authCheck: () => Promise<boolean>; onUnauthorized: () => void }) => RealtimeClient

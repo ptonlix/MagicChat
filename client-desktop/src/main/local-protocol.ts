@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { net, protocol } from "electron"
-import type { ServerProfiles } from "./server-profiles"
-import type { SessionController } from "./session-controller"
+import type { ServerProfiles } from "@main/server-profiles"
+import type { SessionController } from "@main/session-controller"
 
 const mimeTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",

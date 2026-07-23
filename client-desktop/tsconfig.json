@@ -9,7 +9,9 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/renderer/*"],
-      "@desktop/*": ["./src/*"],
+      "@main/*": ["./src/main/*"],
+      "@preload/*": ["./src/preload/*"],
+      "@shared/*": ["./src/shared/*"],
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/*": ["./node_modules/@types/react/*"],
       "react-dom": ["./node_modules/@types/react-dom/index.d.ts"],

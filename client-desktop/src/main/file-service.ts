@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto"
 import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { dialog, shell } from "electron"
-import { assertClientPath, type AuthenticatedTarget, type ClientResponse } from "../shared/client-contract"
-import { ServerProfiles } from "./server-profiles"
-import { SessionController } from "./session-controller"
+import { assertClientPath, type AuthenticatedTarget, type ClientResponse } from "@shared/client-contract"
+import { ServerProfiles } from "@main/server-profiles"
+import { SessionController } from "@main/session-controller"
 
 type PickedFile = { name: string; ownerId: number; path: string; size: number }
 

@@ -1,7 +1,7 @@
 import { app } from "electron"
 import updaterModule from "electron-updater"
-import type { UpdaterState } from "../shared/bridge"
-import { releaseChannel } from "./diagnostics"
+import type { UpdaterState } from "@shared/bridge"
+import { releaseChannel } from "@main/diagnostics"
 
 const { autoUpdater } = updaterModule
 

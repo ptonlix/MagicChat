@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { PassThrough, Readable } from "node:stream"
-import { assertClientPath, type AuthenticatedTarget, type ClientRequest, type ClientResponse } from "../shared/client-contract"
-import type { ServerProfiles } from "./server-profiles"
-import type { SessionController } from "./session-controller"
+import { assertClientPath, type AuthenticatedTarget, type ClientRequest, type ClientResponse } from "@shared/client-contract"
+import type { ServerProfiles } from "@main/server-profiles"
+import type { SessionController } from "@main/session-controller"
 
 const MAX_CHUNK_BYTES = 256 * 1024
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024

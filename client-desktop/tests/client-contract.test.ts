@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { assertClientPath, normalizeServerUrl, targetKey } from "../src/shared/client-contract"
+import { assertClientPath, normalizeServerUrl, targetKey } from "@shared/client-contract"
 
 describe("桌面客户端契约", () => {
   it("规范化服务器地址且拒绝敏感组成部分", () => {

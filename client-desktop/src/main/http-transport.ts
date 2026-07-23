@@ -6,9 +6,9 @@ import {
   type AuthenticatedTarget,
   type ClientRequest,
   type ClientResponse,
-} from "../shared/client-contract"
-import { ServerProfiles } from "./server-profiles"
-import { SessionController } from "./session-controller"
+} from "@shared/client-contract"
+import { ServerProfiles } from "@main/server-profiles"
+import { SessionController } from "@main/session-controller"
 
 const ALLOWED_HEADERS = new Set(["accept", "content-type", "if-match", "if-none-match", "x-client-message-id"])
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024

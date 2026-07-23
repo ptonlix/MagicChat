@@ -29,8 +29,17 @@ const sharedRendererDependencies = [
   "tailwind-merge",
 ]
 
+const processAliases = {
+  "@main": path.resolve(__dirname, "src/main"),
+  "@preload": path.resolve(__dirname, "src/preload"),
+  "@shared": path.resolve(__dirname, "src/shared"),
+}
+
 export default defineConfig({
-  main: { plugins: [externalizeDepsPlugin()] },
+  main: {
+    plugins: [externalizeDepsPlugin()],
+    resolve: { alias: processAliases },
+  },
   preload: {
     build: {
       rollupOptions: {
@@ -39,6 +48,7 @@ export default defineConfig({
       },
     },
     plugins: [externalizeDepsPlugin()],
+    resolve: { alias: processAliases },
   },
   renderer: {
     root: path.resolve(__dirname, "src/renderer"),
@@ -56,7 +66,7 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "src/renderer"),
-        "@desktop": path.resolve(__dirname, "src"),
+        ...processAliases,
       },
       dedupe: sharedRendererDependencies,
     },

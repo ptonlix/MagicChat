@@ -1,4 +1,4 @@
-import type { ServerProfile } from "@desktop/shared/bridge"
+import type { ServerProfile } from "@shared/bridge"
 
 export function resolveDesktopResourceUrl(profile: ServerProfile, value: string): string {
   try {

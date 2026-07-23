@@ -9,10 +9,10 @@ import {
   type AuthenticatedTarget,
   type RealtimeEnvelope,
   type RealtimeSnapshot,
-} from "../shared/client-contract"
-import { ServerProfiles } from "./server-profiles"
-import { SessionController } from "./session-controller"
-import type { ProxyAuthPrompt } from "./proxy-auth"
+} from "@shared/client-contract"
+import { ServerProfiles } from "@main/server-profiles"
+import { SessionController } from "@main/session-controller"
+import type { ProxyAuthPrompt } from "@main/proxy-auth"
 
 type Connection = {
   attempt: number

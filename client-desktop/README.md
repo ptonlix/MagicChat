@@ -47,13 +47,13 @@ pnpm pack:linux
 打包产物位于 `dist/`：
 
 - Windows：NSIS，x64/arm64
-- macOS：DMG 和 ZIP，x64/arm64
+- macOS：DMG 和 ZIP，Universal（包含 x64/arm64）
 - Linux：AppImage 和 deb，x64/arm64
 
 macOS 本地打包后可直接启动对应架构的应用，例如：
 
 ```bash
-open dist/mac-arm64/MagicChat.app
+open dist/mac-universal/MagicChat.app
 ```
 
 跨平台安装、验收和发布要求见

@@ -7,8 +7,8 @@ const execute = promisify(execFile)
 const root = path.resolve(import.meta.dirname, "..")
 const platform = argument("platform")
 const arch = argument("arch")
-if (!(["win", "mac", "linux"].includes(platform)) || !(["x64", "arm64"].includes(arch))) {
-  throw new Error("用法：pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64>")
+if (!(["win", "mac", "linux"].includes(platform)) || !(["x64", "arm64", "universal"].includes(arch)) || (arch === "universal" && platform !== "mac")) {
+  throw new Error("用法：pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal>（universal 仅支持 mac）")
 }
 
 const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"))
@@ -17,7 +17,7 @@ assert(builder.includes("appId: com.magicchat.desktop"), "应用 ID 配置无效
 assert(packageJson.version && packageJson.version !== "0.0.0", "应用版本无效")
 
 const unpackedDirectory = platform === "mac"
-  ? path.join(root, "dist", arch === "arm64" ? "mac-arm64" : "mac")
+  ? path.join(root, "dist", arch === "universal" ? "mac-universal" : arch === "arm64" ? "mac-arm64" : "mac")
   : path.join(root, "dist", `${platform === "win" ? "win" : "linux"}${arch === "arm64" ? "-arm64" : ""}-unpacked`)
 const applicationRoot = platform === "mac" ? path.join(unpackedDirectory, "MagicChat.app") : unpackedDirectory
 const resources = platform === "mac" ? path.join(applicationRoot, "Contents", "Resources") : path.join(applicationRoot, "resources")

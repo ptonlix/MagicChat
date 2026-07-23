@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { BRIDGE_VERSION, IPC } from "../src/shared/bridge"
+import { BRIDGE_VERSION, IPC } from "@shared/bridge"
 
 describe("Desktop Bridge 契约", () => {
   it("使用显式版本和唯一 IPC channel", () => {

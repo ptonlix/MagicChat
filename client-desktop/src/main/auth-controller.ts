@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto"
 import { app, BrowserWindow } from "electron"
-import type { DesktopAuthResult, ServerProfile } from "../shared/bridge"
-import { ServerProfiles } from "./server-profiles"
-import { SessionController } from "./session-controller"
+import type { DesktopAuthResult, ServerProfile } from "@shared/bridge"
+import { ServerProfiles } from "@main/server-profiles"
+import { SessionController } from "@main/session-controller"
 
 const AUTH_TIMEOUT_MS = 10 * 60_000
 

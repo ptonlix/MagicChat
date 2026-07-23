@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { ServerProfile } from "@desktop/shared/bridge"
+import type { ServerProfile } from "@shared/bridge"
 import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 
 const profile: ServerProfile = {

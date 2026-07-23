@@ -1,7 +1,7 @@
 import { app, session } from "electron"
-import { normalizeServerUrl } from "../shared/client-contract"
-import type { ServerProfile } from "../shared/bridge"
-import { ConfigStore } from "./config-store"
+import { normalizeServerUrl } from "@shared/client-contract"
+import type { ServerProfile } from "@shared/bridge"
+import { ConfigStore } from "@main/config-store"
 
 type PublicInfo = { data?: { app_name?: string; organization_name?: string }; success?: boolean }
 

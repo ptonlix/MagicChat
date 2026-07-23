@@ -1,7 +1,7 @@
 import path from "node:path"
 import { app, BrowserWindow, dialog, shell, type Event } from "electron"
-import { ConfigStore } from "./config-store"
-import { Diagnostics } from "./diagnostics"
+import { ConfigStore } from "@main/config-store"
+import { Diagnostics } from "@main/diagnostics"
 
 export class WindowController {
   private mainWindow?: BrowserWindow

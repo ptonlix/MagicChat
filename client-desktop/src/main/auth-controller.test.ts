@@ -4,7 +4,7 @@ import {
   buildWebAuthStartUrl,
   isAllowedAuthNavigation,
   isAuthCompletionUrl,
-} from "./auth-controller"
+} from "@main/auth-controller"
 
 describe("Desktop 内嵌第三方认证", () => {
   it("使用现有 Web Auth 接口发起登录", () => {

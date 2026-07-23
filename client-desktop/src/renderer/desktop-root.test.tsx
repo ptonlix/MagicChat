@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DesktopRoot } from "./desktop-root"
-import type { DesktopBridge, ServerProfile } from "../shared/bridge"
+import type { DesktopBridge, ServerProfile } from "@shared/bridge"
 
 const profile: ServerProfile = {
   createdAt: "2026-07-23T00:00:00.000Z",

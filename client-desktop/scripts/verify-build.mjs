@@ -3,6 +3,7 @@ import path from "node:path"
 
 const root = path.resolve(import.meta.dirname, "..")
 const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"))
+const installedDependencies = { ...packageJson.devDependencies, ...packageJson.dependencies }
 const builder = await readFile(path.join(root, "electron-builder.yml"), "utf8")
 const viteConfig = await readFile(path.join(root, "electron.vite.config.ts"), "utf8")
 const lockfile = await readFile(path.join(root, "pnpm-lock.yaml"), "utf8")
@@ -16,12 +17,13 @@ assert(rendererCssName, "Renderer 缺少主样式产物")
 const rendererCss = await readFile(path.join(rendererAssets, rendererCssName), "utf8")
 
 assert(packageJson.version && packageJson.version !== "0.0.0", "应用版本无效")
+assert(!packageJson.dependencies["harmonyos-sans-sc-webfont-splitted"] && packageJson.devDependencies["harmonyos-sans-sc-webfont-splitted"], "Renderer 字体包必须保持为构建期依赖")
 assert(!workspace.includes("../client-web"), "Desktop workspace 不得接管 client-web 依赖")
 assert(!/^  \.\.\/client-web:/m.test(lockfile), "Desktop 锁文件不得包含 client-web importer")
 assert(/\bport:\s*20050\b/.test(viteConfig), "Desktop Renderer 调试端口必须为 20050")
 assert(/\bstrictPort:\s*true\b/.test(viteConfig), "Desktop Renderer 调试端口必须禁止自动漂移")
 for (const dependency of ["@dnd-kit/core", "harmonyos-sans-sc-webfont-splitted", "react-day-picker"]) {
-  assert(packageJson.dependencies[dependency], `Desktop 缺少共享界面依赖 ${dependency}`)
+  assert(installedDependencies[dependency], `Desktop 缺少共享界面依赖 ${dependency}`)
 }
 assert(builder.includes("appId: com.magicchat.desktop"), "应用 ID 不正确")
 assert(builder.includes("identity: null"), "POC macOS 构建必须保持未签名")

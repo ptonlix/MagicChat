@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
-import { BRIDGE_VERSION, IPC, type DesktopAuthResult, type DesktopBridge, type UpdaterState } from "../shared/bridge"
-import type { RealtimeEnvelope } from "../shared/client-contract"
+import { BRIDGE_VERSION, IPC, type DesktopAuthResult, type DesktopBridge, type UpdaterState } from "@shared/bridge"
+import type { RealtimeEnvelope } from "@shared/client-contract"
 
 const bridge: DesktopBridge = {
   version: BRIDGE_VERSION,

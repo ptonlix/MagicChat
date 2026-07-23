@@ -35,7 +35,9 @@ Desktop 首轮功能以 `client-web` 提交
 `e1998bd852ad9bc7feff11355ed47b7889cb7887` 为一次性冻结来源。完成迁移后：
 
 - Web 与 Desktop 的页面、交互和平台能力分别演进，禁止用 Web 目录整体覆盖 Desktop。
-- `@` 只指向 `src/renderer`，`publicDir` 只指向 `client-desktop/public`。
+- `@/*` 指向 `src/renderer`，`@main/*`、`@preload/*`、`@shared/*` 分别对应
+  Electron 三层及其跨进程契约；跨层导入不得使用 `../` 穿越目录。
+- `publicDir` 只指向 `client-desktop/public`。
 - `pnpm verify:boundaries` 禁止 Web 内部路径和 `client-core` 运行时依赖。
 - 暂不建立公共运行时包。纯 DTO、协议归一化或消息转换只有在至少两次跨端一致修改、
   且不依赖 DOM/Electron 后，才另行评估抽取。

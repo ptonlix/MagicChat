@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
-import type { DesktopSettings, ServerProfile } from "../shared/bridge"
+import type { DesktopSettings, ServerProfile } from "@shared/bridge"
 
 const CURRENT_SCHEMA = 1
 
