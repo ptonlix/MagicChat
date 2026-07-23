@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
 import { XIcon } from "lucide-react"
 import { BrowserRouter } from "react-router"
-import { createDesktopRealtimeClient, configureDesktopHost } from "@/lib/desktop-host"
+import { configureDesktopHost } from "@/lib/desktop-host"
 import { RealtimeClient } from "@/lib/realtime-client"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -132,7 +132,7 @@ function DesktopHostedApp({ profile, target, onAuthenticated, onOpenSettings }: 
       restoreHost()
       restoreFetch()
     }
-  }, [onAuthenticated, onOpenSettings, profile.displayName, profile.id, target])
+  }, [onAuthenticated, onOpenSettings, profile, target])
 
   return ready ? <App /> : <StatusPage text="正在连接服务器" />
 }

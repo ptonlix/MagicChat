@@ -10,9 +10,25 @@ export default async function afterPack(context) {
     context.appOutDir,
     `${context.packager.appInfo.productFilename}.app`,
     "Contents",
-    "Info.plist"
+    "Info.plist",
   )
-  await execute("/usr/bin/plutil", ["-replace", "NSAppTransportSecurity.NSAllowsArbitraryLoads", "-bool", "NO", plistPath])
-  await execute("/usr/bin/plutil", ["-replace", "NSAppTransportSecurity.NSAllowsLocalNetworking", "-bool", "NO", plistPath])
-  await execute("/usr/bin/plutil", ["-remove", "NSAppTransportSecurity.NSExceptionDomains", plistPath]).catch(() => undefined)
+  await execute("/usr/bin/plutil", [
+    "-replace",
+    "NSAppTransportSecurity.NSAllowsArbitraryLoads",
+    "-bool",
+    "NO",
+    plistPath,
+  ])
+  await execute("/usr/bin/plutil", [
+    "-replace",
+    "NSAppTransportSecurity.NSAllowsLocalNetworking",
+    "-bool",
+    "NO",
+    plistPath,
+  ])
+  await execute("/usr/bin/plutil", [
+    "-remove",
+    "NSAppTransportSecurity.NSExceptionDomains",
+    plistPath,
+  ]).catch(() => undefined)
 }

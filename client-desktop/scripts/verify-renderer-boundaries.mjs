@@ -2,14 +2,13 @@ import { readFile, readdir } from "node:fs/promises"
 import path from "node:path"
 
 const desktopRoot = path.resolve(import.meta.dirname, "..")
-const checkedRoots = [
-  path.join(desktopRoot, "src"),
-  path.join(desktopRoot, "public"),
-]
+const checkedRoots = [path.join(desktopRoot, "src"), path.join(desktopRoot, "public")]
 const checkedFiles = [
   path.join(desktopRoot, "electron.vite.config.ts"),
   path.join(desktopRoot, "electron-builder.yml"),
   path.join(desktopRoot, "package.json"),
+  path.join(desktopRoot, "pnpm-lock.yaml"),
+  path.join(desktopRoot, "pnpm-workspace.yaml"),
   path.join(desktopRoot, "tsconfig.json"),
   path.join(desktopRoot, "vitest.config.ts"),
 ]

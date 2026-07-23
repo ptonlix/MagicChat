@@ -1,4 +1,3 @@
-import path from "node:path"
 import { app, BrowserWindow, shell, type Event } from "electron"
 import { ConfigStore } from "@main/config-store"
 import { Diagnostics } from "@main/diagnostics"

@@ -146,7 +146,8 @@ export class RealtimeController extends EventEmitter {
       if (!pending) return
       clearTimeout(pending.timer)
       connection.pending.delete(envelope.reply_to)
-      envelope.ok ? pending.resolve(envelope.payload) : pending.reject(new Error(envelope.error?.message ?? "实时请求失败"))
+      if (envelope.ok) pending.resolve(envelope.payload)
+      else pending.reject(new Error(envelope.error?.message ?? "实时请求失败"))
     }
   }
 

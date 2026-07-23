@@ -22,7 +22,8 @@ pnpm verify:boundaries
 pnpm verify:build
 ```
 
-发布候选还需在对应平台执行打包和 `pnpm verify:package`。CI 应检查本地 Renderer、
+发布候选还需在对应平台执行打包，并使用目标平台和架构参数校验产物，例如 macOS
+Universal 包执行 `pnpm verify:package -- --platform mac --arch universal`。CI 应检查本地 Renderer、
 CSP、开发地址隔离、应用 ID、版本、架构、`app.asar`、协议注册配置和产物命名。
 不要在文档中固化测试文件数或测试项数量，以流水线输出为准。
 

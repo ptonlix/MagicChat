@@ -29,8 +29,8 @@ HTTP 服务；打包应用只接受 HTTPS 服务。
 ## 常用命令
 
 ```bash
-# 类型检查、测试和生产构建
-pnpm typecheck
+# 代码标准检查、测试和生产构建
+pnpm check
 pnpm test
 pnpm build
 

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 const defaultVirtualizationThreshold = 80
 
 export function VirtualList<T>({
+  ariaLabel,
   className,
   estimateSize,
   getKey,
@@ -15,6 +16,7 @@ export function VirtualList<T>({
   scrollRef,
   threshold = defaultVirtualizationThreshold,
 }: {
+  ariaLabel?: string
   className?: string
   estimateSize: number
   getKey?: (item: T, index: number) => React.Key
@@ -65,7 +67,7 @@ export function VirtualList<T>({
 
   if (!virtualized) {
     return (
-      <div className={className} role={role}>
+      <div aria-label={ariaLabel} className={className} role={role}>
         {items.map(renderItem)}
       </div>
     )
@@ -73,6 +75,7 @@ export function VirtualList<T>({
 
   return (
     <div
+      aria-label={ariaLabel}
       className={cn("relative w-full", className)}
       ref={listRef}
       role={role}

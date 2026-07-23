@@ -347,6 +347,7 @@ function DirectoryList({
   const items = Children.toArray(children)
   return (
     <VirtualList
+      ariaLabel={ariaLabel}
       className="flex flex-col gap-1 px-2 pb-3"
       estimateSize={48}
       items={items}
