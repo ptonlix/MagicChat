@@ -108,11 +108,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-background text-foreground">
+    <div className="brand-login-page flex min-h-svh flex-col text-foreground">
       <main className="flex flex-1 items-center justify-center px-4 py-10">
-        <div className="flex w-full max-w-sm flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-left text-2xl font-medium">
+        <div className="brand-login-panel flex w-full max-w-sm flex-col gap-6 rounded-3xl border border-white/70 bg-white/80 p-7 shadow-2xl shadow-teal-950/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/75">
+          <div className="flex flex-col gap-3">
+            <img alt="即应" className="size-14 rounded-2xl shadow-lg shadow-teal-700/20" src="/logo.png" />
+            <h1 className="text-left text-2xl font-semibold tracking-tight">
               {appName} 智能协作平台
             </h1>
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">

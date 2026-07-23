@@ -67,7 +67,7 @@ describe("桌面设置服务器管理", () => {
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(await screen.findByRole("button", { name: "移除服务器" }))
 
-    expect(await screen.findByRole("heading", { name: "连接 MagicChat Server" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "开始使用即应" })).toBeInTheDocument()
     expect(mocks.remove).toHaveBeenCalledWith(profile.id)
     expect(screen.getByLabelText("服务器地址")).toHaveValue("")
   })

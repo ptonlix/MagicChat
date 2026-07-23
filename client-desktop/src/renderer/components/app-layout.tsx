@@ -112,8 +112,8 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex h-svh min-h-0 bg-background text-foreground">
-      <aside className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-3">
+    <div className="app-green-shell flex h-svh min-h-0 text-foreground">
+      <aside className="brand-sidebar flex w-14 shrink-0 flex-col items-center border-r py-3">
         <UserAvatarMenu user={me} refreshMe={refreshMe} />
         <nav aria-label="主导航" className="flex flex-1 flex-col gap-2">
           {navItems.map((item) => (

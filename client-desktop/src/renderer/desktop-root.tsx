@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
-import { XIcon } from "lucide-react"
+import {
+  ArrowRight,
+  BellRing,
+  ChevronRight,
+  CircleHelp,
+  Download,
+  HardDriveDownload,
+  LockKeyhole,
+  MessageCircleMore,
+  MonitorCog,
+  Server,
+  ShieldCheck,
+  Sparkles,
+  UsersRound,
+  XIcon,
+} from "lucide-react"
 import { BrowserRouter } from "react-router"
 import { configureDesktopHost } from "@/lib/desktop-host"
 import { RealtimeClient } from "@/lib/realtime-client"
@@ -15,6 +30,7 @@ import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
 import { startRuntimeDiagnostics } from "@/lib/runtime-diagnostics"
 import { releaseChannelLabel } from "@/release-channel"
+import { BrandLoadingScreen } from "@/components/brand-loading-screen"
 
 export function DesktopRoot() {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
@@ -24,11 +40,13 @@ export function DesktopRoot() {
   useEffect(() => startRuntimeDiagnostics(), [])
 
   useEffect(() => {
-    void Promise.all([window.desktop.servers.list(), window.desktop.settings.get()]).then(([items, settings]) => {
-      setProfiles(items)
-      setSelectedId(settings.selectedServerId ?? items[0]?.id)
-      setLoading(false)
-    })
+    void Promise.all([window.desktop.servers.list(), window.desktop.settings.get()]).then(
+      ([items, settings]) => {
+        setProfiles(items)
+        setSelectedId(settings.selectedServerId ?? items[0]?.id)
+        setLoading(false)
+      },
+    )
     return window.desktop.navigation.subscribeUnknownServer(({ serverId }) => {
       window.alert(`链接指向尚未配置的服务器 ${serverId}，请先添加并确认服务器地址。`)
       setSelectedId(undefined)
@@ -51,16 +69,31 @@ export function DesktopRoot() {
     setSelectedId(undefined)
   }
 
-  if (loading) return <StatusPage text="正在启动 MagicChat" />
+  if (loading) return <StatusPage text="正在启动即应" />
   const selected = profiles.find((profile) => profile.id === selectedId)
   if (!selected) return <ServerSetup onAdded={added} />
-  return <DesktopWorkspace key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`} profile={selected} onRemoved={removed} />
+  return (
+    <DesktopWorkspace
+      key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
+      profile={selected}
+      onRemoved={removed}
+    />
+  )
 }
 
-function DesktopWorkspace({ profile, onRemoved }: { profile: ServerProfile; onRemoved(serverId: string): void }) {
+function DesktopWorkspace({
+  profile,
+  onRemoved,
+}: {
+  profile: ServerProfile
+  onRemoved(serverId: string): void
+}) {
   const [userId, setUserId] = useState(profile.lastUserId ?? "anonymous")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const target = useMemo<AuthenticatedTarget>(() => ({ id: profile.id, normalizedUrl: profile.normalizedUrl, userId }), [profile.id, profile.normalizedUrl, userId])
+  const target = useMemo<AuthenticatedTarget>(
+    () => ({ id: profile.id, normalizedUrl: profile.normalizedUrl, userId }),
+    [profile.id, profile.normalizedUrl, userId],
+  )
   const openSettings = useCallback(() => setSettingsOpen(true), [])
 
   return (
@@ -69,44 +102,80 @@ function DesktopWorkspace({ profile, onRemoved }: { profile: ServerProfile; onRe
         <ThemeProvider>
           <TooltipProvider>
             <BrowserRouter>
-              <DesktopHostedApp profile={profile} target={target} onAuthenticated={setUserId} onOpenSettings={openSettings} />
+              <DesktopHostedApp
+                profile={profile}
+                target={target}
+                onAuthenticated={setUserId}
+                onOpenSettings={openSettings}
+              />
               <Toaster position="top-center" />
             </BrowserRouter>
           </TooltipProvider>
         </ThemeProvider>
       </div>
-      {settingsOpen && <DesktopSettingsPanel profile={profile} onOpenChange={setSettingsOpen} onRemoved={onRemoved} />}
+      {settingsOpen && (
+        <DesktopSettingsPanel
+          profile={profile}
+          onOpenChange={setSettingsOpen}
+          onRemoved={onRemoved}
+        />
+      )}
     </div>
   )
 }
 
-function DesktopHostedApp({ profile, target, onAuthenticated, onOpenSettings }: { profile: ServerProfile; target: AuthenticatedTarget; onAuthenticated(userId: string): void; onOpenSettings(): void }) {
+function DesktopHostedApp({
+  profile,
+  target,
+  onAuthenticated,
+  onOpenSettings,
+}: {
+  profile: ServerProfile
+  target: AuthenticatedTarget
+  onAuthenticated(userId: string): void
+  onOpenSettings(): void
+}) {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     const restoreFetch = installDesktopFetch(target)
     const restoreHost = configureDesktopHost({
       cancelThirdPartyLogin: (transactionId) => window.desktop.auth.cancel(transactionId),
-      createRealtimeClient: (options) => new RealtimeClient({ ...options, createWebSocket: () => new DesktopWebSocket(target), url: "desktop://realtime" }),
+      createRealtimeClient: (options) =>
+        new RealtimeClient({
+          ...options,
+          createWebSocket: () => new DesktopWebSocket(target),
+          url: "desktop://realtime",
+        }),
       downloadTemporaryFile: async (fileId, fileName) => {
-        await window.desktop.files.download(target, `/api/client/temporary-files/${encodeURIComponent(fileId)}/content`, fileName)
+        await window.desktop.files.download(
+          target,
+          `/api/client/temporary-files/${encodeURIComponent(fileId)}/content`,
+          fileName,
+        )
       },
       openSettings: onOpenSettings,
       openThirdPartyLogin: (providerKey) => window.desktop.auth.start(profile.id, providerKey),
       notificationPermission: () => "granted",
       openExternal: (url) => window.desktop.shell.openExternal(url),
       requestMicrophonePermission: () => window.desktop.permissions.request("microphone"),
-      requestNotificationPermission: async () => await window.desktop.permissions.request("notifications") ? "granted" : "denied",
+      requestNotificationPermission: async () =>
+        (await window.desktop.permissions.request("notifications")) ? "granted" : "denied",
       resolveResourceUrl: (url) => resolveDesktopResourceUrl(profile, url),
-      setBadge: (count) => { void window.desktop.badge.set(count) },
+      setBadge: (count) => {
+        void window.desktop.badge.set(count)
+      },
       setTrayMessages: (messages) => {
-        void window.desktop.tray.setMessages(messages.map((message) => ({ ...message, serverId: profile.id })))
+        void window.desktop.tray.setMessages(
+          messages.map((message) => ({ ...message, serverId: profile.id })),
+        )
       },
       showMessageNotification: (input) => {
         void window.desktop.notifications.show({ ...input, target, workspace: profile.displayName })
         return true
       },
-      subscribeThirdPartyLoginFinished: (listener) => window.desktop.auth.subscribeFinished(listener),
+      subscribeThirdPartyLoginFinished: (listener) =>
+        window.desktop.auth.subscribeFinished(listener),
       writeClipboardPng: (bytes) => window.desktop.clipboard.writePng(bytes),
       writeClipboardText: (value) => window.desktop.clipboard.writeText(value),
     })
@@ -138,10 +207,18 @@ function DesktopHostedApp({ profile, target, onAuthenticated, onOpenSettings }: 
     }
   }, [onAuthenticated, onOpenSettings, profile, target])
 
-  return ready ? <App /> : <StatusPage text="正在连接服务器" />
+  return ready ? <App /> : <StatusPage detail={profile.displayName} text="正在连接工作空间" />
 }
 
-function DesktopSettingsPanel({ profile, onOpenChange, onRemoved }: { profile: ServerProfile; onOpenChange(open: boolean): void; onRemoved(serverId: string): void }) {
+function DesktopSettingsPanel({
+  profile,
+  onOpenChange,
+  onRemoved,
+}: {
+  profile: ServerProfile
+  onOpenChange(open: boolean): void
+  onRemoved(serverId: string): void
+}) {
   const [settings, setSettings] = useState<DesktopSettings>()
   const [appInfo, setAppInfo] = useState<DesktopAppInfo>()
   const [updater, setUpdater] = useState<UpdaterState>({ status: "idle" })
@@ -150,7 +227,12 @@ function DesktopSettingsPanel({ profile, onOpenChange, onRemoved }: { profile: S
   const [removeError, setRemoveError] = useState("")
 
   useEffect(() => {
-    void Promise.all([window.desktop.settings.get(), window.desktop.app.info()]).then(([nextSettings, nextInfo]) => { setSettings(nextSettings); setAppInfo(nextInfo) })
+    void Promise.all([window.desktop.settings.get(), window.desktop.app.info()]).then(
+      ([nextSettings, nextInfo]) => {
+        setSettings(nextSettings)
+        setAppInfo(nextInfo)
+      },
+    )
     return window.desktop.updater.subscribe(setUpdater)
   }, [])
 
@@ -160,8 +242,12 @@ function DesktopSettingsPanel({ profile, onOpenChange, onRemoved }: { profile: S
 
   async function renameServer() {
     setBusy(true)
-    try { await window.desktop.servers.rename(profile.id, name); window.location.reload() }
-    finally { setBusy(false) }
+    try {
+      await window.desktop.servers.rename(profile.id, name)
+      window.location.reload()
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function removeServer() {
@@ -174,45 +260,220 @@ function DesktopSettingsPanel({ profile, onOpenChange, onRemoved }: { profile: S
       onRemoved(profile.id)
     } catch (reason) {
       setRemoveError(reason instanceof Error ? reason.message : "移除服务器失败")
+    } finally {
+      setBusy(false)
     }
-    finally { setBusy(false) }
   }
 
   return (
     <Sheet open onOpenChange={onOpenChange}>
-      <SheetContent aria-describedby={undefined} aria-label="设置" className="desktop-settings" side="right" showCloseButton={false}>
+      <SheetContent
+        aria-describedby={undefined}
+        aria-label="设置"
+        className="desktop-settings"
+        side="right"
+        showCloseButton={false}
+      >
         <SheetHeader className="desktop-settings-header">
-          <SheetTitle>设置</SheetTitle>
-          <button aria-label="关闭设置" className="desktop-icon-button" onClick={() => onOpenChange(false)} title="关闭设置" type="button"><XIcon size={17} /></button>
+          <div className="desktop-settings-brand">
+            <img alt="即应" src="/logo.png" />
+            <div>
+              <SheetTitle>设置</SheetTitle>
+              <p>让即应更符合你的工作习惯</p>
+            </div>
+          </div>
+          <button
+            aria-label="关闭设置"
+            className="desktop-icon-button"
+            onClick={() => onOpenChange(false)}
+            title="关闭设置"
+            type="button"
+          >
+            <XIcon size={17} />
+          </button>
         </SheetHeader>
-        {!settings ? <p>正在加载</p> : <div className="desktop-setting-list">
-          <section className="desktop-setting-section">
-            <h3>通用</h3>
-            <label>关闭窗口
-              <select value={settings.closeBehavior} onChange={(event) => void updateSettings({ closeBehavior: event.target.value as DesktopSettings["closeBehavior"] })}>
-                <option value="background">保持后台运行</option><option value="quit">退出应用</option>
-              </select>
-            </label>
-            <label className="desktop-checkbox"><input checked={settings.autoLaunch} type="checkbox" onChange={(event) => void updateSettings({ autoLaunch: event.target.checked })} /><span>登录时自动启动</span></label>
-            <label>通知内容
-              <select value={settings.notificationPrivacy} onChange={(event) => void updateSettings({ notificationPrivacy: event.target.value as DesktopSettings["notificationPrivacy"] })}>
-                <option value="hidden">隐藏通知内容</option><option value="metadata">仅显示发送者或会话</option><option value="preview">显示消息预览</option>
-              </select>
-            </label>
-          </section>
-          <section className="desktop-setting-section">
-            <h3>服务器</h3>
-            <label>显示名称<div className="desktop-inline"><input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /><button disabled={busy || !name.trim() || name.trim() === profile.displayName} onClick={() => void renameServer()}>重命名</button></div></label>
-            <div className="desktop-server-address"><span>服务器地址</span><p>{profile.normalizedUrl}</p></div>
-            <button className="desktop-danger" disabled={busy} onClick={() => void removeServer()}>移除服务器</button>
-            {removeError && <p role="alert">{removeError}</p>}
-          </section>
-          <section className="desktop-setting-section">
-            <h3>关于</h3>
-            <div className="desktop-setting-group"><span>版本</span><p>{appInfo ? `${appInfo.version} · ${appInfo.platform} ${appInfo.arch} · ${releaseChannelLabel(appInfo.channel)}` : "正在读取"}</p><div className="desktop-setting-actions"><button onClick={() => void window.desktop.updater.check().then(setUpdater)}>检查更新</button>{updater.status === "available" && <button onClick={() => void window.desktop.updater.download()}>下载 {updater.version}</button>}{updater.status === "downloaded" && <button onClick={() => void window.desktop.updater.install()}>安装并重启</button>}</div><small>{updateStatusText(updater)}</small></div>
-            <div className="desktop-setting-group"><span>诊断</span><button onClick={() => void window.desktop.diagnostics.export()}>导出脱敏诊断</button></div>
-          </section>
-        </div>}
+        {!settings ? (
+          <div className="desktop-settings-loading">
+            <Sparkles size={18} />
+            <span>正在准备设置</span>
+          </div>
+        ) : (
+          <div className="desktop-setting-list">
+            <div className="desktop-settings-summary">
+              <div className="desktop-settings-summary-icon">
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <strong>桌面体验已连接</strong>
+                <span>{profile.displayName}</span>
+              </div>
+              <span className="desktop-status-pill">运行正常</span>
+            </div>
+            <section className="desktop-setting-section">
+              <div className="desktop-setting-section-heading">
+                <MonitorCog size={17} />
+                <div>
+                  <h3>应用行为</h3>
+                  <p>启动、关闭与后台运行方式</p>
+                </div>
+              </div>
+              <label className="desktop-setting-card">
+                <span>
+                  <strong>关闭窗口</strong>
+                  <small>选择点击关闭按钮后的行为</small>
+                </span>
+                <select
+                  value={settings.closeBehavior}
+                  onChange={(event) =>
+                    void updateSettings({
+                      closeBehavior: event.target.value as DesktopSettings["closeBehavior"],
+                    })
+                  }
+                >
+                  <option value="background">保持后台运行</option>
+                  <option value="quit">退出应用</option>
+                </select>
+              </label>
+              <label className="desktop-setting-card desktop-checkbox">
+                <span>
+                  <strong>开机自动启动</strong>
+                  <small>登录系统后在后台静默启动</small>
+                </span>
+                <input
+                  checked={settings.autoLaunch}
+                  type="checkbox"
+                  onChange={(event) => void updateSettings({ autoLaunch: event.target.checked })}
+                />
+              </label>
+            </section>
+            <section className="desktop-setting-section">
+              <div className="desktop-setting-section-heading">
+                <BellRing size={17} />
+                <div>
+                  <h3>通知与隐私</h3>
+                  <p>控制系统通知展示的信息</p>
+                </div>
+              </div>
+              <label className="desktop-setting-card">
+                <span>
+                  <strong>通知内容</strong>
+                  <small>敏感环境建议隐藏正文预览</small>
+                </span>
+                <select
+                  value={settings.notificationPrivacy}
+                  onChange={(event) =>
+                    void updateSettings({
+                      notificationPrivacy: event.target
+                        .value as DesktopSettings["notificationPrivacy"],
+                    })
+                  }
+                >
+                  <option value="hidden">隐藏通知内容</option>
+                  <option value="metadata">仅显示发送者或会话</option>
+                  <option value="preview">显示消息预览</option>
+                </select>
+              </label>
+            </section>
+            <section className="desktop-setting-section">
+              <div className="desktop-setting-section-heading">
+                <Server size={17} />
+                <div>
+                  <h3>工作空间</h3>
+                  <p>当前连接的服务器信息</p>
+                </div>
+              </div>
+              <label className="desktop-setting-card desktop-setting-card-stack">
+                <span>
+                  <strong>显示名称</strong>
+                  <small>仅影响此设备上的展示</small>
+                </span>
+                <div className="desktop-inline">
+                  <input
+                    maxLength={120}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                  <button
+                    disabled={busy || !name.trim() || name.trim() === profile.displayName}
+                    onClick={() => void renameServer()}
+                  >
+                    保存
+                  </button>
+                </div>
+              </label>
+              <div className="desktop-server-address desktop-setting-card">
+                <span>
+                  <strong>服务器地址</strong>
+                  <small>已通过安全连接访问</small>
+                </span>
+                <p>{profile.normalizedUrl}</p>
+              </div>
+              <button
+                className="desktop-danger"
+                disabled={busy}
+                onClick={() => void removeServer()}
+              >
+                移除服务器
+              </button>
+              {removeError && <p role="alert">{removeError}</p>}
+            </section>
+            <section className="desktop-setting-section">
+              <div className="desktop-setting-section-heading">
+                <CircleHelp size={17} />
+                <div>
+                  <h3>关于即应</h3>
+                  <p>版本、更新与诊断工具</p>
+                </div>
+              </div>
+              <div className="desktop-setting-card desktop-about-card">
+                <div className="desktop-about-icon">
+                  <HardDriveDownload size={18} />
+                </div>
+                <div>
+                  <strong>当前版本</strong>
+                  <p>
+                    {appInfo
+                      ? `${appInfo.version} · ${appInfo.platform} ${appInfo.arch} · ${releaseChannelLabel(appInfo.channel)}`
+                      : "正在读取"}
+                  </p>
+                  <small>{updateStatusText(updater)}</small>
+                </div>
+                <button
+                  className="desktop-icon-action"
+                  aria-label="检查更新"
+                  onClick={() => void window.desktop.updater.check().then(setUpdater)}
+                  title="检查更新"
+                >
+                  <ChevronRight size={17} />
+                </button>
+              </div>
+              {updater.status === "available" && (
+                <button
+                  className="desktop-primary-action"
+                  onClick={() => void window.desktop.updater.download()}
+                >
+                  <Download size={16} />
+                  下载 {updater.version}
+                </button>
+              )}
+              {updater.status === "downloaded" && (
+                <button
+                  className="desktop-primary-action"
+                  onClick={() => void window.desktop.updater.install()}
+                >
+                  <Sparkles size={16} />
+                  安装并重启
+                </button>
+              )}
+              <button
+                className="desktop-secondary-action"
+                onClick={() => void window.desktop.diagnostics.export()}
+              >
+                导出脱敏诊断
+              </button>
+            </section>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   )
@@ -223,7 +484,11 @@ function updateStatusText(state: UpdaterState): string {
   if (state.status === "downloading") return `正在下载 ${Math.round(state.progress ?? 0)}%`
   if (state.status === "error") return `更新失败：${state.errorCode ?? "unknown"}`
   if (state.status === "idle") return "当前版本可继续使用"
-  return state.status === "checking" ? "正在检查" : state.status === "downloaded" ? "更新已下载" : `发现 ${state.version ?? "新版本"}`
+  return state.status === "checking"
+    ? "正在检查"
+    : state.status === "downloaded"
+      ? "更新已下载"
+      : `发现 ${state.version ?? "新版本"}`
 }
 
 function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
@@ -236,25 +501,133 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
     event.preventDefault()
     setBusy(true)
     setError("")
-    try { onAdded(await window.desktop.servers.add(url, name || undefined)) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "无法添加服务器") }
-    finally { setBusy(false) }
+    try {
+      onAdded(await window.desktop.servers.add(url, name || undefined))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "无法添加服务器")
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <main className="server-setup">
-      <section>
-        <img alt="MagicChat" src="/logo.png" />
-        <h1>连接 MagicChat Server</h1>
-        <form onSubmit={(event) => void submit(event)}>
-          <label>服务器地址<input required type="url" placeholder="https://chat.example.com" value={url} onChange={(event) => setUrl(event.target.value)} /></label>
-          <label>显示名称<input maxLength={120} placeholder="可选" value={name} onChange={(event) => setName(event.target.value)} /></label>
-          {error && <p role="alert">{error}</p>}
-          <button disabled={busy} type="submit">{busy ? "正在验证" : "添加并继续"}</button>
-        </form>
-      </section>
+      <div className="server-setup-shell">
+        <section className="server-setup-hero">
+          <div className="server-setup-brand">
+            <img alt="即应" src="/logo.png" />
+            <div>
+              <strong>即应</strong>
+              <span>Desktop</span>
+            </div>
+          </div>
+
+          <div className="server-setup-hero-copy">
+            <span className="server-setup-eyebrow">
+              <Sparkles size={14} />A BETTER WAY TO WORK
+            </span>
+            <h1>
+              从沟通到行动，
+              <br />
+              让协作持续向前
+            </h1>
+            <p>
+              即应是一款面向企业团队的沟通与协作平台。它把聊天、AI
+              应用、项目与任务放进同一个上下文，让沟通不止被看见，更能继续向前。
+            </p>
+          </div>
+
+          <div className="server-setup-benefits">
+            <div>
+              <span>
+                <MessageCircleMore size={17} />
+              </span>
+              <div>
+                <strong>即时沟通</strong>
+                <p>消息、文件与上下文始终保持同步</p>
+              </div>
+            </div>
+            <div>
+              <span>
+                <UsersRound size={17} />
+              </span>
+              <div>
+                <strong>团队协作</strong>
+                <p>联系人、项目与会话集中在一处</p>
+              </div>
+            </div>
+            <div>
+              <span>
+                <ShieldCheck size={17} />
+              </span>
+              <div>
+                <strong>安全连接</strong>
+                <p>凭据仅发送到你确认的工作空间</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="server-setup-hero-footer">
+            <span />
+            即应 · 企业协作空间
+          </div>
+        </section>
+
+        <section className="server-setup-form-panel">
+          <div className="server-setup-form-card">
+            <div className="server-setup-form-heading">
+              <span>连接团队空间</span>
+              <h2>开始使用即应</h2>
+              <p>输入管理员提供的服务器地址，即可进入你的团队工作空间。</p>
+            </div>
+
+            <form onSubmit={(event) => void submit(event)}>
+              <label>
+                <span>
+                  <strong>服务器地址</strong>
+                  <small>必填</small>
+                </span>
+                <input
+                  aria-label="服务器地址"
+                  autoFocus
+                  required
+                  type="url"
+                  placeholder="https://chat.example.com"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>
+                  <strong>显示名称</strong>
+                  <small>可选</small>
+                </span>
+                <input
+                  aria-label="显示名称"
+                  maxLength={120}
+                  placeholder="例如：产品团队"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              {error && <p role="alert">{error}</p>}
+              <button disabled={busy} type="submit">
+                <span>{busy ? "正在验证连接" : "连接并继续"}</span>
+                <ArrowRight size={17} />
+              </button>
+            </form>
+
+            <div className="server-setup-security">
+              <LockKeyhole size={14} />
+              <span>仅连接你信任的服务器地址</span>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
   )
 }
 
-function StatusPage({ text }: { text: string }) { return <main className="status-page"><p>{text}</p></main> }
+function StatusPage({ detail, text }: { detail?: string; text: string }) {
+  return <BrandLoadingScreen detail={detail ?? "正在准备你的桌面工作空间"} message={text} />
+}

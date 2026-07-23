@@ -2,6 +2,9 @@ appId: com.magicchat.desktop
 productName: MagicChat
 artifactName: "MagicChat-${version}-${os}-${arch}.${ext}"
 asar: true
+electronDownload:
+ mirrorOptions:
+  mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.mjs
 directories:
   output: dist

@@ -54,7 +54,7 @@ export function App() {
             path="/chat/:conversationId?"
             element={
               <>
-                <ClientDocumentTitle title="聊天" />
+                <ClientDocumentTitle />
                 <ChatPage />
               </>
             }
