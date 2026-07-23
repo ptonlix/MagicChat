@@ -1,6 +1,7 @@
 import { targetKey, type AuthenticatedTarget, type RealtimeEnvelope } from "@shared/client-contract"
 import type { RealtimeWebSocketLike } from "@/lib/realtime-client"
 import { randomUUID } from "./random-id"
+import { beginDiagnosticRequest } from "@/lib/runtime-diagnostics"
 
 export function installDesktopFetch(target: AuthenticatedTarget): () => void {
   const original = window.fetch.bind(window)
@@ -9,25 +10,34 @@ export function installDesktopFetch(target: AuthenticatedTarget): () => void {
     const url = new URL(request.url, window.location.href)
     if (!url.pathname.startsWith("/api/client/")) return original(input, init)
     const method = request.method.toUpperCase() as "DELETE" | "GET" | "PATCH" | "POST" | "PUT"
-    if (request.body && request.headers.get("content-type")?.includes("multipart/form-data")) {
-      return streamMultipartRequest(target, request, `${url.pathname}${url.search}`, method)
+    const finishDiagnostic = beginDiagnosticRequest(method, url.pathname)
+    try {
+      if (request.body && request.headers.get("content-type")?.includes("multipart/form-data")) {
+        const response = await streamMultipartRequest(target, request, `${url.pathname}${url.search}`, method)
+        finishDiagnostic(response.status)
+        return response
+      }
+      let body: { kind: "text"; value: string } | undefined
+      if (method !== "GET" && method !== "DELETE") body = { kind: "text", value: await request.text() }
+      const response = await window.desktop.transport.request(target, {
+        body,
+        headers: Object.fromEntries(request.headers.entries()),
+        method,
+        path: `${url.pathname}${url.search}`,
+        requestId: randomUUID(),
+      })
+      const headers = new Headers(response.headers)
+      const responseBody = response.body instanceof Uint8Array ? new Blob([Uint8Array.from(response.body)]) : typeof response.body === "string" ? response.body : JSON.stringify(response.body)
+      if (url.pathname.endsWith("/auth/login") || url.pathname.endsWith("/auth/email-code/login") || url.pathname.endsWith("/me")) {
+        const data = response.body as { data?: { user?: { id?: string } } }
+        if (data?.data?.user?.id) window.dispatchEvent(new CustomEvent("magicchat:authenticated", { detail: { userId: data.data.user.id } }))
+      }
+      finishDiagnostic(response.status)
+      return new Response(responseBody, { headers, status: response.status })
+    } catch (error) {
+      finishDiagnostic()
+      throw error
     }
-    let body: { kind: "text"; value: string } | undefined
-    if (method !== "GET" && method !== "DELETE") body = { kind: "text", value: await request.text() }
-    const response = await window.desktop.transport.request(target, {
-      body,
-      headers: Object.fromEntries(request.headers.entries()),
-      method,
-      path: `${url.pathname}${url.search}`,
-      requestId: randomUUID(),
-    })
-    const headers = new Headers(response.headers)
-    const responseBody = response.body instanceof Uint8Array ? new Blob([Uint8Array.from(response.body)]) : typeof response.body === "string" ? response.body : JSON.stringify(response.body)
-    if (url.pathname.endsWith("/auth/login") || url.pathname.endsWith("/auth/email-code/login") || url.pathname.endsWith("/me")) {
-      const data = response.body as { data?: { user?: { id?: string } } }
-      if (data?.data?.user?.id) window.dispatchEvent(new CustomEvent("magicchat:authenticated", { detail: { userId: data.data.user.id } }))
-    }
-    return new Response(responseBody, { headers, status: response.status })
   }
   return () => { window.fetch = original }
 }

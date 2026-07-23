@@ -55,6 +55,7 @@ import { useConversationActions } from "@/hooks/use-conversation-actions"
 import { useConversationSenders } from "@/hooks/use-conversation-senders"
 import { useAppInfo } from "@/lib/app-info-context"
 import { startStaggeredRefresh } from "@/lib/staggered-refresh"
+import { trackDiagnosticRefresh, updateDiagnosticData } from "@/lib/runtime-diagnostics"
 
 type BootstrapState = "loading" | "ready" | "error"
 
@@ -116,10 +117,22 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   }, [conversations])
 
   useEffect(() => {
+    const loadedStates = Object.values(conversationMessageStates)
+    updateDiagnosticData({
+      contacts: contacts.length,
+      conversations: conversations.length,
+      loadedConversations: loadedStates.length,
+      messages: loadedStates.reduce((total, state) => total + state.messages.length, 0),
+      projects: projects.length,
+    })
+  }, [contacts.length, conversationMessageStates, conversations.length, projects.length])
+
+  useEffect(() => {
     mountedRef.current = true
 
     return () => {
       mountedRef.current = false
+      updateDiagnosticData({ contacts: 0, conversations: 0, loadedConversations: 0, messages: 0, projects: 0 })
     }
   }, [])
 
@@ -152,7 +165,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [navigate, setAuthenticated]
   )
 
-  const refreshMe = useCallback(async () => {
+  const refreshMe = useCallback(() => trackDiagnosticRefresh("me", async () => {
     const isInitialLoad = me === null
     setMeError(null)
     setMeLoading(isInitialLoad)
@@ -168,9 +181,9 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       setMeLoading(false)
       setMeRefreshing(false)
     }
-  }, [handleError, me])
+  }), [handleError, me])
 
-  const refreshContacts = useCallback(async () => {
+  const refreshContacts = useCallback(() => trackDiagnosticRefresh("contacts", async () => {
     const isInitialLoad =
       contacts.length === 0 &&
       contactApps.length === 0 &&
@@ -192,17 +205,17 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       setContactsLoading(false)
       setContactsRefreshing(false)
     }
-  }, [contactApps.length, contactGroups.length, contacts.length, handleError])
+  }), [contactApps.length, contactGroups.length, contacts.length, handleError])
 
-  const refreshConversations = useCallback(async () => {
+  const refreshConversations = useCallback(() => trackDiagnosticRefresh("conversations", async () => {
     try {
       setConversations(orderConversations(await listClientConversations()))
     } catch (error) {
       throw handleError(error, "加载会话列表失败")
     }
-  }, [handleError])
+  }), [handleError])
 
-  const refreshProjects = useCallback(async () => {
+  const refreshProjects = useCallback(() => trackDiagnosticRefresh("projects", async () => {
     const isInitialLoad = personalProject === null && projects.length === 0
     setProjectsError(null)
     setProjectsLoading(isInitialLoad)
@@ -221,7 +234,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       setProjectsLoading(false)
       setProjectsRefreshing(false)
     }
-  }, [handleError, personalProject, projects.length])
+  }), [handleError, personalProject, projects.length])
 
   const loadMoreProjects = useCallback(async () => {
     if (!projectsNextCursor || projectsLoadingMore) {

@@ -13,11 +13,14 @@ import type { DesktopAppInfo, DesktopSettings, ServerProfile, UpdaterState } fro
 import { DesktopWebSocket, installDesktopFetch } from "./desktop-transport"
 import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
+import { startRuntimeDiagnostics } from "@/lib/runtime-diagnostics"
 
 export function DesktopRoot() {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => startRuntimeDiagnostics(), [])
 
   useEffect(() => {
     void Promise.all([window.desktop.servers.list(), window.desktop.settings.get()]).then(([items, settings]) => {

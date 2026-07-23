@@ -15,7 +15,10 @@ const bridge: DesktopBridge = {
     subscribeFinished: (listener) => subscribe<DesktopAuthResult>(IPC.authFinished, listener),
     start: (serverId, providerKey) => ipcRenderer.invoke(IPC.authStart, serverId, providerKey),
   },
-  diagnostics: { export: () => ipcRenderer.invoke(IPC.diagnosticsExport) },
+  diagnostics: {
+    export: () => ipcRenderer.invoke(IPC.diagnosticsExport),
+    reportRuntime: (snapshot) => ipcRenderer.send(IPC.diagnosticsRuntime, snapshot),
+  },
   files: {
     download: (target, path, name) => ipcRenderer.invoke(IPC.filesDownload, target, path, name),
     openLocation: (path) => ipcRenderer.invoke(IPC.filesOpenLocation, path),

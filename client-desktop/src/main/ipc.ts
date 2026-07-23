@@ -14,6 +14,8 @@ import { SessionController } from "@main/session-controller"
 import { SystemIntegration } from "@main/system-integration"
 import { StreamingUploadController } from "@main/streaming-upload"
 import { UpdaterService } from "@main/updater-service"
+import { assertTrustedIpcSender } from "@main/ipc-security"
+import { registerRuntimeDiagnosticsIpc } from "@main/runtime-diagnostics-ipc"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -40,7 +42,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
     broadcast(IPC.realtimeUnauthorized, authTarget)
   }
   const register = (channel: string, handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown) => {
-    ipcMain.handle(channel, async (event, ...args) => { validateSender(event); return handler(event, ...args) })
+    ipcMain.handle(channel, async (event, ...args) => { assertTrustedIpcSender(event); return handler(event, ...args) })
   }
 
   register(IPC.appInfo, () => ({ arch: process.arch, build: process.env.MAGICCHAT_BUILD_ID ?? "local", channel: releaseChannel(), packaged: app.isPackaged, platform: process.platform, version: app.getVersion() }))
@@ -106,6 +108,8 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.updaterInstall, () => deps.updater.install())
   register(IPC.diagnosticsExport, () => deps.diagnostics.export())
 
+  const unregisterRuntimeDiagnostics = registerRuntimeDiagnosticsIpc(deps.diagnostics)
+
   const envelopeListener = (payload: unknown) => broadcast(IPC.realtimeEvent, payload)
   const unauthorizedListener = (authTarget: AuthenticatedTarget) => markUnauthorized(authTarget)
   const updaterUnsubscribe = deps.updater.subscribe((state) => broadcast(IPC.updaterState, state))
@@ -123,16 +127,8 @@ export function registerIpc(deps: IpcDependencies): () => void {
     deps.realtime.off("envelope", envelopeListener)
     deps.realtime.off("unauthorized", unauthorizedListener)
     updaterUnsubscribe()
+    unregisterRuntimeDiagnostics()
   }
-}
-
-function validateSender(event: IpcMainInvokeEvent): void {
-  const rawUrl = event.senderFrame?.url ?? ""
-  if (rawUrl.startsWith("magicchat-app://app/")) return
-  if (!app.isPackaged) {
-    try { const url = new URL(rawUrl); if (url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname)) return } catch { /* 拒绝格式错误来源。 */ }
-  }
-  throw new Error("IPC 调用来源不受信任")
 }
 
 function asString(value: unknown, max: number): string {

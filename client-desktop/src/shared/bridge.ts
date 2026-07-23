@@ -18,6 +18,7 @@ export const IPC = {
   clipboardWritePng: "desktop:v1:clipboard-write-png",
   clipboardWriteText: "desktop:v1:clipboard-write-text",
   diagnosticsExport: "desktop:v1:diagnostics-export",
+  diagnosticsRuntime: "desktop:v1:diagnostics-runtime",
   filesDownload: "desktop:v1:files-download",
   filesOpenLocation: "desktop:v1:files-open-location",
   filesPick: "desktop:v1:files-pick",
@@ -81,6 +82,23 @@ export type DesktopAuthResult = Readonly<{
   userId?: string
 }>
 
+export type RendererRuntimeSnapshot = Readonly<{
+  activeRefreshes: number
+  activeRequests: number
+  data: Readonly<{
+    contacts: number
+    conversations: number
+    loadedConversations: number
+    messages: number
+    projects: number
+  }>
+  eventLoopLagMs: number
+  lastRefresh?: Readonly<{ ageMs: number; durationMs: number; name: "contacts" | "conversations" | "me" | "projects" }>
+  lastRequest?: Readonly<{ ageMs: number; durationMs: number; group: string; method: string; status?: number }>
+  longTasks: Readonly<{ count: number; maxDurationMs: number }>
+  page: "chat" | "contacts" | "init" | "login" | "projects" | "setup" | "unknown"
+}>
+
 export type UpdaterState = Readonly<{
   errorCode?: string
   progress?: number
@@ -101,7 +119,10 @@ export interface DesktopBridge {
     subscribeFinished(listener: (result: DesktopAuthResult) => void): () => void
     start(serverId: string, providerKey: string): Promise<{ transactionId: string }>
   }
-  diagnostics: { export(): Promise<{ path?: string }> }
+  diagnostics: {
+    export(): Promise<{ path?: string }>
+    reportRuntime(snapshot: RendererRuntimeSnapshot): void
+  }
   files: {
     download(target: AuthenticatedTarget, path: string, suggestedName: string): Promise<{ path?: string }>
     openLocation(path: string): Promise<void>

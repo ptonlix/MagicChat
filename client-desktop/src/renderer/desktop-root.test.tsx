@@ -104,7 +104,7 @@ function createDesktopBridge(): DesktopBridge {
     },
     badge: { set: vi.fn() },
     clipboard: { writePng: vi.fn(), writeText: vi.fn() },
-    diagnostics: { export: vi.fn() },
+    diagnostics: { export: vi.fn(), reportRuntime: vi.fn() },
     files: {
       download: vi.fn(),
       openLocation: vi.fn(),
