@@ -22,6 +22,7 @@ assistant/config.local.yaml
 node_modules/
 dist/
 build/
+out/
 coverage/
 .vite/
 .turbo/
@@ -40,3 +41,8 @@ data/
 # Local worktrees
 .worktrees/
 worktrees/
+
+# AI Coding
+.codex
+.serena
+openspec/

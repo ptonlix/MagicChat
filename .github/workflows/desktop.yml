@@ -1,0 +1,69 @@
+name: Desktop PR
+
+on:
+  pull_request:
+    paths:
+      - "client-desktop/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows 11 x64
+            runner: windows-2025
+            platform: win
+            arch: x64
+          - name: Windows 11 arm64
+            runner: windows-11-arm
+            platform: win
+            arch: arm64
+          - name: macOS 13+ universal
+            runner: macos-15
+            platform: mac
+            arch: universal
+          - name: Ubuntu 22.04 x64
+            runner: ubuntu-22.04
+            platform: linux
+            arch: x64
+          - name: Ubuntu 24.04 x64
+            runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - name: Ubuntu 24.04 arm64
+            runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client-desktop/pnpm-lock.yaml
+      - name: 安装固定依赖
+        working-directory: client-desktop
+        run: pnpm install --frozen-lockfile
+      - name: 类型、单元和 IPC 契约测试
+        working-directory: client-desktop
+        run: pnpm verify:boundaries && pnpm typecheck && pnpm test
+      - name: 构建并校验本地 Renderer
+        working-directory: client-desktop
+        run: pnpm build && pnpm verify:build
+      - name: 当前平台未签名目录包烟雾
+        working-directory: client-desktop
+        run: pnpm exec electron-builder --dir --${{ matrix.arch }} --config electron-builder.yml
+      - name: 校验目录包元数据与内容
+        working-directory: client-desktop
+        run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}

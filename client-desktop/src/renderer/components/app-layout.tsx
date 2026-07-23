@@ -1,0 +1,496 @@
+import {
+  BriefcaseBusiness,
+  CircleUserRound,
+  Loader2Icon,
+  LogOut,
+  MessageCircleMore,
+  Moon,
+  Settings,
+  Sun,
+  SunMoon,
+  UserRound,
+} from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { NavLink, Outlet, useMatch, useNavigate } from "react-router"
+import { toast } from "sonner"
+
+import { ProfileSettingsDialog } from "@/components/profile-settings-dialog"
+import type { CroppedAvatar } from "@/components/custom-avatar-picker"
+import { ClientDownloadDialog } from "@/components/client-download-dialog"
+import { useTheme } from "@/components/theme-provider"
+import { UserSettingsDialog } from "@/components/user-settings-dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { NotificationDot } from "@/components/ui/notification-dot"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { clientLogout } from "@/lib/client-auth"
+import { openHostSettings, setHostBadge, setHostTrayMessages } from "@/lib/desktop-host"
+import { selectLatestTrayMessages } from "@/lib/tray-messages"
+import {
+  updateCurrentClientUser,
+  uploadCurrentClientAvatar,
+} from "@/lib/client-data-api"
+import type { ClientUser } from "@/lib/client-data-api"
+import { useClientData } from "@/lib/client-data-context"
+import { useAppInfo } from "@/lib/app-info-context"
+import { cn } from "@/lib/utils"
+
+const navItems = [
+  { label: "聊天", to: "/chat", icon: MessageCircleMore },
+  { label: "通讯录", to: "/contacts", icon: CircleUserRound },
+  { label: "项目", to: "/projects", icon: BriefcaseBusiness },
+]
+
+const themeItems = [
+  { value: "system", label: "跟随系统", icon: SunMoon },
+  { value: "light", label: "明亮模式", icon: Sun },
+  { value: "dark", label: "黑暗模式", icon: Moon },
+] as const
+
+type ThemeValue = (typeof themeItems)[number]["value"]
+
+export function AppLayout() {
+  const { conversations, me, refreshMe } = useClientData()
+  const totalUnreadCount = conversations.reduce(
+    (total, conversation) => total + conversation.unreadCount,
+    0
+  )
+  const hasUnreadMessages = totalUnreadCount > 0
+  const trayMessages = useMemo(
+    () => selectLatestTrayMessages(conversations),
+    [conversations]
+  )
+  useEffect(() => {
+    setHostBadge(totalUnreadCount)
+    setHostTrayMessages(trayMessages)
+    return () => {
+      setHostBadge(0)
+      setHostTrayMessages([])
+    }
+  }, [totalUnreadCount, trayMessages])
+  const [notificationAnimation, setNotificationAnimation] = useState({
+    active: false,
+    unreadCount: totalUnreadCount,
+    version: 0,
+  })
+
+  if (notificationAnimation.unreadCount !== totalUnreadCount) {
+    const unreadCountIncreased =
+      totalUnreadCount > notificationAnimation.unreadCount
+
+    setNotificationAnimation({
+      active: unreadCountIncreased,
+      unreadCount: totalUnreadCount,
+      version: unreadCountIncreased
+        ? notificationAnimation.version + 1
+        : notificationAnimation.version,
+    })
+  }
+
+  function handleNotificationAnimationEnd() {
+    setNotificationAnimation((current) =>
+      current.active ? { ...current, active: false } : current
+    )
+  }
+
+  return (
+    <div className="app-green-shell flex h-svh min-h-0 text-foreground">
+      <aside className="brand-sidebar flex w-14 shrink-0 flex-col items-center border-r py-3">
+        <UserAvatarMenu user={me} refreshMe={refreshMe} />
+        <nav aria-label="主导航" className="flex flex-1 flex-col gap-2">
+          {navItems.map((item) => (
+            <MainNavItem
+              key={item.to}
+              item={item}
+              showNotification={item.to === "/chat" && hasUnreadMessages}
+              notificationAnimationActive={
+                item.to === "/chat" && notificationAnimation.active
+              }
+              notificationAnimationVersion={notificationAnimation.version}
+              onNotificationAnimationEnd={handleNotificationAnimationEnd}
+            />
+          ))}
+        </nav>
+        <div className="flex flex-col items-center gap-2">
+          <GithubLink />
+          <ClientDownloadDialog />
+          <ThemeSwitcher />
+        </div>
+      </aside>
+      <Outlet />
+    </div>
+  )
+}
+
+function UserAvatarMenu({
+  refreshMe,
+  user,
+}: {
+  refreshMe: () => Promise<void>
+  user: ClientUser
+}) {
+  const navigate = useNavigate()
+  const { setAuthenticated } = useAppInfo()
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  const [logoutPending, setLogoutPending] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const displayName = getUserDisplayName(user)
+
+  function handleSettingsOpen() {
+    if (!openHostSettings()) setSettingsOpen(true)
+  }
+
+  async function handleLogout() {
+    setLogoutPending(true)
+
+    try {
+      await clientLogout()
+      setAuthenticated(false)
+      navigate("/login", { replace: true })
+    } catch (error) {
+      toast.error(getLogoutErrorMessage(error))
+    } finally {
+      setLogoutPending(false)
+    }
+  }
+
+  async function handleAvatarSave(avatar: string) {
+    try {
+      await updateCurrentClientUser({ avatar })
+      await refreshMe()
+      toast.success("头像已保存")
+    } catch (error) {
+      toast.error(getProfileUpdateErrorMessage(error))
+      throw error
+    }
+  }
+
+  async function handleCustomAvatarSave(avatar: CroppedAvatar) {
+    try {
+      const updatedUser = await uploadCurrentClientAvatar(avatar.file)
+      await refreshMe()
+      toast.success("头像已保存")
+      return updatedUser.avatar
+    } catch (error) {
+      toast.error(getProfileUpdateErrorMessage(error))
+      throw error
+    }
+  }
+
+  async function handleNicknameSave(nickname: string) {
+    try {
+      await updateCurrentClientUser({ nickname })
+      await refreshMe()
+      toast.success("昵称已保存")
+    } catch (error) {
+      toast.error(getProfileUpdateErrorMessage(error))
+      throw error
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            aria-label="用户菜单"
+            className="group/avatar-trigger mb-6 rounded-sm bg-muted transition-colors outline-none hover:bg-background focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-background"
+            size="icon-sm"
+            title={displayName}
+            type="button"
+            variant="ghost"
+          >
+            <Avatar className="size-8 rounded-sm bg-muted group-hover/avatar-trigger:bg-background group-data-[state=open]/avatar-trigger:bg-background after:rounded-sm after:transition-colors group-hover/avatar-trigger:after:border-ring group-data-[state=open]/avatar-trigger:after:border-ring">
+              {user.avatar && (
+                <AvatarImage
+                  alt={displayName}
+                  className="rounded-sm"
+                  src={user.avatar}
+                />
+              )}
+              <AvatarFallback className="rounded-sm text-xs">
+                {getAvatarInitial(displayName)}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="w-64">
+          <UserMenuProfileSummary user={user} />
+          <DropdownMenuItem onSelect={() => setProfileOpen(true)}>
+            <UserRound className="size-4" />
+            个人资料
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleSettingsOpen}>
+            <Settings className="size-4" />
+            设置
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={logoutPending}
+            onSelect={() => setLogoutConfirmOpen(true)}
+            variant="destructive"
+          >
+            <LogOut className="size-4" />
+            退出登录
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+        <ProfileSettingsDialog
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          onAvatarSave={handleAvatarSave}
+          onCustomAvatarSave={handleCustomAvatarSave}
+          onNicknameSave={handleNicknameSave}
+          user={user}
+        />
+        <UserSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      </DropdownMenu>
+
+      <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认退出登录</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前会话将结束，你可以稍后重新登录。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={logoutPending}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={logoutPending}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleLogout()
+              }}
+              variant="destructive"
+            >
+              {logoutPending && (
+                <Loader2Icon aria-hidden="true" className="animate-spin" />
+              )}
+              退出登录
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+function UserMenuProfileSummary({ user }: { user: ClientUser }) {
+  const displayName = getUserDisplayName(user)
+  const contactText = user.email || user.phone || "未设置"
+
+  return (
+    <div
+      aria-label="用户信息"
+      className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-3 px-2 py-3"
+      role="group"
+    >
+      <Avatar className="row-span-2 size-12 rounded-full bg-muted after:rounded-full">
+        {user.avatar && (
+          <AvatarImage
+            alt={displayName}
+            className="rounded-full"
+            src={user.avatar}
+          />
+        )}
+        <AvatarFallback className="rounded-full text-base">
+          {getAvatarInitial(displayName)}
+        </AvatarFallback>
+      </Avatar>
+
+      <div
+        aria-label="姓名信息"
+        className="flex min-w-0 items-center gap-1.5 text-sm font-semibold"
+        role="group"
+      >
+        <span className="min-w-0 truncate">{displayName}</span>
+      </div>
+
+      <div
+        aria-label="联系方式"
+        className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+        role="group"
+      >
+        <span className="min-w-0 truncate">{contactText}</span>
+      </div>
+    </div>
+  )
+}
+
+function MainNavItem({
+  item,
+  notificationAnimationActive,
+  notificationAnimationVersion,
+  onNotificationAnimationEnd,
+  showNotification,
+}: {
+  item: (typeof navItems)[number]
+  notificationAnimationActive: boolean
+  notificationAnimationVersion: number
+  onNotificationAnimationEnd: () => void
+  showNotification: boolean
+}) {
+  const active = Boolean(useMatch({ path: item.to, end: false }))
+  const Icon = item.icon
+  const accessibleLabel = showNotification
+    ? `${item.label}，有未读消息`
+    : item.label
+
+  return (
+    <Button
+      asChild
+      variant={active ? "default" : "ghost"}
+      size="icon-sm"
+      className={
+        active
+          ? "relative rounded-full"
+          : "relative rounded-full text-teal-500 hover:bg-teal-50 hover:text-teal-500 dark:hover:bg-teal-950 dark:hover:text-teal-500"
+      }
+    >
+      <NavLink to={item.to} aria-label={accessibleLabel} title={item.label}>
+        <Icon
+          className="size-4 [stroke-width:2] transition-[stroke-width] group-hover/button:[stroke-width:2.5]"
+          strokeWidth={2}
+        />
+        {showNotification && (
+          <NotificationDot
+            key={notificationAnimationVersion}
+            className={cn(
+              "absolute top-1 right-1 ring-sidebar",
+              notificationAnimationActive && "notification-dot-flash"
+            )}
+            onAnimationEnd={onNotificationAnimationEnd}
+          />
+        )}
+      </NavLink>
+    </Button>
+  )
+}
+
+function GithubLink() {
+  return (
+    <Button
+      asChild
+      className="rounded-md hover:bg-transparent hover:text-teal-500 dark:hover:bg-transparent"
+      size="icon-sm"
+      variant="ghost"
+    >
+      <a
+        aria-label="在 GitHub 查看 MagicChat"
+        href="https://github.com/chaitin/MagicChat"
+        rel="noopener noreferrer"
+        target="_blank"
+        title="GitHub"
+      >
+        <GithubIcon className="size-4" />
+      </a>
+    </Button>
+  )
+}
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.84 1.237 1.84 1.237 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23A11.5 11.5 0 0 1 12 6.847c1.02.005 2.045.138 3.003.404 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.435.375.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57A12.02 12.02 0 0 0 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  )
+}
+
+function ThemeSwitcher() {
+  const { theme, setTheme } = useTheme()
+  const currentTheme =
+    themeItems.find((item) => item.value === theme) ?? themeItems[0]
+  const CurrentIcon = currentTheme.icon
+
+  function handleThemeChange(value: string) {
+    if (isThemeValue(value)) {
+      setTheme(value)
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="rounded-md hover:bg-transparent hover:text-teal-500 aria-expanded:bg-transparent aria-expanded:text-teal-500 data-[state=open]:bg-transparent data-[state=open]:text-teal-500 dark:hover:bg-transparent"
+          aria-label={`配色：${currentTheme.label}`}
+          title={`配色：${currentTheme.label}`}
+        >
+          <CurrentIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="end" className="w-36">
+        <DropdownMenuRadioGroup value={theme} onValueChange={handleThemeChange}>
+          {themeItems.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <DropdownMenuRadioItem key={item.value} value={item.value}>
+                <Icon className="size-4" />
+                {item.label}
+              </DropdownMenuRadioItem>
+            )
+          })}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function isThemeValue(value: string): value is ThemeValue {
+  return themeItems.some((item) => item.value === value)
+}
+
+function getUserDisplayName(user: { name: string; nickname: string }) {
+  return user.nickname || user.name
+}
+
+function getAvatarInitial(name: string) {
+  return Array.from(name.trim())[0]?.toUpperCase() ?? "?"
+}
+
+function getLogoutErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return "退出登录失败，请稍后重试"
+}
+
+function getProfileUpdateErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return "更新个人信息失败，请稍后重试"
+}

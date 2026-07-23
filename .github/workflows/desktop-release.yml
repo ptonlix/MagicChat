@@ -1,0 +1,87 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    env:
+      MAGICCHAT_RELEASE_CHANNEL: stable
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: win
+            target: nsis
+            arch: x64
+          - runner: windows-11-arm
+            platform: win
+            target: nsis
+            arch: arm64
+          - runner: macos-15
+            platform: mac
+            target: dmg zip
+            arch: universal
+          - runner: ubuntu-24.04
+            platform: linux
+            target: AppImage deb
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            target: AppImage deb
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client-desktop/pnpm-lock.yaml
+      - working-directory: client-desktop
+        run: pnpm install --frozen-lockfile
+      - working-directory: client-desktop
+        run: pnpm verify:boundaries && pnpm typecheck && pnpm test && pnpm build && pnpm verify:build
+      - name: 生成未签名 POC 安装包
+        working-directory: client-desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml
+      - name: 校验安装包目录元数据与内容
+        working-directory: client-desktop
+        run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: magicchat-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            client-desktop/dist/*.exe
+            client-desktop/dist/*.dmg
+            client-desktop/dist/*.zip
+            client-desktop/dist/*.AppImage
+            client-desktop/dist/*.deb
+            client-desktop/dist/*.yml
+            client-desktop/dist/*.blockmap
+          if-no-files-found: error
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" artifacts/* --draft --prerelease --title "MagicChat Desktop $GITHUB_REF_NAME" --notes "未签名 POC 构建，客户端使用 Stable 更新通道。"
