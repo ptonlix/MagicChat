@@ -341,6 +341,7 @@ function createConversation(): ClientConversation {
     lastMessageAt: "2026-07-14T10:00:00Z",
     lastMessageId: "message-1",
     lastMessageSeq: 1,
+    lastMessageSender: null,
     lastMessageSummary: "测试消息",
     lastReadSeq: 1,
     memberCount: 2,

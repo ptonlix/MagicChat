@@ -13,6 +13,7 @@ import {
   leaveGroupConversation as leaveGroupConversationRequest,
   openAppConversation as openAppConversationRequest,
   removeGroupConversationMember as removeGroupConversationMemberRequest,
+  restoreConversation as restoreConversationRequest,
   revokeConversationMessage as revokeConversationMessageRequest,
   setGroupConversationPrivate as setGroupConversationPrivateRequest,
   setGroupConversationPublic as setGroupConversationPublicRequest,
@@ -79,10 +80,22 @@ export function useConversationActions({
         const currentConversation = currentConversations.find(
           (item) => item.id === conversation.id
         )
-        const nextConversation =
-          conversation.projects === undefined && currentConversation?.projects
-            ? { ...conversation, projects: currentConversation.projects }
-            : conversation
+        const nextConversation = { ...conversation }
+        if (currentConversation) {
+          if (
+            nextConversation.projects === undefined &&
+            currentConversation.projects
+          ) {
+            nextConversation.projects = currentConversation.projects
+          }
+          if (nextConversation.notificationMuted === undefined) {
+            nextConversation.notificationMuted =
+              currentConversation.notificationMuted
+          }
+          if (nextConversation.pinned === undefined) {
+            nextConversation.pinned = currentConversation.pinned
+          }
+        }
 
         return orderConversations([
           nextConversation,
@@ -131,6 +144,19 @@ export function useConversationActions({
         return conversation
       } catch (error) {
         throw handleError(error, "创建应用会话失败")
+      }
+    },
+    [handleError, upsertConversation]
+  )
+
+  const restoreConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        const conversation = await restoreConversationRequest(conversationId)
+        upsertConversation(conversation)
+        return conversation
+      } catch (error) {
+        throw handleError(error, "恢复对话失败")
       }
     },
     [handleError, upsertConversation]
@@ -338,6 +364,7 @@ export function useConversationActions({
     openAppConversation,
     openDirectConversation,
     removeConversation,
+    restoreConversation,
     removeGroupConversationMember,
     revokeConversationMessage,
     setGroupConversationPrivate,

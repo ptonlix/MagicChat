@@ -9,7 +9,6 @@ import {
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import {
   formatClientMessageBodySummary,
-  isClientMessageInitiatedByUser,
   type ClientConversation,
   type ClientMessage,
   type ClientMessageSender,
@@ -17,6 +16,7 @@ import {
   type ContactApp,
   type ContactUser,
   normalizeMessageCreatedEventPayload,
+  normalizeMessageCreatedEventNotificationMuted,
 } from "@/lib/client-data-api"
 import { getConversationAppDisplayName } from "@/lib/conversation-app-profile"
 import { useClientData } from "@/lib/client-data-context"
@@ -25,6 +25,8 @@ import {
   playMessageNotificationSound,
   prepareMessageNotificationSound,
 } from "@/lib/message-notification-sound"
+import { isBrowserMessageNotificationEnabled } from "@/lib/message-notification-preferences"
+import { shouldSuppressMessageNotification } from "@/lib/message-notification-policy"
 import { useRealtime } from "@/lib/realtime-context"
 
 const enableNotificationToastId = "enable-browser-message-notifications"
@@ -57,23 +59,32 @@ export function ClientMessageNotificationSync() {
     return subscribeRealtimeEvent("message.created", (payload) => {
       try {
         const message = normalizeMessageCreatedEventPayload(payload)
-        if (isClientMessageInitiatedByUser(message, me.id)) {
+        const conversation = conversations.find(
+          (currentConversation) =>
+            currentConversation.id === message.conversationId
+        )
+        if (
+          shouldSuppressMessageNotification({
+            conversation,
+            currentUserId: me.id,
+            eventNotificationMuted:
+              normalizeMessageCreatedEventNotificationMuted(payload),
+            message,
+          })
+        ) {
           return
         }
-        if (message.sender.type !== "system") {
-          playMessageNotificationSound()
-        }
+        playMessageNotificationSound()
         if (
           document.visibilityState === "visible" &&
           message.conversationId === visibleConversationId
         ) {
           return
         }
+        if (!isBrowserMessageNotificationEnabled()) {
+          return
+        }
 
-        const conversation = conversations.find(
-          (currentConversation) =>
-            currentConversation.id === message.conversationId
-        )
         const senderName = getMessageNotificationSenderName({
           appsById: contactAppsById,
           contacts,

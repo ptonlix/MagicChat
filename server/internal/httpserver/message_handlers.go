@@ -127,6 +127,11 @@ type createMessageResponse struct {
 	Message messageResponse `json:"message"`
 }
 
+type messageCreatedEventPayload struct {
+	Message           messageResponse `json:"message"`
+	NotificationMuted bool            `json:"notification_muted"`
+}
+
 type listMessagesPageResponse struct {
 	HasMoreAfter  bool  `json:"has_more_after" example:"false"`
 	HasMoreBefore bool  `json:"has_more_before" example:"true"`
@@ -566,9 +571,9 @@ func normalizeLinkMessageTitle(title string) string {
 	return strings.Join(strings.Fields(stdhtml.UnescapeString(title)), " ")
 }
 
-func realtimeMessageCreatedEvent(message messageResponse) realtime.Envelope {
-	return realtime.NewEvent(realtime.EventMessageCreated, createMessageResponse{
-		Message: message,
+func realtimeMessageCreatedEvent(message messageResponse, notificationMuted bool) realtime.Envelope {
+	return realtime.NewEvent(realtime.EventMessageCreated, messageCreatedEventPayload{
+		Message: message, NotificationMuted: notificationMuted,
 	})
 }
 

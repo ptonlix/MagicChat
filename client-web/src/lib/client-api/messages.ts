@@ -172,8 +172,7 @@ export async function listConversationMessageReactionUsers(
   }
   const data = (
     payload as
-      | ClientDataSuccessEnvelope<ListMessageReactionUsersResponse>
-      | undefined
+      ClientDataSuccessEnvelope<ListMessageReactionUsersResponse> | undefined
   )?.data
   if (
     data?.conversation_id !== conversationId ||
@@ -804,6 +803,18 @@ export function normalizeMessageCreatedEventPayload(
 
   return normalizeMessage(
     (payload as MessageCreatedEventPayloadResponse).message
+  )
+}
+
+export function normalizeMessageCreatedEventNotificationMuted(
+  payload: unknown
+) {
+  if (!isObject(payload)) {
+    throw new ClientDataRequestError("消息推送格式不正确")
+  }
+
+  return Boolean(
+    (payload as MessageCreatedEventPayloadResponse).notification_muted
   )
 }
 

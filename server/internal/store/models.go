@@ -144,16 +144,20 @@ type ConversationMember struct {
 	LastMentionedSeq      int64        `gorm:"not null;default:0"`
 }
 
-type ConversationPin struct {
-	UserID         string       `gorm:"type:uuid;primaryKey;index"`
-	User           User         `gorm:"constraint:OnDelete:CASCADE;"`
-	ConversationID string       `gorm:"type:uuid;primaryKey;index"`
-	Conversation   Conversation `gorm:"constraint:OnDelete:CASCADE;"`
-	CreatedAt      time.Time    `gorm:"not null"`
+type ConversationUserPreference struct {
+	UserID            string       `gorm:"type:uuid;primaryKey;index"`
+	User              User         `gorm:"constraint:OnDelete:CASCADE;"`
+	ConversationID    string       `gorm:"type:uuid;primaryKey;index"`
+	Conversation      Conversation `gorm:"constraint:OnDelete:CASCADE;"`
+	Pinned            bool         `gorm:"not null;default:false"`
+	NotificationMuted bool         `gorm:"not null;default:false"`
+	HiddenThroughSeq  *int64
+	CreatedAt         time.Time `gorm:"not null"`
+	UpdatedAt         time.Time `gorm:"not null"`
 }
 
-func (ConversationPin) TableName() string {
-	return "conversation_pins"
+func (ConversationUserPreference) TableName() string {
+	return "conversation_user_preferences"
 }
 
 type Message struct {

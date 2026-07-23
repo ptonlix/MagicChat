@@ -8,8 +8,8 @@
     "scheme": "magicchat",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "cloud.baizhi.magicchat",
-      "buildNumber": "1",
+      "bundleIdentifier": "cloud.baizhi.chat",
+      "buildNumber": "3",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "NSAppTransportSecurity": {
@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "cloud.baizhi.magicchat",
+      "package": "cloud.baizhi.chat",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#04C9BD",
@@ -73,7 +73,8 @@
           "enableBackgroundPlayback": false,
           "microphonePermission": "允许即应使用麦克风录制并发送语音消息"
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

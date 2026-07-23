@@ -16,34 +16,38 @@ import (
 )
 
 func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error) {
-	db := s.db
+	db := s.db.WithContext(ctx)
 	accountID := strings.TrimSpace(cmd.AccountID)
 	assistantID := builtinAssistantConversationID(accountID)
 	assistant, hasAssistant, err := s.ensureBuiltinAssistantConversation(db, accountID)
 	if err != nil {
 		return ListResult{}, internalError(err)
 	}
+	var preferences []store.ConversationUserPreference
+	if err := db.Where("user_id = ?", accountID).Find(&preferences).Error; err != nil {
+		return ListResult{}, internalError(err)
+	}
+	preferencesByConversation := make(map[string]store.ConversationUserPreference, len(preferences))
+	for _, preference := range preferences {
+		preferencesByConversation[preference.ConversationID] = preference
+	}
+	if hasAssistant && !conversationVisibleForPreference(assistant, preferencesByConversation[assistant.ID]) {
+		hasAssistant = false
+	}
 	limit := MaxClientListItems
 	if hasAssistant {
 		limit--
 	}
-	var pins []store.ConversationPin
-	if err := db.Where("user_id = ?", accountID).Find(&pins).Error; err != nil {
-		return ListResult{}, internalError(err)
-	}
-	pinnedConversationIDs := make(map[string]struct{}, len(pins))
-	for _, pin := range pins {
-		pinnedConversationIDs[pin.ConversationID] = struct{}{}
-	}
 	var conversations []store.Conversation
 	if err := db.Model(&store.Conversation{}).
 		Joins("JOIN conversation_members cm ON cm.conversation_id = conversations.id").
-		Joins("LEFT JOIN conversation_pins cp ON cp.conversation_id = conversations.id AND cp.user_id = ?", accountID).
+		Joins("LEFT JOIN conversation_user_preferences cup ON cup.conversation_id = conversations.id AND cup.user_id = ?", accountID).
 		Where("cm.member_type = ? AND cm.member_id = ? AND cm.left_at IS NULL", store.ConversationMemberTypeUser, accountID).
 		Where("conversations.id <> ?", assistantID).
 		Where("conversations.kind <> ?", store.ConversationKindTopic).
 		Where("conversations.status = ?", store.ConversationStatusActive).
-		Order("CASE WHEN cp.user_id IS NULL THEN 1 ELSE 0 END ASC").
+		Where("cup.hidden_through_seq IS NULL OR conversations.last_message_seq > cup.hidden_through_seq").
+		Order("CASE WHEN COALESCE(cup.pinned, false) THEN 0 ELSE 1 END ASC").
 		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
 		Order("conversations.id ASC").Limit(limit).Find(&conversations).Error; err != nil {
 		return ListResult{}, internalError(err)
@@ -54,21 +58,22 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 		Joins("JOIN conversation_topics ct ON ct.conversation_id = conversations.id").
 		Joins("JOIN conversations parent_conversations ON parent_conversations.id = ct.parent_conversation_id").
 		Joins("JOIN conversation_members parent_cm ON parent_cm.conversation_id = ct.parent_conversation_id").
-		Joins("LEFT JOIN conversation_pins cp ON cp.conversation_id = conversations.id AND cp.user_id = ?", accountID).
+		Joins("LEFT JOIN conversation_user_preferences cup ON cup.conversation_id = conversations.id AND cup.user_id = ?", accountID).
 		Where("ctp.participant_type = ? AND ctp.participant_id = ?", store.ConversationMemberTypeUser, accountID).
 		Where("parent_cm.member_type = ? AND parent_cm.member_id = ? AND parent_cm.left_at IS NULL", store.ConversationMemberTypeUser, accountID).
 		Where("ct.source_message_seq >= CASE WHEN parent_cm.history_visible_from_seq < 1 THEN 1 ELSE parent_cm.history_visible_from_seq END").
 		Where("ct.archived_at IS NULL").
 		Where("conversations.status = ? AND parent_conversations.status = ?", store.ConversationStatusActive, store.ConversationStatusActive).
-		Order("CASE WHEN cp.user_id IS NULL THEN 1 ELSE 0 END ASC").
+		Where("cup.hidden_through_seq IS NULL OR conversations.last_message_seq > cup.hidden_through_seq").
+		Order("CASE WHEN COALESCE(cup.pinned, false) THEN 0 ELSE 1 END ASC").
 		Order("COALESCE(conversations.last_message_at, conversations.created_at) DESC").
 		Order("conversations.id ASC").Limit(limit).Find(&topicConversations).Error; err != nil {
 		return ListResult{}, internalError(err)
 	}
 	conversations = append(conversations, topicConversations...)
 	sort.Slice(conversations, func(left, right int) bool {
-		_, leftPinned := pinnedConversationIDs[conversations[left].ID]
-		_, rightPinned := pinnedConversationIDs[conversations[right].ID]
+		leftPinned := preferencesByConversation[conversations[left].ID].Pinned
+		rightPinned := preferencesByConversation[conversations[right].ID].Pinned
 		if leftPinned != rightPinned {
 			return leftPinned
 		}
@@ -107,6 +112,15 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 	if err != nil {
 		return ListResult{}, internalError(err)
 	}
+	allConversations := make([]store.Conversation, 0, len(conversations)+1)
+	if hasAssistant {
+		allConversations = append(allConversations, assistant)
+	}
+	allConversations = append(allConversations, conversations...)
+	lastMessageSenders, err := loadLastMessageSenders(db, allConversations)
+	if err != nil {
+		return ListResult{}, internalError(err)
+	}
 	projects := make(map[string][]Project, len(ids))
 	if s.projects != nil {
 		projectConversationSet := make(map[string]struct{}, len(ids))
@@ -140,11 +154,14 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 			parent = &presentation.parent
 		}
 		item.CanSend = canUserSendConversation(conversation, parent, membersByConversation[conversation.ID], accessibleAppIDs)
+		item.LastMessageSender = lastMessageSenders[conversation.ID]
 		conversationProjects := projects[conversation.ID]
 		if conversationProjects == nil {
 			conversationProjects = []Project{}
 		}
-		_, item.Pinned = pinnedConversationIDs[conversation.ID]
+		preference := preferencesByConversation[conversation.ID]
+		item.NotificationMuted = preference.NotificationMuted
+		item.Pinned = preference.Pinned
 		if conversation.ID == assistantID {
 			item.Pinned = true
 		}
@@ -158,6 +175,10 @@ func (s *Service) List(ctx context.Context, cmd ListCommand) (ListResult, error)
 		appendItem(conversation)
 	}
 	return result, nil
+}
+
+func conversationVisibleForPreference(conversation store.Conversation, preference store.ConversationUserPreference) bool {
+	return preference.HiddenThroughSeq == nil || conversation.LastMessageSeq > *preference.HiddenThroughSeq
 }
 
 func (s *Service) ensureBuiltinAssistantConversation(db *gorm.DB, userID string) (store.Conversation, bool, error) {

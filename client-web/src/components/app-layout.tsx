@@ -68,7 +68,8 @@ type ThemeValue = (typeof themeItems)[number]["value"]
 export function AppLayout() {
   const { conversations, me, refreshMe } = useClientData()
   const totalUnreadCount = conversations.reduce(
-    (total, conversation) => total + conversation.unreadCount,
+    (total, conversation) =>
+      total + (conversation.notificationMuted ? 0 : conversation.unreadCount),
     0
   )
   const hasUnreadMessages = totalUnreadCount > 0

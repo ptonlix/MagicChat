@@ -28,7 +28,8 @@ export function ClientDocumentTitle({
     }
 
     return conversations.reduce(
-      (total, conversation) => total + conversation.unreadCount,
+      (total, conversation) =>
+        total + (conversation.notificationMuted ? 0 : conversation.unreadCount),
       0
     )
   }, [conversations, disableMessageAlert])

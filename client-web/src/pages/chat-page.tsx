@@ -103,6 +103,7 @@ export function ChatPage() {
     contacts,
     conversations,
     createGroupConversation,
+    dismissConversation,
     ensureConversationMessages,
     getConversation,
     getConversationMessageState,
@@ -119,6 +120,7 @@ export function ChatPage() {
     sendConversationText,
     sendConversationVoice,
     setConversationPinned,
+    setConversationMuted,
     setMessageReaction,
     setForegroundConversationId,
     updateMessageTopic,
@@ -161,6 +163,30 @@ export function ChatPage() {
   )
 
   const activeConversationId = activeConversation?.id ?? ""
+  const activeConversationType = activeConversation?.type
+  const openTopicDrawer = React.useCallback(
+    (nextConversationId: string) => {
+      setTopicDrawerConversationId(nextConversationId)
+      setForegroundConversationId?.(nextConversationId)
+    },
+    [setForegroundConversationId]
+  )
+  const closeTopicDrawer = React.useCallback(() => {
+    setTopicDrawerConversationId("")
+    setForegroundConversationId?.("")
+  }, [setForegroundConversationId])
+  const requestCreateTopic = React.useCallback(
+    (message: ConversationPanelMessage) => {
+      if (!activeConversationId || activeConversationType === "topic") {
+        return
+      }
+      setCreateTopicOperation({
+        conversationId: activeConversationId,
+        message,
+      })
+    },
+    [activeConversationId, activeConversationType]
+  )
   const messageSelection = useMessageSelection(activeConversationId)
   const {
     maxSelectedMessages,
@@ -241,6 +267,20 @@ export function ChatPage() {
   React.useEffect(() => {
     activeMentionLabelResolverRef.current = activeMentionLabelResolver
   }, [activeMentionLabelResolver])
+  const activeHistoryHeader = React.useMemo(
+    () =>
+      activeConversation?.type === "topic" ? (
+        <TopicSourceBanner
+          conversationId={activeConversation.id}
+          currentUserId={me.id}
+          mentionLabelResolver={activeMentionLabelResolver}
+          reactionConversationId={
+            activeConversation.topic?.parentConversationId
+          }
+        />
+      ) : undefined,
+    [activeConversation, activeMentionLabelResolver, me.id]
+  )
   const activeConversationOnline = activeConversation
     ? getConversationOnlineStatus(
         activeConversation,
@@ -607,6 +647,17 @@ export function ChatPage() {
     navigate(`/chat/${encodeURIComponent(conversationId)}`, { replace: true })
   }
 
+  async function deleteConversation(conversationId: string) {
+    await dismissConversation(conversationId)
+    clearConversationDraft(conversationId)
+    if (readLastConversationId(me.id) === conversationId) {
+      clearLastConversationId(me.id)
+    }
+    if (activeConversationId === conversationId) {
+      navigate("/chat", { replace: true })
+    }
+  }
+
   async function startGroupConversation(
     name: string,
     memberIds: string[],
@@ -615,16 +666,6 @@ export function ChatPage() {
     const conversation = await createGroupConversation(name, memberIds, appIds)
     flushDrafts()
     navigate(`/chat/${encodeURIComponent(conversation.id)}`)
-  }
-
-  function requestCreateTopic(message: ConversationPanelMessage) {
-    if (!activeConversation || activeConversation.type === "topic") {
-      return
-    }
-    setCreateTopicOperation({
-      conversationId: activeConversation.id,
-      message,
-    })
   }
 
   async function confirmCreateTopic() {
@@ -653,16 +694,6 @@ export function ChatPage() {
     }
   }
 
-  function openTopicDrawer(conversationId: string) {
-    setTopicDrawerConversationId(conversationId)
-    setForegroundConversationId?.(conversationId)
-  }
-
-  function closeTopicDrawer() {
-    setTopicDrawerConversationId("")
-    setForegroundConversationId?.("")
-  }
-
   return (
     <SidebarProvider
       className="min-h-0 min-w-0 flex-1"
@@ -680,7 +711,9 @@ export function ChatPage() {
         currentUser={me}
         drafts={drafts}
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
+        onDismissConversation={deleteConversation}
         onSelectConversation={selectConversation}
+        onSetConversationMuted={setConversationMuted}
         onSetConversationPinned={setConversationPinned}
       />
 
@@ -694,18 +727,7 @@ export function ChatPage() {
         historyError={activeMessageState?.error ?? null}
         historyLoading={historyLoading}
         historyLoadingBefore={Boolean(activeMessageState?.loadingBefore)}
-        historyHeader={
-          activeConversation?.type === "topic" ? (
-            <TopicSourceBanner
-              conversationId={activeConversation.id}
-              currentUserId={me.id}
-              mentionLabelResolver={activeMentionLabelResolver}
-              reactionConversationId={
-                activeConversation.topic?.parentConversationId
-              }
-            />
-          ) : undefined
-        }
+        historyHeader={activeHistoryHeader}
         headerActions={
           activeConversation?.type === "topic" &&
           activeConversation.canSend !== false ? (

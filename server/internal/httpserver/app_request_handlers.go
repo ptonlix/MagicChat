@@ -2127,6 +2127,12 @@ func legacyConversationItem(value conversationapp.Item) conversationListItemResp
 		MemberCount: value.MemberCount, Members: members, Name: value.Name, Type: value.Type,
 		UnreadCount: value.UnreadCount, Visibility: value.Visibility,
 	}
+	if value.LastMessageSender != nil {
+		result.LastMessageSender = &conversationLastMessageSenderResponse{
+			ID: value.LastMessageSender.ID, Name: value.LastMessageSender.Name,
+			Nickname: value.LastMessageSender.Nickname, Type: value.LastMessageSender.Type,
+		}
+	}
 	if value.Projects != nil {
 		projects := make([]conversationProjectResponse, 0, len(*value.Projects))
 		for _, project := range *value.Projects {
@@ -2147,7 +2153,7 @@ func legacyGroupConversation(value conversationapp.Group) groupConversationRespo
 			Nickname: member.Nickname, Phone: member.Phone, Role: member.Role, Type: member.Type,
 		})
 	}
-	return groupConversationResponse{
+	result := groupConversationResponse{
 		Avatar: value.Avatar, CreatedAt: value.CreatedAt, CreatedByUserID: value.CreatedByUserID,
 		ID: value.ID, LastMessageAt: value.LastMessageAt, LastMessageID: value.LastMessageID,
 		LastMessageSeq: value.LastMessageSeq, LastMessageSummary: value.LastMessageSummary,
@@ -2156,6 +2162,13 @@ func legacyGroupConversation(value conversationapp.Group) groupConversationRespo
 		PostingPolicy: value.PostingPolicy, Status: value.Status, Type: value.Type,
 		UnreadCount: value.UnreadCount, Visibility: value.Visibility,
 	}
+	if value.LastMessageSender != nil {
+		result.LastMessageSender = &conversationLastMessageSenderResponse{
+			ID: value.LastMessageSender.ID, Name: value.LastMessageSender.Name,
+			Nickname: value.LastMessageSender.Nickname, Type: value.LastMessageSender.Type,
+		}
+	}
+	return result
 }
 
 func newAppRequestFailure(code string, message string) appRequestFailure {

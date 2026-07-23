@@ -134,9 +134,15 @@ func (s *Service) ListGroupsForActor(ctx context.Context, cmd AppListCommand) (A
 	if err != nil {
 		return AppGroupListResult{}, err
 	}
+	lastMessageSenders, err := loadLastMessageSenders(db, conversations)
+	if err != nil {
+		return AppGroupListResult{}, err
+	}
 	result := AppGroupListResult{Groups: make([]Item, 0, len(conversations))}
 	for _, conversation := range conversations {
-		result.Groups = append(result.Groups, newItem(conversation, actorID, membersByConversation[conversation.ID], users, apps))
+		item := newItem(conversation, actorID, membersByConversation[conversation.ID], users, apps)
+		item.LastMessageSender = lastMessageSenders[conversation.ID]
+		result.Groups = append(result.Groups, item)
 	}
 	return result, nil
 }

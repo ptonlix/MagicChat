@@ -44,6 +44,13 @@ type MessageIdentity struct {
 	Type   string
 }
 
+type LastMessageSender struct {
+	ID       string
+	Name     string
+	Nickname string
+	Type     string
+}
+
 type Message struct {
 	ClientMessageID  string
 	Body             json.RawMessage
@@ -85,12 +92,14 @@ type Item struct {
 	LastMessageAt      *time.Time
 	LastMessageID      *string
 	LastMessageSeq     int64
+	LastMessageSender  *LastMessageSender
 	LastMessageSummary string
 	LastMentionedSeq   int64
 	LastReadSeq        int64
 	MemberCount        int
 	Members            []Member
 	Name               string
+	NotificationMuted  bool
 	Pinned             bool
 	Projects           *[]Project
 	Type               string
@@ -195,6 +204,11 @@ type ConversationPinEvent struct {
 	Pinned         bool
 }
 
+type ConversationMuteEvent struct {
+	ConversationID string
+	Muted          bool
+}
+
 type Group struct {
 	Avatar             string
 	CreatedAt          time.Time
@@ -203,6 +217,7 @@ type Group struct {
 	LastMessageAt      *time.Time
 	LastMessageID      *string
 	LastMessageSeq     int64
+	LastMessageSender  *LastMessageSender
 	LastMessageSummary string
 	LastMentionedSeq   int64
 	LastReadSeq        int64
@@ -267,6 +282,31 @@ type SetPinCommand struct {
 type SetPinResult struct {
 	ConversationID string
 	Pinned         bool
+}
+
+type SetMuteCommand struct {
+	AccountID      string
+	ConversationID string
+	Muted          bool
+}
+
+type SetMuteResult struct {
+	ConversationID string
+	Muted          bool
+}
+
+type DismissCommand struct {
+	AccountID      string
+	ConversationID string
+}
+
+type DismissResult struct {
+	ConversationID string
+}
+
+type RestoreCommand struct {
+	AccountID      string
+	ConversationID string
 }
 
 type CreateDirectCommand struct {
@@ -377,6 +417,9 @@ type UpdateAvatarResult struct {
 type ClientService interface {
 	List(context.Context, ListCommand) (ListResult, error)
 	MarkRead(context.Context, ReadCommand) (ReadResult, error)
+	Dismiss(context.Context, DismissCommand) (DismissResult, error)
+	Restore(context.Context, RestoreCommand) (Item, error)
+	SetMuted(context.Context, SetMuteCommand) (SetMuteResult, error)
 	SetPinned(context.Context, SetPinCommand) (SetPinResult, error)
 	CreateDirect(context.Context, CreateDirectCommand) (OpenResult, error)
 	CreateApp(context.Context, CreateAppCommand) (OpenResult, error)

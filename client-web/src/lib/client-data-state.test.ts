@@ -156,6 +156,7 @@ function createConversation(
     lastMessageAt: `${activityDate}T09:00:00Z`,
     lastMessageId: `message-${id}`,
     lastMessageSeq: 1,
+    lastMessageSender: null,
     lastMessageSummary: id,
     lastMentionedSeq: 0,
     lastReadSeq: 1,

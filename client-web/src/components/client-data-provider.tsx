@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import {
   ClientDataRequestError,
+  dismissConversation as dismissConversationRequest,
   getCurrentClientUser,
   isClientMessageInitiatedByUser,
   listClientContacts,
@@ -12,6 +13,7 @@ import {
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
   setConversationMessageReaction as setConversationMessageReactionRequest,
+  setConversationMuted as setConversationMutedRequest,
   setConversationPinned as setConversationPinnedRequest,
   type ClientConversation,
   type ClientMessage,
@@ -29,6 +31,7 @@ import {
   type ClientConversationMessageState,
   type ClientDataContextValue,
 } from "@/lib/client-data-context"
+import { ClientProfileProvider } from "@/components/client-profile-provider"
 import {
   createConversationMessageState,
   applyMessageReactionSnapshot,
@@ -324,6 +327,10 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           lastMessageAt: message.createdAt,
           lastMessageId: message.id,
           lastMessageSeq: message.seq,
+          lastMessageSender: getConversationLastMessageSender(
+            conversation,
+            message
+          ),
           lastMessageSummary: getMessageSummary(message),
           unreadCount: shouldIncrementUnread
             ? conversation.unreadCount + 1
@@ -743,6 +750,37 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, updateConversationPinned]
   )
 
+  const updateConversationMuted = useCallback(
+    (conversationId: string, muted: boolean) => {
+      if (!conversationId) {
+        return
+      }
+      setConversations((currentConversations) =>
+        currentConversations.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, notificationMuted: muted }
+            : conversation
+        )
+      )
+    },
+    []
+  )
+
+  const setConversationMuted = useCallback(
+    async (conversationId: string, muted: boolean) => {
+      try {
+        const result = await setConversationMutedRequest(conversationId, muted)
+        updateConversationMuted(result.conversationId, result.muted)
+      } catch (error) {
+        throw handleError(
+          error,
+          muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
+        )
+      }
+    },
+    [handleError, updateConversationMuted]
+  )
+
   const updateMessageTopic = useCallback(
     (
       parentConversationId: string,
@@ -1024,6 +1062,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     openAppConversation,
     openDirectConversation,
     removeConversation,
+    restoreConversation,
     removeGroupConversationMember,
     revokeConversationMessage,
     setGroupConversationPrivate,
@@ -1040,6 +1079,18 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     setConversationMessageStates,
     setConversations,
   })
+
+  const dismissConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        const result = await dismissConversationRequest(conversationId)
+        removeConversation(result.conversationId)
+      } catch (error) {
+        throw handleError(error, "删除对话失败")
+      }
+    },
+    [handleError, removeConversation]
+  )
 
   const bootstrap = useCallback(async () => {
     const minimumLoading = wait(minimumBootstrapLoadingMs)
@@ -1182,6 +1233,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     createGroupConversation,
     createProject,
     dissolveGroupConversation,
+    dismissConversation,
     ensureConversationMessages,
     foregroundConversationId,
     getConversation,
@@ -1191,6 +1243,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     loadBeforeConversationMessages,
     markConversationRead,
     setConversationPinned,
+    setConversationMuted,
     handleIncomingConversationMessage,
     handleIncomingConversationMessageUpdate,
     handleIncomingMessageReactionsUpdate,
@@ -1214,6 +1267,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     refreshProjects,
     loadMoreProjects,
     removeConversation,
+    restoreConversation,
     removeGroupConversationMember,
     revokeConversationMessage,
     setMessageReaction,
@@ -1231,6 +1285,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     updateConversationLastMessage,
     updateConversationLastMentionedSeq,
     updateConversationPinned,
+    updateConversationMuted,
     updateMessageTopic,
     updateGroupConversationAvatar,
     updateGroupConversationName,
@@ -1238,9 +1293,38 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
   return (
     <ClientDataContext.Provider value={value}>
-      {children}
+      <ClientProfileProvider
+        contactApps={contactApps}
+        contacts={contacts}
+        me={me}
+        openAppConversation={openAppConversation}
+        openDirectConversation={openDirectConversation}
+      >
+        {children}
+      </ClientProfileProvider>
     </ClientDataContext.Provider>
   )
+}
+
+function getConversationLastMessageSender(
+  conversation: ClientConversation,
+  message: ClientMessage
+): ClientConversation["lastMessageSender"] {
+  if (message.sender.type === "system") {
+    return { id: "", name: "系统", nickname: "", type: "system" }
+  }
+
+  const member = conversation.members?.find(
+    (candidate) =>
+      candidate.type === message.sender.type &&
+      candidate.id === message.sender.id
+  )
+  return {
+    id: message.sender.id,
+    name: member?.name ?? "",
+    nickname: member?.nickname ?? "",
+    type: message.sender.type,
+  }
 }
 
 function wait(ms: number) {

@@ -308,6 +308,10 @@ func (s *Service) loadItem(db *gorm.DB, conversation store.Conversation, current
 	if err != nil {
 		return Item{}, err
 	}
+	lastMessageSenders, err := loadLastMessageSenders(db, []store.Conversation{conversation})
+	if err != nil {
+		return Item{}, err
+	}
 	if conversation.Kind == store.ConversationKindTopic {
 		presentations, err := loadTopicPresentations(db, []store.Conversation{conversation}, currentUserID)
 		if err != nil {
@@ -318,38 +322,44 @@ func (s *Service) loadItem(db *gorm.DB, conversation store.Conversation, current
 			return Item{}, gorm.ErrRecordNotFound
 		}
 		item := newTopicItem(conversation, currentUserID, membersByConversation[conversation.ID], users, apps, presentation)
+		item.LastMessageSender = lastMessageSenders[conversation.ID]
 		item.CanSend, err = loadUserConversationCanSend(db, conversation.ID, currentUserID)
 		if err != nil {
 			return Item{}, err
 		}
-		if err := s.loadItemPinState(db, &item, currentUserID); err != nil {
+		if err := s.loadItemPreferenceState(db, &item, currentUserID); err != nil {
 			return Item{}, err
 		}
 		return item, nil
 	}
 	item := newItem(conversation, currentUserID, membersByConversation[conversation.ID], users, apps)
+	item.LastMessageSender = lastMessageSenders[conversation.ID]
 	item.CanSend, err = loadUserConversationCanSend(db, conversation.ID, currentUserID)
 	if err != nil {
 		return Item{}, err
 	}
-	if err := s.loadItemPinState(db, &item, currentUserID); err != nil {
+	if err := s.loadItemPreferenceState(db, &item, currentUserID); err != nil {
 		return Item{}, err
 	}
 	return item, nil
 }
 
-func (s *Service) loadItemPinState(db *gorm.DB, item *Item, currentUserID string) error {
+func (s *Service) loadItemPreferenceState(db *gorm.DB, item *Item, currentUserID string) error {
 	if item.ID == builtinAssistantConversationID(currentUserID) {
 		item.Pinned = true
+	}
+	var preference store.ConversationUserPreference
+	err := db.First(&preference, "user_id = ? AND conversation_id = ?", currentUserID, item.ID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil
 	}
-	var count int64
-	if err := db.Model(&store.ConversationPin{}).Where(
-		"user_id = ? AND conversation_id = ?", currentUserID, item.ID,
-	).Count(&count).Error; err != nil {
+	if err != nil {
 		return err
 	}
-	item.Pinned = count > 0
+	if item.ID != builtinAssistantConversationID(currentUserID) {
+		item.Pinned = preference.Pinned
+	}
+	item.NotificationMuted = preference.NotificationMuted
 	return nil
 }
 

@@ -14,8 +14,10 @@ type ProjectReader interface {
 
 type NotificationPort interface {
 	PublishConversationMessage(context.Context, []string, Message)
+	PublishConversationMuteUpdated(context.Context, []string, ConversationMuteEvent)
 	PublishConversationPinUpdated(context.Context, []string, ConversationPinEvent)
 	PublishConversationRemoved(context.Context, []string, string)
+	PublishConversationRestored(context.Context, []string, string)
 	PublishTopicEvent(context.Context, []string, TopicEvent)
 }
 

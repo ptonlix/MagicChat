@@ -4,12 +4,15 @@ import {
   addGroupConversationMembers,
   ClientDataRequestError,
   createGroupConversation,
+  dismissConversation,
   getCurrentClientUser,
   listClientContacts,
   listClientConversations,
   listConversationMessages,
   normalizeMessageCreatedEventPayload,
   normalizeConversationPinUpdatedEventPayload,
+  normalizeConversationMuteUpdatedEventPayload,
+  restoreConversation,
   sendConversationFileMessage,
   sendConversationImageMessage,
   sendConversationLinkMessage,
@@ -18,6 +21,7 @@ import {
   sendConversationEntityCardMessage,
   sendConversationTextMessage,
   setConversationPinned,
+  setConversationMuted,
 } from "@/lib/client-data-api"
 
 describe("client data API", () => {
@@ -190,9 +194,17 @@ describe("client data API", () => {
                 last_message_at: "2026-07-03T08:00:00Z",
                 last_message_id: "message-1",
                 last_message_seq: 12,
+                last_message_sender: {
+                  id: "user-2",
+                  name: "Bob Li",
+                  nickname: "Bob",
+                  type: "user",
+                },
                 last_message_summary: "好的，我看一下",
                 member_count: 2,
                 name: "Bob Li",
+                notification_muted: false,
+                pinned: false,
                 type: "direct",
               },
             ],
@@ -216,11 +228,18 @@ describe("client data API", () => {
         lastMessageAt: "2026-07-03T08:00:00Z",
         lastMessageId: "message-1",
         lastMessageSeq: 12,
+        lastMessageSender: {
+          id: "user-2",
+          name: "Bob Li",
+          nickname: "Bob",
+          type: "user",
+        },
         lastMessageSummary: "好的，我看一下",
         lastMentionedSeq: 0,
         lastReadSeq: 0,
         memberCount: 2,
         name: "Bob Li",
+        notificationMuted: false,
         pinned: false,
         type: "direct",
         unreadCount: 0,
@@ -279,6 +298,91 @@ describe("client data API", () => {
     ).toEqual({ conversationId: "conversation-1", pinned: false })
   })
 
+  it("sets conversation mute state and dismisses conversations", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { conversation_id: "conversation-1", muted: true },
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { conversation_id: "conversation-1" },
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 }
+        )
+      )
+
+    await expect(
+      setConversationMuted("conversation-1", true, fetcher)
+    ).resolves.toEqual({ conversationId: "conversation-1", muted: true })
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/client/conversations/conversation-1/mute",
+      { credentials: "include", method: "PUT" }
+    )
+
+    await expect(
+      dismissConversation("conversation-1", fetcher)
+    ).resolves.toEqual({ conversationId: "conversation-1" })
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/client/conversations/conversation-1",
+      { credentials: "include", method: "DELETE" }
+    )
+  })
+
+  it("restores a hidden conversation", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              created_at: "2026-07-03T09:30:00Z",
+              id: "conversation-1",
+              name: "新品讨论组",
+              notification_muted: true,
+              pinned: false,
+              type: "group",
+            },
+          },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 }
+      )
+    )
+
+    await expect(
+      restoreConversation("conversation-1", fetcher)
+    ).resolves.toMatchObject({
+      id: "conversation-1",
+      name: "新品讨论组",
+      notificationMuted: true,
+      pinned: false,
+      type: "group",
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-1/restore",
+      { credentials: "include", method: "POST" }
+    )
+  })
+
+  it("normalizes conversation mute realtime events", () => {
+    expect(
+      normalizeConversationMuteUpdatedEventPayload({
+        conversation_id: "conversation-1",
+        muted: false,
+      })
+    ).toEqual({ conversationId: "conversation-1", muted: false })
+  })
+
   it("creates a group conversation with credentials", async () => {
     const fetcher = vi.fn().mockImplementation(
       () =>
@@ -290,6 +394,16 @@ describe("client data API", () => {
                 created_at: "2026-07-03T09:30:00Z",
                 created_by_user_id: "user-1",
                 id: "conversation-group-1",
+                last_message_at: "2026-07-03T09:30:00Z",
+                last_message_id: "message-system-1",
+                last_message_seq: 1,
+                last_message_sender: {
+                  id: "",
+                  name: "系统",
+                  nickname: "",
+                  type: "system",
+                },
+                last_message_summary: "Alice 邀请 Bob Li 加入群聊",
                 member_count: 2,
                 members: [
                   {
@@ -341,10 +455,16 @@ describe("client data API", () => {
       canSend: true,
       createdAt: "2026-07-03T09:30:00Z",
       id: "conversation-group-1",
-      lastMessageAt: null,
-      lastMessageId: null,
-      lastMessageSeq: 0,
-      lastMessageSummary: "",
+      lastMessageAt: "2026-07-03T09:30:00Z",
+      lastMessageId: "message-system-1",
+      lastMessageSeq: 1,
+      lastMessageSender: {
+        id: "",
+        name: "系统",
+        nickname: "",
+        type: "system",
+      },
+      lastMessageSummary: "Alice 邀请 Bob Li 加入群聊",
       lastMentionedSeq: 0,
       lastReadSeq: 0,
       memberCount: 2,
@@ -371,7 +491,6 @@ describe("client data API", () => {
         },
       ],
       name: "新品讨论组",
-      pinned: false,
       type: "group",
       unreadCount: 0,
       visibility: "private",

@@ -55,10 +55,16 @@ func (s *Service) CreateGroup(ctx context.Context, cmd CreateGroupCommand) (Crea
 		}
 	}
 	resultMessage := newOptionalMessage(message)
+	group := newGroup(conversation, candidates, actor.ID)
+	if resultMessage != nil {
+		group.LastMessageSender = &LastMessageSender{
+			ID: resultMessage.Sender.ID, Name: "系统", Type: resultMessage.Sender.Type,
+		}
+	}
 	if resultMessage != nil && s.notifications != nil {
 		s.notifications.PublishConversationMessage(ctx, userIDs, *resultMessage)
 	}
-	return CreateGroupResult{Conversation: newGroup(conversation, candidates, actor.ID), Message: resultMessage}, nil
+	return CreateGroupResult{Conversation: group, Message: resultMessage}, nil
 }
 
 func (s *Service) createGroup(ctx context.Context, actor store.User, name string, memberIDs, appIDs, projectIDs []string) (store.Conversation, *store.Message, []memberCandidate, []string, error) {

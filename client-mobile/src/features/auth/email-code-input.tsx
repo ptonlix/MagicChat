@@ -62,7 +62,7 @@ export const EmailCodeInput = forwardRef<TamaguiElement, EmailCodeInputProps>(
                 chromeless
                 color={actionDisabled ? "$gray9" : "$color10"}
                 disabled={actionDisabled}
-                forceStyle={pressed ? "press" : undefined}
+                fontWeight={pressed ? "700" : "400"}
                 icon={actionLoading ? <Spinner /> : undefined}
                 minW={100}
                 pointerEvents="none"

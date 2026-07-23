@@ -157,8 +157,12 @@ type pinNotificationRecorder struct {
 }
 
 func (*pinNotificationRecorder) PublishConversationMessage(context.Context, []string, Message) {}
-func (*pinNotificationRecorder) PublishConversationRemoved(context.Context, []string, string)  {}
-func (*pinNotificationRecorder) PublishTopicEvent(context.Context, []string, TopicEvent)       {}
+func (*pinNotificationRecorder) PublishConversationMuteUpdated(context.Context, []string, ConversationMuteEvent) {
+}
+func (*pinNotificationRecorder) PublishConversationRemoved(context.Context, []string, string) {}
+func (*pinNotificationRecorder) PublishConversationRestored(context.Context, []string, string) {
+}
+func (*pinNotificationRecorder) PublishTopicEvent(context.Context, []string, TopicEvent) {}
 func (r *pinNotificationRecorder) PublishConversationPinUpdated(_ context.Context, _ []string, event ConversationPinEvent) {
 	r.events = append(r.events, event)
 }

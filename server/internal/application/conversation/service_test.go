@@ -34,6 +34,9 @@ func TestServiceGroupLifecyclePublishesAfterCommit(t *testing.T) {
 	if created.Conversation.Name != "Release group" || created.Message == nil || created.Message.Seq != 1 {
 		t.Fatalf("created = %#v", created)
 	}
+	if sender := created.Conversation.LastMessageSender; sender == nil || sender.Type != store.MessageSenderTypeSystem || sender.Name != "系统" {
+		t.Fatalf("created last message sender = %#v", sender)
+	}
 	if notifications.messages != 1 || !notifications.sawCommittedMessage {
 		t.Fatalf("notifications = %#v", notifications)
 	}
@@ -268,7 +271,13 @@ func (r *conversationNotificationRecorder) PublishConversationRemoved(_ context.
 	}
 }
 
+func (*conversationNotificationRecorder) PublishConversationRestored(context.Context, []string, string) {
+}
+
 func (*conversationNotificationRecorder) PublishConversationPinUpdated(context.Context, []string, ConversationPinEvent) {
+}
+
+func (*conversationNotificationRecorder) PublishConversationMuteUpdated(context.Context, []string, ConversationMuteEvent) {
 }
 
 func (*conversationNotificationRecorder) PublishTopicEvent(context.Context, []string, TopicEvent) {}
@@ -281,7 +290,7 @@ func openConversationTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&store.User{}, &store.App{}, &store.AppUserGrant{}, &store.Conversation{}, &store.ConversationMember{},
-		&store.ConversationPin{},
+		&store.ConversationUserPreference{},
 		&store.DirectConversation{}, &store.AppConversation{}, &store.Message{}, &store.MessageRegistry{},
 		&store.ConversationTopic{}, &store.ConversationTopicParticipant{},
 		&store.AppEventOutbox{},

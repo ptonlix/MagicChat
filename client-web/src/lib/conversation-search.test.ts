@@ -245,6 +245,7 @@ function createConversation(
     unreadCount: 0,
     visibility: "private",
     ...overrides,
+    lastMessageSender: overrides.lastMessageSender ?? null,
   }
 }
 

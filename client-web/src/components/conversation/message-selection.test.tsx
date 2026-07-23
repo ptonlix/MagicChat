@@ -254,6 +254,7 @@ function createConversation(): ClientConversation {
     lastMessageAt: null,
     lastMessageId: null,
     lastMessageSeq: 2,
+    lastMessageSender: null,
     lastMessageSummary: "第二条",
     lastMentionedSeq: 0,
     lastReadSeq: 2,
