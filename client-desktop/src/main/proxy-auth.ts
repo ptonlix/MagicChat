@@ -8,7 +8,11 @@ export class ProxyAuthPrompt {
   private window?: BrowserWindow
   private readonly credentials = new Map<string, { expiresAt: number; password: string; username: string }>()
 
-  constructor(private readonly windows: WindowController, private readonly preloadPath = path.resolve(__dirname, "../preload/index.cjs")) {}
+  constructor(
+    private readonly windows: WindowController,
+    private readonly iconPath: string,
+    private readonly preloadPath = path.resolve(__dirname, "../preload/index.cjs")
+  ) {}
 
   show(callback: LoginCallback, proxyHost = ""): void {
     if (this.window && !this.window.isDestroyed()) {
@@ -19,6 +23,7 @@ export class ProxyAuthPrompt {
     const parent = this.windows.current()
     const prompt = new BrowserWindow({
       height: 370,
+      icon: this.iconPath,
       modal: Boolean(parent),
       parent,
       resizable: false,

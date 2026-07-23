@@ -48,18 +48,20 @@ async function start(): Promise<void> {
   installLocalProtocol(path.resolve(__dirname, "../renderer"), profiles, sessions)
   const files = new FileService(profiles, sessions)
   const credentials = new CredentialStore(path.join(app.getPath("userData"), "credentials"))
-  const windows = new WindowController(store, diagnostics, path.resolve(__dirname, "../preload/index.cjs"))
+  const iconPath = runtimeIconPath()
+  const windows = new WindowController(store, diagnostics, path.resolve(__dirname, "../preload/index.cjs"), iconPath)
   const system = new SystemIntegration(store, windows)
-  const proxyAuth = new ProxyAuthPrompt(windows)
+  const proxyAuth = new ProxyAuthPrompt(windows, iconPath)
   const realtime = new RealtimeController(profiles, sessions, proxyAuth)
-  const trayAvailable = system.createTray(runtimeIconPath())
+  const trayAvailable = system.createTray(iconPath)
   if (!trayAvailable && process.platform !== "darwin" && store.getSettings().closeBehavior === "background") await store.setSettings({ closeBehavior: "quit" })
   system.configurePermissions()
   const auth = new AuthController(
     profiles,
     sessions,
     (result) => windows.send(IPC.authFinished, result),
-    () => windows.current()
+    () => windows.current(),
+    iconPath
   )
   const notifications = new NotificationService(() => store.getSettings(), async (input) => {
     const profile = profiles.require(input.target.id)

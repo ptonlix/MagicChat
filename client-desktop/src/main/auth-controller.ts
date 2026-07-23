@@ -20,7 +20,8 @@ export class AuthController {
     private readonly profiles: ServerProfiles,
     private readonly sessions: SessionController,
     private readonly onFinished: (result: DesktopAuthResult) => void,
-    private readonly getParentWindow: () => BrowserWindow | undefined
+    private readonly getParentWindow: () => BrowserWindow | undefined,
+    private readonly iconPath: string
   ) {}
 
   start(
@@ -45,6 +46,7 @@ export class AuthController {
       autoHideMenuBar: true,
       backgroundColor: "#ffffff",
       height: 720,
+      icon: this.iconPath,
       minHeight: 560,
       minWidth: 420,
       parent,
