@@ -1,10 +1,33 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
+import { readWorkflow, validateDesktopReleaseWorkflow } from "../workflow-tools.mjs"
 
 const repository = path.resolve(import.meta.dirname, "../../..")
+const workflowPath = path.join(repository, ".github/workflows/desktop-release.yml")
 
 describe("Desktop Stable Release 配置", () => {
+  it("通过结构化 YAML 校验三层 Job、最小权限和同 Tag 并发", async () => {
+    const workflow = await readWorkflow(workflowPath)
+    expect(() => validateDesktopReleaseWorkflow(workflow)).not.toThrow()
+    expect(workflow.jobs.package.strategy.matrix.include).toHaveLength(5)
+  })
+
+  it("拒绝权限、依赖、并发和删除策略回归", async () => {
+    const workflow = await readWorkflow(workflowPath)
+    for (const mutate of [
+      (value) => (value.jobs.package.permissions = { contents: "write" }),
+      (value) => delete value.jobs.package.needs,
+      (value) => delete value.concurrency,
+      (value) => (value.concurrency["cancel-in-progress"] = true),
+      (value) => value.jobs.release.steps.push({ run: "gh release delete desktop-v1.2.3" }),
+    ]) {
+      const candidate = structuredClone(workflow)
+      mutate(candidate)
+      expect(() => validateDesktopReleaseWorkflow(candidate)).toThrow()
+    }
+  })
+
   it("固定公开更新仓库与 Stable Release 类型", async () => {
     const builder = await readFile(
       path.join(repository, "client-desktop/electron-builder.yml"),
@@ -13,39 +36,6 @@ describe("Desktop Stable Release 配置", () => {
     expect(builder).toContain("owner: ptonlix")
     expect(builder).toContain("repo: MagicChat")
     expect(builder).toContain("releaseType: release")
-    expect(builder).toContain("description: MagicChat Desktop Stable OTA 构建")
-    expect(builder).not.toContain("experimentalUnsigned")
-    expect(builder).not.toContain("实验性未签名")
-    expect(builder).not.toContain("owner: magicchat")
-  })
-
-  it("只在聚合校验后创建非草稿、非预发布 Release", async () => {
-    const workflow = normalizeNewlines(
-      await readFile(path.join(repository, ".github/workflows/desktop-release.yml"), "utf8"),
-    )
-    expect(workflow).toContain('tags:\n      - "desktop-v*"')
-    expect(workflow).toContain("release:aggregate")
-    expect(workflow).toContain("verify:release-manifest")
-    expect(workflow).toContain("dist/latest-linux-arm64.yml")
-    expect(workflow).not.toContain("dist/*.yml")
-    expect(workflow).toContain("--config electron-builder.yml --publish never")
-    expect(workflow).toContain("--draft=false")
-    expect(workflow).toContain("--prerelease=false")
-    expect(workflow).toContain("gh release view")
-    expect(workflow).not.toContain("--draft --prerelease")
-    expect(workflow).not.toContain("MAGICCHAT_UNSIGNED_STABLE")
-    expect(workflow).not.toContain("实验性未签名")
-  })
-
-  it("生成签名中立的正式 Stable Release Notes", async () => {
-    const releaseNotes = await readFile(
-      path.join(repository, "client-desktop/scripts/generate-release-notes.mjs"),
-      "utf8",
-    )
-    expect(releaseNotes).toContain("# MagicChat Desktop ${version}")
-    expect(releaseNotes).toContain("## 支持与更新载体")
-    expect(releaseNotes).toContain("## 制品 SHA-512")
-    expect(releaseNotes).not.toMatch(/未签名|签名状态|生产可信|SmartScreen|Gatekeeper/)
   })
 
   it("客户端构建不包含 GitHub Token 或可变更新仓库", async () => {
@@ -61,7 +51,3 @@ describe("Desktop Stable Release 配置", () => {
     expect(updater).toContain("https://github.com/ptonlix/MagicChat/releases")
   })
 })
-
-function normalizeNewlines(value) {
-  return value.replace(/\r\n?/g, "\n")
-}

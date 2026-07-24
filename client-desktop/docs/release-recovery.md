@@ -7,7 +7,8 @@ Release Notes、客户端设置界面和常规发布文档不展示构建签名�
 HTTPS、版本、平台、架构、文件大小和 SHA-512。
 
 唯一公开更新仓库为 `ptonlix/MagicChat`。普通客户端匿名读取公开 Feed、更新清单和制品，
-不携带 GitHub Token；`GITHUB_TOKEN` 仅允许在 GitHub Actions 发布任务中创建 Release。
+不携带 GitHub Token；`GITHUB_TOKEN` 仅允许在 GitHub Actions 的最终 `release` Job 中创建
+和修改 Release，`quality` 与 `package` Job 只有 `contents: read`。
 
 ## 载体与清单
 
@@ -24,18 +25,34 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
 
 ## Stable 发布流程
 
-1. 创建严格格式的 `desktop-v<major>.<minor>.<patch>` Tag；预发布、构建元数据和前导零均
-   会被拒绝。
-2. 每个原生 Runner 在临时 Git worktree 中把 Tag 版本注入 `package.json`，原始工作树版本
-   文件不得被修改或提交。
-3. Windows x64/arm64、macOS Universal、Linux x64/arm64 分别构建、校验并上传隔离的
-   GitHub Actions artifact，不直接创建 Release。
-4. 聚合任务校验应用包版本、应用 ID、平台、架构、主更新载体、文件大小和 SHA-512；同名
-   不同内容、缺失文件、错架构或 Windows 旧版顶层字段都会阻断发布。
-5. 校验完成后生成中文 Release Notes，并一次创建 `draft=false`、`prerelease=false` 的公开
-   Stable Release。若同一 Tag 或 Release 已存在，任务立即失败且不覆盖既有资产。
-6. 上传中断时删除不完整 Release，再由发布负责人确认远端状态；修复必须使用更高补丁版本，
-   不允许替换同一 Tag 下的文件。
+1. 使用任意 Markdown 文件编写本版说明；[人工发布说明模板](release-notes-template.md) 仅供
+   参考，不要求固定章节或标题。Markdown 标题会被 Git 默认清理规则当作注释，因此必须
+   使用 `--cleanup=verbatim`：
+
+   ```bash
+   git tag -a desktop-v1.2.3 --cleanup=verbatim -F my-release-notes.md
+   git push origin desktop-v1.2.3
+   ```
+
+   Tag 必须是 Annotated 或 signed Tag，严格匹配 `desktop-v<semver>`，解引用 Commit 必须与
+   checkout 一致；正文必须非空、不含控制字符且不超过长度上限。
+
+2. 单一 `quality` Job 在安装依赖前验证 Tag，然后只执行一次 `pnpm check`、完整测试、生产
+   构建、`verify:build` 和工作流静态校验。
+3. 五个 `package` 目标依赖 `quality`。版本准备脚本在系统临时根目录内部创建唯一 detached
+   worktree，只修改其中的 `client-desktop/package.json`；不接受外部 `--target`，不删除或
+   污染调用方 checkout。
+4. 每个原生 Runner 从安装制品实际内容读取版本与架构：Windows 解开 NSIS 内部架构包并
+   读取 PE，macOS 检查 ZIP/DMG、plist 和 Universal 二进制，Linux 检查 AppImage ELF 与
+   deb 元数据。验证后只上传隔离的 Actions artifact。
+5. `release:prepare-assets` 恰好接收五个目标，在内部 staging 目录生成 Windows 双架构清单，
+   复核四类清单、所有 blockmap、size、SHA-256、SHA-512 和精确公开资产集合，并输出
+   `release-plan.json`。最终 Notes 完整保留 Tag 人工正文，只追加自动资产附录。
+6. `release` Job 在任何写操作前重新检查远端状态，创建不可发现的 Draft 并立即记录 Release
+   ID、Tag、仓库和 workflow run 所有权。脚本只上传 `release-plan.json` 列出的文件。
+7. 上传后按 Release ID 读取远端资产，复核名称、大小、数量、唯一性，并轮询 GitHub Asset
+   `digest`，直至每项 `sha256:<hex>` 与本地 SHA-256 一致；全部通过后才将同一 Release ID
+   转为 `draft=false`、`prerelease=false` 的公开 Stable Release。
 
 自动化命令从 `client-desktop/` 执行：
 
@@ -52,6 +69,13 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
 
 ## 失败恢复
 
+- Draft 上传或复核失败：自动清理前必须重新确认 Release ID、Tag、Draft 状态和当前 workflow
+  run 所有权；四项全部匹配时才按 Release ID 删除。任一信息无法确认时保留 Draft，并从
+  Actions 日志和 `release-transaction.json` 取得 ID 后人工检查。禁止执行
+  `gh release delete <tag>`。
+- 公开操作已经发起但后续诊断失败：不得自动删除或重新转为 Draft。先按 Release ID 查询
+  远端状态；若已公开，停止其成为 Latest 或发布更高补丁版本。
+- 同 Tag 已有公开 Release 或未知 Draft：当前运行立即失败，不上传、不覆盖、不删除。
 - 网络、超时或限流：保留当前版本，按 15 分钟至 6 小时、带随机抖动的上限退避重试。
 - 清单、版本、平台、架构、大小或 SHA-512 不匹配：拒绝安装并清理不可信缓存。
 - Windows 安装器被系统策略阻止：不添加绕过系统安全检查的代码；使用 Release 中匹配

@@ -27,6 +27,7 @@ export async function readManifest(manifestPath) {
 export async function validateManifest({
   arch,
   artifactDirectory,
+  allowMissingBlockMapSize = false,
   allowWindowsLegacyFields = false,
   expectedVersion,
   manifestPath,
@@ -40,6 +41,15 @@ export async function validateManifest({
   }
   if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
     throw new Error(`清单缺少 files：${manifestPath}`)
+  }
+  const releaseDate =
+    manifest.releaseDate instanceof Date
+      ? manifest.releaseDate.toISOString()
+      : typeof manifest.releaseDate === "string" && !Number.isNaN(Date.parse(manifest.releaseDate))
+        ? new Date(manifest.releaseDate).toISOString()
+        : undefined
+  if (!releaseDate) {
+    throw new Error(`清单 releaseDate 无效：${manifestPath}`)
   }
   if (
     platform === "win" &&
@@ -71,12 +81,22 @@ export async function validateManifest({
     }
     const sha512 = await fileSha512(artifactPath)
     if (entry.sha512 !== sha512) throw new Error(`制品 SHA-512 不匹配：${fileName}`)
-    files.push({ ...entry, url: fileName })
+    let blockMapSize = entry.blockMapSize
+    if (!fileName.endsWith(".deb")) {
+      const blockmapPath = path.join(artifactDirectory, `${fileName}.blockmap`)
+      const blockmapStat = await stat(blockmapPath).catch(() => undefined)
+      if (!blockmapStat?.isFile()) throw new Error(`缺少差分文件：${fileName}.blockmap`)
+      if (blockMapSize == null && allowMissingBlockMapSize) blockMapSize = blockmapStat.size
+      if (!Number.isSafeInteger(blockMapSize) || blockMapSize !== blockmapStat.size) {
+        throw new Error(`blockMapSize 与差分文件大小不匹配：${fileName}`)
+      }
+    }
+    files.push({ ...entry, ...(blockMapSize == null ? {} : { blockMapSize }), url: fileName })
   }
   if (matchingFiles !== 1) {
     throw new Error(`清单必须唯一包含 ${platform}/${arch} 的 OTA 主制品`)
   }
-  return { ...manifest, files }
+  return { ...manifest, files, releaseDate }
 }
 
 export async function aggregateRelease({ expectedVersion, inputs, outputDirectory }) {
@@ -151,6 +171,12 @@ export async function fileSha512(filePath) {
   return createHash("sha512")
     .update(await readFile(filePath))
     .digest("base64")
+}
+
+export async function fileSha256(filePath) {
+  return createHash("sha256")
+    .update(await readFile(filePath))
+    .digest("hex")
 }
 
 export function linuxArtifactSuffixes(arch) {

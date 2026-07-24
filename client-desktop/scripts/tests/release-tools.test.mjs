@@ -127,6 +127,29 @@ describe("Desktop Stable 发布工具", () => {
       }),
     ).rejects.toThrow("同名内容冲突")
   })
+
+  it("允许矩阵产物的同名同内容文件", async () => {
+    const root = await fixtureDirectory()
+    const x64 = path.join(root, "win-x64")
+    const arm64 = path.join(root, "win-arm64")
+    const output = path.join(root, "release")
+    await Promise.all([mkdir(x64), mkdir(arm64)])
+    await createWindowsCandidate(x64, "x64")
+    await createWindowsCandidate(arm64, "arm64")
+    await Promise.all([
+      writeFile(path.join(x64, "shared.blockmap"), "same"),
+      writeFile(path.join(arm64, "shared.blockmap"), "same"),
+    ])
+    await aggregateRelease({
+      expectedVersion: "1.2.3",
+      inputs: [
+        { arch: "x64", directory: x64, platform: "win" },
+        { arch: "arm64", directory: arm64, platform: "win" },
+      ],
+      outputDirectory: output,
+    })
+    expect(await readFile(path.join(output, "shared.blockmap"), "utf8")).toBe("same")
+  })
 })
 
 async function fixtureDirectory() {
@@ -143,7 +166,10 @@ async function writeManifest(manifestPath, directory, fileNames, version) {
   const entries = await Promise.all(
     (Array.isArray(fileNames) ? fileNames : [fileNames]).map(async (fileName) => {
       const artifactPath = path.join(directory, fileName)
+      const blockmapPath = `${artifactPath}.blockmap`
+      await writeFile(blockmapPath, `blockmap:${fileName}`)
       return {
+        blockMapSize: (await readFile(blockmapPath)).byteLength,
         fileName,
         sha512: await fileSha512(artifactPath),
         size: (await readFile(artifactPath)).byteLength,
@@ -152,10 +178,10 @@ async function writeManifest(manifestPath, directory, fileNames, version) {
   )
   await writeFile(
     manifestPath,
-    `version: ${version}\nfiles:\n${entries
+    `version: ${version}\nreleaseDate: 2026-07-24T00:00:00.000Z\nfiles:\n${entries
       .map(
-        ({ fileName, sha512, size }) =>
-          `  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}`,
+        ({ blockMapSize, fileName, sha512, size }) =>
+          `  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}\n    blockMapSize: ${blockMapSize}`,
       )
       .join("\n")}\n`,
   )

@@ -1,12 +1,13 @@
-import { execFile } from "node:child_process"
-import { readFile, readdir, stat } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import path from "node:path"
-import { promisify } from "node:util"
-import { extractFile } from "@electron/asar"
 import { load } from "js-yaml"
+import {
+  verifyLinuxPackage,
+  verifyMacPackage,
+  verifyWindowsPackage,
+} from "./native-package-tools.mjs"
 import { linuxArtifactSuffixes, parseDesktopTag, validateManifest } from "./release-tools.mjs"
 
-const execute = promisify(execFile)
 const root = path.resolve(import.meta.dirname, "..")
 const platform = argument("platform")
 const arch = argument("arch")
@@ -33,35 +34,29 @@ assert(
 )
 assert(builder.publish?.releaseType === "release", "Stable Release 不得使用草稿或预发布类型")
 
-const unpackedDirectory =
-  platform === "mac"
-    ? path.join(root, "dist", "mac-universal")
-    : path.join(
-        root,
-        "dist",
-        `${platform === "win" ? "win" : "linux"}${arch === "arm64" ? "-arm64" : ""}-unpacked`,
-      )
-const applicationRoot =
-  platform === "mac" ? path.join(unpackedDirectory, "MagicChat.app") : unpackedDirectory
-const resources =
-  platform === "mac"
-    ? path.join(applicationRoot, "Contents", "Resources")
-    : path.join(applicationRoot, "resources")
-const asarPath = path.join(resources, "app.asar")
-assert((await stat(asarPath)).size > 1024, "app.asar 为空")
-const packagedMetadata = JSON.parse(extractFile(asarPath, "package.json").toString("utf8"))
-assert(packagedMetadata.version === expectedVersion, "app.asar 内应用版本与 Tag 不一致")
-
-if (platform === "mac") await verifyMac(applicationRoot, expectedVersion)
-else
-  await stat(path.join(applicationRoot, platform === "win" ? "MagicChat.exe" : "magicchat-desktop"))
-
-const distNames = await readdir(path.join(root, "dist"))
-for (const suffix of expectedArtifacts(platform, arch)) {
-  assert(
-    distNames.some((name) => name === `MagicChat-${expectedVersion}-${suffix}`),
-    `缺少发布制品：MagicChat-${expectedVersion}-${suffix}`,
-  )
+const dist = path.join(root, "dist")
+const names = await readdir(dist)
+let nativeResult
+if (platform === "win") {
+  nativeResult = await verifyWindowsPackage({
+    arch,
+    artifact: artifact(`win-${arch}.exe`),
+    expectedVersion,
+  })
+} else if (platform === "mac") {
+  nativeResult = await verifyMacPackage({
+    dmg: artifact("mac-universal.dmg"),
+    expectedVersion,
+    zip: artifact("mac-universal.zip"),
+  })
+} else {
+  const suffixes = linuxArtifactSuffixes(arch)
+  nativeResult = await verifyLinuxPackage({
+    appImage: artifact(suffixes.appImage),
+    arch,
+    deb: artifact(suffixes.deb),
+    expectedVersion,
+  })
 }
 
 const manifestName =
@@ -73,52 +68,20 @@ const manifestName =
         ? "latest-linux-arm64.yml"
         : "latest-linux.yml"
 await validateManifest({
+  allowMissingBlockMapSize: platform === "mac",
   allowWindowsLegacyFields: platform === "win",
   arch,
-  artifactDirectory: path.join(root, "dist"),
+  artifactDirectory: dist,
   expectedVersion,
-  manifestPath: path.join(root, "dist", manifestName),
+  manifestPath: path.join(dist, manifestName),
   platform,
 })
+console.log(JSON.stringify({ appId: builder.appId, ...nativeResult }))
 
-console.log(
-  JSON.stringify({
-    appId: builder.appId,
-    arch,
-    platform,
-    version: expectedVersion,
-  }),
-)
-
-async function verifyMac(applicationRoot, expectedVersion) {
-  const plist = path.join(applicationRoot, "Contents", "Info.plist")
-  const identifier = await plistValue(plist, "CFBundleIdentifier")
-  const version = await plistValue(plist, "CFBundleShortVersionString")
-  const minimum = await plistValue(plist, "LSMinimumSystemVersion")
-  const arbitraryLoads = await plistValue(plist, "NSAppTransportSecurity.NSAllowsArbitraryLoads")
-  const localNetworking = await plistValue(plist, "NSAppTransportSecurity.NSAllowsLocalNetworking")
-  assert(identifier === "com.magicchat.desktop", "macOS 应用 ID 无效")
-  assert(version === expectedVersion, "macOS 应用版本与 Tag 不一致")
-  assert(minimum === "13.0", "macOS 最低系统版本无效")
-  assert(
-    arbitraryLoads === "false" && localNetworking === "false",
-    "macOS ATS 未关闭不安全网络例外",
-  )
-  const plistText = await readFile(plist)
-  assert(!plistText.includes(Buffer.from("NSExceptionDomains")), "macOS ATS 包含域名级网络例外")
-  assert(plistText.includes(Buffer.from("magicchat")), "macOS 未注册 magicchat 协议")
-}
-
-function expectedArtifacts(targetPlatform, targetArch) {
-  if (targetPlatform === "win") return [`win-${targetArch}.exe`]
-  if (targetPlatform === "mac") return ["mac-universal.dmg", "mac-universal.zip"]
-  const suffixes = linuxArtifactSuffixes(targetArch)
-  return [suffixes.appImage, suffixes.deb]
-}
-
-async function plistValue(plist, key) {
-  const { stdout } = await execute("/usr/bin/plutil", ["-extract", key, "raw", "-o", "-", plist])
-  return stdout.trim()
+function artifact(suffix) {
+  const expected = `MagicChat-${expectedVersion}-${suffix}`
+  if (!names.includes(expected)) throw new Error(`缺少发布制品：${expected}`)
+  return path.join(dist, expected)
 }
 
 function argument(name) {
