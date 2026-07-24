@@ -56,7 +56,8 @@ export async function verifyWindowsPackage({
   const workspace = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-"))
   const outer = path.join(workspace, "outer")
   const innerName = arch === "x64" ? "app-64.7z" : "app-arm64.7z"
-  const innerEntry = `$PLUGINSDIR/${innerName}`
+  const listing = await executeCommand(sevenZip, ["l", "-slt", "-bd", artifact])
+  const innerEntry = findNsisInnerEntry(listing.stdout, innerName)
   await executeCommand(sevenZip, ["e", "-bd", "-y", `-o${outer}`, artifact, innerEntry])
   const inner = await findUnique(outer, innerName, `NSIS 缺少内部架构包 ${innerName}`)
   const application = path.join(workspace, "application")
@@ -204,6 +205,19 @@ async function resolveElectronBuilder7za() {
   const modulePath = path.resolve(electronBuilder, "../app-builder-lib/out/toolsets/7zip.js")
   const module = await import(pathToFileURL(modulePath).href)
   return module.getPath7za()
+}
+
+export function findNsisInnerEntry(listing, innerName) {
+  const expected = `$PLUGINSDIR/${innerName}`
+  const matches = String(listing)
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("Path = "))
+    .map((line) => line.slice("Path = ".length).trim())
+    .filter((entry) => entry.replaceAll("\\", "/") === expected)
+  if (matches.length !== 1) {
+    throw new Error(`NSIS 缺少唯一内部架构包 ${innerName}（目录表找到 ${matches.length} 个）`)
+  }
+  return matches[0]
 }
 
 async function findUnique(root, name, message, directory = false) {

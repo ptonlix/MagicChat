@@ -62,7 +62,7 @@ export function targetAssetModel(version, platform, arch) {
     return {
       manifest: arch === "arm64" ? "latest-linux-arm64.yml" : "latest-linux.yml",
       manifestAssets: [appImage, deb],
-      publicAssets: [appImage, `${appImage}.blockmap`, deb],
+      publicAssets: [appImage, deb],
     }
   }
   throw new Error(`不支持的发布目标：${platform}/${arch}`)

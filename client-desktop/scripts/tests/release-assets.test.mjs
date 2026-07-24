@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { deflateRawSync } from "node:zlib"
 import { dump, load } from "js-yaml"
 import { describe, expect, it } from "vitest"
 import {
@@ -118,13 +119,21 @@ async function createInputs(root) {
     const model = targetAssetModel("1.2.3", platform, arch)
     for (const name of model.publicAssets)
       await writeFile(path.join(directory, name), `${target}:${name}`)
+    const embeddedBlockMapSizes = new Map()
+    for (const name of model.manifestAssets) {
+      if (name.endsWith(".AppImage")) {
+        embeddedBlockMapSizes.set(name, await appendEmbeddedBlockMap(path.join(directory, name)))
+      }
+    }
     const primary = model.manifestAssets
     const files = await Promise.all(
       primary.map(async (name) => ({
         ...(name.endsWith(".deb")
           ? {}
           : {
-              blockMapSize: (await readFile(path.join(directory, `${name}.blockmap`))).byteLength,
+              blockMapSize:
+                embeddedBlockMapSizes.get(name) ??
+                (await readFile(path.join(directory, `${name}.blockmap`))).byteLength,
             }),
         sha512: await fileSha512(path.join(directory, name)),
         size: (await readFile(path.join(directory, name))).byteLength,
@@ -138,4 +147,20 @@ async function createInputs(root) {
     inputs.push({ arch, directory, platform })
   }
   return inputs
+}
+
+async function appendEmbeddedBlockMap(artifactPath) {
+  const compressed = deflateRawSync(
+    JSON.stringify({
+      files: [{ checksums: ["fixture"], name: "file", offsets: [0] }],
+      version: "2",
+    }),
+  )
+  const sizeBuffer = Buffer.alloc(4)
+  sizeBuffer.writeUInt32BE(compressed.length)
+  await writeFile(
+    artifactPath,
+    Buffer.concat([await readFile(artifactPath), compressed, sizeBuffer]),
+  )
+  return compressed.length
 }

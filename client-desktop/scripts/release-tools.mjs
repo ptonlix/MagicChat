@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
-import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, open, readFile, readdir, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { inflateRawSync } from "node:zlib"
 import { load, dump } from "js-yaml"
 import { parseDesktopTag, writePackageVersion } from "./release-version.mjs"
 
@@ -82,7 +83,9 @@ export async function validateManifest({
     const sha512 = await fileSha512(artifactPath)
     if (entry.sha512 !== sha512) throw new Error(`制品 SHA-512 不匹配：${fileName}`)
     let blockMapSize = entry.blockMapSize
-    if (!fileName.endsWith(".deb")) {
+    if (fileName.endsWith(".AppImage")) {
+      await validateEmbeddedBlockMap(artifactPath, artifactStat.size, blockMapSize, fileName)
+    } else if (!fileName.endsWith(".deb")) {
       const blockmapPath = path.join(artifactDirectory, `${fileName}.blockmap`)
       const blockmapStat = await stat(blockmapPath).catch(() => undefined)
       if (!blockmapStat?.isFile()) throw new Error(`缺少差分文件：${fileName}.blockmap`)
@@ -177,6 +180,52 @@ export async function fileSha256(filePath) {
   return createHash("sha256")
     .update(await readFile(filePath))
     .digest("hex")
+}
+
+async function validateEmbeddedBlockMap(artifactPath, artifactSize, blockMapSize, fileName) {
+  if (!Number.isSafeInteger(blockMapSize) || blockMapSize <= 0 || blockMapSize + 4 > artifactSize) {
+    throw new Error(`AppImage blockMapSize 无效：${fileName}`)
+  }
+  const handle = await open(artifactPath, "r")
+  try {
+    const sizeBuffer = Buffer.alloc(4)
+    await readExactly(handle, sizeBuffer, artifactSize - sizeBuffer.length)
+    const embeddedSize = sizeBuffer.readUInt32BE(0)
+    if (embeddedSize !== blockMapSize) {
+      throw new Error(`blockMapSize 与 AppImage 内嵌差分数据大小不匹配：${fileName}`)
+    }
+    const compressed = Buffer.alloc(blockMapSize)
+    await readExactly(handle, compressed, artifactSize - sizeBuffer.length - blockMapSize)
+    let blockMap
+    try {
+      blockMap = JSON.parse(inflateRawSync(compressed).toString("utf8"))
+    } catch {
+      throw new Error(`AppImage 内嵌 blockmap 无效：${fileName}`)
+    }
+    if (
+      blockMap?.version !== "2" ||
+      !Array.isArray(blockMap.files) ||
+      blockMap.files.length === 0
+    ) {
+      throw new Error(`AppImage 内嵌 blockmap 结构无效：${fileName}`)
+    }
+  } finally {
+    await handle.close()
+  }
+}
+
+async function readExactly(handle, buffer, position) {
+  let offset = 0
+  while (offset < buffer.length) {
+    const { bytesRead } = await handle.read(
+      buffer,
+      offset,
+      buffer.length - offset,
+      position + offset,
+    )
+    if (bytesRead === 0) throw new Error("读取 AppImage 内嵌 blockmap 时意外结束")
+    offset += bytesRead
+  }
 }
 
 export function linuxArtifactSuffixes(arch) {

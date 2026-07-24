@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { deflateRawSync } from "node:zlib"
 import { describe, expect, it } from "vitest"
 import {
   aggregateRelease,
@@ -43,7 +44,9 @@ describe("Desktop Stable 发布工具", () => {
         platform: "linux",
       }),
     ).resolves.toBeTruthy()
-    await writeFile(path.join(directory, appImage), "tampered")
+    const tampered = await readFile(path.join(directory, appImage))
+    tampered[0] ^= 0xff
+    await writeFile(path.join(directory, appImage), tampered)
     await expect(
       validateManifest({
         arch: "x64",
@@ -65,6 +68,30 @@ describe("Desktop Stable 发布工具", () => {
       deb: "linux-arm64.deb",
     })
     expect(() => linuxArtifactSuffixes("ia32")).toThrow("不支持的 Linux 制品架构")
+  })
+
+  it("拒绝损坏的 AppImage 内嵌 blockmap", async () => {
+    const directory = await fixtureDirectory()
+    const appImage = "MagicChat-1.2.3-linux-x86_64.AppImage"
+    const artifactPath = path.join(directory, appImage)
+    const compressed = Buffer.from("invalid-blockmap")
+    const sizeBuffer = Buffer.alloc(4)
+    sizeBuffer.writeUInt32BE(compressed.length)
+    await writeFile(artifactPath, Buffer.concat([Buffer.from("appimage"), compressed, sizeBuffer]))
+    const manifestPath = path.join(directory, "latest-linux.yml")
+    await writeFile(
+      manifestPath,
+      `version: 1.2.3\nreleaseDate: 2026-07-24T00:00:00.000Z\nfiles:\n  - url: ${appImage}\n    sha512: ${await fileSha512(artifactPath)}\n    size: ${(await readFile(artifactPath)).byteLength}\n    blockMapSize: ${compressed.length}\n`,
+    )
+    await expect(
+      validateManifest({
+        arch: "x64",
+        artifactDirectory: directory,
+        expectedVersion: "1.2.3",
+        manifestPath,
+        platform: "linux",
+      }),
+    ).rejects.toThrow("内嵌 blockmap 无效")
   })
 
   it("拒绝缺失制品和 Windows 顶层回退字段", async () => {
@@ -166,10 +193,16 @@ async function writeManifest(manifestPath, directory, fileNames, version) {
   const entries = await Promise.all(
     (Array.isArray(fileNames) ? fileNames : [fileNames]).map(async (fileName) => {
       const artifactPath = path.join(directory, fileName)
-      const blockmapPath = `${artifactPath}.blockmap`
-      await writeFile(blockmapPath, `blockmap:${fileName}`)
+      let blockMapSize
+      if (fileName.endsWith(".AppImage")) {
+        blockMapSize = await appendEmbeddedBlockMap(artifactPath)
+      } else if (!fileName.endsWith(".deb")) {
+        const blockmapPath = `${artifactPath}.blockmap`
+        await writeFile(blockmapPath, `blockmap:${fileName}`)
+        blockMapSize = (await readFile(blockmapPath)).byteLength
+      }
       return {
-        blockMapSize: (await readFile(blockmapPath)).byteLength,
+        ...(blockMapSize == null ? {} : { blockMapSize }),
         fileName,
         sha512: await fileSha512(artifactPath),
         size: (await readFile(artifactPath)).byteLength,
@@ -185,4 +218,20 @@ async function writeManifest(manifestPath, directory, fileNames, version) {
       )
       .join("\n")}\n`,
   )
+}
+
+async function appendEmbeddedBlockMap(artifactPath) {
+  const compressed = deflateRawSync(
+    JSON.stringify({
+      files: [{ checksums: ["fixture"], name: "file", offsets: [0] }],
+      version: "2",
+    }),
+  )
+  const sizeBuffer = Buffer.alloc(4)
+  sizeBuffer.writeUInt32BE(compressed.length)
+  await writeFile(
+    artifactPath,
+    Buffer.concat([await readFile(artifactPath), compressed, sizeBuffer]),
+  )
+  return compressed.length
 }
