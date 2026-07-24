@@ -63,6 +63,7 @@ const bridge: DesktopBridge = {
     check: () => ipcRenderer.invoke(IPC.updaterCheck),
     download: () => ipcRenderer.invoke(IPC.updaterDownload),
     install: () => ipcRenderer.invoke(IPC.updaterInstall),
+    openManualDownload: () => ipcRenderer.invoke(IPC.updaterOpenManual),
     subscribe: (listener) => subscribe<UpdaterState>(IPC.updaterState, listener),
   },
 }

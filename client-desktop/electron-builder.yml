@@ -16,16 +16,16 @@ files:
   - out/**/*
   - package.json
 extraMetadata:
-  description: MagicChat 三平台桌面客户端测试构建
+  description: MagicChat Desktop Stable OTA 构建
 protocols:
   - name: MagicChat
     schemes:
       - magicchat
 publish:
   provider: github
-  owner: magicchat
-  repo: magicchat
-  releaseType: draft
+  owner: ptonlix
+  repo: MagicChat
+  releaseType: release
 win:
   icon: public/logo.png
   target:

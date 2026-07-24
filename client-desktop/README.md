@@ -1,8 +1,7 @@
 # MagicChat Desktop
 
 `client-desktop` 是 MagicChat 的 Electron 桌面客户端，使用一套代码支持 Windows、
-macOS 和 Linux。项目目前处于未签名 POC 阶段，目标是先完成三平台开发、启动和打包，
-正式发布所需的代码签名、公证及更新签名后续再接入。
+macOS 和 Linux，并通过公开 Stable Release 提供跨版本更新。
 
 Desktop Renderer 已从 `client-web` 独立出来，拥有自己的页面、组件、数据层、样式、
 资源和测试。它不直接引用 Web 源码，也不会自动同步 Web 的界面修改。
@@ -38,7 +37,7 @@ pnpm build
 pnpm verify:boundaries
 pnpm verify:build
 
-# 在对应操作系统上生成未签名测试包
+# 在对应操作系统上生成 Stable 测试包
 pnpm pack:win
 pnpm pack:mac
 pnpm pack:linux
@@ -50,6 +49,9 @@ pnpm pack:linux
 - macOS：DMG 和 ZIP，Universal（包含 x64/arm64）
 - Linux：AppImage 和 deb，x64/arm64
 
+应用内 OTA 主载体分别为 Windows NSIS、macOS Universal ZIP 和 Linux AppImage。
+macOS DMG 只用于首次安装和失败恢复，Linux deb 只提供匹配架构的手动升级。
+
 macOS 本地打包后可直接启动对应架构的应用，例如：
 
 ```bash
@@ -58,6 +60,8 @@ open dist/mac-universal/MagicChat.app
 
 跨平台安装、验收和发布要求见
 [发布、验证与恢复](docs/release-recovery.md)。
+跨版本真机矩阵、执行步骤和记录模板见
+[Stable OTA 验收指南](docs/stable-ota-acceptance.md)。
 
 ## 目录结构
 

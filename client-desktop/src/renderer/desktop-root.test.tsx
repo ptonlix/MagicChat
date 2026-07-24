@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DesktopRoot } from "./desktop-root"
 import { releaseChannelLabel } from "@/release-channel"
-import type { DesktopBridge, ServerProfile } from "@shared/bridge"
+import type { DesktopBridge, ServerProfile, UpdaterState } from "@shared/bridge"
 
 const profile: ServerProfile = {
   createdAt: "2026-07-23T00:00:00.000Z",
@@ -14,6 +14,7 @@ const profile: ServerProfile = {
 }
 
 const mocks = vi.hoisted(() => ({
+  openManual: vi.fn(),
   openSettings: undefined as (() => void) | undefined,
   remove: vi.fn(),
 }))
@@ -48,6 +49,7 @@ vi.mock("./desktop-transport", () => ({
 describe("桌面设置服务器管理", () => {
   beforeEach(() => {
     mocks.openSettings = undefined
+    mocks.openManual.mockResolvedValue(undefined)
     mocks.remove.mockResolvedValue(undefined)
     vi.spyOn(window, "confirm").mockReturnValue(true)
     Object.defineProperty(window, "desktop", {
@@ -83,6 +85,33 @@ describe("桌面设置服务器管理", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("本地配置写入失败")
     expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument()
   })
+
+  it("展示实验性更新信息并支持键盘触发手动升级", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge({
+        currentVersion: "1.0.0",
+        installMode: "manual",
+        installationSource: "deb",
+        manualAction: { label: "下载 deb" },
+        releaseNotes: "修复稳定性问题",
+        retryable: false,
+        status: "available",
+        targetVersion: "1.1.0",
+      }),
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    expect(screen.getByText("目标版本：1.1.0")).toBeInTheDocument()
+    expect(screen.getByText("安装来源：Linux deb")).toBeInTheDocument()
+    expect(screen.getByLabelText("更新说明")).toHaveTextContent("修复稳定性问题")
+    const manual = screen.getByRole("button", { name: "下载 deb" })
+    manual.focus()
+    await user.keyboard("{Enter}")
+    expect(mocks.openManual).toHaveBeenCalledOnce()
+  })
 })
 
 describe("发布通道显示", () => {
@@ -95,7 +124,7 @@ describe("发布通道显示", () => {
   })
 })
 
-function createDesktopBridge(): DesktopBridge {
+function createDesktopBridge(updaterState?: UpdaterState): DesktopBridge {
   const unsubscribe = () => undefined
   return {
     app: {
@@ -165,7 +194,11 @@ function createDesktopBridge(): DesktopBridge {
       check: vi.fn(),
       download: vi.fn(),
       install: vi.fn(),
-      subscribe: vi.fn().mockReturnValue(unsubscribe),
+      openManualDownload: mocks.openManual,
+      subscribe: vi.fn((listener) => {
+        if (updaterState) listener(updaterState)
+        return unsubscribe
+      }),
     },
     version: 1,
   }

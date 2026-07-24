@@ -1,4 +1,4 @@
-name: Desktop Release
+name: Desktop Stable Release
 
 on:
   push:
@@ -37,7 +37,57 @@ jobs:
             target: AppImage deb
             arch: arm64
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 35
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client-desktop/pnpm-lock.yaml
+      - name: 在临时工作树注入 Tag 版本
+        shell: bash
+        run: |
+          node client-desktop/scripts/prepare-release-worktree.mjs \
+            --tag "$GITHUB_REF_NAME" \
+            --target "$RUNNER_TEMP/magicchat-desktop-release"
+          echo "DESKTOP_DIR=$RUNNER_TEMP/magicchat-desktop-release/client-desktop" >> "$GITHUB_ENV"
+      - name: 安装依赖
+        working-directory: ${{ env.DESKTOP_DIR }}
+        run: pnpm install --frozen-lockfile
+      - name: 验证源码与生产构建
+        working-directory: ${{ env.DESKTOP_DIR }}
+        run: pnpm check && pnpm test && pnpm build && pnpm verify:build
+      - name: 生成 Stable 制品
+        working-directory: ${{ env.DESKTOP_DIR }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml
+      - name: 校验安装包元数据与内容
+        working-directory: ${{ env.DESKTOP_DIR }}
+        run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --tag "$GITHUB_REF_NAME"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: magicchat-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ env.DESKTOP_DIR }}/dist/*.exe
+            ${{ env.DESKTOP_DIR }}/dist/*.dmg
+            ${{ env.DESKTOP_DIR }}/dist/*.zip
+            ${{ env.DESKTOP_DIR }}/dist/*.AppImage
+            ${{ env.DESKTOP_DIR }}/dist/*.deb
+            ${{ env.DESKTOP_DIR }}/dist/*.yml
+            ${{ env.DESKTOP_DIR }}/dist/*.blockmap
+          if-no-files-found: error
+
+  release:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
@@ -50,38 +100,47 @@ jobs:
           cache-dependency-path: client-desktop/pnpm-lock.yaml
       - working-directory: client-desktop
         run: pnpm install --frozen-lockfile
-      - working-directory: client-desktop
-        run: pnpm verify:boundaries && pnpm typecheck && pnpm test && pnpm build && pnpm verify:build
-      - name: 生成未签名 POC 安装包
-        working-directory: client-desktop
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml
-      - name: 校验安装包目录元数据与内容
-        working-directory: client-desktop
-        run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: magicchat-desktop-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            client-desktop/dist/*.exe
-            client-desktop/dist/*.dmg
-            client-desktop/dist/*.zip
-            client-desktop/dist/*.AppImage
-            client-desktop/dist/*.deb
-            client-desktop/dist/*.yml
-            client-desktop/dist/*.blockmap
-          if-no-files-found: error
-
-  release:
-    needs: package
-    runs-on: ubuntu-latest
-    steps:
       - uses: actions/download-artifact@v5
         with:
           path: artifacts
-          merge-multiple: true
-      - name: 创建 GitHub Release
+      - name: 聚合并校验全部发布制品
+        working-directory: client-desktop
+        run: |
+          pnpm release:aggregate -- \
+            --tag "$GITHUB_REF_NAME" \
+            --output ../release-assets \
+            --input win:x64:../artifacts/magicchat-desktop-win-x64 \
+            --input win:arm64:../artifacts/magicchat-desktop-win-arm64 \
+            --input mac:universal:../artifacts/magicchat-desktop-mac-universal \
+            --input linux:x64:../artifacts/magicchat-desktop-linux-x64 \
+            --input linux:arm64:../artifacts/magicchat-desktop-linux-arm64
+          pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform win --arch x64 --manifest ../release-assets/latest.yml --artifacts ../release-assets
+          pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform win --arch arm64 --manifest ../release-assets/latest.yml --artifacts ../release-assets
+          pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform mac --arch universal --manifest ../release-assets/latest-mac.yml --artifacts ../release-assets
+          pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform linux --arch x64 --manifest ../release-assets/latest-linux.yml --artifacts ../release-assets
+          pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform linux --arch arm64 --manifest ../release-assets/latest-linux-arm64.yml --artifacts ../release-assets
+          pnpm release:notes -- --tag "$GITHUB_REF_NAME" --artifacts ../release-assets --output ../release-notes.md
+      - name: 拒绝覆盖既有 Tag 或 Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" artifacts/* --draft --prerelease --title "MagicChat Desktop $GITHUB_REF_NAME" --notes "未签名 POC 构建，客户端使用 Stable 更新通道。"
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release 已存在，禁止覆盖同一 Tag 下的制品" >&2
+            exit 1
+          fi
+      - name: 一次创建公开 Stable Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if ! gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --verify-tag \
+            --draft=false \
+            --prerelease=false \
+            --title "MagicChat Desktop $GITHUB_REF_NAME" \
+            --notes-file release-notes.md; then
+            gh release delete "$GITHUB_REF_NAME" --yes >/dev/null 2>&1 || true
+            echo "发布上传失败，已尝试删除不完整 Release；禁止覆盖同一 Tag 重试" >&2
+            exit 1
+          fi

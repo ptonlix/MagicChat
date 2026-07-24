@@ -3,6 +3,11 @@
 本文描述 Desktop 当前实现。正式发布前尚未落地的能力会明确标记为长期方案，不能
 将其视为已经可用。
 
+Stable OTA 校验 HTTPS、Stable SemVer、平台、架构、清单、文件大小和 SHA-512。
+Renderer 只接收 Main 归一化后的更新状态和纯文本发布说明，不接收构建签名状态、
+GitHub Token、完整更新 URL、Header 或本地缓存路径；手动下载地址由 Main 根据固定仓库
+`ptonlix/MagicChat` 生成。
+
 ## 进程与代码边界
 
 ```text
@@ -56,6 +61,12 @@ Main 只接受已保存的 Server 以及相对 `/api/client/` 路径，并限制
 Session 请求资源并过滤响应 Header；Renderer 不拼接认证 Header，也不能读取 Cookie。
 HTTP、WebSocket、文件、通知、权限、剪贴板、更新和外链都通过窄类型 Bridge，参数
 在 Main 再次校验。
+
+Updater 资格由 Main 根据打包状态、Stable 通道、平台、架构和可信安装来源决定：Windows
+NSIS、macOS 打包应用和 Linux AppImage 可以进入 OTA；Linux deb、开发运行和 test 通道
+只进入手动升级；未知平台或架构进入不支持状态。更新检查和下载采用单飞 Promise，远端
+发布说明会移除 HTML、控制字符和 URL，并限制长度。安装前必须确认更新已下载且不存在
+活跃文件传输，再由 Main 协调资源清理和一次性退出安装意图。
 
 开发环境仅允许 localhost HTTP；打包应用只接受 HTTPS/WSS 和系统信任链。目前不支持
 忽略证书错误、应用内导入私有 CA 或 mTLS。网络使用 Electron/Chromium 系统代理，

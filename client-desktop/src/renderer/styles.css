@@ -93,6 +93,7 @@ html, body, #root { height: 100%; margin: 0; }
 .desktop-about-card p, .desktop-about-card small { color: var(--muted-foreground); font-size: 10px; margin: 0; }
 .desktop-icon-action { border: 0 !important; height: 32px; min-height: 32px !important; padding: 0 !important; width: 32px; }
 .desktop-primary-action { background: linear-gradient(135deg, color-mix(in oklch, var(--primary) 90%, white), var(--primary)) !important; border-color: transparent !important; color: var(--primary-foreground) !important; gap: 7px; width: 100%; }
+.desktop-update-notes { background: color-mix(in oklch, var(--muted) 68%, transparent); border: 1px solid var(--border); border-radius: 8px; color: var(--muted-foreground); font-family: inherit; font-size: 11px; line-height: 1.55; margin: 0; max-height: 160px; overflow: auto; padding: 10px 12px; white-space: pre-wrap; word-break: break-word; }
 .desktop-secondary-action { width: 100%; }
 @media (max-width: 860px) { .server-setup { align-items: flex-start; overflow: auto; padding: 20px; } .server-setup-shell { grid-template-columns: 1fr; min-height: 0; } .server-setup-hero { min-height: 350px; padding: 34px; } .server-setup-hero h1 { font-size: 38px; } .server-setup-benefits { display: none; } .server-setup-form-panel { padding: 38px 34px; } }
 @media (max-width: 560px) { .server-setup { padding: 0; } .server-setup-shell { border-radius: 0; min-height: 100%; } .server-setup-hero { min-height: 300px; padding: 28px 24px; } .server-setup-hero h1 { font-size: 34px; } .server-setup-form-panel { padding: 34px 24px; } }

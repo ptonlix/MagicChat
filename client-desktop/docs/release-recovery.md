@@ -1,102 +1,77 @@
 # 发布、验证与恢复
 
-## 支持范围
+## 发布定位
 
-当前 POC 的目标平台如下。只有在对应真机完成本文验收后，才能宣称该平台已通过：
+Desktop 通过公开 Stable Release 向 Windows、macOS 和 Linux 客户端提供版本更新。
+Release Notes、客户端设置界面和常规发布文档不展示构建签名状态，发布链路持续校验
+HTTPS、版本、平台、架构、文件大小和 SHA-512。
 
-- Windows 10 22H2 x64：过渡支持。
-- Windows 11 24H2 及以上：x64/arm64。
-- macOS 13 及以上：Universal（包含 x64/arm64）。
-- Ubuntu 22.04/24.04：x64/arm64。
-- Debian 12/13：x64/arm64。
+唯一公开更新仓库为 `ptonlix/MagicChat`。普通客户端匿名读取公开 Feed、更新清单和制品，
+不携带 GitHub Token；`GITHUB_TOKEN` 仅允许在 GitHub Actions 发布任务中创建 Release。
 
-## 自动化验证
+## 载体与清单
 
-日常变更至少执行：
+- Windows x64/arm64：NSIS OTA；Release 只发布一个 `latest.yml`，`files` 分别引用文件名
+  带 `x64` 和 `arm64` 的两个安装器，不包含顶层 `path` 或 `sha512`。
+- macOS Intel/Apple Silicon：Universal ZIP 是 `latest-mac.yml` 的 OTA 主载体；DMG 只用于
+  首次安装、平台拒绝应用内替换后的手动升级和恢复。
+- Linux x64：AppImage 使用 `latest-linux.yml`；arm64 AppImage 使用
+  `latest-linux-arm64.yml`。deb 不作为自更新包，只提供匹配架构的手动下载。
+
+开发运行、test/preview 通道、Linux deb、便携解压、只读目录和未知安装来源不得通过静默
+兼容分支强行进入 OTA。平台或安装器拒绝替换时，必须保留当前版本并转为可诊断的手动升级。
+
+## Stable 发布流程
+
+1. 创建严格格式的 `desktop-v<major>.<minor>.<patch>` Tag；预发布、构建元数据和前导零均
+   会被拒绝。
+2. 每个原生 Runner 在临时 Git worktree 中把 Tag 版本注入 `package.json`，原始工作树版本
+   文件不得被修改或提交。
+3. Windows x64/arm64、macOS Universal、Linux x64/arm64 分别构建、校验并上传隔离的
+   GitHub Actions artifact，不直接创建 Release。
+4. 聚合任务校验应用包版本、应用 ID、平台、架构、主更新载体、文件大小和 SHA-512；同名
+   不同内容、缺失文件、错架构或 Windows 旧版顶层字段都会阻断发布。
+5. 校验完成后生成中文 Release Notes，并一次创建 `draft=false`、`prerelease=false` 的公开
+   Stable Release。若同一 Tag 或 Release 已存在，任务立即失败且不覆盖既有资产。
+6. 上传中断时删除不完整 Release，再由发布负责人确认远端状态；修复必须使用更高补丁版本，
+   不允许替换同一 Tag 下的文件。
+
+自动化命令从 `client-desktop/` 执行：
 
 ```bash
-pnpm typecheck
+pnpm check
 pnpm test
-pnpm build
-pnpm verify:boundaries
+NODE_OPTIONS="--max-old-space-size=512" nice -n 10 pnpm build
 pnpm verify:build
+pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> --tag desktop-v1.2.3
 ```
 
-发布候选还需在对应平台执行打包，并使用目标平台和架构参数校验产物，例如 macOS
-Universal 包执行 `pnpm verify:package -- --platform mac --arch universal`。CI 应检查本地 Renderer、
-CSP、开发地址隔离、应用 ID、版本、架构、`app.asar`、协议注册配置和产物命名。
-不要在文档中固化测试文件数或测试项数量，以流水线输出为准。
+打包和 `verify:package` 必须在对应目标操作系统执行。跨平台生成成功不能替代真机安装、
+替换、重启和用户数据保留验收。
 
-## 人工验收
+## 失败恢复
 
-每个目标系统和架构至少核对：
+- 网络、超时或限流：保留当前版本，按 15 分钟至 6 小时、带随机抖动的上限退避重试。
+- 清单、版本、平台、架构、大小或 SHA-512 不匹配：拒绝安装并清理不可信缓存。
+- Windows 安装器被系统策略阻止：不添加绕过系统安全检查的代码；使用 Release 中匹配
+  架构的 NSIS 手动恢复。
+- macOS 原生更新器或系统策略拒绝应用内替换：返回
+  `platform_signature_required`，保留当前应用并从同一 Release 使用 DMG 手动升级。
+- Linux AppImage 只读或权限失败：保留当前 AppImage，修复目录权限或下载新的匹配架构
+  AppImage；deb 用户继续由包管理器手动升级。
+- 活跃上传或下载：阻止退出安装，等待传输完成或由用户明确取消后重试。
+- 新版本无法健康启动：保留用户配置和安全存储，确认 schema 向后兼容后手动安装上一兼容
+  版本；优先发布更高补丁版本向前修复，不执行应用内降级。
 
-1. 安装、首次启动、单实例、卸载和用户手动填写 Server。
-2. 密码、邮件验证码、已启用的第三方身份提供商和注销。
-3. 会话历史、发送、撤回、回应、话题、转发、未读、通讯录、应用、项目和任务。
-4. 托盘与关闭行为、开机启动、通知隐私、角标和通知跳转。
-5. 图片、头像、语音、Markdown、图表、上传下载、取消和临时文件清理。
-6. 系统代理、代理认证、系统私有 CA、证书失败，以及明确拒绝不支持的 mTLS。
-7. 休眠唤醒、网络切换、Server 重启和八小时后台运行。
-8. AppImage 更新或 deb 手动升级、失败恢复，以及卸载后的启动项清理。
+发现严重问题时，让问题 Release 不再成为 Latest，停止新的发现，并发布更高修复版本。
+不得覆盖旧 Tag 资产，否则缓存和摘要将失去一致性。
 
-视觉验收覆盖 1280x820、1024x640、760x560，浅色/深色及常用系统缩放。各平台
-分别维护基准，不跨平台比较字体像素；重点检查文字溢出、遮挡、布局跳动、键盘焦点
-和系统控件。
+平台签名和凭据属于构建与 CI 配置，不进入客户端状态、Release Notes 或常规发布文档。
+证书、私钥和 Token 必须使用 CI 密钥托管、最小权限、轮换和访问审计，不得进入仓库、
+客户端包、更新清单或普通日志。
 
-真实账号验收记录不得包含账号、Token、Cookie、二维码、回调 code 或消息正文。
+## 验收状态
 
-## 性能基线
-
-性能数据使用固定数据集在目标真机采集，记录版本、Electron、系统、CPU、内存和
-安装来源，不记录 Server 地址或用户数据。正式质量目标为：
-
-- 冷启动 P95 不超过 3 秒，热启动不超过 1.5 秒，托盘恢复不超过 500ms。
-- 点击、输入和发送的本地反馈 P95 不超过 100ms，页面切换不超过 300ms。
-- 消息滚动帧耗时 P95 不超过 32ms，不出现超过 250ms 的 Renderer 长任务。
-- 空闲 CPU 五分钟平均不超过 1%，后台隐藏不超过 0.5%。
-- 空闲进程树内存不超过 300 MiB，典型聊天不超过 500 MiB；连续运行 30 分钟没有
-  持续增长。
-- 1 GiB 文件传输时 Main/Renderer 内存不随文件大小线性增长，单次 IPC 不承载文件本体。
-
-当前仓库尚无覆盖全部平台的真机性能样本，因此这些数值是验收目标，不代表已经通过。
-
-## POC 发布
-
-当前产物不签名，仅供测试：
-
-1. 创建 `desktop-v<version>` Tag。
-2. 三平台 CI 执行检查、测试、构建、打包和产物校验。
-3. 生成 NSIS、DMG/ZIP、AppImage/deb。
-4. 创建 GitHub Releases draft/prerelease，并明确标注未签名测试构建。
-5. 验收人员核对版本、平台、架构、SHA-512、安装、启动和卸载。
-
-`test` 通道不执行自动更新。Linux 正式通道计划由 AppImage 支持应用内更新，deb
-只提示手动下载升级，不维护 apt/rpm 仓库。
-
-## 正式发布前置条件
-
-正式发布前必须另行完成：
-
-- Windows 代码签名证书及可信签名流程。
-- Apple Developer ID、Hardened Runtime 和公证流程。
-- 更新签名、CI 密钥托管、轮换和访问审计。
-- GitHub Releases stable/preview 通道及旧版本升级验证。
-- 系统浏览器 + handoff 第三方认证切换和协议真机验证。
-
-缺少所需签名材料时，正式发布任务必须失败，不能用未签名包冒充正式产物。密钥不得
-进入仓库或普通构建日志。
-
-## 故障恢复
-
-- 下载、散列、签名或平台不匹配：拒绝安装并保留当前版本。
-- 更新失败：保留用户配置，重新下载相同平台和架构的安装包。
-- 新版本无法启动：安装同一 Release 渠道的上一版本；配置迁移必须幂等。
-- Renderer 崩溃：进入本地恢复页，不清除 Main Session。
-- 配置损坏：原文件改名为 `.invalid-<timestamp>`，再创建最小安全配置。
-- 配置 schema 高于当前客户端：保留原文件并停止启动，避免旧版本覆盖。
-- Linux deb：使用新 deb 手动升级，不尝试应用内覆盖。
-
-Renderer 回归应回退 Desktop 自身版本，不能重新复制 Web 目录覆盖。回退前必须确认
-DesktopBridge 版本和配置 schema 兼容；涉及安全或协议时，还要执行架构文档中的
-跨端变更核对。
+三平台跨版本结果统一记录在 [Stable OTA 验收指南](stable-ota-acceptance.md)。只有目标系统、
+架构和安装来源真机完成基线安装、检查、下载、替换、重启、健康标记及用户数据保留后，
+才能把对应组合标记为通过。
