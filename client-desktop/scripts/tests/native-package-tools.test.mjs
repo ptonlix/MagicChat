@@ -35,11 +35,15 @@ describe("原生安装包真实性解析", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-fixture-"))
     const artifact = path.join(root, "renamed-arm64.exe")
     await writeFile(artifact, "fixture")
+    const invocations = []
     const executeCommand = async (command, args) => {
+      invocations.push({ args, command })
       const output = args.find((value) => value.startsWith("-o"))?.slice(2)
       if (output?.endsWith("outer")) {
         await mkdir(output, { recursive: true })
-        await writeFile(path.join(output, "app-64.7z"), "inner")
+        if (args.includes("$PLUGINSDIR/app-64.7z")) {
+          await writeFile(path.join(output, "app-64.7z"), "inner")
+        }
       } else if (output?.endsWith("application")) {
         await mkdir(path.join(output, "resources"), { recursive: true })
         await writeFile(path.join(output, "MagicChat.exe"), peFixture(0x8664))
@@ -56,7 +60,15 @@ describe("原生安装包真实性解析", () => {
         readAsarVersion: async () => "1.2.3",
         resolve7za: async () => "fixed-7za",
       }),
-    ).resolves.toMatchObject({ innerPackage: "app-64.7z", machine: 0x8664 })
+    ).resolves.toMatchObject({
+      innerEntry: "$PLUGINSDIR/app-64.7z",
+      innerPackage: "app-64.7z",
+      machine: 0x8664,
+    })
+    expect(invocations[0]).toMatchObject({
+      args: ["e", "-bd", "-y", expect.stringMatching(/outer$/), artifact, "$PLUGINSDIR/app-64.7z"],
+      command: "fixed-7za",
+    })
     await expect(
       verifyWindowsPackage({
         arch: "arm64",
@@ -121,34 +133,42 @@ describe("原生安装包真实性解析", () => {
     ).rejects.toThrow("Universal")
   })
 
-  it("从 AppImage ELF 与 deb 元数据读取 Linux 真实架构和版本", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-linux-fixture-"))
-    const appImage = path.join(root, "app.AppImage")
-    const deb = path.join(root, "app.deb")
-    const executeCommand = async (command, args, options) => {
-      if (command === appImage) {
-        const extracted = path.join(options.cwd, "squashfs-root")
-        await mkdir(path.join(extracted, "resources"), { recursive: true })
-        await writeFile(path.join(extracted, "magicchat-desktop"), elfFixture(0x3e))
-        await writeFile(path.join(extracted, "resources/app.asar"), "asar")
-      } else if (command === "dpkg-deb" && args[0] === "-x") {
-        await mkdir(path.join(args[2], "usr/lib/magicchat"), { recursive: true })
-        await writeFile(path.join(args[2], "usr/lib/magicchat/magicchat-desktop"), elfFixture(0x3e))
-      }
-      return {
-        stdout: command === "dpkg-deb" && args[0] === "-f" ? "amd64\n1.2.3\n" : "",
-      }
-    }
+  it.each([
+    ["x64", 0x3e, "amd64"],
+    ["arm64", 0xb7, "arm64"],
+  ])(
+    "从 AppImage ELF 与 deb 元数据读取 Linux %s 真实架构和版本",
+    async (arch, machine, debArch) => {
+      const fixture = await createLinuxPackageFixture({ debArch, machine })
+      await expect(
+        verifyLinuxPackage({
+          appImage: fixture.appImage,
+          arch,
+          deb: fixture.deb,
+          executeCommand: fixture.executeCommand,
+          expectedVersion: "1.2.3",
+          readAsarVersion: async () => "1.2.3",
+        }),
+      ).resolves.toMatchObject({ appImageMachine: machine, debArchitecture: debArch })
+      expect(fixture.metadataFields).toEqual(["Architecture", "Version"])
+    },
+  )
+
+  it.each([
+    [{ debArch: "arm64" }, "deb 架构与目标不一致：期望 amd64，实际 arm64"],
+    [{ debVersion: "1.2.4" }, "deb 版本与 Tag 不一致：期望 1.2.3，实际 1.2.4"],
+  ])("拒绝 deb 元数据不匹配", async (overrides, message) => {
+    const fixture = await createLinuxPackageFixture({ machine: 0x3e, ...overrides })
     await expect(
       verifyLinuxPackage({
-        appImage,
+        appImage: fixture.appImage,
         arch: "x64",
-        deb,
-        executeCommand,
+        deb: fixture.deb,
+        executeCommand: fixture.executeCommand,
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
       }),
-    ).resolves.toMatchObject({ appImageMachine: 0x3e, debArchitecture: "amd64" })
+    ).rejects.toThrow(message)
   })
 })
 
@@ -167,6 +187,32 @@ function elfFixture(machine) {
   fixture[5] = 1
   fixture.writeUInt16LE(machine, 18)
   return fixture
+}
+
+async function createLinuxPackageFixture({ debArch = "amd64", debVersion = "1.2.3", machine }) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-linux-fixture-"))
+  const appImage = path.join(root, "app.AppImage")
+  const deb = path.join(root, "app.deb")
+  const metadataFields = []
+  const executeCommand = async (command, args, options) => {
+    if (command === appImage) {
+      const extracted = path.join(options.cwd, "squashfs-root")
+      await mkdir(path.join(extracted, "resources"), { recursive: true })
+      await writeFile(path.join(extracted, "magicchat-desktop"), elfFixture(machine))
+      await writeFile(path.join(extracted, "resources/app.asar"), "asar")
+    } else if (command === "dpkg-deb" && args[0] === "-f") {
+      metadataFields.push(args[2])
+      return { stdout: `${args[2] === "Architecture" ? debArch : debVersion}\n` }
+    } else if (command === "dpkg-deb" && args[0] === "-x") {
+      await mkdir(path.join(args[2], "usr/lib/magicchat"), { recursive: true })
+      await writeFile(
+        path.join(args[2], "usr/lib/magicchat/magicchat-desktop"),
+        elfFixture(machine),
+      )
+    }
+    return { stdout: "" }
+  }
+  return { appImage, deb, executeCommand, metadataFields }
 }
 
 async function createMacApplication(application) {

@@ -55,8 +55,9 @@ export async function verifyWindowsPackage({
   const sevenZip = await resolve7za()
   const workspace = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-"))
   const outer = path.join(workspace, "outer")
-  await executeCommand(sevenZip, ["x", "-bd", "-y", `-o${outer}`, artifact])
   const innerName = arch === "x64" ? "app-64.7z" : "app-arm64.7z"
+  const innerEntry = `$PLUGINSDIR/${innerName}`
+  await executeCommand(sevenZip, ["e", "-bd", "-y", `-o${outer}`, artifact, innerEntry])
   const inner = await findUnique(outer, innerName, `NSIS 缺少内部架构包 ${innerName}`)
   const application = path.join(workspace, "application")
   await executeCommand(sevenZip, ["x", "-bd", "-y", `-o${application}`, inner])
@@ -74,6 +75,7 @@ export async function verifyWindowsPackage({
     throw new Error("app.asar 内应用版本与 Tag 不一致")
   return {
     arch,
+    innerEntry,
     innerPackage: innerName,
     machine: PE_MACHINES[arch],
     platform: "win",
@@ -104,10 +106,16 @@ export async function verifyLinuxPackage({
     throw new Error("AppImage 应用版本与 Tag 不一致")
 
   const expectedDebArch = arch === "x64" ? "amd64" : "arm64"
-  const metadata = await executeCommand("dpkg-deb", ["-f", deb, "Architecture", "Version"])
-  const [debArch, debVersion] = String(metadata.stdout).trim().split(/\s+/)
-  if (debArch !== expectedDebArch || debVersion !== expectedVersion)
-    throw new Error("deb 架构或版本与 Tag 不一致")
+  const architectureMetadata = await executeCommand("dpkg-deb", ["-f", deb, "Architecture"])
+  const versionMetadata = await executeCommand("dpkg-deb", ["-f", deb, "Version"])
+  const debArch = String(architectureMetadata.stdout).trim()
+  const debVersion = String(versionMetadata.stdout).trim()
+  if (debArch !== expectedDebArch) {
+    throw new Error(`deb 架构与目标不一致：期望 ${expectedDebArch}，实际 ${debArch || "空值"}`)
+  }
+  if (debVersion !== expectedVersion) {
+    throw new Error(`deb 版本与 Tag 不一致：期望 ${expectedVersion}，实际 ${debVersion || "空值"}`)
+  }
   const debRoot = path.join(workspace, "deb")
   await executeCommand("dpkg-deb", ["-x", deb, debRoot])
   const debExecutable = await findUnique(debRoot, "magicchat-desktop", "deb 内缺少主程序")
