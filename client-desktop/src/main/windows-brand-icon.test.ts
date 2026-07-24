@@ -59,9 +59,8 @@ describe("Windows 品牌图标", () => {
   })
 
   it("允许 electron-builder 将品牌图标写入 Windows 可执行文件", async () => {
-    const builderConfig = await readFile(
-      path.resolve(import.meta.dirname, "../../electron-builder.yml"),
-      "utf8",
+    const builderConfig = normalizeNewlines(
+      await readFile(path.resolve(import.meta.dirname, "../../electron-builder.yml"), "utf8"),
     )
 
     expect(builderConfig).toContain("win:\n  icon: public/logo.png")
@@ -80,3 +79,7 @@ describe("Windows 品牌图标", () => {
     }
   })
 })
+
+function normalizeNewlines(value: string): string {
+  return value.replace(/\r\n?/g, "\n")
+}

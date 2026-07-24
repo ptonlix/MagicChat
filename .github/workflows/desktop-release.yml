@@ -67,7 +67,7 @@ jobs:
         working-directory: ${{ env.DESKTOP_DIR }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml
+        run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml --publish never
       - name: 校验安装包元数据与内容
         working-directory: ${{ env.DESKTOP_DIR }}
         run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --tag "$GITHUB_REF_NAME"

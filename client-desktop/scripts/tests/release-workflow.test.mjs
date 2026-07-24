@@ -20,13 +20,13 @@ describe("Desktop Stable Release 配置", () => {
   })
 
   it("只在聚合校验后创建非草稿、非预发布 Release", async () => {
-    const workflow = await readFile(
-      path.join(repository, ".github/workflows/desktop-release.yml"),
-      "utf8",
+    const workflow = normalizeNewlines(
+      await readFile(path.join(repository, ".github/workflows/desktop-release.yml"), "utf8"),
     )
     expect(workflow).toContain('tags:\n      - "desktop-v*"')
     expect(workflow).toContain("release:aggregate")
     expect(workflow).toContain("verify:release-manifest")
+    expect(workflow).toContain("--config electron-builder.yml --publish never")
     expect(workflow).toContain("--draft=false")
     expect(workflow).toContain("--prerelease=false")
     expect(workflow).toContain("gh release view")
@@ -59,3 +59,7 @@ describe("Desktop Stable Release 配置", () => {
     expect(updater).toContain("https://github.com/ptonlix/MagicChat/releases")
   })
 })
+
+function normalizeNewlines(value) {
+  return value.replace(/\r\n?/g, "\n")
+}
