@@ -8,6 +8,13 @@ export { parseDesktopTag, writePackageVersion }
 
 const SUPPORTED_ARCHES = new Set(["arm64", "universal", "x64"])
 const SUPPORTED_PLATFORMS = new Set(["linux", "mac", "win"])
+const RELEASE_MANIFESTS = new Set([
+  "latest-linux-arm64.yml",
+  "latest-linux.yml",
+  "latest-mac.yml",
+  "latest.yml",
+])
+const RELEASE_ARTIFACT_EXTENSION = /\.(?:AppImage|blockmap|deb|dmg|exe|zip)$/
 
 export async function readManifest(manifestPath) {
   const value = load(await readFile(manifestPath, "utf8"), { json: true })
@@ -83,6 +90,7 @@ export async function aggregateRelease({ expectedVersion, inputs, outputDirector
     assertTarget(input.platform, input.arch)
     const names = await readdir(input.directory)
     for (const name of names) {
+      if (!isReleaseAsset(name)) continue
       const sourcePath = path.join(input.directory, name)
       if (!(await stat(sourcePath)).isFile()) continue
       if (name === "latest.yml" && input.platform === "win") continue
@@ -133,6 +141,10 @@ export async function aggregateRelease({ expectedVersion, inputs, outputDirector
       dump(manifest, { lineWidth: -1, noRefs: true }),
     )
   }
+}
+
+function isReleaseAsset(name) {
+  return RELEASE_MANIFESTS.has(name) || RELEASE_ARTIFACT_EXTENSION.test(name)
 }
 
 export async function fileSha512(filePath) {

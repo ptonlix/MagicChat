@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
@@ -82,7 +82,7 @@ describe("Desktop Stable 发布工具", () => {
     ).rejects.toThrow()
   })
 
-  it("聚合 Windows 双架构清单且拒绝同名冲突", async () => {
+  it("聚合 Windows 双架构清单并忽略构建诊断文件", async () => {
     const root = await fixtureDirectory()
     const x64 = path.join(root, "win-x64")
     const arm64 = path.join(root, "win-arm64")
@@ -90,6 +90,8 @@ describe("Desktop Stable 发布工具", () => {
     await Promise.all([mkdir(x64), mkdir(arm64)])
     await createWindowsCandidate(x64, "x64")
     await createWindowsCandidate(arm64, "arm64")
+    await writeFile(path.join(x64, "builder-debug.yml"), "platform: x64")
+    await writeFile(path.join(arm64, "builder-debug.yml"), "platform: arm64")
     await aggregateRelease({
       expectedVersion: "1.2.3",
       inputs: [
@@ -102,9 +104,18 @@ describe("Desktop Stable 发布工具", () => {
     expect(manifest).toContain("MagicChat-1.2.3-win-x64.exe")
     expect(manifest).toContain("MagicChat-1.2.3-win-arm64.exe")
     expect(manifest).not.toMatch(/^path:|^sha512:/m)
+    expect(await readdir(output)).not.toContain("builder-debug.yml")
+  })
 
-    await writeFile(path.join(x64, "conflict.txt"), "x64")
-    await writeFile(path.join(arm64, "conflict.txt"), "arm64")
+  it("拒绝正式 Release 资产的同名内容冲突", async () => {
+    const root = await fixtureDirectory()
+    const x64 = path.join(root, "win-x64")
+    const arm64 = path.join(root, "win-arm64")
+    await Promise.all([mkdir(x64), mkdir(arm64)])
+    await createWindowsCandidate(x64, "x64")
+    await createWindowsCandidate(arm64, "arm64")
+    await writeFile(path.join(x64, "shared.blockmap"), "x64")
+    await writeFile(path.join(arm64, "shared.blockmap"), "arm64")
     await expect(
       aggregateRelease({
         expectedVersion: "1.2.3",
@@ -112,7 +123,7 @@ describe("Desktop Stable 发布工具", () => {
           { arch: "x64", directory: x64, platform: "win" },
           { arch: "arm64", directory: arm64, platform: "win" },
         ],
-        outputDirectory: path.join(root, "conflict-output"),
+        outputDirectory: path.join(root, "release"),
       }),
     ).rejects.toThrow("同名内容冲突")
   })

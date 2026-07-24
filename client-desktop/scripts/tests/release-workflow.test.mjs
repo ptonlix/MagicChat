@@ -26,6 +26,8 @@ describe("Desktop Stable Release 配置", () => {
     expect(workflow).toContain('tags:\n      - "desktop-v*"')
     expect(workflow).toContain("release:aggregate")
     expect(workflow).toContain("verify:release-manifest")
+    expect(workflow).toContain("dist/latest-linux-arm64.yml")
+    expect(workflow).not.toContain("dist/*.yml")
     expect(workflow).toContain("--config electron-builder.yml --publish never")
     expect(workflow).toContain("--draft=false")
     expect(workflow).toContain("--prerelease=false")

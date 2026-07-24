@@ -80,8 +80,11 @@ jobs:
             ${{ env.DESKTOP_DIR }}/dist/*.zip
             ${{ env.DESKTOP_DIR }}/dist/*.AppImage
             ${{ env.DESKTOP_DIR }}/dist/*.deb
-            ${{ env.DESKTOP_DIR }}/dist/*.yml
             ${{ env.DESKTOP_DIR }}/dist/*.blockmap
+            ${{ env.DESKTOP_DIR }}/dist/latest.yml
+            ${{ env.DESKTOP_DIR }}/dist/latest-mac.yml
+            ${{ env.DESKTOP_DIR }}/dist/latest-linux.yml
+            ${{ env.DESKTOP_DIR }}/dist/latest-linux-arm64.yml
           if-no-files-found: error
 
   release:
@@ -120,7 +123,7 @@ jobs:
           pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform linux --arch x64 --manifest ../release-assets/latest-linux.yml --artifacts ../release-assets
           pnpm verify:release-manifest -- --tag "$GITHUB_REF_NAME" --platform linux --arch arm64 --manifest ../release-assets/latest-linux-arm64.yml --artifacts ../release-assets
           pnpm release:notes -- --tag "$GITHUB_REF_NAME" --artifacts ../release-assets --output ../release-notes.md
-      - name: 拒绝覆盖既有 Tag 或 Release
+      - name: 拒绝覆盖既有 Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -129,7 +132,7 @@ jobs:
             echo "Release 已存在，禁止覆盖同一 Tag 下的制品" >&2
             exit 1
           fi
-      - name: 一次创建公开 Stable Release
+      - name: 创建并上传公开 Stable Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
