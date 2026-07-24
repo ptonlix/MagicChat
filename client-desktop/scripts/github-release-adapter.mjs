@@ -87,23 +87,21 @@ export function createGhReleaseAdapter({ token = process.env.GH_TOKEN } = {}) {
       )
     },
     async uploadAsset({ filePath, id, name, repository }) {
-      return api(
-        repository,
-        [
-          "--method",
-          "POST",
-          "--hostname",
-          "uploads.github.com",
-          "-H",
-          "Content-Type: application/octet-stream",
-          "--input",
-          filePath,
-          `repos/${repository}/releases/${id}/assets?name=${encodeURIComponent(name)}`,
-        ],
-        env,
-      )
+      return api(repository, releaseAssetUploadArguments({ filePath, id, name, repository }), env)
     },
   }
+}
+
+export function releaseAssetUploadArguments({ filePath, id, name, repository }) {
+  return [
+    "--method",
+    "POST",
+    "-H",
+    "Content-Type: application/octet-stream",
+    "--input",
+    filePath,
+    `https://uploads.github.com/repos/${repository}/releases/${id}/assets?name=${encodeURIComponent(name)}`,
+  ]
 }
 
 export function ownerMarker(owner) {
