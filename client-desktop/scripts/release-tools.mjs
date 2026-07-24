@@ -28,7 +28,6 @@ export async function readManifest(manifestPath) {
 export async function validateManifest({
   arch,
   artifactDirectory,
-  allowMissingBlockMapSize = false,
   allowWindowsLegacyFields = false,
   expectedVersion,
   manifestPath,
@@ -82,19 +81,21 @@ export async function validateManifest({
     }
     const sha512 = await fileSha512(artifactPath)
     if (entry.sha512 !== sha512) throw new Error(`制品 SHA-512 不匹配：${fileName}`)
-    let blockMapSize = entry.blockMapSize
+    const blockMapSize = entry.blockMapSize
     if (fileName.endsWith(".AppImage")) {
       await validateEmbeddedBlockMap(artifactPath, artifactStat.size, blockMapSize, fileName)
     } else if (!fileName.endsWith(".deb")) {
       const blockmapPath = path.join(artifactDirectory, `${fileName}.blockmap`)
       const blockmapStat = await stat(blockmapPath).catch(() => undefined)
       if (!blockmapStat?.isFile()) throw new Error(`缺少差分文件：${fileName}.blockmap`)
-      if (blockMapSize == null && allowMissingBlockMapSize) blockMapSize = blockmapStat.size
-      if (!Number.isSafeInteger(blockMapSize) || blockMapSize !== blockmapStat.size) {
+      if (
+        blockMapSize != null &&
+        (!Number.isSafeInteger(blockMapSize) || blockMapSize !== blockmapStat.size)
+      ) {
         throw new Error(`blockMapSize 与差分文件大小不匹配：${fileName}`)
       }
     }
-    files.push({ ...entry, ...(blockMapSize == null ? {} : { blockMapSize }), url: fileName })
+    files.push({ ...entry, url: fileName })
   }
   if (matchingFiles !== 1) {
     throw new Error(`清单必须唯一包含 ${platform}/${arch} 的 OTA 主制品`)

@@ -90,7 +90,6 @@ export async function prepareReleaseAssets({
       const model = targetAssetModel(version, input.platform, input.arch)
       await assertInputAssets(input.directory, model)
       const validated = await validateManifest({
-        allowMissingBlockMapSize: input.platform === "mac",
         allowWindowsLegacyFields: input.platform === "win",
         arch: input.arch,
         artifactDirectory: input.directory,

@@ -69,7 +69,6 @@ const manifestName =
         ? "latest-linux-arm64.yml"
         : "latest-linux.yml"
 await validateManifest({
-  allowMissingBlockMapSize: platform === "mac",
   allowWindowsLegacyFields: platform === "win",
   arch,
   artifactDirectory: dist,

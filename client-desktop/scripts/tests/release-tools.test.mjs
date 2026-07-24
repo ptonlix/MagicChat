@@ -70,6 +70,29 @@ describe("Desktop Stable 发布工具", () => {
     expect(() => linuxArtifactSuffixes("ia32")).toThrow("不支持的 Linux 制品架构")
   })
 
+  it("接受 electron-builder 未声明 blockMapSize 的 Windows 外置 blockmap", async () => {
+    const directory = await fixtureDirectory()
+    const installer = "MagicChat-1.2.3-win-x64.exe"
+    const artifactPath = path.join(directory, installer)
+    await writeFile(artifactPath, "installer")
+    await writeFile(`${artifactPath}.blockmap`, "blockmap")
+    const manifestPath = path.join(directory, "latest.yml")
+    await writeFile(
+      manifestPath,
+      `version: 1.2.3\nreleaseDate: 2026-07-24T00:00:00.000Z\nfiles:\n  - url: ${installer}\n    sha512: ${await fileSha512(artifactPath)}\n    size: ${(await readFile(artifactPath)).byteLength}\n`,
+    )
+    await expect(
+      validateManifest({
+        allowWindowsLegacyFields: true,
+        arch: "x64",
+        artifactDirectory: directory,
+        expectedVersion: "1.2.3",
+        manifestPath,
+        platform: "win",
+      }),
+    ).resolves.toBeTruthy()
+  })
+
   it("拒绝损坏的 AppImage 内嵌 blockmap", async () => {
     const directory = await fixtureDirectory()
     const appImage = "MagicChat-1.2.3-linux-x86_64.AppImage"
@@ -214,7 +237,7 @@ async function writeManifest(manifestPath, directory, fileNames, version) {
     `version: ${version}\nreleaseDate: 2026-07-24T00:00:00.000Z\nfiles:\n${entries
       .map(
         ({ blockMapSize, fileName, sha512, size }) =>
-          `  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}\n    blockMapSize: ${blockMapSize}`,
+          `  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}${blockMapSize == null ? "" : `\n    blockMapSize: ${blockMapSize}`}`,
       )
       .join("\n")}\n`,
   )
