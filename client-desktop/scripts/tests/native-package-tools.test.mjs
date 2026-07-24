@@ -4,7 +4,6 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   assertMachine,
-  findNsisInnerEntry,
   parseElfMachine,
   parsePeMachine,
   verifyLinuxPackage,
@@ -33,82 +32,63 @@ describe("原生安装包真实性解析", () => {
   })
 
   it.each([
-    ["x64", "$PLUGINSDIR/app-64.7z", "app-64.7z", 0x8664],
-    ["arm64", "$PLUGINSDIR\\app-arm64.7z", "app-arm64.7z", 0xaa64],
-  ])(
-    "使用固定 7za 解开 NSIS %s 内部架构包并读取真实 PE",
-    async (arch, innerEntry, innerName, machine) => {
-      const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-fixture-"))
-      const artifact = path.join(root, "renamed-arm64.exe")
-      await writeFile(artifact, "fixture")
-      const invocations = []
-      const executeCommand = async (command, args) => {
-        invocations.push({ args, command })
-        if (args[0] === "l") {
-          return { stdout: `Path = ${artifact}\r\nType = Nsis\r\n\r\nPath = ${innerEntry}\r\n` }
-        }
-        const output = args.find((value) => value.startsWith("-o"))?.slice(2)
-        if (output?.endsWith("outer")) {
-          await mkdir(output, { recursive: true })
-          if (args.includes(innerEntry)) await writeFile(path.join(output, innerName), "inner")
-        } else if (output?.endsWith("application")) {
-          await mkdir(path.join(output, "resources"), { recursive: true })
-          await writeFile(path.join(output, "MagicChat.exe"), peFixture(machine))
-          await writeFile(path.join(output, "resources/app.asar"), "asar")
-        }
-        return { stdout: command === "powershell" ? "1.2.3.0\n" : "" }
-      }
-      await expect(
-        verifyWindowsPackage({
-          arch,
-          artifact,
-          executeCommand,
-          expectedVersion: "1.2.3",
-          readAsarVersion: async () => "1.2.3",
-          resolve7za: async () => "fixed-7za",
-        }),
-      ).resolves.toMatchObject({
-        innerEntry,
-        innerPackage: innerName,
-        machine,
-      })
-      expect(invocations[0]).toMatchObject({
-        args: ["l", "-slt", "-bd", artifact],
-        command: "fixed-7za",
-      })
-      expect(invocations[1]).toMatchObject({
-        args: ["e", "-bd", "-y", expect.stringMatching(/outer$/), artifact, innerEntry],
-        command: "fixed-7za",
-      })
-    },
-  )
-
-  it("拒绝 NSIS 内部架构包缺失或重复", () => {
-    expect(() => findNsisInnerEntry("Path = installer.exe\n", "app-arm64.7z")).toThrow(
-      "目录表找到 0 个",
-    )
-    expect(() =>
-      findNsisInnerEntry(
-        "Path = $PLUGINSDIR/app-arm64.7z\nPath = $PLUGINSDIR\\app-arm64.7z\n",
-        "app-arm64.7z",
-      ),
-    ).toThrow("目录表找到 2 个")
+    ["x64", 0x8664],
+    ["arm64", 0xaa64],
+  ])("校验 Windows %s 安装器与打包应用", async (arch, machine) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-fixture-"))
+    const artifact = path.join(root, `MagicChat-1.2.3-win-${arch}.exe`)
+    const applicationDirectory = path.join(root, "application")
+    await mkdir(path.join(applicationDirectory, "resources"), { recursive: true })
+    await writeFile(artifact, peFixture(0x14c))
+    await writeFile(path.join(applicationDirectory, "MagicChat.exe"), peFixture(machine))
+    await writeFile(path.join(applicationDirectory, "resources/app.asar"), "asar")
+    await expect(
+      verifyWindowsPackage({
+        arch,
+        applicationDirectory,
+        artifact,
+        executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
+        expectedVersion: "1.2.3",
+        readAsarVersion: async () => "1.2.3",
+      }),
+    ).resolves.toMatchObject({
+      installerMachine: 0x14c,
+      machine,
+    })
   })
 
-  it("拒绝错误格式和解包失败", async () => {
+  it("拒绝错误格式和 Windows 打包应用架构不匹配", async () => {
     expect(() => parsePeMachine(Buffer.alloc(64))).toThrow("PE")
     expect(() => parseElfMachine(Buffer.alloc(20))).toThrow("ELF")
+    const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-invalid-windows-"))
+    const brokenArtifact = path.join(root, "broken.exe")
+    await writeFile(brokenArtifact, "broken")
     await expect(
       verifyWindowsPackage({
         arch: "x64",
-        artifact: "broken.exe",
-        executeCommand: async () => {
-          throw new Error("extract failed")
-        },
+        applicationDirectory: "missing",
+        artifact: brokenArtifact,
+        executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
         expectedVersion: "1.2.3",
-        resolve7za: async () => "fixed-7za",
       }),
-    ).rejects.toThrow("extract failed")
+    ).rejects.toThrow("有效 PE")
+
+    const applicationDirectory = path.join(root, "application")
+    await mkdir(path.join(applicationDirectory, "resources"), { recursive: true })
+    const artifact = path.join(root, "installer.exe")
+    await writeFile(artifact, peFixture(0x14c))
+    await writeFile(path.join(applicationDirectory, "MagicChat.exe"), peFixture(0x8664))
+    await writeFile(path.join(applicationDirectory, "resources/app.asar"), "asar")
+    await expect(
+      verifyWindowsPackage({
+        arch: "arm64",
+        applicationDirectory,
+        artifact,
+        executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
+        expectedVersion: "1.2.3",
+        readAsarVersion: async () => "1.2.3",
+      }),
+    ).rejects.toThrow("目标架构不一致")
   })
 
   it("从 ZIP/DMG 读取 plist、Universal 架构与 app.asar 版本", async () => {

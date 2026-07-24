@@ -40,6 +40,7 @@ let nativeResult
 if (platform === "win") {
   nativeResult = await verifyWindowsPackage({
     arch,
+    applicationDirectory: path.join(dist, arch === "x64" ? "win-unpacked" : "win-arm64-unpacked"),
     artifact: artifact(`win-${arch}.exe`),
     expectedVersion,
   })

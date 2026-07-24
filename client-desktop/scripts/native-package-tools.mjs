@@ -1,14 +1,11 @@
 import { execFile } from "node:child_process"
-import { createRequire } from "node:module"
-import { lstat, mkdir, mkdtemp, readFile, readdir } from "node:fs/promises"
+import { lstat, mkdir, mkdtemp, open, readFile, readdir } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { pathToFileURL } from "node:url"
 import { promisify } from "node:util"
 import { extractFile } from "@electron/asar"
 
 const execute = promisify(execFile)
-const require = createRequire(import.meta.url)
 const PE_MACHINES = { arm64: 0xaa64, x64: 0x8664 }
 const ELF_MACHINES = { arm64: 0xb7, x64: 0x3e }
 
@@ -46,41 +43,35 @@ export function assertMachine(actual, arch, format) {
 
 export async function verifyWindowsPackage({
   arch,
+  applicationDirectory,
   artifact,
   expectedVersion,
   executeCommand = execute,
   readAsarVersion = packagedVersion,
-  resolve7za = resolveElectronBuilder7za,
 }) {
-  const sevenZip = await resolve7za()
-  const workspace = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-"))
-  const outer = path.join(workspace, "outer")
-  const innerName = arch === "x64" ? "app-64.7z" : "app-arm64.7z"
-  const listing = await executeCommand(sevenZip, ["l", "-slt", "-bd", artifact])
-  const innerEntry = findNsisInnerEntry(listing.stdout, innerName)
-  await executeCommand(sevenZip, ["e", "-bd", "-y", `-o${outer}`, artifact, innerEntry])
-  const inner = await findUnique(outer, innerName, `NSIS 缺少内部架构包 ${innerName}`)
-  const application = path.join(workspace, "application")
-  await executeCommand(sevenZip, ["x", "-bd", "-y", `-o${application}`, inner])
-  const executable = await findUnique(application, "MagicChat.exe", "NSIS 内部缺少 MagicChat.exe")
-  assertMachine(parsePeMachine(await readFile(executable)), arch, "PE")
-  const { stdout } = await executeCommand("powershell", [
-    "-NoProfile",
-    "-Command",
-    `(Get-Item -LiteralPath '${executable.replaceAll("'", "''")}').VersionInfo.ProductVersion`,
-  ])
-  if (!String(stdout).trim().startsWith(expectedVersion))
-    throw new Error("Windows 应用文件版本与 Tag 不一致")
-  const asar = await findUnique(application, "app.asar", "NSIS 内部缺少 app.asar")
+  const installerMachine = await readPeMachine(artifact)
+  const installerVersion = await windowsProductVersion(artifact, executeCommand)
+  if (!installerVersion.startsWith(expectedVersion)) {
+    throw new Error("Windows 安装器文件版本与 Tag 不一致")
+  }
+  const executable = path.join(applicationDirectory, "MagicChat.exe")
+  const executableStat = await lstat(executable).catch(() => undefined)
+  if (!executableStat?.isFile()) throw new Error("Windows 打包应用缺少 MagicChat.exe")
+  assertMachine(await readPeMachine(executable), arch, "PE")
+  const applicationVersion = await windowsProductVersion(executable, executeCommand)
+  if (!applicationVersion.startsWith(expectedVersion)) {
+    throw new Error("Windows 打包应用文件版本与 Tag 不一致")
+  }
+  const asar = path.join(applicationDirectory, "resources", "app.asar")
+  const asarStat = await lstat(asar).catch(() => undefined)
+  if (!asarStat?.isFile()) throw new Error("Windows 打包应用缺少 app.asar")
   if ((await readAsarVersion(asar)) !== expectedVersion)
     throw new Error("app.asar 内应用版本与 Tag 不一致")
   return {
     arch,
-    innerEntry,
-    innerPackage: innerName,
+    installerMachine,
     machine: PE_MACHINES[arch],
     platform: "win",
-    sevenZip,
     version: expectedVersion,
   }
 }
@@ -200,24 +191,33 @@ async function packagedVersion(asarPath) {
   return metadata.version
 }
 
-async function resolveElectronBuilder7za() {
-  const electronBuilder = path.dirname(require.resolve("electron-builder/package.json"))
-  const modulePath = path.resolve(electronBuilder, "../app-builder-lib/out/toolsets/7zip.js")
-  const module = await import(pathToFileURL(modulePath).href)
-  return module.getPath7za()
+async function readPeMachine(filePath) {
+  const handle = await open(filePath, "r")
+  try {
+    const dosHeader = Buffer.alloc(64)
+    const dosRead = await handle.read(dosHeader, 0, dosHeader.length, 0)
+    if (dosRead.bytesRead !== dosHeader.length || dosHeader.toString("ascii", 0, 2) !== "MZ") {
+      throw new Error("文件不是有效 PE 文件")
+    }
+    const offset = dosHeader.readUInt32LE(0x3c)
+    const peHeader = Buffer.alloc(6)
+    const peRead = await handle.read(peHeader, 0, peHeader.length, offset)
+    if (peRead.bytesRead !== peHeader.length || peHeader.toString("ascii", 0, 4) !== "PE\0\0") {
+      throw new Error("文件缺少 PE 签名")
+    }
+    return peHeader.readUInt16LE(4)
+  } finally {
+    await handle.close()
+  }
 }
 
-export function findNsisInnerEntry(listing, innerName) {
-  const expected = `$PLUGINSDIR/${innerName}`
-  const matches = String(listing)
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("Path = "))
-    .map((line) => line.slice("Path = ".length).trim())
-    .filter((entry) => entry.replaceAll("\\", "/") === expected)
-  if (matches.length !== 1) {
-    throw new Error(`NSIS 缺少唯一内部架构包 ${innerName}（目录表找到 ${matches.length} 个）`)
-  }
-  return matches[0]
+async function windowsProductVersion(filePath, executeCommand) {
+  const { stdout } = await executeCommand("powershell", [
+    "-NoProfile",
+    "-Command",
+    `(Get-Item -LiteralPath '${filePath.replaceAll("'", "''")}').VersionInfo.ProductVersion`,
+  ])
+  return String(stdout).trim()
 }
 
 async function findUnique(root, name, message, directory = false) {
