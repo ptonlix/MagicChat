@@ -15,8 +15,9 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
   带 `x64` 和 `arm64` 的两个安装器，不包含顶层 `path` 或 `sha512`。
 - macOS Intel/Apple Silicon：Universal ZIP 是 `latest-mac.yml` 的 OTA 主载体；DMG 只用于
   首次安装、平台拒绝应用内替换后的手动升级和恢复。
-- Linux x64：AppImage 使用 `latest-linux.yml`；arm64 AppImage 使用
-  `latest-linux-arm64.yml`。deb 不作为自更新包，只提供匹配架构的手动下载。
+- Linux x64：AppImage 使用 `latest-linux.yml`，文件名架构为 `x86_64`；对应 deb 文件名架构
+  为 `amd64`。arm64 AppImage 使用 `latest-linux-arm64.yml`，AppImage 和 deb 均使用
+  `arm64`。deb 不作为自更新包，只提供匹配架构的手动下载。
 
 开发运行、test/preview 通道、Linux deb、便携解压、只读目录和未知安装来源不得通过静默
 兼容分支强行进入 OTA。平台或安装器拒绝替换时，必须保留当前版本并转为可诊断的手动升级。

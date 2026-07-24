@@ -141,6 +141,22 @@ export async function fileSha512(filePath) {
     .digest("base64")
 }
 
+export function linuxArtifactSuffixes(arch) {
+  if (arch === "x64") {
+    return {
+      appImage: "linux-x86_64.AppImage",
+      deb: "linux-amd64.deb",
+    }
+  }
+  if (arch === "arm64") {
+    return {
+      appImage: "linux-arm64.AppImage",
+      deb: "linux-arm64.deb",
+    }
+  }
+  throw new Error(`不支持的 Linux 制品架构：${arch}`)
+}
+
 function artifactFileName(value) {
   if (
     typeof value !== "string" ||
@@ -159,8 +175,9 @@ function assertArtifactTarget(fileName, platform, arch) {
     if (fileName.endsWith(`-mac-${arch}.dmg`)) return false
   }
   if (platform === "linux") {
-    if (fileName.endsWith(`-linux-${arch}.AppImage`)) return true
-    if (fileName.endsWith(`-linux-${arch}.deb`)) return false
+    const suffixes = linuxArtifactSuffixes(arch)
+    if (fileName.endsWith(`-${suffixes.appImage}`)) return true
+    if (fileName.endsWith(`-${suffixes.deb}`)) return false
   }
   throw new Error(`清单制品与目标平台架构不匹配：${fileName}`)
 }

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import {
   aggregateRelease,
   fileSha512,
+  linuxArtifactSuffixes,
   parseDesktopTag,
   validateManifest,
 } from "../release-tools.mjs"
@@ -25,10 +26,14 @@ describe("Desktop Stable 发布工具", () => {
 
   it("校验清单中的版本、大小和 SHA-512", async () => {
     const directory = await fixtureDirectory()
-    const fileName = "MagicChat-1.2.3-linux-x64.AppImage"
-    await writeFile(path.join(directory, fileName), "appimage")
+    const appImage = "MagicChat-1.2.3-linux-x86_64.AppImage"
+    const deb = "MagicChat-1.2.3-linux-amd64.deb"
+    await Promise.all([
+      writeFile(path.join(directory, appImage), "appimage"),
+      writeFile(path.join(directory, deb), "deb"),
+    ])
     const manifestPath = path.join(directory, "latest-linux.yml")
-    await writeManifest(manifestPath, directory, fileName, "1.2.3")
+    await writeManifest(manifestPath, directory, [appImage, deb], "1.2.3")
     await expect(
       validateManifest({
         arch: "x64",
@@ -38,7 +43,7 @@ describe("Desktop Stable 发布工具", () => {
         platform: "linux",
       }),
     ).resolves.toBeTruthy()
-    await writeFile(path.join(directory, fileName), "tampered")
+    await writeFile(path.join(directory, appImage), "tampered")
     await expect(
       validateManifest({
         arch: "x64",
@@ -48,6 +53,18 @@ describe("Desktop Stable 发布工具", () => {
         platform: "linux",
       }),
     ).rejects.toThrow("SHA-512")
+  })
+
+  it("映射 electron-builder 的 Linux 平台原生架构名", () => {
+    expect(linuxArtifactSuffixes("x64")).toEqual({
+      appImage: "linux-x86_64.AppImage",
+      deb: "linux-amd64.deb",
+    })
+    expect(linuxArtifactSuffixes("arm64")).toEqual({
+      appImage: "linux-arm64.AppImage",
+      deb: "linux-arm64.deb",
+    })
+    expect(() => linuxArtifactSuffixes("ia32")).toThrow("不支持的 Linux 制品架构")
   })
 
   it("拒绝缺失制品和 Windows 顶层回退字段", async () => {
@@ -111,12 +128,24 @@ async function createWindowsCandidate(directory, arch) {
   await writeManifest(path.join(directory, "latest.yml"), directory, fileName, "1.2.3")
 }
 
-async function writeManifest(manifestPath, directory, fileName, version) {
-  const artifactPath = path.join(directory, fileName)
-  const size = (await readFile(artifactPath)).byteLength
-  const sha512 = await fileSha512(artifactPath)
+async function writeManifest(manifestPath, directory, fileNames, version) {
+  const entries = await Promise.all(
+    (Array.isArray(fileNames) ? fileNames : [fileNames]).map(async (fileName) => {
+      const artifactPath = path.join(directory, fileName)
+      return {
+        fileName,
+        sha512: await fileSha512(artifactPath),
+        size: (await readFile(artifactPath)).byteLength,
+      }
+    }),
+  )
   await writeFile(
     manifestPath,
-    `version: ${version}\nfiles:\n  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}\n`,
+    `version: ${version}\nfiles:\n${entries
+      .map(
+        ({ fileName, sha512, size }) =>
+          `  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}`,
+      )
+      .join("\n")}\n`,
   )
 }

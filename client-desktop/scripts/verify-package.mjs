@@ -4,7 +4,7 @@ import path from "node:path"
 import { promisify } from "node:util"
 import { extractFile } from "@electron/asar"
 import { load } from "js-yaml"
-import { parseDesktopTag, validateManifest } from "./release-tools.mjs"
+import { linuxArtifactSuffixes, parseDesktopTag, validateManifest } from "./release-tools.mjs"
 
 const execute = promisify(execFile)
 const root = path.resolve(import.meta.dirname, "..")
@@ -112,7 +112,8 @@ async function verifyMac(applicationRoot, expectedVersion) {
 function expectedArtifacts(targetPlatform, targetArch) {
   if (targetPlatform === "win") return [`win-${targetArch}.exe`]
   if (targetPlatform === "mac") return ["mac-universal.dmg", "mac-universal.zip"]
-  return [`linux-${targetArch}.AppImage`, `linux-${targetArch}.deb`]
+  const suffixes = linuxArtifactSuffixes(targetArch)
+  return [suffixes.appImage, suffixes.deb]
 }
 
 async function plistValue(plist, key) {
