@@ -48,8 +48,10 @@ export const IPC = {
   transportRequest: "desktop:v1:transport-request",
   updaterCheck: "desktop:v1:updater-check",
   updaterDownload: "desktop:v1:updater-download",
+  updaterGetState: "desktop:v1:updater-get-state",
   updaterInstall: "desktop:v1:updater-install",
   updaterOpenManual: "desktop:v1:updater-open-manual",
+  updaterOpenRelease: "desktop:v1:updater-open-release",
   updaterState: "desktop:v1:updater-state",
   unknownServer: "desktop:v1:unknown-server",
 } as const
@@ -130,7 +132,6 @@ export type UpdaterState = Readonly<{
   installationSource: "appimage" | "deb" | "development" | "mac_app" | "nsis" | "unknown"
   manualAction?: Readonly<{ label: string }>
   progress?: number
-  releaseNotes?: string
   retryable: boolean
   status: UpdaterStatus
   targetVersion?: string
@@ -201,8 +202,10 @@ export interface DesktopBridge {
   updater: {
     check(): Promise<UpdaterState>
     download(): Promise<void>
+    getState(): Promise<UpdaterState>
     install(): Promise<UpdaterInstallResult>
     openManualDownload(): Promise<void>
+    openReleasePage(): Promise<void>
     subscribe(listener: (state: UpdaterState) => void): () => void
   }
 }

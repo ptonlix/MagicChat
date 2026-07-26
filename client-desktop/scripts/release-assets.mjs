@@ -50,9 +50,10 @@ export function targetAssetModel(version, platform, arch) {
     const dmg = `${prefix}-mac-universal.dmg`
     const zip = `${prefix}-mac-universal.zip`
     return {
+      ignoredAssets: [`${dmg}.blockmap`],
       manifest: "latest-mac.yml",
       manifestAssets: [dmg, zip],
-      publicAssets: [dmg, `${dmg}.blockmap`, zip, `${zip}.blockmap`],
+      publicAssets: [dmg, zip, `${zip}.blockmap`],
     }
   }
   if (platform === "linux" && ["x64", "arm64"].includes(arch)) {
@@ -215,11 +216,12 @@ ${assets.map((asset) => `- \`${asset.name}\`：\`${asset.sha512}\``).join("\n")}
 async function assertInputAssets(directory, model) {
   const names = await readdir(directory)
   const expected = new Set([...model.publicAssets, model.manifest])
+  const allowed = new Set([...expected, ...(model.ignoredAssets ?? [])])
   const relevant = names.filter(
     (name) => INSTALL_ASSET.test(name) || name.endsWith(".blockmap") || MANIFEST.test(name),
   )
   const missing = [...expected].filter((name) => !relevant.includes(name))
-  const extra = relevant.filter((name) => !expected.has(name))
+  const extra = relevant.filter((name) => !allowed.has(name))
   if (missing.length || extra.length) {
     throw new Error(`目标资产集合不匹配：缺失 [${missing.join(", ")}]，额外 [${extra.join(", ")}]`)
   }

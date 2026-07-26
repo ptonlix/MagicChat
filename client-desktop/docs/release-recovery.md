@@ -15,7 +15,8 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
 - Windows x64/arm64：NSIS OTA；Release 只发布一个 `latest.yml`，`files` 分别引用文件名
   带 `x64` 和 `arm64` 的两个安装器，不包含顶层 `path` 或 `sha512`。
 - macOS Intel/Apple Silicon：Universal ZIP 是 `latest-mac.yml` 的 OTA 主载体；DMG 只用于
-  首次安装、平台拒绝应用内替换后的手动升级和恢复。
+  首次安装、平台拒绝应用内替换后的手动升级和恢复。公开 Release 保留 ZIP blockmap，
+  不发布客户端不会使用的 DMG blockmap。
 - Linux x64：AppImage 使用 `latest-linux.yml`，文件名架构为 `x86_64`；对应 deb 文件名架构
   为 `amd64`。arm64 AppImage 使用 `latest-linux-arm64.yml`，AppImage 和 deb 均使用
   `arm64`。deb 不作为自更新包，只提供匹配架构的手动下载。
@@ -42,12 +43,13 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
 3. 五个 `package` 目标依赖 `quality`。版本准备脚本在系统临时根目录内部创建唯一 detached
    worktree，只修改其中的 `client-desktop/package.json`；不接受外部 `--target`，不删除或
    污染调用方 checkout。
-4. 每个原生 Runner 从安装制品实际内容读取版本与架构：Windows 解开 NSIS 内部架构包并
-   读取 PE，macOS 检查 ZIP/DMG、plist 和 Universal 二进制，Linux 检查 AppImage ELF 与
-   deb 元数据。验证后只上传隔离的 Actions artifact。
+4. 每个原生 Runner 校验真实构建内容：Windows 检查最终 NSIS 的 PE/版本、同次生成的打包
+   应用 PE 架构与 `app.asar` 版本，macOS 检查 ZIP/DMG、plist 和 Universal 二进制，
+   Linux 检查 AppImage ELF 与 deb 元数据。验证后只上传隔离的 Actions artifact。
 5. `release:prepare-assets` 恰好接收五个目标，在内部 staging 目录生成 Windows 双架构清单，
-   复核四类清单、所有 blockmap、size、SHA-256、SHA-512 和精确公开资产集合，并输出
-   `release-plan.json`。最终 Notes 完整保留 Tag 人工正文，只追加自动资产附录。
+   复核四类清单、Windows NSIS 与 macOS ZIP 外置 blockmap、AppImage 内嵌 blockmap、size、
+   SHA-256、SHA-512 和精确公开资产集合，并输出 `release-plan.json`。最终 Notes 完整保留
+   Tag 人工正文，只追加自动资产附录。
 6. `release` Job 在任何写操作前重新检查远端状态，创建不可发现的 Draft 并立即记录 Release
    ID、Tag、仓库和 workflow run 所有权。脚本只上传 `release-plan.json` 列出的文件。
 7. 上传后按 Release ID 读取远端资产，复核名称、大小、数量、唯一性，并轮询 GitHub Asset
@@ -66,6 +68,32 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
 
 打包和 `verify:package` 必须在对应目标操作系统执行。跨平台生成成功不能替代真机安装、
 替换、重启和用户数据保留验收。
+
+## 原生发布校验工具
+
+五个原生 Runner 必须在上传 artifact 前完成包内真实性校验。缺少下列工具或无法解析实际
+内容时立即失败，不允许退化为目录名或文件名判断。
+
+- Windows x64/arm64：校验最终 NSIS 是有效 PE 且 ProductVersion 与 Tag 一致；同时从
+  electron-builder 同次生成的 `win-unpacked` / `win-arm64-unpacked` 读取主程序 PE
+  Machine、ProductVersion 与 `app.asar` 版本。最终安装器继续通过清单 size、SHA-512 和
+  外置 blockmap 复核。
+- macOS Universal：`ditto` 解 ZIP，`hdiutil` 只读挂载 DMG，`plutil` 读取版本，
+  `lipo -archs` 必须精确返回 `x86_64` 与 `arm64`。
+- Linux x64/arm64：AppImage 自解包后由 Node 读取主程序 ELF Machine，并从文件尾部验证
+  内嵌 blockmap；`dpkg-deb -f/-x` 分别读取 deb 的 Architecture、Version 与包内主程序。
+
+预期 Machine 为 PE x64 `0x8664`、PE arm64 `0xAA64`、ELF x64 `0x003E`、ELF arm64
+`0x00B7`。任一解包命令失败、内部架构包缺失、包内版本不一致或工具不可用均阻断当前
+矩阵任务。
+
+### 本地真实制品记录
+
+- 2026-07-24，macOS arm64 主机：对现有 `MagicChat-0.1.0-mac-universal.zip` 与 `.dmg`
+  执行 `verify:package`，Info.plist 版本为 `0.1.0`，ZIP 与 DMG 主二进制均由
+  `lipo -archs` 确认为 `x86_64 arm64`，校验通过。
+- Windows x64/arm64 与 Linux x64/arm64 必须由对应 GitHub Runner 保存结果；不得由本机
+  macOS 记录推断通过。
 
 ## 失败恢复
 

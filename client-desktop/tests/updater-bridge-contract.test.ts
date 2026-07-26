@@ -14,8 +14,10 @@ describe("Updater Bridge 契约", () => {
     for (const name of [
       "updaterCheck",
       "updaterDownload",
+      "updaterGetState",
       "updaterInstall",
       "updaterOpenManual",
+      "updaterOpenRelease",
       "updaterState",
     ]) {
       expect(bridge).toContain(name)

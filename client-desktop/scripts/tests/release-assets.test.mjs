@@ -56,6 +56,9 @@ describe("确定性发布资产计划", () => {
     expect(notes.startsWith(release.notes)).toBe(true)
     expect(notes).toContain("## 自动发布附录")
     expect(notes).toContain("## 版本亮点")
+    expect(await readdir(first)).not.toContain(
+      "MagicChat-1.2.3-mac-universal.dmg.blockmap",
+    )
   })
 
   it("拒绝缺失、额外、重复目标和陈旧输出", async () => {
@@ -119,6 +122,8 @@ async function createInputs(root) {
     const model = targetAssetModel("1.2.3", platform, arch)
     for (const name of model.publicAssets)
       await writeFile(path.join(directory, name), `${target}:${name}`)
+    for (const name of model.ignoredAssets ?? [])
+      await writeFile(path.join(directory, name), `${target}:${name}`)
     const embeddedBlockMapSizes = new Map()
     for (const name of model.manifestAssets) {
       if (name.endsWith(".AppImage")) {
@@ -128,7 +133,7 @@ async function createInputs(root) {
     const primary = model.manifestAssets
     const files = await Promise.all(
       primary.map(async (name) => ({
-        ...(name.endsWith(".deb")
+        ...(!name.endsWith(".AppImage") && !name.endsWith(".exe") && !name.endsWith(".zip")
           ? {}
           : {
               blockMapSize:

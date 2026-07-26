@@ -93,6 +93,38 @@ describe("Desktop Stable 发布工具", () => {
     ).resolves.toBeTruthy()
   })
 
+  it("macOS 只要求 ZIP blockmap，不要求 DMG blockmap", async () => {
+    const directory = await fixtureDirectory()
+    const dmg = "MagicChat-1.2.3-mac-universal.dmg"
+    const zip = "MagicChat-1.2.3-mac-universal.zip"
+    await Promise.all([
+      writeFile(path.join(directory, dmg), "dmg"),
+      writeFile(path.join(directory, zip), "zip"),
+      writeFile(path.join(directory, `${zip}.blockmap`), "zip-blockmap"),
+    ])
+    const manifestPath = path.join(directory, "latest-mac.yml")
+    await writeManifest(manifestPath, directory, [dmg, zip], "1.2.3")
+    await expect(
+      validateManifest({
+        arch: "universal",
+        artifactDirectory: directory,
+        expectedVersion: "1.2.3",
+        manifestPath,
+        platform: "mac",
+      }),
+    ).resolves.toBeTruthy()
+    await writeFile(path.join(directory, `${zip}.blockmap`), "")
+    await expect(
+      validateManifest({
+        arch: "universal",
+        artifactDirectory: directory,
+        expectedVersion: "1.2.3",
+        manifestPath,
+        platform: "mac",
+      }),
+    ).rejects.toThrow("blockMapSize")
+  })
+
   it("拒绝损坏的 AppImage 内嵌 blockmap", async () => {
     const directory = await fixtureDirectory()
     const appImage = "MagicChat-1.2.3-linux-x86_64.AppImage"
@@ -219,7 +251,7 @@ async function writeManifest(manifestPath, directory, fileNames, version) {
       let blockMapSize
       if (fileName.endsWith(".AppImage")) {
         blockMapSize = await appendEmbeddedBlockMap(artifactPath)
-      } else if (!fileName.endsWith(".deb")) {
+      } else if (fileName.endsWith(".exe") || fileName.endsWith(".zip")) {
         const blockmapPath = `${artifactPath}.blockmap`
         await writeFile(blockmapPath, `blockmap:${fileName}`)
         blockMapSize = (await readFile(blockmapPath)).byteLength

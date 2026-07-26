@@ -108,8 +108,10 @@ export function registerIpc(deps: IpcDependencies): () => void {
   })
   register(IPC.updaterCheck, () => deps.updater.check())
   register(IPC.updaterDownload, () => deps.updater.download())
+  register(IPC.updaterGetState, () => deps.updater.current())
   register(IPC.updaterInstall, () => deps.updater.install())
   register(IPC.updaterOpenManual, () => deps.updater.openManualDownload())
+  register(IPC.updaterOpenRelease, () => deps.updater.openReleasePage())
   register(IPC.diagnosticsExport, () => deps.diagnostics.export())
 
   const unregisterRuntimeDiagnostics = registerRuntimeDiagnosticsIpc(deps.diagnostics)

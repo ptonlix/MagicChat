@@ -15,6 +15,7 @@ const profile: ServerProfile = {
 
 const mocks = vi.hoisted(() => ({
   openManual: vi.fn(),
+  openRelease: vi.fn(),
   openSettings: undefined as (() => void) | undefined,
   remove: vi.fn(),
 }))
@@ -49,7 +50,8 @@ vi.mock("./desktop-transport", () => ({
 describe("桌面设置服务器管理", () => {
   beforeEach(() => {
     mocks.openSettings = undefined
-    mocks.openManual.mockResolvedValue(undefined)
+    mocks.openManual.mockReset().mockResolvedValue(undefined)
+    mocks.openRelease.mockReset().mockResolvedValue(undefined)
     mocks.remove.mockResolvedValue(undefined)
     vi.spyOn(window, "confirm").mockReturnValue(true)
     Object.defineProperty(window, "desktop", {
@@ -87,16 +89,79 @@ describe("桌面设置服务器管理", () => {
   })
 
   it("展示实验性更新信息并支持键盘触发手动升级", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "manual",
+      installationSource: "deb",
+      manualAction: { label: "下载 deb" },
+      retryable: false,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    expect(await screen.findByText("目标版本：1.1.0")).toBeInTheDocument()
+    expect(bridge.updater.getState).toHaveBeenCalledOnce()
+    expect(screen.getByText("安装来源：Linux deb")).toBeInTheDocument()
+    expect(screen.queryByLabelText("更新说明")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "检查更新" }).querySelector(".lucide-refresh-cw"),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "查看发布内容" }))
+    expect(mocks.openRelease).toHaveBeenCalledOnce()
+    const manual = screen.getByRole("button", { name: "下载 deb" })
+    manual.focus()
+    await user.keyboard("{Enter}")
+    expect(mocks.openManual).toHaveBeenCalledOnce()
+  })
+
+  it("订阅事件先到时不使用较旧的状态快照", async () => {
+    const snapshot: UpdaterState = {
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "mac_app",
+      retryable: false,
+      status: "idle",
+    }
+    const pushedState: UpdaterState = {
+      ...snapshot,
+      retryable: true,
+      status: "available",
+      targetVersion: "1.2.0",
+    }
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge(snapshot, pushedState),
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+
+    expect(await screen.findByText("目标版本：1.2.0")).toBeInTheDocument()
+    expect(screen.getByText("发现 1.2.0")).toBeInTheDocument()
+    expect(screen.getByText("手动更新 macOS")).toBeInTheDocument()
+    expect(screen.getByText("将 MagicChat 拖入“应用程序”，选择替换")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "下载 macOS 安装包" }))
+    expect(mocks.openManual).toHaveBeenCalledOnce()
+  })
+
+  it("macOS 自动安装受限时展示友好的手动更新路径", async () => {
     Object.defineProperty(window, "desktop", {
       configurable: true,
       value: createDesktopBridge({
         currentVersion: "1.0.0",
-        installMode: "manual",
-        installationSource: "deb",
-        manualAction: { label: "下载 deb" },
-        releaseNotes: "修复稳定性问题",
-        retryable: false,
-        status: "available",
+        errorCode: "platform_signature_required",
+        installMode: "ota",
+        installationSource: "mac_app",
+        retryable: true,
+        status: "error",
         targetVersion: "1.1.0",
       }),
     })
@@ -104,13 +169,11 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
-    expect(screen.getByText("目标版本：1.1.0")).toBeInTheDocument()
-    expect(screen.getByText("安装来源：Linux deb")).toBeInTheDocument()
-    expect(screen.getByLabelText("更新说明")).toHaveTextContent("修复稳定性问题")
-    const manual = screen.getByRole("button", { name: "下载 deb" })
-    manual.focus()
-    await user.keyboard("{Enter}")
-    expect(mocks.openManual).toHaveBeenCalledOnce()
+
+    expect(
+      await screen.findByText("自动安装受 macOS 安全策略限制，请使用安装包手动更新"),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "下载 macOS 安装包" })).toBeInTheDocument()
   })
 })
 
@@ -124,8 +187,18 @@ describe("发布通道显示", () => {
   })
 })
 
-function createDesktopBridge(updaterState?: UpdaterState): DesktopBridge {
+function createDesktopBridge(
+  updaterState?: UpdaterState,
+  subscriptionState?: UpdaterState,
+): DesktopBridge {
   const unsubscribe = () => undefined
+  const initialUpdaterState: UpdaterState = updaterState ?? {
+    currentVersion: "0.1.0",
+    installMode: "manual",
+    installationSource: "development",
+    retryable: false,
+    status: "manual",
+  }
   return {
     app: {
       info: vi.fn().mockResolvedValue({
@@ -193,10 +266,12 @@ function createDesktopBridge(updaterState?: UpdaterState): DesktopBridge {
     updater: {
       check: vi.fn(),
       download: vi.fn(),
+      getState: vi.fn().mockResolvedValue(initialUpdaterState),
       install: vi.fn(),
       openManualDownload: mocks.openManual,
+      openReleasePage: mocks.openRelease,
       subscribe: vi.fn((listener) => {
-        if (updaterState) listener(updaterState)
+        if (subscriptionState) listener(subscriptionState)
         return unsubscribe
       }),
     },

@@ -21,8 +21,7 @@ vi.mock("electron-updater", () => ({
   },
 }))
 
-const { UpdaterService, classifyUpdateError, sanitizeReleaseNotes } =
-  await import("@main/updater-service")
+const { UpdaterService, classifyUpdateError } = await import("@main/updater-service")
 
 describe("UpdaterService", () => {
   let adapter: FakeUpdater
@@ -47,7 +46,7 @@ describe("UpdaterService", () => {
     await first
   })
 
-  it("清理发布说明并保持下载进度单调", async () => {
+  it("不暴露远端发布说明并保持下载进度单调", async () => {
     const service = createService(adapter, clock)
     const check = service.check()
     adapter.emit("update-available", {
@@ -55,11 +54,8 @@ describe("UpdaterService", () => {
       version: "1.1.0",
     })
     await check
-    expect(service.current()).toMatchObject({
-      releaseNotes: "修复 [链接已移除]",
-      status: "available",
-      targetVersion: "1.1.0",
-    })
+    expect(service.current()).toMatchObject({ status: "available", targetVersion: "1.1.0" })
+    expect(service.current()).not.toHaveProperty("releaseNotes")
     const download = service.download()
     adapter.emit("download-progress", { percent: 60 })
     adapter.emit("download-progress", { percent: 20 })
@@ -102,6 +98,66 @@ describe("UpdaterService", () => {
       status: "error",
     })
   })
+
+  it("为已验证版本生成固定仓库的发布页地址", async () => {
+    const opened: string[] = []
+    const service = createService(adapter, clock, {
+      context: {
+        arch: "arm64",
+        channel: "stable",
+        currentVersion: "1.0.0",
+        packaged: true,
+        platform: "darwin",
+      },
+      openExternal: async (url) => {
+        opened.push(url)
+      },
+    })
+    const check = service.check()
+    adapter.emit("update-available", { version: "1.1.0" })
+    await check
+
+    await service.openReleasePage()
+
+    expect(opened).toEqual(["https://github.com/ptonlix/MagicChat/releases/tag/desktop-v1.1.0"])
+  })
+
+  it.each([
+    ["darwin", "arm64", undefined, "MagicChat-1.1.0-mac-universal.dmg"],
+    ["win32", "x64", undefined, "MagicChat-1.1.0-win-x64.exe"],
+    ["win32", "arm64", undefined, "MagicChat-1.1.0-win-arm64.exe"],
+    ["linux", "x64", "/tmp/MagicChat.AppImage", "MagicChat-1.1.0-linux-x86_64.AppImage"],
+    ["linux", "arm64", "/tmp/MagicChat.AppImage", "MagicChat-1.1.0-linux-arm64.AppImage"],
+    ["linux", "x64", undefined, "MagicChat-1.1.0-linux-amd64.deb"],
+    ["linux", "arm64", undefined, "MagicChat-1.1.0-linux-arm64.deb"],
+  ] as const)(
+    "为 %s %s 生成匹配安装来源的下载地址",
+    async (platform, arch, appImagePath, fileName) => {
+      const opened: string[] = []
+      const service = createService(adapter, clock, {
+        context: {
+          appImagePath,
+          arch,
+          channel: "stable",
+          currentVersion: "1.0.0",
+          packaged: true,
+          platform,
+        },
+        openExternal: async (url) => {
+          opened.push(url)
+        },
+      })
+      const check = service.check()
+      adapter.emit("update-available", { version: "1.1.0" })
+      await check
+
+      await service.openManualDownload()
+
+      expect(opened).toEqual([
+        `https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.1.0/${fileName}`,
+      ])
+    },
+  )
 
   it("安装前阻止活跃传输并保证 quitAndInstall 顺序", async () => {
     let active = true
@@ -193,20 +249,13 @@ describe("UpdaterService", () => {
   })
 })
 
-describe("更新内容归一化", () => {
+describe("更新错误归一化", () => {
   it("分类稳定错误码", () => {
     expect(classifyUpdateError(new Error("ENOSPC: no space"))).toBe("disk_full")
     expect(classifyUpdateError(new Error("checksum mismatch"))).toBe("checksum_invalid")
     expect(classifyUpdateError(new Error("Gatekeeper signature"))).toBe(
       "platform_signature_required",
     )
-  })
-
-  it("限制发布说明长度且不保留 HTML 和 URL", () => {
-    const notes = sanitizeReleaseNotes(`<p>${"a".repeat(5_000)}</p> https://example.com`)
-    expect(notes).toHaveLength(4_000)
-    expect(notes).not.toContain("<p>")
-    expect(notes).not.toContain("https://")
   })
 })
 

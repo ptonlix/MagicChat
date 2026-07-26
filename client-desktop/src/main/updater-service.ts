@@ -14,7 +14,6 @@ const INITIAL_CHECK_DELAY = 60_000
 const NORMAL_CHECK_DELAY = 6 * 60 * 60_000
 const MINIMUM_RETRY_DELAY = 15 * 60_000
 const MAXIMUM_RETRY_DELAY = 6 * 60 * 60_000
-const MAXIMUM_RELEASE_NOTES_LENGTH = 4_000
 const RELEASE_BASE_URL = "https://github.com/ptonlix/MagicChat/releases"
 
 type UpdaterEvent =
@@ -171,11 +170,11 @@ export class UpdaterService {
   }
 
   async openManualDownload(): Promise<void> {
-    const version = this.state.targetVersion
-    const url = version
-      ? `${RELEASE_BASE_URL}/tag/desktop-v${version}`
-      : `${RELEASE_BASE_URL}/latest`
-    await this.openExternal(url)
+    await this.openExternal(this.manualDownloadUrl())
+  }
+
+  async openReleasePage(): Promise<void> {
+    await this.openExternal(this.releasePageUrl())
   }
 
   current(): UpdaterState {
@@ -218,13 +217,43 @@ export class UpdaterService {
     if (this.eligibility.mode === "unsupported") return undefined
     const label =
       this.context.platform === "darwin"
-        ? "下载 DMG"
+        ? "下载 macOS 安装包"
         : this.context.platform === "linux"
           ? this.eligibility.installationSource === "deb"
             ? "下载 deb"
             : "下载 AppImage"
           : "下载安装包"
     return { label }
+  }
+
+  private releasePageUrl(): string {
+    const version = this.state.targetVersion
+    return version && isStableVersion(version)
+      ? `${RELEASE_BASE_URL}/tag/desktop-v${version}`
+      : `${RELEASE_BASE_URL}/latest`
+  }
+
+  private manualDownloadUrl(): string {
+    const version = this.state.targetVersion
+    if (!version || !isStableVersion(version)) return `${RELEASE_BASE_URL}/latest`
+    const fileName = this.manualInstallerFileName(version)
+    return fileName
+      ? `${RELEASE_BASE_URL}/download/desktop-v${version}/${fileName}`
+      : this.releasePageUrl()
+  }
+
+  private manualInstallerFileName(version: string): string | undefined {
+    if (this.context.platform === "darwin") return `MagicChat-${version}-mac-universal.dmg`
+    if (this.context.platform === "win32") {
+      return `MagicChat-${version}-win-${this.context.arch}.exe`
+    }
+    if (this.context.platform !== "linux") return undefined
+    if (this.eligibility.installationSource === "deb") {
+      const arch = this.context.arch === "x64" ? "amd64" : this.context.arch
+      return `MagicChat-${version}-linux-${arch}.deb`
+    }
+    const arch = this.context.arch === "x64" ? "x86_64" : this.context.arch
+    return `MagicChat-${version}-linux-${arch}.AppImage`
   }
 
   private createUpdaterListeners(): ReadonlyArray<
@@ -250,7 +279,6 @@ export class UpdaterService {
     this.transition({
       ...this.baseState(),
       manualAction: this.manualAction(),
-      releaseNotes: sanitizeReleaseNotes(info.releaseNotes),
       retryable: this.eligibility.mode === "ota",
       status: "available",
       targetVersion: info.version,
@@ -336,33 +364,6 @@ export class UpdaterService {
   }
 }
 
-export function sanitizeReleaseNotes(value: unknown): string | undefined {
-  const raw =
-    typeof value === "string"
-      ? value
-      : Array.isArray(value)
-        ? value
-            .map((entry) =>
-              entry &&
-              typeof entry === "object" &&
-              "note" in entry &&
-              typeof entry.note === "string"
-                ? entry.note
-                : "",
-            )
-            .join("\n")
-        : ""
-  const sanitized = raw
-    .replace(/<[^>]*>/g, " ")
-    .replace(/https?:\/\/\S+/gi, "[链接已移除]")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, MAXIMUM_RELEASE_NOTES_LENGTH)
-  return sanitized || undefined
-}
-
 export function classifyUpdateError(error: unknown): UpdaterErrorCode {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
   if (/rate.?limit|status code 429/.test(message)) return "rate_limited"
@@ -377,11 +378,11 @@ export function classifyUpdateError(error: unknown): UpdaterErrorCode {
   return "update_failed"
 }
 
-function updateInfo(value: unknown): { releaseNotes?: unknown; version: string } | undefined {
+function updateInfo(value: unknown): { version: string } | undefined {
   if (!value || typeof value !== "object" || !("version" in value)) return undefined
   const version = value.version
   if (typeof version !== "string") return undefined
-  return { releaseNotes: "releaseNotes" in value ? value.releaseNotes : undefined, version }
+  return { version }
 }
 
 function progressPercent(value: unknown): number | undefined {

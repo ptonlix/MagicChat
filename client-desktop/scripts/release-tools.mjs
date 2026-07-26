@@ -84,7 +84,7 @@ export async function validateManifest({
     const blockMapSize = entry.blockMapSize
     if (fileName.endsWith(".AppImage")) {
       await validateEmbeddedBlockMap(artifactPath, artifactStat.size, blockMapSize, fileName)
-    } else if (!fileName.endsWith(".deb")) {
+    } else if (fileName.endsWith(".exe") || fileName.endsWith(".zip")) {
       const blockmapPath = path.join(artifactDirectory, `${fileName}.blockmap`)
       const blockmapStat = await stat(blockmapPath).catch(() => undefined)
       if (!blockmapStat?.isFile()) throw new Error(`缺少差分文件：${fileName}.blockmap`)

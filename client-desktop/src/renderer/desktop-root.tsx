@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import {
   ArrowRight,
   BellRing,
-  ChevronRight,
   CircleHelp,
   Download,
+  ExternalLink,
   HardDriveDownload,
   LockKeyhole,
   MessageCircleMore,
   MonitorCog,
+  RefreshCw,
   Server,
   ShieldCheck,
   Sparkles,
@@ -232,15 +233,36 @@ function DesktopSettingsPanel({
   const [busy, setBusy] = useState(false)
   const [removeError, setRemoveError] = useState("")
   const [updateActionError, setUpdateActionError] = useState("")
+  const showMacManualUpdate =
+    updater.installationSource === "mac_app" &&
+    Boolean(updater.targetVersion) &&
+    (updater.status === "available" || updater.status === "error")
 
   useEffect(() => {
+    let disposed = false
+    let receivedUpdate = false
+
     void Promise.all([window.desktop.settings.get(), window.desktop.app.info()]).then(
       ([nextSettings, nextInfo]) => {
         setSettings(nextSettings)
         setAppInfo(nextInfo)
       },
     )
-    return window.desktop.updater.subscribe(setUpdater)
+    const unsubscribe = window.desktop.updater.subscribe((state) => {
+      receivedUpdate = true
+      setUpdater(state)
+    })
+    void window.desktop.updater
+      .getState()
+      .then((state) => {
+        if (!disposed && !receivedUpdate) setUpdater(state)
+      })
+      .catch(() => undefined)
+
+    return () => {
+      disposed = true
+      unsubscribe()
+    }
   }, [])
 
   async function updateSettings(patch: Partial<DesktopSettings>) {
@@ -458,9 +480,18 @@ function DesktopSettingsPanel({
                   onClick={() => void window.desktop.updater.check().then(setUpdater)}
                   title="检查更新"
                 >
-                  <ChevronRight size={17} />
+                  <RefreshCw size={17} />
                 </button>
               </div>
+              {updater.targetVersion && (
+                <button
+                  className="desktop-release-link"
+                  onClick={() => void window.desktop.updater.openReleasePage()}
+                >
+                  <ExternalLink size={15} />
+                  查看发布内容
+                </button>
+              )}
               {updater.status === "available" &&
                 (updater.installMode === "ota" ? (
                   <button
@@ -469,7 +500,9 @@ function DesktopSettingsPanel({
                     onClick={() => void window.desktop.updater.download()}
                   >
                     <Download size={16} />
-                    下载 {updater.targetVersion}
+                    {updater.installationSource === "mac_app"
+                      ? "下载并自动更新"
+                      : `下载 ${updater.targetVersion}`}
                   </button>
                 ) : (
                   <button
@@ -517,10 +550,23 @@ function DesktopSettingsPanel({
                   重试检查
                 </button>
               )}
-              {updater.releaseNotes && (
-                <pre className="desktop-update-notes" aria-label="更新说明">
-                  {updater.releaseNotes}
-                </pre>
+              {showMacManualUpdate && (
+                <div className="desktop-mac-update-guide">
+                  <strong>手动更新 macOS</strong>
+                  <p>自动更新不可用时，可以下载安装包覆盖当前版本，聊天记录和本地设置会保留。</p>
+                  <ol>
+                    <li>下载并打开 DMG 安装包</li>
+                    <li>将 MagicChat 拖入“应用程序”，选择替换</li>
+                    <li>重新打开 MagicChat，确认版本已更新</li>
+                  </ol>
+                  <button
+                    className="desktop-primary-action"
+                    onClick={() => void window.desktop.updater.openManualDownload()}
+                  >
+                    <Download size={16} />
+                    下载 macOS 安装包
+                  </button>
+                </div>
               )}
               {updateActionError && <p role="alert">{updateActionError}</p>}
               <button
@@ -542,7 +588,11 @@ function updateStatusText(state: UpdaterState): string {
   if (state.status === "unsupported") return "当前平台或架构不支持更新"
   if (state.status === "installing") return "正在准备重启安装"
   if (state.status === "downloading") return `正在下载 ${Math.round(state.progress ?? 0)}%`
-  if (state.status === "error") return `更新失败：${state.errorCode ?? "unknown"}`
+  if (state.status === "error") {
+    return state.errorCode === "platform_signature_required"
+      ? "自动安装受 macOS 安全策略限制，请使用安装包手动更新"
+      : `更新失败：${state.errorCode ?? "unknown"}`
+  }
   if (state.status === "idle") return "当前版本可继续使用"
   return state.status === "checking"
     ? "正在检查"
