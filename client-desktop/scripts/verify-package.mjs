@@ -45,6 +45,7 @@ if (platform === "win") {
     expectedVersion,
   })
 } else if (platform === "mac") {
+  assert(builder.mac?.notarize === false, "macOS 临时仅签名模式必须显式关闭公证")
   nativeResult = await verifyMacPackage({
     dmg: artifact("mac-universal.dmg"),
     expectedVersion,

@@ -37,11 +37,11 @@ describe("Desktop Stable Release 配置", () => {
     expect(builder).toContain("repo: MagicChat")
     expect(builder).toContain("releaseType: release")
     expect(builder).toContain("hardenedRuntime: true")
-    expect(builder).toContain("notarize: true")
+    expect(builder).toContain("notarize: false")
     expect(builder).not.toContain("identity: null")
   })
 
-  it("拒绝移除 macOS 签名公证凭据", async () => {
+  it("拒绝移除 macOS 签名凭据", async () => {
     const workflow = await readWorkflow(workflowPath)
     const candidate = structuredClone(workflow)
     const macPackageStep = candidate.jobs.package.steps.find(

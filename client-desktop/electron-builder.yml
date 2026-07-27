@@ -43,7 +43,7 @@ nsis:
 mac:
   icon: public/logo.png
   hardenedRuntime: true
-  notarize: true
+  notarize: false
   extendInfo:
     NSAppTransportSecurity:
       NSAllowsArbitraryLoads: false

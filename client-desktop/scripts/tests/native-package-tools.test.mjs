@@ -114,7 +114,9 @@ describe("原生安装包真实性解析", () => {
 
   it("从 ZIP/DMG 读取 plist、Universal 架构与 app.asar 版本", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-mac-fixture-"))
+    const macCommands = []
     const executeCommand = async (command, args) => {
+      macCommands.push(command)
       if (command.endsWith("ditto")) await createMacApplication(path.join(args[3], "MagicChat.app"))
       if (command.endsWith("hdiutil") && args[0] === "attach") {
         await createMacApplication(path.join(args[4], "MagicChat.app"))
@@ -141,7 +143,9 @@ describe("原生安装包真实性解析", () => {
         readAsarVersion: async () => "1.2.3",
         zip: path.join(root, "app.zip"),
       }),
-    ).resolves.toMatchObject({ architectures: ["x86_64", "arm64"] })
+    ).resolves.toMatchObject({ architectures: ["x86_64", "arm64"], notarized: false })
+    expect(macCommands).not.toContain("/usr/bin/xcrun")
+    expect(macCommands).not.toContain("/usr/sbin/spctl")
     await expect(
       verifyMacPackage({
         dmg: path.join(root, "bad.dmg"),

@@ -26,35 +26,31 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
 
 ## Stable 发布流程
 
-### macOS 签名与公证凭据
+### macOS 临时仅签名模式
 
-macOS Stable 制品使用 `Developer ID Application` 签名，并通过 App Store Connect Team
-API Key 提交 Apple 公证。GitHub 仓库的 `Settings -> Secrets and variables -> Actions`
-必须配置以下 Repository Secrets：
+由于 Apple 首次公证长时间保持 `In Progress`，macOS Stable 制品当前临时只使用
+`Developer ID Application` 签名，不提交 Apple 公证，也不写入 stapled ticket。该模式允许
+ZIP/DMG 正常生成并进入公开 Release，但从浏览器或更新服务下载后可能被 Gatekeeper 拒绝
+启动，只用于解除当前打包阻塞，必须在 Apple 公证恢复后撤销。
+
+GitHub 仓库的 `Settings -> Secrets and variables -> Actions` 必须配置以下 Repository
+Secrets：
 
 - `MACOS_CERTIFICATE_P12_BASE64`：包含 Developer ID Application 证书及私钥的 `.p12`
   文件 Base64 内容。
 - `MACOS_CERTIFICATE_PASSWORD`：导出 `.p12` 时设置的密码。
-- `MACOS_NOTARY_API_KEY_P8_BASE64`：App Store Connect Team API `.p8` 文件 Base64 内容。
 
-同一页面的 Variables 必须配置：
-
-- `APPLE_API_KEY_ID`：App Store Connect Team API Key ID。
-- `APPLE_API_ISSUER`：App Store Connect Team API Issuer ID。
-
-Key ID、Issuer ID 和 Team ID 不是私钥，但不得把 `.p8`、`.p12`、证书密码或其 Base64
-内容写入工作流、仓库文件、Actions artifact 或日志。macOS 可使用以下命令生成单行 Secret
-内容，并分别粘贴到 GitHub；命令不会修改源文件：
+不得把 `.p12`、证书密码或其 Base64 内容写入工作流、仓库文件、Actions artifact 或日志。
+macOS 可使用以下命令生成 Secret 内容并粘贴到 GitHub；命令不会修改源文件：
 
 ```bash
 base64 -i "/path/to/DeveloperIDApplication.p12" | pbcopy
-base64 -i "/path/to/AuthKey_KEYID.p8" | pbcopy
 ```
 
-发布工作流只在 Tag 触发的 macOS package 步骤中注入这些凭据。electron-builder 必须完成
-hardened runtime 签名、公证和票据 stapling；`verify:package` 随后分别解开 ZIP 和挂载 DMG，
-验证 Developer ID Application、Team ID `8RK3WCWST9`、代码签名完整性、公证票据和
-Gatekeeper。任一步失败都不得上传或发布 macOS 制品。
+发布工作流只在 Tag 触发的 macOS package 步骤中注入 `.p12` 和密码，并输出未公证 warning。
+electron-builder 必须完成 hardened runtime 签名；`verify:package` 随后分别解开 ZIP 和挂载
+DMG，验证 Developer ID Application、Team ID `8RK3WCWST9` 和代码签名完整性。当前临时
+不执行 `stapler validate` 与 `spctl --assess`，验证结果显式返回 `notarized: false`。
 
 1. 使用任意 Markdown 文件编写本版说明；[人工发布说明模板](release-notes-template.md) 仅供
    参考，不要求固定章节或标题。Markdown 标题会被 Git 默认清理规则当作注释，因此必须
@@ -110,7 +106,8 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
   外置 blockmap 复核。
 - macOS Universal：`ditto` 解 ZIP，`hdiutil` 只读挂载 DMG，`plutil` 读取版本，
   `lipo -archs` 必须精确返回 `x86_64` 与 `arm64`；ZIP 与 DMG 内应用还必须分别通过
-  `codesign --verify`、Developer ID/Team ID 检查、`stapler validate` 和 `spctl --assess`。
+  `codesign --verify` 和 Developer ID/Team ID 检查。临时仅签名模式不检查公证票据与
+  Gatekeeper。
 - Linux x64/arm64：AppImage 自解包后由 Node 读取主程序 ELF Machine，并从文件尾部验证
   内嵌 blockmap；`dpkg-deb -f/-x` 分别读取 deb 的 Architecture、Version 与包内主程序。
 

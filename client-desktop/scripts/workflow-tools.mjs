@@ -58,21 +58,21 @@ export function validateDesktopReleaseWorkflow(workflow) {
   const macPackageStep = jobs.package.steps.find(
     (step) => step.if === "matrix.platform == 'mac'" && step.run?.includes("electron-builder"),
   )
-  assert(macPackageStep, "package 缺少独立的 macOS 签名公证步骤")
+  assert(macPackageStep, "package 缺少独立的 macOS 签名步骤")
   for (const [name, reference] of [
-    ["APPLE_API_ISSUER", "vars.APPLE_API_ISSUER"],
-    ["APPLE_API_KEY_ID", "vars.APPLE_API_KEY_ID"],
     ["CSC_KEY_PASSWORD", "secrets.MACOS_CERTIFICATE_PASSWORD"],
     ["CSC_LINK", "secrets.MACOS_CERTIFICATE_P12_BASE64"],
-    ["NOTARY_API_KEY_BASE64", "secrets.MACOS_NOTARY_API_KEY_P8_BASE64"],
   ]) {
     assert(
       String(macPackageStep.env?.[name] ?? "").includes(reference),
-      `macOS 签名公证步骤缺少受管凭据：${name}`,
+      `macOS 签名步骤缺少受管凭据：${name}`,
     )
   }
-  assert(macPackageStep.run.includes("base64 -D"), "macOS 公证私钥必须从 Base64 Secret 还原")
-  assert(macPackageStep.run.includes("APPLE_API_KEY"), "macOS 公证步骤未设置 API 私钥路径")
+  assert(macPackageStep.run.includes("临时仅签名模式"), "macOS 临时仅签名步骤必须输出未公证警告")
+  assert(
+    !Object.keys(macPackageStep.env ?? {}).some((name) => name.startsWith("APPLE_")),
+    "macOS 临时仅签名步骤不得注入 Apple 公证凭据",
+  )
   assert(
     !Object.hasOwn(macPackageStep.env ?? {}, "CSC_IDENTITY_AUTO_DISCOVERY"),
     "macOS 签名步骤不得关闭证书发现",
