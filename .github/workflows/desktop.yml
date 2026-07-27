@@ -16,18 +16,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Windows 11 x64
+          - name: Windows
             runner: windows-2025
-          - name: Windows 11 arm64
-            runner: windows-11-arm
-          - name: macOS 13+ universal
+          - name: macOS
             runner: macos-15
-          - name: Ubuntu 22.04 x64
-            runner: ubuntu-22.04
-          - name: Ubuntu 24.04 x64
+          - name: Linux
             runner: ubuntu-24.04
-          - name: Ubuntu 24.04 arm64
-            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:
