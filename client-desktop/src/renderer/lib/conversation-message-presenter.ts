@@ -52,6 +52,7 @@ export function toConversationPanelMessage(
     ),
     body: message.body,
     canRevoke: canRevokeMessage(message, conversation, currentUser.id),
+    choice: message.choice,
     createdAt: message.createdAt,
     delegatedByName: message.delegatedBy?.name ?? "",
     id: message.id,

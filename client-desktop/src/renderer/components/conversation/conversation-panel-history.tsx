@@ -42,6 +42,7 @@ export const ConversationPanelHistory = React.memo(
     onOpenTopic,
     onReplyToMessage,
     onRevokeMessage,
+    onRespondToChoice,
     onSetMessageReaction,
     onToggleMessageSelection,
   }: {
@@ -63,6 +64,10 @@ export const ConversationPanelHistory = React.memo(
     onOpenTopic?: (conversationId: string) => void
     onReplyToMessage: (message: ConversationPanelMessage) => void
     onRevokeMessage?: (message: ConversationPanelMessage) => void
+    onRespondToChoice?: (
+      message: ConversationPanelMessage,
+      optionIds: string[]
+    ) => Promise<void>
     onSetMessageReaction?: (
       message: ConversationPanelMessage,
       text: string,
@@ -370,6 +375,7 @@ export const ConversationPanelHistory = React.memo(
                     }
                     onReply={onReplyToMessage}
                     onRevoke={onRevokeMessage}
+                    onRespondToChoice={onRespondToChoice}
                     onSetReaction={onSetMessageReaction}
                     onToggleSelected={onToggleMessageSelection}
                     selectable={isMessageAvailable(message)}

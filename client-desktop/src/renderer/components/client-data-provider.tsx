@@ -12,6 +12,7 @@ import {
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
   setConversationMessageReaction as setConversationMessageReactionRequest,
+  setConversationChoiceResponse as setConversationChoiceResponseRequest,
   setConversationMuted as setConversationMutedRequest,
   setConversationPinned as setConversationPinnedRequest,
   type ClientConversation,
@@ -23,6 +24,7 @@ import {
   type ContactUser,
   type MarkConversationReadOptions,
   type MessageReactionsUpdatedEvent,
+  type MessageChoiceUpdatedEvent,
   type MessageReactionSnapshot,
 } from "@/lib/client-data-api"
 import {
@@ -614,6 +616,29 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [currentUserId, refreshMessageReactions],
   )
 
+  const handleIncomingMessageChoiceUpdate = useCallback(
+    (event: MessageChoiceUpdatedEvent) => {
+      setConversationMessageStates((currentStates) => {
+        const state = currentStates[event.conversationId]
+        if (!state) return currentStates
+        const messageIndex = state.messages.findIndex(
+          (message) => message.id === event.messageId
+        )
+        if (messageIndex < 0) return currentStates
+        const messages = [...state.messages]
+        messages[messageIndex] = {
+          ...messages[messageIndex],
+          choice: event.choice,
+        }
+        return {
+          ...currentStates,
+          [event.conversationId]: { ...state, messages },
+        }
+      })
+    },
+    []
+  )
+
   const setMessageReaction = useCallback(
     async (conversationId: string, messageId: string, text: string, reacted: boolean) => {
       const result = await setConversationMessageReactionRequest(conversationId, messageId, {
@@ -642,6 +667,34 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       return result
     },
     [],
+  )
+
+  const respondToChoice = useCallback(
+    async (conversationId: string, messageId: string, optionIds: string[]) => {
+      const result = await setConversationChoiceResponseRequest(
+        conversationId,
+        messageId,
+        optionIds
+      )
+      setConversationMessageStates((currentStates) => {
+        const state = currentStates[result.conversationId]
+        if (!state) return currentStates
+        const messageIndex = state.messages.findIndex(
+          (message) => message.id === result.messageId
+        )
+        if (messageIndex < 0) return currentStates
+        const messages = [...state.messages]
+        messages[messageIndex] = {
+          ...messages[messageIndex],
+          choice: result.choice,
+        }
+        return {
+          ...currentStates,
+          [result.conversationId]: { ...state, messages },
+        }
+      })
+    },
+    []
   )
 
   const updateConversationLastMentionedSeq = useCallback(
@@ -1136,6 +1189,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     setConversationMuted,
     handleIncomingConversationMessage,
     handleIncomingConversationMessageUpdate,
+    handleIncomingMessageChoiceUpdate,
     handleIncomingMessageReactionsUpdate,
     me,
     meError,
@@ -1159,6 +1213,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     removeConversation,
     removeGroupConversationMember,
     revokeConversationMessage,
+    respondToChoice,
     setMessageReaction,
     sendConversationFile,
     sendConversationImage,

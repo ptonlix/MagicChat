@@ -9,6 +9,7 @@ import {
   normalizeMessageCreatedEventPayload,
   normalizeMessageUpdatedEventPayload,
   normalizeMessageReactionsUpdatedEventPayload,
+  normalizeMessageChoiceUpdatedEventPayload,
   normalizeTopicEventPayload,
 } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
@@ -22,6 +23,7 @@ export function ClientConversationRealtimeSync() {
     foregroundConversationId,
     handleIncomingConversationMessage,
     handleIncomingConversationMessageUpdate,
+    handleIncomingMessageChoiceUpdate,
     handleIncomingMessageReactionsUpdate,
     refreshConversations,
     removeConversation,
@@ -87,6 +89,18 @@ export function ClientConversationRealtimeSync() {
       }
     })
   }, [handleIncomingMessageReactionsUpdate, subscribeRealtimeEvent])
+
+  React.useEffect(() => {
+    return subscribeRealtimeEvent("message.choice_updated", (payload) => {
+      try {
+        handleIncomingMessageChoiceUpdate?.(
+          normalizeMessageChoiceUpdatedEventPayload(payload)
+        )
+      } catch {
+        // Ignore malformed realtime events. The websocket remains usable.
+      }
+    })
+  }, [handleIncomingMessageChoiceUpdate, subscribeRealtimeEvent])
 
   React.useEffect(() => {
     return subscribeRealtimeEvent("conversation.removed", (payload) => {
