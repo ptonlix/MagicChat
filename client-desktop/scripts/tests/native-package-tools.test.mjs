@@ -6,12 +6,20 @@ import {
   assertMachine,
   parseElfMachine,
   parsePeMachine,
+  parseWindowsFileVersion,
   verifyLinuxPackage,
   verifyMacPackage,
   verifyWindowsPackage,
 } from "../native-package-tools.mjs"
 
 describe("原生安装包真实性解析", () => {
+  it("严格解析 Windows 四段文件版本", () => {
+    expect(parseWindowsFileVersion("1.2.3.0")).toEqual({ build: 0, version: "1.2.3" })
+    for (const version of ["1.2.3", "1.2.3-beta", "01.2.3.0", "1.2.3.0.0", ""]) {
+      expect(() => parseWindowsFileVersion(version)).toThrow("格式无效")
+    }
+  })
+
   it.each([
     ["x64", 0x8664],
     ["arm64", 0xaa64],
@@ -35,18 +43,10 @@ describe("原生安装包真实性解析", () => {
     ["x64", 0x8664],
     ["arm64", 0xaa64],
   ])("校验 Windows %s 安装器与打包应用", async (arch, machine) => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-fixture-"))
-    const artifact = path.join(root, `MagicChat-1.2.3-win-${arch}.exe`)
-    const applicationDirectory = path.join(root, "application")
-    await mkdir(path.join(applicationDirectory, "resources"), { recursive: true })
-    await writeFile(artifact, peFixture(0x14c))
-    await writeFile(path.join(applicationDirectory, "MagicChat.exe"), peFixture(machine))
-    await writeFile(path.join(applicationDirectory, "resources/app.asar"), "asar")
+    const fixture = await windowsPackageFixture(arch)
     await expect(
       verifyWindowsPackage({
-        arch,
-        applicationDirectory,
-        artifact,
+        ...fixture,
         executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
@@ -55,6 +55,34 @@ describe("原生安装包真实性解析", () => {
       installerMachine: 0x14c,
       machine,
     })
+  })
+
+  it.each(["1.2.30.0", "1.2.3-beta", "1.2.3", "1.2.3.1"])(
+    "拒绝 Windows 安装器错误文件版本 %s",
+    async (productVersion) => {
+      const fixture = await windowsPackageFixture("x64")
+      await expect(
+        verifyWindowsPackage({
+          ...fixture,
+          executeCommand: async () => ({ stdout: `${productVersion}\n` }),
+          expectedVersion: "1.2.3",
+          readAsarVersion: async () => "1.2.3",
+        }),
+      ).rejects.toThrow(`期望 1.2.3.0，实际 ${productVersion}`)
+    },
+  )
+
+  it("拒绝 Windows 打包应用与安装器文件版本不一致", async () => {
+    const fixture = await windowsPackageFixture("x64")
+    let calls = 0
+    await expect(
+      verifyWindowsPackage({
+        ...fixture,
+        executeCommand: async () => ({ stdout: calls++ === 0 ? "1.2.3.0\n" : "1.2.30.0\n" }),
+        expectedVersion: "1.2.3",
+        readAsarVersion: async () => "1.2.3",
+      }),
+    ).rejects.toThrow("Windows 打包应用文件版本与 Tag 不一致")
   })
 
   it("拒绝错误格式和 Windows 打包应用架构不匹配", async () => {
@@ -165,6 +193,20 @@ describe("原生安装包真实性解析", () => {
     ).rejects.toThrow(message)
   })
 })
+
+async function windowsPackageFixture(arch) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-version-fixture-"))
+  const artifact = path.join(root, `MagicChat-1.2.3-win-${arch}.exe`)
+  const applicationDirectory = path.join(root, "application")
+  await mkdir(path.join(applicationDirectory, "resources"), { recursive: true })
+  await writeFile(artifact, peFixture(0x14c))
+  await writeFile(
+    path.join(applicationDirectory, "MagicChat.exe"),
+    peFixture(arch === "x64" ? 0x8664 : 0xaa64),
+  )
+  await writeFile(path.join(applicationDirectory, "resources/app.asar"), "asar")
+  return { arch, applicationDirectory, artifact }
+}
 
 function peFixture(machine) {
   const fixture = Buffer.alloc(256)
