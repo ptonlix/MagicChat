@@ -1,4 +1,4 @@
-## MagicChat Desktop 0.1.1 流程验证
+## MagicChat Desktop 0.1.3 流程验证
 
 本版本用于验证 Desktop Release 流程。
 
