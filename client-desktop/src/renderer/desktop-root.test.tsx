@@ -131,7 +131,9 @@ describe("桌面设置服务器管理", () => {
 
   it("设置保存失败时保留原值并显示错误", async () => {
     const bridge = createDesktopBridge()
-    vi.mocked(bridge.settings.set).mockRejectedValueOnce(new Error("配置写入失败"))
+    vi.mocked(bridge.settings.set).mockRejectedValueOnce(
+      new Error("EACCES: permission denied, rename '/Users/test/desktop-config.json'"),
+    )
     Object.defineProperty(window, "desktop", {
       configurable: true,
       value: bridge,
@@ -143,7 +145,8 @@ describe("桌面设置服务器管理", () => {
     const soundToggle = screen.getByRole("checkbox", { name: "新消息提示音" })
     await user.click(soundToggle)
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("配置写入失败")
+    expect(await screen.findByRole("alert")).toHaveTextContent("设置保存失败，请重试")
+    expect(screen.queryByText(/Users\/test/)).not.toBeInTheDocument()
     expect(soundToggle).toBeChecked()
     expect(mocks.messageNotificationSoundEnabled?.()).toBe(true)
   })

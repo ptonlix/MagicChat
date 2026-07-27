@@ -63,8 +63,9 @@ export class ConfigStore {
     if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
     if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
       throw new Error("通知隐私无效")
-    this.config.settings = next
-    await this.persist()
+    const nextConfig = { ...this.config, settings: next }
+    await this.persist(nextConfig)
+    this.config = nextConfig
     return this.getSettings()
   }
 
@@ -110,9 +111,9 @@ export class ConfigStore {
     await this.persist()
   }
 
-  private async persist(): Promise<void> {
+  private async persist(config: StoredConfig = this.config): Promise<void> {
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`
-    await writeFile(temporaryPath, `${JSON.stringify(this.config, null, 2)}\n`, { mode: 0o600 })
+    await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
     await rename(temporaryPath, this.filePath)
   }
 }

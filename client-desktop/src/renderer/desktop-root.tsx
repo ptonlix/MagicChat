@@ -308,8 +308,8 @@ function DesktopSettingsPanel({
       if (patch.messageSoundEnabled !== undefined) {
         onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
       }
-    } catch (reason) {
-      setSettingsError(reason instanceof Error ? reason.message : "设置保存失败")
+    } catch {
+      setSettingsError("设置保存失败，请重试")
     }
   }
 

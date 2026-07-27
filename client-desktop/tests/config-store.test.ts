@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -71,6 +71,20 @@ describe("桌面配置迁移", () => {
       messageSoundEnabled: true,
       notificationPrivacy: "metadata",
     })
+  })
+
+  it("设置持久化失败时保留原有内存状态", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const filePath = path.join(directory, "desktop-config.json")
+    const store = new ConfigStore(directory)
+    await store.load()
+    await rm(filePath)
+    await mkdir(filePath)
+
+    await expect(store.setSettings({ messageSoundEnabled: false })).rejects.toThrow()
+
+    expect(store.getSettings().messageSoundEnabled).toBe(true)
   })
 
   it("拒绝覆盖来自更高版本的配置", async () => {
