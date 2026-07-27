@@ -1048,6 +1048,193 @@ describe("client data API", () => {
     })
   })
 
+  it("normalizes choice messages with their response state", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            messages: [
+              {
+                id: "message-choice",
+                conversation_id: "conversation-1",
+                seq: 15,
+                sender: { type: "app", id: "app-1" },
+                body: {
+                  type: "choice",
+                  content_type: "markdown",
+                  content: "**动物投票**",
+                  selection: "multiple",
+                  options: [
+                    { id: "lion", label: "🦁 狮子" },
+                    { id: "tiger", label: "🐯 老虎" },
+                  ],
+                },
+                choice: {
+                  response_count: 1,
+                  my_option_ids: ["lion"],
+                  options: [
+                    { id: "lion", response_count: 1 },
+                    { id: "tiger", response_count: 0 },
+                  ],
+                },
+                client_message_id: "client-message-choice",
+                created_at: "2026-07-27T07:09:00Z",
+              },
+            ],
+            page: {
+              limit: 20,
+              oldest_seq: 15,
+              newest_seq: 15,
+              has_more_before: false,
+              has_more_after: false,
+            },
+          },
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }
+      )
+    )
+
+    await expect(
+      listConversationMessages("conversation-1", {}, fetcher)
+    ).resolves.toMatchObject({
+      messages: [
+        {
+          id: "message-choice",
+          body: {
+            type: "choice",
+            contentType: "markdown",
+            content: "**动物投票**",
+            selection: "multiple",
+            options: [
+              { id: "lion", label: "🦁 狮子" },
+              { id: "tiger", label: "🐯 老虎" },
+            ],
+          },
+          choice: {
+            responseCount: 1,
+            myOptionIds: ["lion"],
+            options: [
+              { id: "lion", responseCount: 1 },
+              { id: "tiger", responseCount: 0 },
+            ],
+          },
+        },
+      ],
+    })
+  })
+
+  it("submits a choice response and normalizes the updated state", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation_id: "conversation-1",
+            message_id: "message-choice",
+            created: true,
+            response: {
+              id: "response-1",
+              created_at: "2026-07-27T07:10:00Z",
+              user_id: "user-1",
+              option_ids: ["lion", "tiger"],
+            },
+            choice: {
+              response_count: 1,
+              my_option_ids: ["lion", "tiger"],
+              options: [
+                { id: "lion", response_count: 1 },
+                { id: "tiger", response_count: 1 },
+              ],
+            },
+          },
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }
+      )
+    )
+    const api = await import("@/lib/client-data-api")
+    const submitChoice = (
+      api as unknown as {
+        setConversationChoiceResponse?: (
+          conversationId: string,
+          messageId: string,
+          optionIds: string[],
+          fetcher: typeof fetch
+        ) => Promise<unknown>
+      }
+    ).setConversationChoiceResponse
+
+    expect(submitChoice).toBeTypeOf("function")
+    await expect(
+      submitChoice!(
+        "conversation-1",
+        "message-choice",
+        ["lion", "tiger"],
+        fetcher
+      )
+    ).resolves.toMatchObject({
+      conversationId: "conversation-1",
+      messageId: "message-choice",
+      choice: {
+        myOptionIds: ["lion", "tiger"],
+        responseCount: 1,
+      },
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-1/messages/message-choice/choice-response",
+      expect.objectContaining({
+        body: JSON.stringify({ option_ids: ["lion", "tiger"] }),
+        method: "PUT",
+      })
+    )
+  })
+
+  it("normalizes realtime choice updates", async () => {
+    const api = await import("@/lib/client-data-api")
+    const normalizeChoiceUpdate = (
+      api as unknown as {
+        normalizeMessageChoiceUpdatedEventPayload?: (payload: unknown) => unknown
+      }
+    ).normalizeMessageChoiceUpdatedEventPayload
+
+    expect(normalizeChoiceUpdate).toBeTypeOf("function")
+    expect(
+      normalizeChoiceUpdate!({
+        conversation_id: "conversation-1",
+        message_id: "message-choice",
+        actor_user_id: "user-2",
+        actor_option_ids: ["tiger"],
+        choice: {
+          response_count: 2,
+          my_option_ids: ["lion"],
+          options: [
+            { id: "lion", response_count: 1 },
+            { id: "tiger", response_count: 1 },
+          ],
+        },
+      })
+    ).toEqual({
+      actorOptionIds: ["tiger"],
+      actorUserId: "user-2",
+      choice: {
+        responseCount: 2,
+        myOptionIds: ["lion"],
+        options: [
+          { id: "lion", responseCount: 1 },
+          { id: "tiger", responseCount: 1 },
+        ],
+      },
+      conversationId: "conversation-1",
+      messageId: "message-choice",
+    })
+  })
+
   it("normalizes an unsupported realtime message body without dropping the event", () => {
     expect(
       normalizeMessageCreatedEventPayload({

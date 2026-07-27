@@ -18,6 +18,7 @@ import { MessageTextWithLinks } from "@/components/message-inline-link"
 import { MessageLink } from "@/components/message-link"
 import { MessageMarkdown } from "@/components/message-markdown"
 import { MessageCard } from "@/components/message-card"
+import { MessageChoice } from "@/components/message-choice"
 import { MessageRenderErrorBoundary } from "@/components/message-render-error-boundary"
 import { MessageVoice } from "@/components/message-voice"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -89,6 +90,10 @@ type MessageBubbleProps = {
     text: string,
     reacted: boolean,
   ) => Promise<void>
+  onRespondToChoice?: (
+    message: ConversationPanelMessage,
+    optionIds: string[]
+  ) => Promise<void>
   onToggleSelected?: (message: ConversationPanelMessage) => void
   selectable?: boolean
   canReply?: boolean
@@ -109,6 +114,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   onOpenTopic,
   onRevoke,
   onSetReaction,
+  onRespondToChoice,
   onToggleSelected,
   selectable = true,
   canReply = true,
@@ -186,8 +192,15 @@ export const MessageBubble = React.memo(function MessageBubble({
       {message.replyTo && <MessageReplyReference replyTo={message.replyTo} />}
       <MessageBodyRenderer
         body={message.body}
+        choice={message.choice}
         currentUserId={currentUserId}
         mentionLabelResolver={mentionLabelResolver}
+        messageId={message.id}
+        onRespondToChoice={
+          onRespondToChoice
+            ? (optionIds) => onRespondToChoice(message, optionIds)
+            : undefined
+        }
       />
       {!selectionMode && message.reactions.length > 0 && (
         <div className={cn("mt-2", flushImageBubble && "mx-2 mb-2")}>
@@ -647,14 +660,20 @@ function MessageAvatarProfile({
 
 type MessageBodyRendererProps = {
   body: ConversationPanelMessage["body"]
+  choice?: ConversationPanelMessage["choice"]
   currentUserId: string
   mentionLabelResolver: MentionLabelResolver
+  messageId?: string
+  onRespondToChoice?: (optionIds: string[]) => Promise<void>
 }
 
 export const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
   body,
+  choice,
   currentUserId,
   mentionLabelResolver,
+  messageId,
+  onRespondToChoice,
 }: MessageBodyRendererProps) {
   switch (body.type) {
     case "file":
@@ -667,6 +686,18 @@ export const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
       return <MessageLink link={body} />
     case "card":
       return <MessageCard card={body} />
+    case "choice":
+      return (
+        <MessageChoice
+          body={body}
+          choice={choice}
+          currentUserId={currentUserId}
+          mentionLabelResolver={mentionLabelResolver}
+          messageId={messageId}
+          onRespond={onRespondToChoice}
+          showResponseCounts={Boolean(choice)}
+        />
+      )
     case "chart":
       return (
         <MessageRenderErrorBoundary

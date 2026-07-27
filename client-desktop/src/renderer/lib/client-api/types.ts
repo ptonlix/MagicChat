@@ -262,6 +262,25 @@ export type MarkdownMessageBodyResponse = {
   type?: "markdown"
 }
 
+export type ChoiceOptionResponse = {
+  id?: string
+  label?: string
+}
+
+export type ChoiceMessageBodyResponse = {
+  content?: string
+  content_type?: "text" | "markdown"
+  options?: ChoiceOptionResponse[]
+  selection?: "single" | "multiple"
+  type?: "choice"
+}
+
+export type ChoiceStateResponse = {
+  my_option_ids?: string[] | null
+  options?: Array<{ id?: string; response_count?: number }>
+  response_count?: number
+}
+
 export type LinkMessageBodyResponse = {
   title?: string
   type?: "link"
@@ -397,6 +416,7 @@ export type TopicClosedSystemEventBodyResponse = {
 export type MessageBodyResponse =
   | TextMessageBodyResponse
   | MarkdownMessageBodyResponse
+  | ChoiceMessageBodyResponse
   | LinkMessageBodyResponse
   | CardMessageBodyResponse
   | ChartMessageBodyResponse
@@ -416,6 +436,7 @@ export type MessageBodyResponse =
 
 export type MessageResponse = {
   body?: MessageBodyResponse
+  choice?: ChoiceStateResponse | null
   client_message_id?: string
   conversation_id?: string
   created_at?: string
@@ -449,6 +470,19 @@ export type SetMessageReactionResponse = {
   message_id?: string
   reaction_version?: number
   reactions?: MessageReactionResponse[]
+}
+
+export type SetChoiceResponse = {
+  choice?: ChoiceStateResponse
+  conversation_id?: string
+  created?: boolean
+  message_id?: string
+  response?: {
+    created_at?: string
+    id?: string
+    option_ids?: string[]
+    user_id?: string
+  }
 }
 
 export type MessageReactionSnapshotResponse = {
@@ -549,6 +583,14 @@ export type MessageReactionsUpdatedEventPayloadResponse = {
     text?: string
     users?: MessageReactionUserResponse[]
   }>
+}
+
+export type MessageChoiceUpdatedEventPayloadResponse = {
+  actor_option_ids?: string[]
+  actor_user_id?: string
+  choice?: ChoiceStateResponse
+  conversation_id?: string
+  message_id?: string
 }
 
 export type ConversationRemovedEventPayloadResponse = {
@@ -763,6 +805,25 @@ export type ClientMarkdownMessageBody = {
   type: "markdown"
 }
 
+export type ClientChoiceOption = {
+  id: string
+  label: string
+}
+
+export type ClientChoiceMessageBody = {
+  content: string
+  contentType: "text" | "markdown"
+  options: ClientChoiceOption[]
+  selection: "single" | "multiple"
+  type: "choice"
+}
+
+export type ClientChoiceState = {
+  myOptionIds: string[]
+  options: Array<{ id: string; responseCount: number }>
+  responseCount: number
+}
+
 export type ClientLinkMessageBody = {
   title: string
   type: "link"
@@ -973,6 +1034,7 @@ export type ClientTopicClosedSystemEventBody = {
 export type ClientMessageBody =
   | ClientTextMessageBody
   | ClientMarkdownMessageBody
+  | ClientChoiceMessageBody
   | ClientLinkMessageBody
   | ClientCardMessageBody
   | ClientChartMessageBody
@@ -994,6 +1056,7 @@ export type ClientMessageBody =
 
 export type ClientMessage = {
   body: ClientMessageBody
+  choice?: ClientChoiceState
   clientMessageId: string
   conversationId: string
   createdAt: string
@@ -1034,6 +1097,19 @@ export type MessageReactionSnapshot = {
   reactions: ClientMessageReaction[]
 }
 
+export type SetChoiceResult = {
+  choice: ClientChoiceState
+  conversationId: string
+  created: boolean
+  messageId: string
+  response: {
+    createdAt: string
+    id: string
+    optionIds: string[]
+    userId: string
+  }
+}
+
 export type MessageReactionsUpdatedEvent = {
   actorReacted: boolean
   actorText: string
@@ -1046,6 +1122,14 @@ export type MessageReactionsUpdatedEvent = {
     text: string
     users: ClientMessageReactionUser[]
   }>
+}
+
+export type MessageChoiceUpdatedEvent = {
+  actorOptionIds: string[]
+  actorUserId: string
+  choice: ClientChoiceState
+  conversationId: string
+  messageId: string
 }
 
 export type ClientMessageTopic = {

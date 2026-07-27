@@ -11,9 +11,11 @@ import type {
   MessageCreatedEventPayloadResponse,
   MessageUpdatedEventPayloadResponse,
   MessageReactionsUpdatedEventPayloadResponse,
+  MessageChoiceUpdatedEventPayloadResponse,
   ListMessageReactionUsersResponse,
   ListMessageReactionSnapshotsResponse,
   SetMessageReactionResponse,
+  SetChoiceResponse,
   ConversationRemovedEventPayloadResponse,
   ConversationMemberMentionedEventPayloadResponse,
   TopicEventPayloadResponse,
@@ -36,9 +38,11 @@ import type {
   ForwardConversationMessagesInput,
   ForwardConversationMessagesResult,
   MessageReactionsUpdatedEvent,
+  MessageChoiceUpdatedEvent,
   MessageReactionSnapshot,
   ClientMessageReactionUser,
   SetMessageReactionInput,
+  SetChoiceResult,
 } from "./types"
 import {
   isTemporaryFileReadURLFresh,
@@ -47,10 +51,58 @@ import {
   normalizeMessagePage,
   normalizeMessageReactions,
   normalizeMessageReactionUsers,
+  normalizeChoiceState,
   normalizeTemporaryFileReadURL,
 } from "./message-normalizers"
 
 const temporaryFileReadURLCache = new Map<string, TemporaryFileReadURL>()
+
+export async function setConversationChoiceResponse(
+  conversationId: string,
+  messageId: string,
+  optionIds: string[],
+  fetcher: ClientDataFetch = fetch,
+): Promise<SetChoiceResult> {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/choice-response`,
+    {
+      body: JSON.stringify({ option_ids: optionIds }),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    },
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<SetChoiceResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "提交选择失败")
+  }
+  const data = (payload as ClientDataSuccessEnvelope<SetChoiceResponse> | undefined)?.data
+  if (
+    data?.conversation_id !== conversationId ||
+    data.message_id !== messageId ||
+    typeof data.created !== "boolean" ||
+    !data.response?.id ||
+    !data.response.created_at ||
+    !data.response.user_id ||
+    !Array.isArray(data.response.option_ids)
+  ) {
+    throw new ClientDataRequestError("提交选择响应格式不正确")
+  }
+  return {
+    choice: normalizeChoiceState(data.choice),
+    conversationId,
+    created: data.created,
+    messageId,
+    response: {
+      createdAt: data.response.created_at,
+      id: data.response.id,
+      optionIds: [...data.response.option_ids],
+      userId: data.response.user_id,
+    },
+  }
+}
 
 export async function setConversationMessageReaction(
   conversationId: string,
@@ -827,6 +879,36 @@ export function normalizeMessageReactionsUpdatedEventPayload(
   }
 }
 
+export function normalizeMessageChoiceUpdatedEventPayload(
+  payload: unknown
+): MessageChoiceUpdatedEvent {
+  if (!isObject(payload)) {
+    throw new ClientDataRequestError("选择消息更新推送格式不正确")
+  }
+  const value = payload as MessageChoiceUpdatedEventPayloadResponse
+  if (
+    typeof value.conversation_id !== "string" ||
+    value.conversation_id.trim() === "" ||
+    typeof value.message_id !== "string" ||
+    value.message_id.trim() === "" ||
+    typeof value.actor_user_id !== "string" ||
+    value.actor_user_id.trim() === "" ||
+    !Array.isArray(value.actor_option_ids) ||
+    !value.actor_option_ids.every(
+      (optionId) => typeof optionId === "string" && optionId !== ""
+    )
+  ) {
+    throw new ClientDataRequestError("选择消息更新推送格式不正确")
+  }
+  return {
+    actorOptionIds: [...value.actor_option_ids],
+    actorUserId: value.actor_user_id,
+    choice: normalizeChoiceState(value.choice),
+    conversationId: value.conversation_id,
+    messageId: value.message_id,
+  }
+}
+
 export function normalizeConversationRemovedEventPayload(payload: unknown) {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("会话移除推送格式不正确")
@@ -885,6 +967,14 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
 
   if (body.type === "markdown") {
     return formatMarkdownMessageSummary(body.content)
+  }
+
+  if (body.type === "choice") {
+    const content =
+      body.contentType === "markdown"
+        ? formatMarkdownMessageSummary(body.content)
+        : body.content
+    return `[选择] ${content}`
   }
 
   if (body.type === "link") {

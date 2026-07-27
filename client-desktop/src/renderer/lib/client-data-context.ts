@@ -6,6 +6,7 @@ import {
   type MarkConversationReadOptions,
   type ClientMessage,
   type MessageReactionsUpdatedEvent,
+  type MessageChoiceUpdatedEvent,
   type MessageReactionSnapshot,
   type ClientMessageTopic,
   type ClientCardSendInput,
@@ -80,6 +81,7 @@ export type ClientDataContextValue = {
   ) => void
   handleIncomingConversationMessageUpdate: (message: ClientMessage) => void
   handleIncomingMessageReactionsUpdate: (event: MessageReactionsUpdatedEvent) => void
+  handleIncomingMessageChoiceUpdate?: (event: MessageChoiceUpdatedEvent) => void
   updateConversationLastMentionedSeq: (conversationId: string, lastMentionedSeq: number) => void
   updateMessageTopic?: (
     parentConversationId: string,
@@ -107,6 +109,11 @@ export type ClientDataContextValue = {
     text: string,
     reacted: boolean,
   ) => Promise<MessageReactionSnapshot>
+  respondToChoice?: (
+    conversationId: string,
+    messageId: string,
+    optionIds: string[]
+  ) => Promise<void>
   setGroupConversationPublic: (conversationId: string) => Promise<ClientConversation>
   setGroupConversationPrivate: (conversationId: string) => Promise<ClientConversation>
   updateGroupConversationName: (conversationId: string, name: string) => Promise<ClientConversation>

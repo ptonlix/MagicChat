@@ -15,6 +15,7 @@ import type {
   MessageRevokedSystemEventBodyResponse,
   TopicClosedSystemEventBodyResponse,
   MessageBodyResponse,
+  ChoiceStateResponse,
   MessageReactionUserResponse,
   MessageResponse,
   MessagePageResponse,
@@ -37,6 +38,7 @@ import type {
   ClientMessageRevokedSystemEventBody,
   ClientTopicClosedSystemEventBody,
   ClientMessageBody,
+  ClientChoiceState,
   ClientMessage,
   ClientMessageReaction,
   ClientMessagePage,
@@ -96,6 +98,9 @@ export function normalizeMessage(message: MessageResponse | undefined): ClientMe
       type: senderType,
     },
     seq: message.seq,
+  }
+  if (normalized.body.type === "choice" && message.choice) {
+    normalized.choice = normalizeChoiceState(message.choice)
   }
   const delegatedBy = normalizeMessageDelegatedBy(message.delegated_by)
   if (delegatedBy) {
@@ -286,6 +291,34 @@ function normalizeMessageBody(
     }
   }
 
+  if (
+    body?.type === "choice" &&
+    (body.content_type === "text" || body.content_type === "markdown") &&
+    typeof body.content === "string" &&
+    body.content.trim() !== "" &&
+    (body.selection === "single" || body.selection === "multiple") &&
+    Array.isArray(body.options) &&
+    body.options.length >= 2 &&
+    body.options.every(
+      (option) =>
+        typeof option?.id === "string" &&
+        option.id !== "" &&
+        typeof option.label === "string" &&
+        option.label !== "",
+    )
+  ) {
+    return {
+      content: body.content,
+      contentType: body.content_type,
+      options: body.options.map((option) => ({
+        id: option.id!,
+        label: option.label!,
+      })),
+      selection: body.selection,
+      type: "choice",
+    }
+  }
+
   if (body?.type === "link" && typeof body.url === "string" && typeof body.title === "string") {
     return {
       title: body.title,
@@ -416,6 +449,41 @@ function normalizeMessageBody(
   }
 
   throw new ClientDataRequestError("消息响应格式不正确")
+}
+
+export function normalizeChoiceState(
+  state: ChoiceStateResponse | null | undefined,
+): ClientChoiceState {
+  const myOptionIds = state?.my_option_ids === null ? [] : state?.my_option_ids
+  if (
+    !state ||
+    !Number.isSafeInteger(state.response_count) ||
+    (state.response_count ?? -1) < 0 ||
+    !Array.isArray(myOptionIds) ||
+    !myOptionIds.every((optionId) => typeof optionId === "string" && optionId !== "") ||
+    !Array.isArray(state.options)
+  ) {
+    throw new ClientDataRequestError("选择消息状态响应格式不正确")
+  }
+
+  return {
+    myOptionIds: [...myOptionIds],
+    options: state.options.map((option) => {
+      if (
+        typeof option?.id !== "string" ||
+        option.id === "" ||
+        !Number.isSafeInteger(option.response_count) ||
+        (option.response_count ?? -1) < 0
+      ) {
+        throw new ClientDataRequestError("选择消息状态响应格式不正确")
+      }
+      return {
+        id: option.id,
+        responseCount: option.response_count!,
+      }
+    }),
+    responseCount: state.response_count!,
+  }
 }
 
 function isForwardableMessageBody(body: ClientMessageBody): body is ClientForwardableMessageBody {

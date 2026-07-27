@@ -57,6 +57,7 @@ type ConversationPanelProps = {
   onCancelReply: () => void
   onReplyToMessage: (message: ConversationPanelMessage) => void
   onRevokeMessage: (message: ConversationPanelMessage) => void
+  onRespondToChoice?: (message: ConversationPanelMessage, optionIds: string[]) => Promise<void>
   onSetMessageReaction?: (
     message: ConversationPanelMessage,
     text: string,
@@ -102,6 +103,7 @@ export function ConversationPanel({
   onCancelReply,
   onReplyToMessage,
   onRevokeMessage,
+  onRespondToChoice,
   onSetMessageReaction,
   onSendFile,
   onSendImage,
@@ -269,6 +271,7 @@ export function ConversationPanel({
             onOpenTopic={onOpenTopic}
             onReplyToMessage={handleReplyToMessage}
             onRevokeMessage={readOnlyReason ? undefined : onRevokeMessage}
+            onRespondToChoice={readOnlyReason ? undefined : onRespondToChoice}
             onSetMessageReaction={readOnlyReason ? undefined : onSetMessageReaction}
             onToggleMessageSelection={onToggleMessageSelection}
           />
