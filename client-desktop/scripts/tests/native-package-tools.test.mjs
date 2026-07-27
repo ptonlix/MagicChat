@@ -6,20 +6,12 @@ import {
   assertMachine,
   parseElfMachine,
   parsePeMachine,
-  parseWindowsFileVersion,
   verifyLinuxPackage,
   verifyMacPackage,
   verifyWindowsPackage,
 } from "../native-package-tools.mjs"
 
 describe("原生安装包真实性解析", () => {
-  it("严格解析 Windows 四段文件版本", () => {
-    expect(parseWindowsFileVersion("1.2.3.0")).toEqual({ build: 0, version: "1.2.3" })
-    for (const version of ["1.2.3", "1.2.3-beta", "01.2.3.0", "1.2.3.0.0", ""]) {
-      expect(() => parseWindowsFileVersion(version)).toThrow("格式无效")
-    }
-  })
-
   it.each([
     ["x64", 0x8664],
     ["arm64", 0xaa64],
@@ -44,10 +36,11 @@ describe("原生安装包真实性解析", () => {
     ["arm64", 0xaa64],
   ])("校验 Windows %s 安装器与打包应用", async (arch, machine) => {
     const fixture = await windowsPackageFixture(arch)
+    let calls = 0
     await expect(
       verifyWindowsPackage({
         ...fixture,
-        executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
+        executeCommand: async () => ({ stdout: calls++ === 0 ? "1.2.3\n" : "1.2.3.0\n" }),
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
       }),
@@ -57,7 +50,7 @@ describe("原生安装包真实性解析", () => {
     })
   })
 
-  it.each(["1.2.30.0", "1.2.3-beta", "1.2.3", "1.2.3.1"])(
+  it.each(["1.2.30", "1.2.3-beta", "1.2.3.0"])(
     "拒绝 Windows 安装器错误文件版本 %s",
     async (productVersion) => {
       const fixture = await windowsPackageFixture("x64")
@@ -68,7 +61,7 @@ describe("原生安装包真实性解析", () => {
           expectedVersion: "1.2.3",
           readAsarVersion: async () => "1.2.3",
         }),
-      ).rejects.toThrow(`期望 1.2.3.0，实际 ${productVersion}`)
+      ).rejects.toThrow(`期望 1.2.3，实际 ${productVersion}`)
     },
   )
 
@@ -78,7 +71,7 @@ describe("原生安装包真实性解析", () => {
     await expect(
       verifyWindowsPackage({
         ...fixture,
-        executeCommand: async () => ({ stdout: calls++ === 0 ? "1.2.3.0\n" : "1.2.30.0\n" }),
+        executeCommand: async () => ({ stdout: calls++ === 0 ? "1.2.3\n" : "1.2.30.0\n" }),
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
       }),
@@ -96,7 +89,7 @@ describe("原生安装包真实性解析", () => {
         arch: "x64",
         applicationDirectory: "missing",
         artifact: brokenArtifact,
-        executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
+        executeCommand: async () => ({ stdout: "1.2.3\n" }),
         expectedVersion: "1.2.3",
       }),
     ).rejects.toThrow("有效 PE")
@@ -112,7 +105,7 @@ describe("原生安装包真实性解析", () => {
         arch: "arm64",
         applicationDirectory,
         artifact,
-        executeCommand: async () => ({ stdout: "1.2.3.0\n" }),
+        executeCommand: async () => ({ stdout: "1.2.3\n" }),
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
       }),

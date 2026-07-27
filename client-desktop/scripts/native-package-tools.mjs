@@ -41,16 +41,6 @@ export function assertMachine(actual, arch, format) {
   }
 }
 
-export function parseWindowsFileVersion(value) {
-  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value)
-  if (!match) throw new Error(`Windows 文件版本格式无效：${value || "空值"}`)
-  const [major, minor, patch, build] = match.slice(1).map(Number)
-  if (![major, minor, patch, build].every(Number.isSafeInteger)) {
-    throw new Error(`Windows 文件版本超出安全整数范围：${value}`)
-  }
-  return { build, version: `${major}.${minor}.${patch}` }
-}
-
 export async function verifyWindowsPackage({
   arch,
   applicationDirectory,
@@ -61,13 +51,17 @@ export async function verifyWindowsPackage({
 }) {
   const installerMachine = await readPeMachine(artifact)
   const installerVersion = await windowsProductVersion(artifact, executeCommand)
-  assertWindowsFileVersion(installerVersion, expectedVersion, "Windows 安装器文件版本")
+  assertWindowsProductVersion(installerVersion, [expectedVersion], "Windows 安装器文件版本")
   const executable = path.join(applicationDirectory, "MagicChat.exe")
   const executableStat = await lstat(executable).catch(() => undefined)
   if (!executableStat?.isFile()) throw new Error("Windows 打包应用缺少 MagicChat.exe")
   assertMachine(await readPeMachine(executable), arch, "PE")
   const applicationVersion = await windowsProductVersion(executable, executeCommand)
-  assertWindowsFileVersion(applicationVersion, expectedVersion, "Windows 打包应用文件版本")
+  assertWindowsProductVersion(
+    applicationVersion,
+    [expectedVersion, `${expectedVersion}.0`],
+    "Windows 打包应用文件版本",
+  )
   const asar = path.join(applicationDirectory, "resources", "app.asar")
   const asarStat = await lstat(asar).catch(() => undefined)
   if (!asarStat?.isFile()) throw new Error("Windows 打包应用缺少 app.asar")
@@ -226,17 +220,11 @@ async function windowsProductVersion(filePath, executeCommand) {
   return String(stdout).trim()
 }
 
-function assertWindowsFileVersion(actualVersion, expectedVersion, label) {
-  let parsed
-  try {
-    parsed = parseWindowsFileVersion(actualVersion)
-  } catch {
+function assertWindowsProductVersion(actualVersion, expectedVersions, label) {
+  if (!expectedVersions.includes(actualVersion)) {
     throw new Error(
-      `${label}与 Tag 不一致：期望 ${expectedVersion}.0，实际 ${actualVersion || "空值"}`,
+      `${label}与 Tag 不一致：期望 ${expectedVersions.join(" 或 ")}，实际 ${actualVersion || "空值"}`,
     )
-  }
-  if (parsed.version !== expectedVersion || parsed.build !== 0) {
-    throw new Error(`${label}与 Tag 不一致：期望 ${expectedVersion}.0，实际 ${actualVersion}`)
   }
 }
 
