@@ -20,26 +20,32 @@ jobs:
             runner: windows-2025
             platform: win
             arch: x64
+            target: nsis
           - name: Windows 11 arm64
             runner: windows-11-arm
             platform: win
             arch: arm64
+            target: nsis
           - name: macOS 13+ universal
             runner: macos-15
             platform: mac
             arch: universal
+            target: dmg zip
           - name: Ubuntu 22.04 x64
             runner: ubuntu-22.04
             platform: linux
             arch: x64
+            target: AppImage deb
           - name: Ubuntu 24.04 x64
             runner: ubuntu-24.04
             platform: linux
             arch: x64
+            target: AppImage deb
           - name: Ubuntu 24.04 arm64
             runner: ubuntu-24.04-arm
             platform: linux
             arch: arm64
+            target: AppImage deb
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:
@@ -61,9 +67,9 @@ jobs:
       - name: 构建并校验本地 Renderer
         working-directory: client-desktop
         run: pnpm build && pnpm verify:build
-      - name: 当前平台未签名目录包烟雾
+      - name: 当前平台未签名安装包烟雾
         working-directory: client-desktop
-        run: pnpm exec electron-builder --dir --${{ matrix.arch }} --config electron-builder.yml
-      - name: 校验目录包元数据与内容
+        run: pnpm exec electron-builder --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }} --config electron-builder.yml --publish never
+      - name: 校验安装包元数据与内容
         working-directory: client-desktop
         run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
