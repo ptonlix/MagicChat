@@ -1,7 +1,9 @@
 import { readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { fileSha256, fileSha512 } from "./release-tools.mjs"
+import { fileDigests, fileSha256, mapWithConcurrency } from "./release-tools.mjs"
 import { ownerMarker } from "./github-release-adapter.mjs"
+
+const ASSET_DIGEST_CONCURRENCY = 2
 
 export async function publishReleaseTransaction({
   adapter,
@@ -129,22 +131,19 @@ async function verifyRemoteAssets({ adapter, assets, id, repository, sleep }) {
 async function validateLocalAssets(planDirectory, assets) {
   if (!Array.isArray(assets) || assets.length === 0) throw new Error("release-plan 缺少资产")
   const names = new Set()
-  return Promise.all(
-    assets.map(async (asset) => {
-      if (!asset || typeof asset.name !== "string" || names.has(asset.name))
-        throw new Error("release-plan 资产名称无效或重复")
-      names.add(asset.name)
-      const absolutePath = safeRelativePath(planDirectory, asset.path)
-      const fileStat = await stat(absolutePath)
-      if (!fileStat.isFile() || fileStat.size !== asset.size)
-        throw new Error(`本地资产大小不一致：${asset.name}`)
-      if ((await fileSha256(absolutePath)) !== asset.sha256)
-        throw new Error(`本地资产 SHA-256 不一致：${asset.name}`)
-      if ((await fileSha512(absolutePath)) !== asset.sha512)
-        throw new Error(`本地资产 SHA-512 不一致：${asset.name}`)
-      return { ...asset, absolutePath }
-    }),
-  )
+  return mapWithConcurrency(assets, ASSET_DIGEST_CONCURRENCY, async (asset) => {
+    if (!asset || typeof asset.name !== "string" || names.has(asset.name))
+      throw new Error("release-plan 资产名称无效或重复")
+    names.add(asset.name)
+    const absolutePath = safeRelativePath(planDirectory, asset.path)
+    const fileStat = await stat(absolutePath)
+    if (!fileStat.isFile() || fileStat.size !== asset.size)
+      throw new Error(`本地资产大小不一致：${asset.name}`)
+    const digests = await fileDigests(absolutePath)
+    if (digests.sha256 !== asset.sha256) throw new Error(`本地资产 SHA-256 不一致：${asset.name}`)
+    if (digests.sha512 !== asset.sha512) throw new Error(`本地资产 SHA-512 不一致：${asset.name}`)
+    return { ...asset, absolutePath }
+  })
 }
 
 function validatePlan(plan, repository) {

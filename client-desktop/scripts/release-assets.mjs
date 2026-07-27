@@ -13,15 +13,18 @@ import {
 import path from "node:path"
 import { dump } from "js-yaml"
 import {
+  fileDigests,
   fileSha256,
   fileSha512,
   linuxArtifactSuffixes,
+  mapWithConcurrency,
   validateManifest,
 } from "./release-tools.mjs"
 
 export const RELEASE_TARGETS = ["win:x64", "win:arm64", "mac:universal", "linux:x64", "linux:arm64"]
 const INSTALL_ASSET = /\.(?:AppImage|deb|dmg|exe|zip)$/
 const MANIFEST = /^latest(?:-mac|-linux|-linux-arm64)?\.yml$/
+const ASSET_DIGEST_CONCURRENCY = 2
 
 export function parseReleaseInput(value) {
   const first = value.indexOf(":")
@@ -143,17 +146,19 @@ export async function prepareReleaseAssets({
 
     const expected = expectedReleaseAssetNames(version)
     await assertExactSet(staging, expected)
-    const assets = await Promise.all(
-      [...expected].sort().map(async (name) => {
+    const assets = await mapWithConcurrency(
+      [...expected].sort(),
+      ASSET_DIGEST_CONCURRENCY,
+      async (name) => {
         const filePath = path.join(staging, name)
+        const [digests, fileStat] = await Promise.all([fileDigests(filePath), stat(filePath)])
         return {
           name,
           path: name,
-          sha256: await fileSha256(filePath),
-          sha512: await fileSha512(filePath),
-          size: (await stat(filePath)).size,
+          ...digests,
+          size: fileStat.size,
         }
-      }),
+      },
     )
     const appendix = generateReleaseAppendix({ assets, version })
     const finalNotes = `${notes.trim()}\n\n---\n\n${appendix}\n`
