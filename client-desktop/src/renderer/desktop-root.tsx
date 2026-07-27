@@ -532,8 +532,12 @@ function DesktopSettingsPanel({
                     onClick={() => {
                       setUpdateActionError("")
                       void window.desktop.updater.install().then((result) => {
-                        if (result.status !== "started")
-                          setUpdateActionError("仍有传输或更新准备未完成，请稍后重试")
+                        if (result.status === "started") return
+                        setUpdateActionError(
+                          result.reason === "install_failed"
+                            ? "自动安装未能启动，请重试检查或使用手动更新"
+                            : "仍有传输或更新准备未完成，请稍后重试",
+                        )
                       })
                     }}
                   >

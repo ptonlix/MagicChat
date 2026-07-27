@@ -211,6 +211,60 @@ describe("UpdaterService", () => {
     expect(service.isInstallIntent()).toBe(false)
   })
 
+  it("安装器同步报告失败时回滚退出准备并返回失败", async () => {
+    const rollback = vi.fn()
+    adapter.quitAndInstall = () => {
+      adapter.emit("error", new Error("permission denied"))
+    }
+    const service = createService(adapter, clock, {
+      prepareInstall: async () => rollback,
+    })
+    const check = service.check()
+    adapter.emit("update-available", { version: "1.1.0" })
+    await check
+    const download = service.download()
+    adapter.emit("update-downloaded", { version: "1.1.0" })
+    await download
+
+    await expect(service.install()).resolves.toEqual({
+      reason: "install_failed",
+      status: "failed",
+    })
+    expect(rollback).toHaveBeenCalledOnce()
+    expect(service.current()).toMatchObject({
+      errorCode: "permission_denied",
+      retryable: true,
+      status: "error",
+    })
+    expect(service.isInstallIntent()).toBe(false)
+  })
+
+  it("安装器异步报告失败时回滚退出准备并保留当前应用", async () => {
+    const rollback = vi.fn()
+    const service = createService(adapter, clock, {
+      prepareInstall: async () => rollback,
+    })
+    const check = service.check()
+    adapter.emit("update-available", { version: "1.1.0" })
+    await check
+    const download = service.download()
+    adapter.emit("update-downloaded", { version: "1.1.0" })
+    await download
+
+    await expect(service.install()).resolves.toEqual({ status: "started" })
+    expect(service.isInstallIntent()).toBe(true)
+
+    adapter.emit("error", new Error("Gatekeeper signature"))
+
+    expect(rollback).toHaveBeenCalledOnce()
+    expect(service.current()).toMatchObject({
+      errorCode: "platform_signature_required",
+      retryable: true,
+      status: "error",
+    })
+    expect(service.isInstallIntent()).toBe(false)
+  })
+
   it.each([
     ["win32", undefined],
     ["darwin", undefined],
@@ -239,6 +293,7 @@ describe("UpdaterService", () => {
     await download
     await expect(service.install()).resolves.toEqual({ status: "started" })
     expect(order).toEqual(["prepare", "quit"])
+    expect(adapter.offCalls).toBe(0)
   })
 
   it("dispose 清理定时器和 updater 监听器", () => {

@@ -47,13 +47,15 @@ type UpdaterContext = UpdateEligibilityInput &
     currentVersion: string
   }>
 
+type InstallRollback = () => void
+
 type UpdaterServiceOptions = Readonly<{
   adapter?: UpdaterAdapter
   clock?: UpdaterClock
   context?: UpdaterContext
   hasActiveTransfers?: () => boolean
   openExternal?: (url: string) => Promise<void>
-  prepareInstall?: () => Promise<void>
+  prepareInstall?: () => Promise<InstallRollback | void>
 }>
 
 const TRANSITIONS: Readonly<Record<UpdaterStatus, ReadonlySet<UpdaterStatus>>> = {
@@ -76,7 +78,7 @@ export class UpdaterService {
   private readonly hasActiveTransfers: () => boolean
   private readonly listeners = new Set<(state: UpdaterState) => void>()
   private readonly openExternal: (url: string) => Promise<void>
-  private readonly prepareInstall: () => Promise<void>
+  private readonly prepareInstall: () => Promise<InstallRollback | void>
   private readonly updaterListeners: ReadonlyArray<
     readonly [UpdaterEvent, (payload?: unknown) => void]
   >
@@ -84,6 +86,7 @@ export class UpdaterService {
   private disposed = false
   private downloadPromise?: Promise<void>
   private installIntent = false
+  private installRollback?: InstallRollback
   private retryCount = 0
   private state: UpdaterState
   private timer?: ReturnType<typeof setTimeout>
@@ -159,13 +162,20 @@ export class UpdaterService {
     this.installIntent = true
     this.transition({ ...this.state, retryable: false, status: "installing" })
     try {
-      await this.prepareInstall()
-      this.adapter.quitAndInstall(false, true)
-      return { status: "started" }
+      const rollback = await this.prepareInstall()
+      this.installRollback = typeof rollback === "function" ? rollback : undefined
     } catch (error) {
-      this.installIntent = false
       this.handleError(error)
       return { reason: "prepare_failed", status: "failed" }
+    }
+    try {
+      this.adapter.quitAndInstall(false, true)
+      return this.installIntent
+        ? { status: "started" }
+        : { reason: "install_failed", status: "failed" }
+    } catch (error) {
+      this.handleError(error)
+      return { reason: "install_failed", status: "failed" }
     }
   }
 
@@ -190,6 +200,7 @@ export class UpdaterService {
     this.disposed = true
     this.clearTimer()
     for (const [event, listener] of this.updaterListeners) this.adapter.off(event, listener)
+    this.installRollback = undefined
     this.listeners.clear()
   }
 
@@ -312,6 +323,7 @@ export class UpdaterService {
 
   private handleError(error: unknown): void {
     if (this.disposed || this.state.status === "error" || !this.canTransition("error")) return
+    if (this.state.status === "installing") this.rollbackInstall()
     const errorCode = classifyUpdateError(error)
     this.retryCount += 1
     this.transition({
@@ -320,6 +332,13 @@ export class UpdaterService {
       retryable: true,
       status: "error",
     })
+  }
+
+  private rollbackInstall(): void {
+    this.installIntent = false
+    const rollback = this.installRollback
+    this.installRollback = undefined
+    rollback?.()
   }
 
   private transition(next: UpdaterState): boolean {

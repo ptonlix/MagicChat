@@ -138,7 +138,12 @@ export type UpdaterState = Readonly<{
 }>
 
 export type UpdaterInstallResult = Readonly<{
-  reason?: "active_transfers" | "install_in_progress" | "not_downloaded" | "prepare_failed"
+  reason?:
+    | "active_transfers"
+    | "install_failed"
+    | "install_in_progress"
+    | "not_downloaded"
+    | "prepare_failed"
   status: "blocked" | "failed" | "started"
 }>
 

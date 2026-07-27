@@ -55,6 +55,7 @@ export class WindowController {
 
   hide(): void { this.mainWindow?.hide() }
   current(): BrowserWindow | undefined { return this.mainWindow?.isDestroyed() ? undefined : this.mainWindow }
+  cancelPrepareToQuit(): void { this.quitting = false }
   prepareToQuit(): void { this.quitting = true }
 
   send(channel: string, payload?: unknown): void {

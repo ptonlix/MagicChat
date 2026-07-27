@@ -76,8 +76,7 @@ async function start(): Promise<void> {
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
     prepareInstall: async () => {
       windows.prepareToQuit()
-      realtime.closeAll()
-      await files.cleanup()
+      return () => windows.cancelPrepareToQuit()
     },
   })
   const unregisterIpc = registerIpc({ auth, credentials, diagnostics, files, http, notifications, profiles, realtime, sessions, store, system, updater, uploads })
@@ -103,7 +102,12 @@ async function start(): Promise<void> {
   let cleanupStarted = false
   let transferExitConfirmed = false
   app.on("before-quit", (event) => {
-    if (updater.isInstallIntent()) return
+    if (updater.isInstallIntent()) {
+      auth.dispose()
+      realtime.closeAll()
+      void files.cleanup()
+      return
+    }
     if (cleanupStarted) return
     if (!transferExitConfirmed && (files.hasActiveTransfers() || uploads.hasActiveTransfers())) {
       event.preventDefault()

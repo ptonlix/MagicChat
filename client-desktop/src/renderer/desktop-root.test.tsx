@@ -175,6 +175,35 @@ describe("桌面设置服务器管理", () => {
     ).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "下载 macOS 安装包" })).toBeInTheDocument()
   })
+
+  it("安装器未能启动时展示准确的恢复提示", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      progress: 100,
+      retryable: true,
+      status: "downloaded",
+      targetVersion: "1.1.0",
+    })
+    vi.mocked(bridge.updater.install).mockResolvedValue({
+      reason: "install_failed",
+      status: "failed",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "安装并重启" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "自动安装未能启动，请重试检查或使用手动更新",
+    )
+  })
 })
 
 describe("发布通道显示", () => {
