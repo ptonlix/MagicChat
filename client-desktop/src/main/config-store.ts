@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { DesktopSettings, ServerProfile } from "@shared/bridge"
 
@@ -40,11 +40,10 @@ export class ConfigStore {
   async load(): Promise<void> {
     await this.enqueueOperation(async () => {
       await mkdir(path.dirname(this.filePath), { recursive: true })
+      let nextConfig: StoredConfig
       try {
         const raw = JSON.parse(await readFile(this.filePath, "utf8")) as Partial<StoredConfig>
-        const nextConfig = migrate(raw)
-        await this.persist(nextConfig)
-        this.config = nextConfig
+        nextConfig = migrate(raw)
       } catch (error) {
         if (error instanceof UnsupportedConfigVersionError) throw error
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -52,14 +51,14 @@ export class ConfigStore {
             () => undefined,
           )
         }
-        const nextConfig = {
+        nextConfig = {
           schemaVersion: CURRENT_SCHEMA,
           settings: defaultSettings,
           servers: [],
         }
-        await this.persist(nextConfig)
-        this.config = nextConfig
       }
+      await this.persist(nextConfig)
+      this.config = nextConfig
     })
   }
 
@@ -150,8 +149,12 @@ export class ConfigStore {
 
   private async persist(config: StoredConfig): Promise<void> {
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`
-    await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
-    await rename(temporaryPath, this.filePath)
+    try {
+      await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
+      await rename(temporaryPath, this.filePath)
+    } finally {
+      await rm(temporaryPath, { force: true }).catch(() => undefined)
+    }
   }
 }
 

@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { ConfigStore } from "@main/config-store"
 
 const directories: string[] = []
@@ -96,6 +96,33 @@ describe("桌面配置迁移", () => {
     })
   })
 
+  it("有效配置写回失败时保留原文件", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const filePath = path.join(directory, "desktop-config.json")
+    const raw = JSON.stringify({
+      schemaVersion: 1,
+      servers: [],
+      settings: {
+        autoLaunch: false,
+        closeBehavior: "background",
+        messageSoundEnabled: false,
+        notificationPrivacy: "metadata",
+      },
+    })
+    await writeFile(filePath, raw)
+    const store = new ConfigStore(directory)
+    vi.spyOn(
+      store as unknown as { persist(config: unknown): Promise<void> },
+      "persist",
+    ).mockRejectedValue(new Error("配置写回失败"))
+
+    await expect(store.load()).rejects.toThrow("配置写回失败")
+
+    expect(await readFile(filePath, "utf8")).toBe(raw)
+    expect((await readdir(directory)).filter((name) => name.includes(".invalid-"))).toEqual([])
+  })
+
   it("设置持久化失败时保留原有内存状态", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
     directories.push(directory)
@@ -108,6 +135,7 @@ describe("桌面配置迁移", () => {
     await expect(store.setSettings({ messageSoundEnabled: false })).rejects.toThrow()
 
     expect(store.getSettings().messageSoundEnabled).toBe(true)
+    expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([])
   })
 
   it("拒绝覆盖来自更高版本的配置", async () => {
