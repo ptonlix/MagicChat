@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, ipcMain, nativeImage, shell, type IpcMainInvokeEvent } from "electron"
 import type { AuthenticatedTarget, ClientRequest } from "@shared/client-contract"
-import { IPC, type DesktopSettings, type NotificationInput, type TrayMessage } from "@shared/bridge"
+import { IPC, type DesktopSettings, type DesktopThemeSource, type NotificationInput, type TrayMessage } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ConfigStore } from "@main/config-store"
 import { CredentialStore } from "@main/credential-store"
@@ -46,6 +46,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   }
 
   register(IPC.appInfo, () => ({ arch: process.arch, build: process.env.MAGICCHAT_BUILD_ID ?? "local", channel: releaseChannel(), packaged: app.isPackaged, platform: process.platform, version: app.getVersion() }))
+  register(IPC.appearanceThemeSet, (_event, source) => deps.system.setThemeSource(themeSource(source)))
   register(IPC.badgeSet, (_event, count) => deps.system.setBadge(asCount(count)))
   register(IPC.trayMessagesSet, (_event, messages) => deps.system.setTrayMessages(trayMessages(messages)))
   register(IPC.clipboardWriteText, (_event, value) => clipboard.writeText(asString(value, 1024 * 1024)))
@@ -135,6 +136,11 @@ export function registerIpc(deps: IpcDependencies): () => void {
     updaterUnsubscribe()
     unregisterRuntimeDiagnostics()
   }
+}
+
+function themeSource(value: unknown): DesktopThemeSource {
+  if (value === "dark" || value === "light" || value === "system") return value
+  throw new Error("主题设置无效")
 }
 
 function asString(value: unknown, max: number): string {

@@ -58,6 +58,10 @@ export class WindowController {
   cancelPrepareToQuit(): void { this.quitting = false }
   prepareToQuit(): void { this.quitting = true }
 
+  setThemeBackground(dark: boolean): void {
+    this.current()?.setBackgroundColor(dark ? "#09090b" : "#ffffff")
+  }
+
   send(channel: string, payload?: unknown): void {
     const window = this.current()
     if (!window) return

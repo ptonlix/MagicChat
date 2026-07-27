@@ -4,6 +4,7 @@ import { BRIDGE_VERSION, IPC } from "@shared/bridge"
 describe("Desktop Bridge 契约", () => {
   it("使用显式版本和唯一 IPC channel", () => {
     expect(BRIDGE_VERSION).toBe(1)
+    expect(IPC.appearanceThemeSet).toBe("desktop:v1:appearance-theme-set")
     const channels = Object.values(IPC)
     expect(new Set(channels).size).toBe(channels.length)
     expect(channels.every((channel) => channel.startsWith("desktop:v1:"))).toBe(true)

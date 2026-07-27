@@ -5,6 +5,9 @@ import type { RealtimeEnvelope } from "@shared/client-contract"
 const bridge: DesktopBridge = {
   version: BRIDGE_VERSION,
   app: { info: () => ipcRenderer.invoke(IPC.appInfo) },
+  appearance: {
+    setThemeSource: (source) => ipcRenderer.invoke(IPC.appearanceThemeSet, source),
+  },
   badge: { set: (count) => ipcRenderer.invoke(IPC.badgeSet, count) },
   tray: { setMessages: (messages) => ipcRenderer.invoke(IPC.trayMessagesSet, messages) },
   clipboard: {

@@ -12,6 +12,8 @@ directories:
 extraResources:
   - from: public/logo.png
     to: logo.png
+  - from: public/trayTemplate.png
+    to: trayTemplate.png
 files:
   - out/**/*
   - package.json

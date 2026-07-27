@@ -34,6 +34,18 @@ import { releaseChannelLabel } from "@/release-channel"
 import { BrandLoadingScreen } from "@/components/brand-loading-screen"
 
 export function DesktopRoot() {
+  return (
+    <ThemeProvider>
+      <div className="desktop-frame">
+        <div className="desktop-content">
+          <DesktopRootContent />
+        </div>
+      </div>
+    </ThemeProvider>
+  )
+}
+
+function DesktopRootContent() {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [loading, setLoading] = useState(true)
@@ -98,22 +110,18 @@ function DesktopWorkspace({
   const openSettings = useCallback(() => setSettingsOpen(true), [])
 
   return (
-    <div className="desktop-frame">
-      <div className="desktop-content">
-        <ThemeProvider>
-          <TooltipProvider>
-            <BrowserRouter>
-              <DesktopHostedApp
-                profile={profile}
-                target={target}
-                onAuthenticated={setUserId}
-                onOpenSettings={openSettings}
-              />
-              <Toaster position="top-center" />
-            </BrowserRouter>
-          </TooltipProvider>
-        </ThemeProvider>
-      </div>
+    <>
+      <TooltipProvider>
+        <BrowserRouter>
+          <DesktopHostedApp
+            profile={profile}
+            target={target}
+            onAuthenticated={setUserId}
+            onOpenSettings={openSettings}
+          />
+          <Toaster position="top-center" />
+        </BrowserRouter>
+      </TooltipProvider>
       {settingsOpen && (
         <DesktopSettingsPanel
           profile={profile}
@@ -121,7 +129,7 @@ function DesktopWorkspace({
           onRemoved={onRemoved}
         />
       )}
-    </div>
+    </>
   )
 }
 

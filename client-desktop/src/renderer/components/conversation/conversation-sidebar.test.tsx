@@ -19,6 +19,7 @@ describe("ConversationSidebar", () => {
           drafts={{}}
           onCreateGroup={vi.fn()}
           onSelectConversation={vi.fn()}
+          onSetConversationMuted={vi.fn()}
           onSetConversationPinned={onSetConversationPinned}
         />
       </SidebarProvider>
@@ -62,6 +63,7 @@ describe("ConversationSidebar", () => {
           drafts={{}}
           onCreateGroup={vi.fn()}
           onSelectConversation={vi.fn()}
+          onSetConversationMuted={vi.fn()}
           onSetConversationPinned={vi.fn()}
         />
       </SidebarProvider>
@@ -71,6 +73,65 @@ describe("ConversationSidebar", () => {
     expect(await screen.findByText("消息免打扰")).toBeInTheDocument()
     expect(screen.queryByText("置顶对话")).not.toBeInTheDocument()
     expect(screen.queryByText("取消置顶")).not.toBeInTheDocument()
+  })
+
+  it("mutes an ordinary conversation from its context menu", async () => {
+    const onSetConversationMuted = vi.fn().mockResolvedValue(undefined)
+    render(
+      <SidebarProvider>
+        <ConversationSidebar
+          activeConversationId="conversation-app-1"
+          appsById={new Map()}
+          contactsById={new Map()}
+          conversations={[createAppConversation()]}
+          currentUser={createCurrentUser()}
+          drafts={{}}
+          onCreateGroup={vi.fn()}
+          onSelectConversation={vi.fn()}
+          onSetConversationMuted={onSetConversationMuted}
+          onSetConversationPinned={vi.fn()}
+        />
+      </SidebarProvider>
+    )
+
+    fireEvent.contextMenu(screen.getByText("智能助手").closest("button")!)
+    fireEvent.click(await screen.findByText("消息免打扰"))
+
+    await waitFor(() =>
+      expect(onSetConversationMuted).toHaveBeenCalledWith(
+        "conversation-app-1",
+        true
+      )
+    )
+  })
+
+  it("shows pinned and muted icons and uses a dot for muted unread messages", () => {
+    const conversation = createAppConversation()
+    conversation.pinned = true
+    conversation.notificationMuted = true
+    conversation.unreadCount = 6
+
+    render(
+      <SidebarProvider>
+        <ConversationSidebar
+          activeConversationId=""
+          appsById={new Map()}
+          contactsById={new Map()}
+          conversations={[conversation]}
+          currentUser={createCurrentUser()}
+          drafts={{}}
+          onCreateGroup={vi.fn()}
+          onSelectConversation={vi.fn()}
+          onSetConversationMuted={vi.fn()}
+          onSetConversationPinned={vi.fn()}
+        />
+      </SidebarProvider>
+    )
+
+    expect(screen.getByLabelText("已置顶")).toBeInTheDocument()
+    expect(screen.getByLabelText("消息免打扰已开启")).toBeInTheDocument()
+    expect(screen.getByLabelText("有未读消息")).toBeInTheDocument()
+    expect(screen.queryByLabelText("6 条未读消息")).not.toBeInTheDocument()
   })
 
 })

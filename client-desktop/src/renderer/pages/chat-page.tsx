@@ -118,6 +118,7 @@ export function ChatPage() {
     sendConversationMarkdown,
     sendConversationText,
     sendConversationVoice,
+    setConversationMuted,
     setConversationPinned,
     setMessageReaction,
     setForegroundConversationId,
@@ -681,6 +682,7 @@ export function ChatPage() {
         drafts={drafts}
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
         onSelectConversation={selectConversation}
+        onSetConversationMuted={setConversationMuted}
         onSetConversationPinned={setConversationPinned}
       />
 

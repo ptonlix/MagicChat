@@ -15,7 +15,7 @@ import { RealtimeController } from "@main/realtime-controller"
 import { ProxyAuthPrompt } from "@main/proxy-auth"
 import { ServerProfiles } from "@main/server-profiles"
 import { SessionController } from "@main/session-controller"
-import { runtimeIconPath, SystemIntegration } from "@main/system-integration"
+import { runtimeIconPath, runtimeTrayIconPath, SystemIntegration } from "@main/system-integration"
 import { UpdaterService } from "@main/updater-service"
 import { StreamingUploadController } from "@main/streaming-upload"
 import { StartupHealth } from "@main/startup-health"
@@ -49,11 +49,12 @@ async function start(): Promise<void> {
   const files = new FileService(profiles, sessions)
   const credentials = new CredentialStore(path.join(app.getPath("userData"), "credentials"))
   const iconPath = runtimeIconPath()
+  const trayIconPath = runtimeTrayIconPath()
   const windows = new WindowController(store, diagnostics, path.resolve(__dirname, "../preload/index.cjs"), iconPath)
   const system = new SystemIntegration(store, windows)
   const proxyAuth = new ProxyAuthPrompt(windows, iconPath)
   const realtime = new RealtimeController(profiles, sessions, proxyAuth)
-  const trayAvailable = system.createTray(iconPath)
+  const trayAvailable = system.createTray(trayIconPath)
   if (!trayAvailable && process.platform !== "darwin" && store.getSettings().closeBehavior === "background") await store.setSettings({ closeBehavior: "quit" })
   system.configurePermissions()
   const auth = new AuthController(

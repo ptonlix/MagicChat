@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Plus } from "lucide-react"
+import { BellOff, Pin, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
@@ -49,6 +49,7 @@ export function ConversationSidebar({
   drafts,
   onCreateGroup,
   onSelectConversation,
+  onSetConversationMuted,
   onSetConversationPinned,
 }: {
   activeConversationId: string
@@ -59,11 +60,16 @@ export function ConversationSidebar({
   drafts: ConversationDrafts
   onCreateGroup: () => void
   onSelectConversation: (conversationId: string) => void
+  onSetConversationMuted: (
+    conversationId: string,
+    muted: boolean
+  ) => Promise<void>
   onSetConversationPinned: (
     conversationId: string,
     pinned: boolean
   ) => Promise<void>
 }) {
+  const [mutingConversationId, setMutingConversationId] = React.useState("")
   const [pinningConversationId, setPinningConversationId] = React.useState("")
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
@@ -87,6 +93,29 @@ export function ConversationSidebar({
       )
     } finally {
       setPinningConversationId("")
+    }
+  }
+
+  async function handleMutedChange(
+    conversation: ClientConversation,
+    muted: boolean
+  ) {
+    if (mutingConversationId) {
+      return
+    }
+    setMutingConversationId(conversation.id)
+    try {
+      await onSetConversationMuted(conversation.id, muted)
+      toast.success(muted ? "消息免打扰已开启" : "消息免打扰已关闭")
+    } catch (error) {
+      toast.error(
+        getClientDataErrorMessage(
+          error,
+          muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
+        )
+      )
+    } finally {
+      setMutingConversationId("")
     }
   }
 
@@ -145,6 +174,11 @@ export function ConversationSidebar({
     return (
       <ConversationListItemMenu
         key={conversation.id}
+        muted={Boolean(conversation.notificationMuted)}
+        muting={mutingConversationId === conversation.id}
+        onMutedChange={(muted) =>
+          void handleMutedChange(conversation, muted)
+        }
         onPinnedChange={(pinned) =>
           void handlePinnedChange(conversation, pinned)
         }
@@ -180,6 +214,18 @@ export function ConversationSidebar({
                     <span className="ml-1.5 shrink-0 text-[10px] font-normal text-muted-foreground">
                       已关闭
                     </span>
+                  )}
+                  {conversation.pinned && (
+                    <Pin
+                      aria-label="已置顶"
+                      className="ml-1.5 size-3 shrink-0 text-muted-foreground"
+                    />
+                  )}
+                  {conversation.notificationMuted && (
+                    <BellOff
+                      aria-label="消息免打扰已开启"
+                      className="ml-1.5 size-3 shrink-0 text-muted-foreground"
+                    />
                   )}
                 </span>
                 {lastMessageTime && (
@@ -327,7 +373,14 @@ function ConversationListAvatar({
       />
       {conversation.unreadCount > 0 && (
         <span className="absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/3">
-          <ConversationUnreadBadge count={conversation.unreadCount} />
+          {conversation.notificationMuted ? (
+            <span
+              aria-label="有未读消息"
+              className="block size-2 rounded-full bg-rose-700"
+            />
+          ) : (
+            <ConversationUnreadBadge count={conversation.unreadCount} />
+          )}
         </span>
       )}
     </div>

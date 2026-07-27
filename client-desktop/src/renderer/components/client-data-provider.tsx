@@ -12,6 +12,7 @@ import {
   listConversationMessages,
   markConversationRead as markConversationReadRequest,
   setConversationMessageReaction as setConversationMessageReactionRequest,
+  setConversationMuted as setConversationMutedRequest,
   setConversationPinned as setConversationPinnedRequest,
   type ClientConversation,
   type ClientMessage,
@@ -757,6 +758,37 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [handleError, updateConversationPinned]
   )
 
+  const updateConversationMuted = useCallback(
+    (conversationId: string, muted: boolean) => {
+      if (!conversationId) {
+        return
+      }
+      setConversations((currentConversations) =>
+        currentConversations.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, notificationMuted: muted }
+            : conversation
+        )
+      )
+    },
+    []
+  )
+
+  const setConversationMuted = useCallback(
+    async (conversationId: string, muted: boolean) => {
+      try {
+        const result = await setConversationMutedRequest(conversationId, muted)
+        updateConversationMuted(result.conversationId, result.muted)
+      } catch (error) {
+        throw handleError(
+          error,
+          muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
+        )
+      }
+    },
+    [handleError, updateConversationMuted]
+  )
+
   const updateMessageTopic = useCallback(
     (
       parentConversationId: string,
@@ -1212,6 +1244,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     loadBeforeConversationMessages,
     markConversationRead,
     setConversationPinned,
+    setConversationMuted,
     handleIncomingConversationMessage,
     handleIncomingConversationMessageUpdate,
     handleIncomingMessageReactionsUpdate,
@@ -1252,6 +1285,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     updateConversationLastMessage,
     updateConversationLastMentionedSeq,
     updateConversationPinned,
+    updateConversationMuted,
     updateMessageTopic,
     updateGroupConversationAvatar,
     updateGroupConversationName,

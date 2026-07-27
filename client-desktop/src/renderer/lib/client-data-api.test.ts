@@ -9,6 +9,7 @@ import {
   listClientConversations,
   listConversationMessages,
   normalizeMessageCreatedEventPayload,
+  normalizeConversationMuteUpdatedEventPayload,
   normalizeConversationPinUpdatedEventPayload,
   sendConversationFileMessage,
   sendConversationImageMessage,
@@ -18,6 +19,7 @@ import {
   sendConversationEntityCardMessage,
   sendConversationTextMessage,
   setConversationPinned,
+  setConversationMuted,
 } from "@/lib/client-data-api"
 
 describe("client data API", () => {
@@ -277,6 +279,56 @@ describe("client data API", () => {
         pinned: false,
       })
     ).toEqual({ conversationId: "conversation-1", pinned: false })
+  })
+
+  it("sets and clears conversation mute state", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { conversation_id: "conversation-1", muted: true },
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { conversation_id: "conversation-1", muted: false },
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 }
+        )
+      )
+
+    await expect(
+      setConversationMuted("conversation-1", true, fetcher)
+    ).resolves.toEqual({ conversationId: "conversation-1", muted: true })
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/client/conversations/conversation-1/mute",
+      { credentials: "include", method: "PUT" }
+    )
+
+    await expect(
+      setConversationMuted("conversation-1", false, fetcher)
+    ).resolves.toEqual({ conversationId: "conversation-1", muted: false })
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/client/conversations/conversation-1/mute",
+      { credentials: "include", method: "DELETE" }
+    )
+  })
+
+  it("normalizes conversation mute realtime events", () => {
+    expect(
+      normalizeConversationMuteUpdatedEventPayload({
+        conversation_id: "conversation-1",
+        muted: false,
+      })
+    ).toEqual({ conversationId: "conversation-1", muted: false })
   })
 
   it("creates a group conversation with credentials", async () => {

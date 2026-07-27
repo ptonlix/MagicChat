@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DesktopRoot } from "./desktop-root"
@@ -71,9 +73,28 @@ describe("桌面设置服务器管理", () => {
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(await screen.findByRole("button", { name: "移除服务器" }))
 
-    expect(await screen.findByRole("heading", { name: "开始使用即应" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("heading", { name: "开始使用即应" })
+    ).toBeInTheDocument()
+    expect(screen.getByText("A BETTER WAY TO WORK")).toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { name: /从沟通到行动/ })
+    ).toBeInTheDocument()
     expect(mocks.remove).toHaveBeenCalledWith(profile.id)
     expect(screen.getByLabelText("服务器地址")).toHaveValue("")
+  })
+
+  it("配置页使用应用主题变量且不再绘制突兀圆形装饰", async () => {
+    const source = await readFile(
+      path.resolve(process.cwd(), "src/renderer/styles.css"),
+      "utf8"
+    )
+
+    expect(source).not.toContain(".server-setup-hero::after")
+    expect(source).toContain(".dark .server-setup")
+    expect(source).toContain(".server-setup { align-items: stretch")
+    expect(source).toContain("max-width: none")
+    expect(source).toContain("border-radius: 0")
   })
 
   it("移除失败时保留设置并显示错误", async () => {
@@ -239,6 +260,7 @@ function createDesktopBridge(
         version: "0.1.0",
       }),
     },
+    appearance: { setThemeSource: vi.fn().mockResolvedValue(undefined) },
     auth: {
       cancel: vi.fn(),
       start: vi.fn(),

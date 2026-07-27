@@ -1,12 +1,13 @@
 import path from "node:path"
 import { mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
-import { app, Menu, nativeImage, session, systemPreferences, Tray } from "electron"
+import { app, Menu, nativeImage, nativeTheme, session, systemPreferences, Tray, type NativeImage } from "electron"
 import { ConfigStore } from "@main/config-store"
 import { presentTrayMessage } from "@main/tray-message-presentation"
 import { formatUnreadBadge } from "@main/unread-badge"
 import { WindowController } from "@main/window-controller"
 import type { TrayMessage } from "@shared/bridge"
+import type { DesktopThemeSource } from "@shared/bridge"
 
 export class SystemIntegration {
   private tray?: Tray
@@ -19,12 +20,17 @@ export class SystemIntegration {
     try {
       const image = nativeImage.createFromPath(iconPath)
       if (image.isEmpty()) return false
-      this.tray = new Tray(image.resize({ height: 20, width: 20 }))
+      this.tray = new Tray(prepareTrayImage(image, process.platform))
       this.tray.setToolTip("即应")
       this.refreshTrayMenu()
       this.tray.on("click", () => this.tray?.popUpContextMenu())
       return true
     } catch { return false }
+  }
+
+  setThemeSource(source: DesktopThemeSource): void {
+    nativeTheme.themeSource = source
+    this.windows.setThemeBackground(nativeTheme.shouldUseDarkColors)
   }
 
   async setAutoLaunch(enabled: boolean): Promise<void> {
@@ -99,8 +105,29 @@ export class SystemIntegration {
   }
 }
 
+export function prepareTrayImage(
+  image: Pick<NativeImage, "resize">,
+  platform: NodeJS.Platform,
+): NativeImage {
+  const resizedImage = image.resize({ height: 20, width: 20 })
+  if (platform === "darwin") resizedImage.setTemplateImage(true)
+  return resizedImage
+}
+
 export function runtimeIconPath(): string {
   return app.isPackaged ? path.join(process.resourcesPath, "logo.png") : path.resolve(__dirname, "../../../client-desktop/public/logo.png")
+}
+
+export function runtimeTrayIconPath(
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "darwin") return runtimeIconPath()
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "trayTemplate.png")
+    : path.resolve(
+        __dirname,
+        "../../../client-desktop/public/trayTemplate.png",
+      )
 }
 
 async function setLinuxAutoLaunch(enabled: boolean): Promise<void> {

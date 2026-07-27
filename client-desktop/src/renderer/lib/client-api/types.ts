@@ -101,6 +101,7 @@ export type ConversationResponse = {
   member_count?: number
   members?: ConversationMemberResponse[]
   name?: string
+  notification_muted?: boolean
   pinned?: boolean
   projects?: ConversationProjectResponse[]
   type?: string
@@ -185,6 +186,11 @@ export type ListClientConversationsResponse = {
 export type SetConversationPinResponse = {
   conversation_id?: string
   pinned?: boolean
+}
+
+export type SetConversationMuteResponse = {
+  conversation_id?: string
+  muted?: boolean
 }
 
 export type CreateDirectConversationResponse = {
@@ -561,6 +567,11 @@ export type ConversationPinUpdatedEventPayloadResponse = {
   pinned?: boolean
 }
 
+export type ConversationMuteUpdatedEventPayloadResponse = {
+  conversation_id?: string
+  muted?: boolean
+}
+
 export type TopicEventPayloadResponse = {
   archived?: boolean
   conversation_id?: string
@@ -650,6 +661,7 @@ export type ClientConversation = {
   memberCount: number
   members?: ClientConversationMember[]
   name: string
+  notificationMuted?: boolean
   pinned?: boolean
   projects?: ClientConversationProject[]
   type: "direct" | "group" | "app" | "topic"

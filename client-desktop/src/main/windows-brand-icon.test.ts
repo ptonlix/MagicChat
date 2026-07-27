@@ -78,6 +78,20 @@ describe("Windows 品牌图标", () => {
       expect(source).toContain("icon: this.iconPath")
     }
   })
+
+  it("托盘使用独立图标路径且打包携带模板素材", async () => {
+    const [mainSource, builderConfig] = await Promise.all([
+      readFile(path.resolve(import.meta.dirname, "index.ts"), "utf8"),
+      readFile(
+        path.resolve(import.meta.dirname, "../../electron-builder.yml"),
+        "utf8",
+      ),
+    ])
+
+    expect(mainSource).toContain("const trayIconPath = runtimeTrayIconPath()")
+    expect(mainSource).toContain("system.createTray(trayIconPath)")
+    expect(builderConfig).toContain("from: public/trayTemplate.png")
+  })
 })
 
 function normalizeNewlines(value: string): string {

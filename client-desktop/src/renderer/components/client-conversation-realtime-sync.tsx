@@ -2,6 +2,7 @@ import * as React from "react"
 import { matchPath, useLocation, useNavigate } from "react-router"
 
 import {
+  normalizeConversationMuteUpdatedEventPayload,
   normalizeConversationPinUpdatedEventPayload,
   normalizeConversationMemberMentionedEventPayload,
   normalizeConversationRemovedEventPayload,
@@ -26,6 +27,7 @@ export function ClientConversationRealtimeSync() {
     removeConversation,
     syncLoadedConversationMessages,
     updateConversationLastMentionedSeq,
+    updateConversationMuted,
     updateConversationPinned,
     updateMessageTopic,
   } = useClientData()
@@ -108,6 +110,17 @@ export function ClientConversationRealtimeSync() {
     removeConversation,
     subscribeRealtimeEvent,
   ])
+
+  React.useEffect(() => {
+    return subscribeRealtimeEvent("conversation.mute_updated", (payload) => {
+      try {
+        const event = normalizeConversationMuteUpdatedEventPayload(payload)
+        updateConversationMuted(event.conversationId, event.muted)
+      } catch {
+        // Ignore malformed realtime events. The websocket remains usable.
+      }
+    })
+  }, [subscribeRealtimeEvent, updateConversationMuted])
 
   React.useEffect(() => {
     return subscribeRealtimeEvent("conversation.pin_updated", (payload) => {

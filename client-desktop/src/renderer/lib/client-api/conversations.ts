@@ -41,6 +41,8 @@ import type {
   ClientTopicDetail,
   SetConversationPinResponse,
   ConversationPinUpdatedEventPayloadResponse,
+  SetConversationMuteResponse,
+  ConversationMuteUpdatedEventPayloadResponse,
 } from "./types"
 
 export async function listClientConversations(
@@ -110,6 +112,46 @@ export async function setConversationPinned(
   }
 }
 
+export async function setConversationMuted(
+  conversationId: string,
+  muted: boolean,
+  fetcher: ClientDataFetch = fetch
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/mute`,
+    {
+      credentials: "include",
+      method: muted ? "PUT" : "DELETE",
+    }
+  )
+  const payload = await readJson<
+    | ClientDataErrorEnvelope
+    | ClientDataSuccessEnvelope<SetConversationMuteResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(
+      payload,
+      response,
+      muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
+    )
+  }
+  const data = (
+    payload as
+      ClientDataSuccessEnvelope<SetConversationMuteResponse> | undefined
+  )?.data
+  if (
+    typeof data?.conversation_id !== "string" ||
+    data.conversation_id.trim() === "" ||
+    typeof data.muted !== "boolean"
+  ) {
+    throw new ClientDataRequestError("会话免打扰响应格式不正确")
+  }
+  return {
+    conversationId: data.conversation_id,
+    muted: data.muted,
+  }
+}
+
 export function normalizeConversationPinUpdatedEventPayload(payload: unknown) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new ClientDataRequestError("会话置顶推送格式不正确")
@@ -125,6 +167,24 @@ export function normalizeConversationPinUpdatedEventPayload(payload: unknown) {
   return {
     conversationId: event.conversation_id,
     pinned: event.pinned,
+  }
+}
+
+export function normalizeConversationMuteUpdatedEventPayload(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new ClientDataRequestError("会话免打扰推送格式不正确")
+  }
+  const event = payload as ConversationMuteUpdatedEventPayloadResponse
+  if (
+    typeof event.conversation_id !== "string" ||
+    event.conversation_id.trim() === "" ||
+    typeof event.muted !== "boolean"
+  ) {
+    throw new ClientDataRequestError("会话免打扰推送格式不正确")
+  }
+  return {
+    conversationId: event.conversation_id,
+    muted: event.muted,
   }
 }
 
@@ -645,6 +705,10 @@ function normalizeConversation(
     type: normalizeConversationType(conversation.type),
     unreadCount: conversation.unread_count ?? 0,
     visibility: normalizeVisibility(conversation.visibility),
+  }
+
+  if (typeof conversation.notification_muted === "boolean") {
+    normalizedConversation.notificationMuted = conversation.notification_muted
   }
 
   if (conversation.members) {

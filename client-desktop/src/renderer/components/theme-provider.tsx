@@ -103,6 +103,7 @@ export function ThemeProvider({
 
   React.useEffect(() => {
     applyTheme(theme)
+    void window.desktop.appearance.setThemeSource(theme).catch(() => undefined)
 
     if (theme !== "system") {
       return undefined

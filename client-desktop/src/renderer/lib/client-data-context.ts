@@ -84,6 +84,10 @@ export type ClientDataContextValue = {
     conversationId: string,
     pinned: boolean
   ) => Promise<void>
+  setConversationMuted: (
+    conversationId: string,
+    muted: boolean
+  ) => Promise<void>
   handleIncomingConversationMessage: (
     message: ClientMessage,
     options?: { activeConversationId?: string; visible?: boolean }
@@ -179,6 +183,7 @@ export type ClientDataContextValue = {
   syncLoadedConversationMessages: () => void
   updateConversationLastMessage: (message: ClientMessage) => void
   updateConversationPinned: (conversationId: string, pinned: boolean) => void
+  updateConversationMuted: (conversationId: string, muted: boolean) => void
   updateGroupConversationAvatar: (
     conversationId: string,
     file: File

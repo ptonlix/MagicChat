@@ -11,6 +11,7 @@ export const BRIDGE_VERSION = 1 as const
 
 export const IPC = {
   appInfo: "desktop:v1:app-info",
+  appearanceThemeSet: "desktop:v1:appearance-theme-set",
   authCancel: "desktop:v1:auth-cancel",
   authFinished: "desktop:v1:auth-finished",
   authStart: "desktop:v1:auth-start",
@@ -55,6 +56,8 @@ export const IPC = {
   updaterState: "desktop:v1:updater-state",
   unknownServer: "desktop:v1:unknown-server",
 } as const
+
+export type DesktopThemeSource = "dark" | "light" | "system"
 
 export type ServerProfile = ServerTarget &
   Readonly<{
@@ -150,6 +153,7 @@ export type UpdaterInstallResult = Readonly<{
 export interface DesktopBridge {
   readonly version: typeof BRIDGE_VERSION
   app: { info(): Promise<DesktopAppInfo> }
+  appearance: { setThemeSource(source: DesktopThemeSource): Promise<void> }
   badge: { set(count: number): Promise<void> }
   tray: { setMessages(messages: ReadonlyArray<TrayMessage>): Promise<void> }
   clipboard: {
