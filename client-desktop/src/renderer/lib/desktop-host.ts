@@ -8,6 +8,7 @@ export type DesktopRendererHost = {
   }) => RealtimeClient
   cancelThirdPartyLogin?: (transactionId: string) => Promise<void>
   downloadTemporaryFile?: (fileId: string, fileName: string) => Promise<void>
+  messageNotificationSoundEnabled?: () => boolean
   openSettings?: () => void
   openThirdPartyLogin?: (providerKey: string) => Promise<{ transactionId: string }>
   requestMicrophonePermission?: () => Promise<boolean>
@@ -73,6 +74,9 @@ export function showHostMessageNotification(input: {
   sender: string
 }) {
   return desktopRendererHost.showMessageNotification?.(input) ?? false
+}
+export function isHostMessageNotificationSoundEnabled() {
+  return desktopRendererHost.messageNotificationSoundEnabled?.() ?? true
 }
 export function openHostExternal(url: string) {
   if (!desktopRendererHost.openExternal) throw new Error("外部链接能力不可用")

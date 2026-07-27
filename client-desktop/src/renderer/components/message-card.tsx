@@ -2,23 +2,31 @@ import { Link } from "react-router"
 
 import { Separator } from "@/components/ui/separator"
 import type { ClientCardMessageBody } from "@/lib/client-data-api"
+import { formatMentionTemplateText, type MentionLabelResolver } from "@/lib/message-mentions"
 
 export function MessageCard({
   card,
   interactive = true,
+  mentionLabelResolver,
 }: {
   card: ClientCardMessageBody
   interactive?: boolean
+  mentionLabelResolver: MentionLabelResolver
 }) {
   const target = interactive ? getCardTarget(card.url) : null
+  const presentedCard = {
+    ...card,
+    description: formatMentionTemplateText(card.description, mentionLabelResolver),
+    title: formatMentionTemplateText(card.title, mentionLabelResolver),
+  }
   const className =
     "grid w-80 max-w-full gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-  const content = <CardContent card={card} />
+  const content = <CardContent card={presentedCard} />
 
   if (target?.type === "internal") {
     return (
       <Link
-        aria-label={`${card.title}，查看详情`}
+        aria-label={`${presentedCard.title}，查看详情`}
         className={className}
         data-slot="message-card"
         to={target.href}
@@ -31,7 +39,7 @@ export function MessageCard({
   if (target?.type === "external") {
     return (
       <a
-        aria-label={`${card.title}，查看详情`}
+        aria-label={`${presentedCard.title}，查看详情`}
         className={className}
         data-slot="message-card"
         href={target.href}

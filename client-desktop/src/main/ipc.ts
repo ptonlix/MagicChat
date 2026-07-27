@@ -10,7 +10,6 @@ import {
 import type { AuthenticatedTarget, ClientRequest } from "@shared/client-contract"
 import {
   IPC,
-  type DesktopSettings,
   type DesktopThemeSource,
   type NotificationInput,
   type TrayMessage,
@@ -29,6 +28,7 @@ import { SystemIntegration } from "@main/system-integration"
 import { StreamingUploadController } from "@main/streaming-upload"
 import { UpdaterService } from "@main/updater-service"
 import { assertTrustedIpcSender } from "@main/ipc-security"
+import { parseDesktopSettingsPatch } from "@main/settings-validation"
 import { registerRuntimeDiagnosticsIpc } from "@main/runtime-diagnostics-ipc"
 
 export type IpcDependencies = {
@@ -115,7 +115,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   })
   register(IPC.settingsGet, () => deps.store.getSettings())
   register(IPC.settingsSet, async (_event, rawPatch) => {
-    const patch = settingsPatch(rawPatch)
+    const patch = parseDesktopSettingsPatch(rawPatch)
     const { autoLaunch, ...remaining } = patch
     if (autoLaunch !== undefined) await deps.system.setAutoLaunch(autoLaunch)
     const settings = await deps.store.setSettings(remaining)
@@ -294,19 +294,6 @@ function trayMessages(value: unknown): TrayMessage[] {
       unreadCount: asCount(message.unreadCount),
     }
   })
-}
-
-function settingsPatch(value: unknown): Partial<DesktopSettings> {
-  if (!value || typeof value !== "object") throw new Error("设置参数无效")
-  const input = value as Partial<DesktopSettings>
-  const allowed = new Set([
-    "autoLaunch",
-    "closeBehavior",
-    "notificationPrivacy",
-    "selectedServerId",
-  ])
-  for (const key of Object.keys(input)) if (!allowed.has(key)) throw new Error("设置字段无效")
-  return input
 }
 
 function notificationInput(value: unknown): NotificationInput {

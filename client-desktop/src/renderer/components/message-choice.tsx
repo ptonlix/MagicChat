@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import type { ClientChoiceMessageBody, ClientChoiceState } from "@/lib/client-data-api"
-import type { MentionLabelResolver } from "@/lib/message-mentions"
+import { formatMentionTemplateText, type MentionLabelResolver } from "@/lib/message-mentions"
 import { cn } from "@/lib/utils"
 import { MessageMarkdown } from "@/components/message-markdown"
 import { Button } from "@/components/ui/button"
@@ -60,7 +60,7 @@ export function MessageChoice({
             mentionLabelResolver={mentionLabelResolver}
           />
         ) : (
-          <p>{body.content}</p>
+          <p>{formatMentionTemplateText(body.content, mentionLabelResolver)}</p>
         )}
       </div>
       {body.selection === "single" ? (

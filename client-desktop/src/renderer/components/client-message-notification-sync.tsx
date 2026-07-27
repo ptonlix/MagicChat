@@ -27,7 +27,10 @@ import {
   prepareMessageNotificationSound,
 } from "@/lib/message-notification-sound"
 import { useRealtime } from "@/lib/realtime-context"
-import { showHostMessageNotification } from "@/lib/desktop-host"
+import {
+  isHostMessageNotificationSoundEnabled,
+  showHostMessageNotification,
+} from "@/lib/desktop-host"
 
 const enableNotificationToastId = "enable-browser-message-notifications"
 const enableNotificationToastText = "收到新消息，左上角点击头像，在设置中可以开启桌面通知"
@@ -66,7 +69,9 @@ export function ClientMessageNotificationSync() {
         ) {
           return
         }
-        playMessageNotificationSound()
+        if (isHostMessageNotificationSoundEnabled()) {
+          playMessageNotificationSound()
+        }
         if (
           document.visibilityState === "visible" &&
           message.conversationId === visibleConversationId

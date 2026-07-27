@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import {
   ArrowRight,
   BellRing,
@@ -48,6 +48,7 @@ export function DesktopRoot() {
 function DesktopRootContent() {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
+  const [messageSoundEnabled, setMessageSoundEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => startRuntimeDiagnostics(), [])
@@ -56,6 +57,7 @@ function DesktopRootContent() {
     void Promise.all([window.desktop.servers.list(), window.desktop.settings.get()]).then(
       ([items, settings]) => {
         setProfiles(items)
+        setMessageSoundEnabled(settings.messageSoundEnabled)
         setSelectedId(settings.selectedServerId ?? items[0]?.id)
         setLoading(false)
       },
@@ -88,17 +90,23 @@ function DesktopRootContent() {
   return (
     <DesktopWorkspace
       key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
+      messageSoundEnabled={messageSoundEnabled}
       profile={selected}
+      onMessageSoundEnabledChange={setMessageSoundEnabled}
       onRemoved={removed}
     />
   )
 }
 
 function DesktopWorkspace({
+  messageSoundEnabled,
   profile,
+  onMessageSoundEnabledChange,
   onRemoved,
 }: {
+  messageSoundEnabled: boolean
   profile: ServerProfile
+  onMessageSoundEnabledChange(enabled: boolean): void
   onRemoved(serverId: string): void
 }) {
   const [userId, setUserId] = useState(profile.lastUserId ?? "anonymous")
@@ -114,6 +122,7 @@ function DesktopWorkspace({
       <TooltipProvider>
         <BrowserRouter>
           <DesktopHostedApp
+            messageSoundEnabled={messageSoundEnabled}
             profile={profile}
             target={target}
             onAuthenticated={setUserId}
@@ -125,6 +134,7 @@ function DesktopWorkspace({
       {settingsOpen && (
         <DesktopSettingsPanel
           profile={profile}
+          onMessageSoundEnabledChange={onMessageSoundEnabledChange}
           onOpenChange={setSettingsOpen}
           onRemoved={onRemoved}
         />
@@ -134,17 +144,24 @@ function DesktopWorkspace({
 }
 
 function DesktopHostedApp({
+  messageSoundEnabled,
   profile,
   target,
   onAuthenticated,
   onOpenSettings,
 }: {
+  messageSoundEnabled: boolean
   profile: ServerProfile
   target: AuthenticatedTarget
   onAuthenticated(userId: string): void
   onOpenSettings(): void
 }) {
   const [ready, setReady] = useState(false)
+  const messageSoundEnabledRef = useRef(messageSoundEnabled)
+
+  useEffect(() => {
+    messageSoundEnabledRef.current = messageSoundEnabled
+  }, [messageSoundEnabled])
 
   useEffect(() => {
     const restoreFetch = installDesktopFetch(target)
@@ -163,6 +180,7 @@ function DesktopHostedApp({
           fileName,
         )
       },
+      messageNotificationSoundEnabled: () => messageSoundEnabledRef.current,
       openSettings: onOpenSettings,
       openThirdPartyLogin: (providerKey) => window.desktop.auth.start(profile.id, providerKey),
       notificationPermission: () => "granted",
@@ -221,10 +239,12 @@ function DesktopHostedApp({
 
 function DesktopSettingsPanel({
   profile,
+  onMessageSoundEnabledChange,
   onOpenChange,
   onRemoved,
 }: {
   profile: ServerProfile
+  onMessageSoundEnabledChange(enabled: boolean): void
   onOpenChange(open: boolean): void
   onRemoved(serverId: string): void
 }) {
@@ -274,7 +294,11 @@ function DesktopSettingsPanel({
   }, [])
 
   async function updateSettings(patch: Partial<DesktopSettings>) {
-    setSettings(await window.desktop.settings.set(patch))
+    const nextSettings = await window.desktop.settings.set(patch)
+    setSettings(nextSettings)
+    if (patch.messageSoundEnabled !== undefined) {
+      onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
+    }
   }
 
   async function renameServer() {
@@ -409,6 +433,20 @@ function DesktopSettingsPanel({
                   <option value="metadata">仅显示发送者或会话</option>
                   <option value="preview">显示消息预览</option>
                 </select>
+              </label>
+              <label className="desktop-setting-card desktop-checkbox">
+                <span>
+                  <strong>新消息提示音</strong>
+                  <small>收到普通新消息时播放提示音</small>
+                </span>
+                <input
+                  aria-label="新消息提示音"
+                  checked={settings.messageSoundEnabled}
+                  type="checkbox"
+                  onChange={(event) =>
+                    void updateSettings({ messageSoundEnabled: event.target.checked })
+                  }
+                />
               </label>
             </section>
             <section className="desktop-setting-section">

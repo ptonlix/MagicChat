@@ -69,6 +69,7 @@ export type ServerProfile = ServerTarget &
 export type DesktopSettings = Readonly<{
   autoLaunch: boolean
   closeBehavior: "background" | "quit"
+  messageSoundEnabled: boolean
   notificationPrivacy: "hidden" | "metadata" | "preview"
   selectedServerId?: string
 }>

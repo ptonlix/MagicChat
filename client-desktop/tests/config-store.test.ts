@@ -21,6 +21,7 @@ describe("桌面配置迁移", () => {
     expect(store.getSettings()).toMatchObject({
       autoLaunch: false,
       closeBehavior: "background",
+      messageSoundEnabled: true,
       notificationPrivacy: "metadata",
     })
     await store.load()
@@ -28,6 +29,19 @@ describe("桌面配置迁移", () => {
       await readFile(path.join(directory, "desktop-config.json"), "utf8"),
     ) as { schemaVersion: number }
     expect(persisted.schemaVersion).toBe(1)
+  })
+
+  it("持久化新消息提示音设置", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await store.setSettings({ messageSoundEnabled: false })
+
+    const reloaded = new ConfigStore(directory)
+    await reloaded.load()
+    expect(reloaded.getSettings().messageSoundEnabled).toBe(false)
   })
 
   it("拒绝覆盖来自更高版本的配置", async () => {

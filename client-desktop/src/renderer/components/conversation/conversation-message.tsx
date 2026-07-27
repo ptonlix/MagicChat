@@ -360,6 +360,7 @@ function arePanelMessagesEqual(previous: ConversationPanelMessage, next: Convers
     previous.avatar === next.avatar &&
     previous.body === next.body &&
     previous.canRevoke === next.canRevoke &&
+    previous.choice === next.choice &&
     previous.delegatedByName === next.delegatedByName &&
     previous.reactionVersion === next.reactionVersion &&
     previous.role === next.role &&
@@ -680,7 +681,7 @@ export const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
     case "link":
       return <MessageLink link={body} />
     case "card":
-      return <MessageCard card={body} />
+      return <MessageCard card={body} mentionLabelResolver={mentionLabelResolver} />
     case "choice":
       return (
         <MessageChoice
@@ -747,7 +748,10 @@ function areMessageBodyRendererPropsEqual(
 ) {
   return (
     previous.body === next.body &&
+    previous.choice === next.choice &&
     previous.currentUserId === next.currentUserId &&
+    previous.messageId === next.messageId &&
+    previous.onRespondToChoice === next.onRespondToChoice &&
     (previous.mentionLabelResolver === next.mentionLabelResolver ||
       !messageBodyUsesMentionLabels(next.body))
   )
@@ -755,6 +759,14 @@ function areMessageBodyRendererPropsEqual(
 
 function messageBodyUsesMentionLabels(body: ConversationPanelMessage["body"]): boolean {
   if (body.type === "text" || body.type === "markdown") {
+    return body.content.includes("{(@")
+  }
+
+  if (body.type === "card") {
+    return body.title.includes("{(@") || body.description.includes("{(@")
+  }
+
+  if (body.type === "choice") {
     return body.content.includes("{(@")
   }
 

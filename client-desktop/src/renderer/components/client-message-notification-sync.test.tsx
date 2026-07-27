@@ -7,11 +7,13 @@ import type { ClientConversation } from "@/lib/client-data-api"
 const {
   callbacks,
   playMessageNotificationSound,
+  soundPreference,
   showBrowserMessageNotification,
   showHostMessageNotification,
 } = vi.hoisted(() => ({
   callbacks: new Map<string, (payload: unknown) => void>(),
   playMessageNotificationSound: vi.fn(),
+  soundPreference: { enabled: true },
   showBrowserMessageNotification: vi.fn(() => true),
   showHostMessageNotification: vi.fn(() => true),
 }))
@@ -53,6 +55,7 @@ vi.mock("@/lib/browser-notifications", () => ({
 }))
 
 vi.mock("@/lib/desktop-host", () => ({
+  isHostMessageNotificationSoundEnabled: () => soundPreference.enabled,
   showHostMessageNotification,
 }))
 
@@ -62,6 +65,7 @@ describe("ClientMessageNotificationSync", () => {
   beforeEach(() => {
     callbacks.clear()
     conversations = []
+    soundPreference.enabled = true
     playMessageNotificationSound.mockClear()
     showBrowserMessageNotification.mockClear()
     showHostMessageNotification.mockClear()
@@ -101,6 +105,19 @@ describe("ClientMessageNotificationSync", () => {
     })
 
     expect(playMessageNotificationSound).toHaveBeenCalledOnce()
+    expect(showHostMessageNotification).toHaveBeenCalledOnce()
+  })
+
+  it("keeps desktop notifications when message sound is disabled", () => {
+    conversations = [createConversation()]
+    soundPreference.enabled = false
+    renderNotificationSync()
+
+    act(() => {
+      callbacks.get("message.created")?.(createMessageEvent(false))
+    })
+
+    expect(playMessageNotificationSound).not.toHaveBeenCalled()
     expect(showHostMessageNotification).toHaveBeenCalledOnce()
   })
 })

@@ -22,10 +22,8 @@ export class NotificationService {
     const key = `${targetKey(input.target)}:${input.messageId}`
     if (this.shown.has(key)) return
     this.shown.set(key, Date.now())
-    const privacy = resolveNotificationPrivacy(
-      this.settings().notificationPrivacy,
-      this.enterpriseMaximum,
-    )
+    const settings = this.settings()
+    const privacy = resolveNotificationPrivacy(settings.notificationPrivacy, this.enterpriseMaximum)
     const title =
       privacy === "hidden"
         ? "MagicChat 新消息"
@@ -39,7 +37,7 @@ export class NotificationService {
               120,
             )
           : cleanNotificationPreview(input.preview)
-    const notification = new Notification({ title, body, silent: false })
+    const notification = new Notification({ title, body, silent: !settings.messageSoundEnabled })
     notification.on("click", () => void this.onClick(input))
     notification.show()
   }

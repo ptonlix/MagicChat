@@ -20,6 +20,7 @@ type StoredConfig = {
 const defaultSettings: DesktopSettings = {
   autoLaunch: false,
   closeBehavior: "background",
+  messageSoundEnabled: true,
   notificationPrivacy: "metadata",
 }
 
@@ -59,6 +60,7 @@ export class ConfigStore {
     const next = { ...this.config.settings, ...patch }
     if (!(["background", "quit"] as const).includes(next.closeBehavior))
       throw new Error("关闭行为无效")
+    if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
     if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
       throw new Error("通知隐私无效")
     this.config.settings = next
