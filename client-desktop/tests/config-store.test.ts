@@ -44,6 +44,29 @@ describe("桌面配置迁移", () => {
     expect(reloaded.getSettings().messageSoundEnabled).toBe(false)
   })
 
+  it("保留并发设置 Patch 中的全部变更", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await Promise.all([
+      store.setSettings({ notificationPrivacy: "hidden" }),
+      store.setSettings({ messageSoundEnabled: false }),
+    ])
+
+    expect(store.getSettings()).toMatchObject({
+      messageSoundEnabled: false,
+      notificationPrivacy: "hidden",
+    })
+    const reloaded = new ConfigStore(directory)
+    await reloaded.load()
+    expect(reloaded.getSettings()).toMatchObject({
+      messageSoundEnabled: false,
+      notificationPrivacy: "hidden",
+    })
+  })
+
   it("迁移时将类型错误的设置字段恢复为默认值", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
     directories.push(directory)

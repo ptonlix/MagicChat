@@ -31,25 +31,36 @@ export class ConfigStore {
     servers: [],
   }
   private readonly filePath: string
+  private operationQueue = Promise.resolve()
 
   constructor(userDataPath: string) {
     this.filePath = path.join(userDataPath, "desktop-config.json")
   }
 
   async load(): Promise<void> {
-    await mkdir(path.dirname(this.filePath), { recursive: true })
-    try {
-      const raw = JSON.parse(await readFile(this.filePath, "utf8")) as Partial<StoredConfig>
-      this.config = migrate(raw)
-      await this.persist()
-    } catch (error) {
-      if (error instanceof UnsupportedConfigVersionError) throw error
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        await rename(this.filePath, `${this.filePath}.invalid-${Date.now()}`).catch(() => undefined)
+    await this.enqueueOperation(async () => {
+      await mkdir(path.dirname(this.filePath), { recursive: true })
+      try {
+        const raw = JSON.parse(await readFile(this.filePath, "utf8")) as Partial<StoredConfig>
+        const nextConfig = migrate(raw)
+        await this.persist(nextConfig)
+        this.config = nextConfig
+      } catch (error) {
+        if (error instanceof UnsupportedConfigVersionError) throw error
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          await rename(this.filePath, `${this.filePath}.invalid-${Date.now()}`).catch(
+            () => undefined,
+          )
+        }
+        const nextConfig = {
+          schemaVersion: CURRENT_SCHEMA,
+          settings: defaultSettings,
+          servers: [],
+        }
+        await this.persist(nextConfig)
+        this.config = nextConfig
       }
-      this.config = { schemaVersion: CURRENT_SCHEMA, settings: defaultSettings, servers: [] }
-      await this.persist()
-    }
+    })
   }
 
   getSettings(): DesktopSettings {
@@ -57,16 +68,18 @@ export class ConfigStore {
   }
 
   async setSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings> {
-    const next = { ...this.config.settings, ...patch }
-    if (!(["background", "quit"] as const).includes(next.closeBehavior))
-      throw new Error("关闭行为无效")
-    if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
-    if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
-      throw new Error("通知隐私无效")
-    const nextConfig = { ...this.config, settings: next }
-    await this.persist(nextConfig)
-    this.config = nextConfig
-    return this.getSettings()
+    return this.enqueueOperation(async () => {
+      const next = { ...this.config.settings, ...patch }
+      if (!(["background", "quit"] as const).includes(next.closeBehavior))
+        throw new Error("关闭行为无效")
+      if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
+      if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
+        throw new Error("通知隐私无效")
+      const nextConfig = { ...this.config, settings: next }
+      await this.persist(nextConfig)
+      this.config = nextConfig
+      return structuredClone(next)
+    })
   }
 
   listServers(): ServerProfile[] {
@@ -79,39 +92,63 @@ export class ConfigStore {
   }
 
   async addServer(input: Omit<ServerProfile, "id" | "createdAt">): Promise<ServerProfile> {
-    if (this.config.servers.some((item) => item.normalizedUrl === input.normalizedUrl)) {
-      throw new Error("该服务器已经添加")
-    }
-    const profile: ServerProfile = {
-      ...input,
-      id: randomUUID(),
-      createdAt: new Date().toISOString(),
-    }
-    this.config.servers.push(profile)
-    await this.persist()
-    return structuredClone(profile)
+    return this.enqueueOperation(async () => {
+      if (this.config.servers.some((item) => item.normalizedUrl === input.normalizedUrl)) {
+        throw new Error("该服务器已经添加")
+      }
+      const profile: ServerProfile = {
+        ...input,
+        id: randomUUID(),
+        createdAt: new Date().toISOString(),
+      }
+      const nextConfig = { ...this.config, servers: [...this.config.servers, profile] }
+      await this.persist(nextConfig)
+      this.config = nextConfig
+      return structuredClone(profile)
+    })
   }
 
   async updateServer(
     id: string,
     patch: Partial<Pick<ServerProfile, "displayName" | "lastUserId">>,
   ): Promise<ServerProfile> {
-    const index = this.config.servers.findIndex((item) => item.id === id)
-    if (index < 0) throw new Error("服务器不存在")
-    this.config.servers[index] = { ...this.config.servers[index], ...patch }
-    await this.persist()
-    return structuredClone(this.config.servers[index])
+    return this.enqueueOperation(async () => {
+      const index = this.config.servers.findIndex((item) => item.id === id)
+      if (index < 0) throw new Error("服务器不存在")
+      const profile = { ...this.config.servers[index], ...patch }
+      const servers = this.config.servers.map((item, itemIndex) =>
+        itemIndex === index ? profile : item,
+      )
+      const nextConfig = { ...this.config, servers }
+      await this.persist(nextConfig)
+      this.config = nextConfig
+      return structuredClone(profile)
+    })
   }
 
   async removeServer(id: string): Promise<void> {
-    this.config.servers = this.config.servers.filter((item) => item.id !== id)
-    if (this.config.settings.selectedServerId === id) {
-      this.config.settings = { ...this.config.settings, selectedServerId: undefined }
-    }
-    await this.persist()
+    await this.enqueueOperation(async () => {
+      const servers = this.config.servers.filter((item) => item.id !== id)
+      const settings =
+        this.config.settings.selectedServerId === id
+          ? { ...this.config.settings, selectedServerId: undefined }
+          : this.config.settings
+      const nextConfig = { ...this.config, settings, servers }
+      await this.persist(nextConfig)
+      this.config = nextConfig
+    })
   }
 
-  private async persist(config: StoredConfig = this.config): Promise<void> {
+  private enqueueOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = this.operationQueue.then(operation)
+    this.operationQueue = pending.then(
+      () => undefined,
+      () => undefined,
+    )
+    return pending
+  }
+
+  private async persist(config: StoredConfig): Promise<void> {
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`
     await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
     await rename(temporaryPath, this.filePath)
