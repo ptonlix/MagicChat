@@ -8,11 +8,15 @@ import { writePackageVersion } from "./release-version.mjs"
 
 const execute = promisify(execFile)
 
+export function releaseWorktreeRoot(environment = process.env) {
+  return environment.RUNNER_TEMP || os.tmpdir()
+}
+
 export async function prepareReleaseWorktree({ expectedCommit, repository, tag }) {
   const release = await inspectReleaseTag({ expectedCommit, repository, tag })
   const sourcePackage = path.join(repository, "client-desktop/package.json")
   const sourceBefore = await readFile(sourcePackage, "utf8")
-  const worktree = await mkdtemp(path.join(os.tmpdir(), "magicchat-desktop-release-"))
+  const worktree = await mkdtemp(path.join(releaseWorktreeRoot(), "magicchat-desktop-release-"))
   await execute("git", ["worktree", "add", "--detach", worktree, release.commit], {
     cwd: repository,
   })

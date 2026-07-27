@@ -5,7 +5,7 @@ import path from "node:path"
 import { promisify } from "node:util"
 import { describe, expect, it } from "vitest"
 import { inspectReleaseTag, validateReleaseNotes } from "../release-tag.mjs"
-import { prepareReleaseWorktree } from "../release-worktree.mjs"
+import { prepareReleaseWorktree, releaseWorktreeRoot } from "../release-worktree.mjs"
 
 const execute = promisify(execFile)
 const validNotes = `MagicChat Desktop 1.2.3
@@ -110,6 +110,11 @@ signed-tag-fixture
     await expect(readFile(marker, "utf8")).resolves.toBe("keep")
   })
 
+  it("CI 优先在 Runner 临时目录创建工作树", () => {
+    expect(releaseWorktreeRoot({ RUNNER_TEMP: "/runner/temp" })).toBe("/runner/temp")
+    expect(releaseWorktreeRoot({})).toBe(os.tmpdir())
+  })
+
   it("合法注入只修改内部临时构建树", async () => {
     const repository = await createRepository(true)
     await createAnnotatedTag(repository, "desktop-v1.2.3")
@@ -124,7 +129,7 @@ signed-tag-fixture
       await readFile(path.join(result.desktopDirectory, "package.json"), "utf8"),
     )
     expect(prepared.version).toBe("1.2.3")
-    expect(path.relative(os.tmpdir(), result.worktree)).not.toMatch(/^\.\.(?:[\\/]|$)/)
+    expect(path.relative(releaseWorktreeRoot(), result.worktree)).not.toMatch(/^\.\.(?:[\\/]|$)/)
     expect(await repositorySnapshot(repository)).toEqual(before)
   })
 })

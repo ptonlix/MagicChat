@@ -40,9 +40,9 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
 
 2. 单一 `quality` Job 在安装依赖前验证 Tag，然后只执行一次 `pnpm check`、完整测试、生产
    构建、`verify:build` 和工作流静态校验。
-3. 五个 `package` 目标依赖 `quality`。版本准备脚本在系统临时根目录内部创建唯一 detached
-   worktree，只修改其中的 `client-desktop/package.json`；不接受外部 `--target`，不删除或
-   污染调用方 checkout。
+3. 五个 `package` 目标依赖 `quality`。版本准备脚本在 CI 的 `RUNNER_TEMP` 内创建唯一
+   detached worktree，本地执行时回退到系统临时目录，只修改其中的
+   `client-desktop/package.json`；不接受外部 `--target`，不删除或污染调用方 checkout。
 4. 每个原生 Runner 校验真实构建内容：Windows 检查最终 NSIS 的 PE/版本、同次生成的打包
    应用 PE 架构与 `app.asar` 版本，macOS 检查 ZIP/DMG、plist 和 Universal 二进制，
    Linux 检查 AppImage ELF 与 deb 元数据。验证后只上传隔离的 Actions artifact。
