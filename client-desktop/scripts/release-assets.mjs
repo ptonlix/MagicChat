@@ -160,7 +160,7 @@ export async function prepareReleaseAssets({
         }
       },
     )
-    const appendix = generateReleaseAppendix({ assets, version })
+    const appendix = generateReleaseAppendix({ version })
     const finalNotes = `${notes.trim()}\n\n---\n\n${appendix}\n`
     const notesPath = path.join(staging, "release-notes.md")
     await writeFile(notesPath, finalNotes)
@@ -200,7 +200,7 @@ export function expectedReleaseAssetNames(version) {
   return names
 }
 
-export function generateReleaseAppendix({ assets, version }) {
+export function generateReleaseAppendix({ version }) {
   return `## 自动发布附录
 
 ### 支持与更新载体
@@ -209,13 +209,9 @@ export function generateReleaseAppendix({ assets, version }) {
 - macOS Intel/Apple Silicon：Universal ZIP；DMG 用于安装与恢复
 - Linux x64/arm64：AppImage；deb 用于手动安装与恢复
 
-### 公开资产与 SHA-512
-
-${assets.map((asset) => `- \`${asset.name}\`：\`${asset.sha512}\``).join("\n")}
-
 ### 恢复说明
 
-若 ${version} 无法完成应用内更新，请从同一公开 Release 下载与平台和架构匹配的安装载体；不得覆盖同一 Tag 的既有资产。`
+若 ${version} 无法完成应用内更新，请从同一公开 Release 下载与平台和架构匹配的安装载体。`
 }
 
 async function assertInputAssets(directory, model) {

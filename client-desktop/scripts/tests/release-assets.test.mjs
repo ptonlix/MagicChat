@@ -55,10 +55,10 @@ describe("确定性发布资产计划", () => {
     const notes = await readFile(path.join(first, "release-notes.md"), "utf8")
     expect(notes.startsWith(release.notes)).toBe(true)
     expect(notes).toContain("## 自动发布附录")
+    expect(notes).not.toContain("### 公开资产与 SHA-512")
+    expect(notes).not.toContain("不得覆盖同一 Tag 的既有资产")
     expect(notes).toContain("## 版本亮点")
-    expect(await readdir(first)).not.toContain(
-      "MagicChat-1.2.3-mac-universal.dmg.blockmap",
-    )
+    expect(await readdir(first)).not.toContain("MagicChat-1.2.3-mac-universal.dmg.blockmap")
   })
 
   it("拒绝缺失、额外、重复目标和陈旧输出", async () => {
