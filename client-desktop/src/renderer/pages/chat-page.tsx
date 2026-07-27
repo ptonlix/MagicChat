@@ -388,7 +388,7 @@ export function ChatPage() {
       if (!respondToChoice) return
       await respondToChoice(activeConversationId, message.id, optionIds)
     },
-    [activeConversationId, respondToChoice]
+    [activeConversationId, respondToChoice],
   )
 
   const openForwardOperation = React.useCallback(
@@ -673,9 +673,7 @@ export function ChatPage() {
         onForwardSelectedMessages={forwardSelectedMessages}
         onReplyToMessage={replyToMessage}
         onRevokeMessage={revokeMessage}
-        onRespondToChoice={
-          respondToChoice ? respondToMessageChoice : undefined
-        }
+        onRespondToChoice={respondToChoice ? respondToMessageChoice : undefined}
         onSetMessageReaction={updateMessageReaction}
         onRichTextModeChange={setRichTextMode}
         onSendFile={sendFileMessage}

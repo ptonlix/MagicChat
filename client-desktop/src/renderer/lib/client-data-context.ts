@@ -112,7 +112,7 @@ export type ClientDataContextValue = {
   respondToChoice?: (
     conversationId: string,
     messageId: string,
-    optionIds: string[]
+    optionIds: string[],
   ) => Promise<void>
   setGroupConversationPublic: (conversationId: string) => Promise<ClientConversation>
   setGroupConversationPrivate: (conversationId: string) => Promise<ClientConversation>

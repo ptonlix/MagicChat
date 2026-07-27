@@ -90,10 +90,7 @@ type MessageBubbleProps = {
     text: string,
     reacted: boolean,
   ) => Promise<void>
-  onRespondToChoice?: (
-    message: ConversationPanelMessage,
-    optionIds: string[]
-  ) => Promise<void>
+  onRespondToChoice?: (message: ConversationPanelMessage, optionIds: string[]) => Promise<void>
   onToggleSelected?: (message: ConversationPanelMessage) => void
   selectable?: boolean
   canReply?: boolean
@@ -197,9 +194,7 @@ export const MessageBubble = React.memo(function MessageBubble({
         mentionLabelResolver={mentionLabelResolver}
         messageId={message.id}
         onRespondToChoice={
-          onRespondToChoice
-            ? (optionIds) => onRespondToChoice(message, optionIds)
-            : undefined
+          onRespondToChoice ? (optionIds) => onRespondToChoice(message, optionIds) : undefined
         }
       />
       {!selectionMode && message.reactions.length > 0 && (

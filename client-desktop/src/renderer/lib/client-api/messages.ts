@@ -880,7 +880,7 @@ export function normalizeMessageReactionsUpdatedEventPayload(
 }
 
 export function normalizeMessageChoiceUpdatedEventPayload(
-  payload: unknown
+  payload: unknown,
 ): MessageChoiceUpdatedEvent {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("选择消息更新推送格式不正确")
@@ -894,9 +894,7 @@ export function normalizeMessageChoiceUpdatedEventPayload(
     typeof value.actor_user_id !== "string" ||
     value.actor_user_id.trim() === "" ||
     !Array.isArray(value.actor_option_ids) ||
-    !value.actor_option_ids.every(
-      (optionId) => typeof optionId === "string" && optionId !== ""
-    )
+    !value.actor_option_ids.every((optionId) => typeof optionId === "string" && optionId !== "")
   ) {
     throw new ClientDataRequestError("选择消息更新推送格式不正确")
   }
@@ -971,9 +969,7 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
 
   if (body.type === "choice") {
     const content =
-      body.contentType === "markdown"
-        ? formatMarkdownMessageSummary(body.content)
-        : body.content
+      body.contentType === "markdown" ? formatMarkdownMessageSummary(body.content) : body.content
     return `[选择] ${content}`
   }
 

@@ -93,9 +93,7 @@ export function ClientConversationRealtimeSync() {
   React.useEffect(() => {
     return subscribeRealtimeEvent("message.choice_updated", (payload) => {
       try {
-        handleIncomingMessageChoiceUpdate?.(
-          normalizeMessageChoiceUpdatedEventPayload(payload)
-        )
+        handleIncomingMessageChoiceUpdate?.(normalizeMessageChoiceUpdatedEventPayload(payload))
       } catch {
         // Ignore malformed realtime events. The websocket remains usable.
       }

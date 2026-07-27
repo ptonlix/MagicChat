@@ -616,28 +616,23 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [currentUserId, refreshMessageReactions],
   )
 
-  const handleIncomingMessageChoiceUpdate = useCallback(
-    (event: MessageChoiceUpdatedEvent) => {
-      setConversationMessageStates((currentStates) => {
-        const state = currentStates[event.conversationId]
-        if (!state) return currentStates
-        const messageIndex = state.messages.findIndex(
-          (message) => message.id === event.messageId
-        )
-        if (messageIndex < 0) return currentStates
-        const messages = [...state.messages]
-        messages[messageIndex] = {
-          ...messages[messageIndex],
-          choice: event.choice,
-        }
-        return {
-          ...currentStates,
-          [event.conversationId]: { ...state, messages },
-        }
-      })
-    },
-    []
-  )
+  const handleIncomingMessageChoiceUpdate = useCallback((event: MessageChoiceUpdatedEvent) => {
+    setConversationMessageStates((currentStates) => {
+      const state = currentStates[event.conversationId]
+      if (!state) return currentStates
+      const messageIndex = state.messages.findIndex((message) => message.id === event.messageId)
+      if (messageIndex < 0) return currentStates
+      const messages = [...state.messages]
+      messages[messageIndex] = {
+        ...messages[messageIndex],
+        choice: event.choice,
+      }
+      return {
+        ...currentStates,
+        [event.conversationId]: { ...state, messages },
+      }
+    })
+  }, [])
 
   const setMessageReaction = useCallback(
     async (conversationId: string, messageId: string, text: string, reacted: boolean) => {
@@ -674,14 +669,12 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       const result = await setConversationChoiceResponseRequest(
         conversationId,
         messageId,
-        optionIds
+        optionIds,
       )
       setConversationMessageStates((currentStates) => {
         const state = currentStates[result.conversationId]
         if (!state) return currentStates
-        const messageIndex = state.messages.findIndex(
-          (message) => message.id === result.messageId
-        )
+        const messageIndex = state.messages.findIndex((message) => message.id === result.messageId)
         if (messageIndex < 0) return currentStates
         const messages = [...state.messages]
         messages[messageIndex] = {
@@ -694,7 +687,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         }
       })
     },
-    []
+    [],
   )
 
   const updateConversationLastMentionedSeq = useCallback(

@@ -1094,13 +1094,11 @@ describe("client data API", () => {
         {
           headers: { "content-type": "application/json" },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
-    await expect(
-      listConversationMessages("conversation-1", {}, fetcher)
-    ).resolves.toMatchObject({
+    await expect(listConversationMessages("conversation-1", {}, fetcher)).resolves.toMatchObject({
       messages: [
         {
           id: "message-choice",
@@ -1155,8 +1153,8 @@ describe("client data API", () => {
         {
           headers: { "content-type": "application/json" },
           status: 200,
-        }
-      )
+        },
+      ),
     )
     const api = await import("@/lib/client-data-api")
     const submitChoice = (
@@ -1165,19 +1163,14 @@ describe("client data API", () => {
           conversationId: string,
           messageId: string,
           optionIds: string[],
-          fetcher: typeof fetch
+          fetcher: typeof fetch,
         ) => Promise<unknown>
       }
     ).setConversationChoiceResponse
 
     expect(submitChoice).toBeTypeOf("function")
     await expect(
-      submitChoice!(
-        "conversation-1",
-        "message-choice",
-        ["lion", "tiger"],
-        fetcher
-      )
+      submitChoice!("conversation-1", "message-choice", ["lion", "tiger"], fetcher),
     ).resolves.toMatchObject({
       conversationId: "conversation-1",
       messageId: "message-choice",
@@ -1191,7 +1184,7 @@ describe("client data API", () => {
       expect.objectContaining({
         body: JSON.stringify({ option_ids: ["lion", "tiger"] }),
         method: "PUT",
-      })
+      }),
     )
   })
 
@@ -1218,7 +1211,7 @@ describe("client data API", () => {
             { id: "tiger", response_count: 1 },
           ],
         },
-      })
+      }),
     ).toEqual({
       actorOptionIds: ["tiger"],
       actorUserId: "user-2",
