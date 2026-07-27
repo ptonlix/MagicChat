@@ -123,12 +123,20 @@ describe("原生安装包真实性解析", () => {
         return { stdout: args[1] === "CFBundleIdentifier" ? "com.magicchat.desktop\n" : "1.2.3\n" }
       }
       if (command.endsWith("lipo")) return { stdout: "x86_64 arm64\n" }
+      if (command.endsWith("codesign") && args[0] === "-dv") {
+        return {
+          stderr:
+            "Authority=Developer ID Application: Duke Tao (8RK3WCWST9)\nTeamIdentifier=8RK3WCWST9\n",
+          stdout: "",
+        }
+      }
       return { stdout: "" }
     }
     await expect(
       verifyMacPackage({
         dmg: path.join(root, "app.dmg"),
         executeCommand,
+        expectedTeamId: "8RK3WCWST9",
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
         zip: path.join(root, "app.zip"),
@@ -141,11 +149,33 @@ describe("原生安装包真实性解析", () => {
           const result = await executeCommand(command, args)
           return command.endsWith("lipo") ? { stdout: "arm64\n" } : result
         },
+        expectedTeamId: "8RK3WCWST9",
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
         zip: path.join(root, "bad.zip"),
       }),
     ).rejects.toThrow("Universal")
+
+    await expect(
+      verifyMacPackage({
+        dmg: path.join(root, "wrong-team.dmg"),
+        executeCommand: async (command, args) => {
+          const result = await executeCommand(command, args)
+          if (command.endsWith("codesign") && args[0] === "-dv") {
+            return {
+              stderr:
+                "Authority=Developer ID Application: Duke Tao (OTHERTEAM)\nTeamIdentifier=OTHERTEAM\n",
+              stdout: "",
+            }
+          }
+          return result
+        },
+        expectedTeamId: "8RK3WCWST9",
+        expectedVersion: "1.2.3",
+        readAsarVersion: async () => "1.2.3",
+        zip: path.join(root, "wrong-team.zip"),
+      }),
+    ).rejects.toThrow("Team ID")
   })
 
   it.each([

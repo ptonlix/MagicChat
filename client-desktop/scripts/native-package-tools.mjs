@@ -123,6 +123,7 @@ export async function verifyLinuxPackage({
 
 export async function verifyMacPackage({
   dmg,
+  expectedTeamId,
   expectedVersion,
   executeCommand = execute,
   readAsarVersion = packagedVersion,
@@ -132,7 +133,13 @@ export async function verifyMacPackage({
   const zipRoot = path.join(workspace, "zip")
   await executeCommand("/usr/bin/ditto", ["-x", "-k", zip, zipRoot])
   const zipApp = await findUnique(zipRoot, "MagicChat.app", "ZIP 内缺少 MagicChat.app", true)
-  await verifyMacApplication(zipApp, expectedVersion, executeCommand, readAsarVersion)
+  await verifyMacApplication(
+    zipApp,
+    expectedVersion,
+    expectedTeamId,
+    executeCommand,
+    readAsarVersion,
+  )
 
   const mountpoint = path.join(workspace, "dmg")
   await mkdir(mountpoint)
@@ -146,14 +153,32 @@ export async function verifyMacPackage({
   ])
   try {
     const dmgApp = await findUnique(mountpoint, "MagicChat.app", "DMG 内缺少 MagicChat.app", true)
-    await verifyMacApplication(dmgApp, expectedVersion, executeCommand, readAsarVersion)
+    await verifyMacApplication(
+      dmgApp,
+      expectedVersion,
+      expectedTeamId,
+      executeCommand,
+      readAsarVersion,
+    )
   } finally {
     await executeCommand("/usr/bin/hdiutil", ["detach", mountpoint])
   }
-  return { architectures: ["x86_64", "arm64"], platform: "mac", version: expectedVersion }
+  return {
+    architectures: ["x86_64", "arm64"],
+    platform: "mac",
+    signed: true,
+    teamId: expectedTeamId,
+    version: expectedVersion,
+  }
 }
 
-async function verifyMacApplication(application, expectedVersion, executeCommand, readAsarVersion) {
+async function verifyMacApplication(
+  application,
+  expectedVersion,
+  expectedTeamId,
+  executeCommand,
+  readAsarVersion,
+) {
   const plist = path.join(application, "Contents", "Info.plist")
   const identifier = await executeCommand("/usr/bin/plutil", [
     "-extract",
@@ -184,6 +209,30 @@ async function verifyMacApplication(application, expectedVersion, executeCommand
   const asar = path.join(application, "Contents", "Resources", "app.asar")
   if ((await readAsarVersion(asar)) !== expectedVersion)
     throw new Error("app.asar 内应用版本与 Tag 不一致")
+
+  await executeCommand("/usr/bin/codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    "--verbose=2",
+    application,
+  ])
+  const signature = await executeCommand("/usr/bin/codesign", ["-dv", "--verbose=4", application])
+  const signatureDetails = `${signature.stdout ?? ""}\n${signature.stderr ?? ""}`
+  if (!signatureDetails.includes("Authority=Developer ID Application:")) {
+    throw new Error("macOS 应用未使用 Developer ID Application 签名")
+  }
+  if (!signatureDetails.includes(`TeamIdentifier=${expectedTeamId}`)) {
+    throw new Error(`macOS 应用签名 Team ID 不是 ${expectedTeamId}`)
+  }
+  await executeCommand("/usr/bin/xcrun", ["stapler", "validate", application])
+  await executeCommand("/usr/sbin/spctl", [
+    "--assess",
+    "--type",
+    "execute",
+    "--verbose=4",
+    application,
+  ])
 }
 
 async function packagedVersion(asarPath) {

@@ -36,6 +36,19 @@ describe("Desktop Stable Release 配置", () => {
     expect(builder).toContain("owner: ptonlix")
     expect(builder).toContain("repo: MagicChat")
     expect(builder).toContain("releaseType: release")
+    expect(builder).toContain("hardenedRuntime: true")
+    expect(builder).toContain("notarize: true")
+    expect(builder).not.toContain("identity: null")
+  })
+
+  it("拒绝移除 macOS 签名公证凭据", async () => {
+    const workflow = await readWorkflow(workflowPath)
+    const candidate = structuredClone(workflow)
+    const macPackageStep = candidate.jobs.package.steps.find(
+      (step) => step.if === "matrix.platform == 'mac'" && step.run?.includes("electron-builder"),
+    )
+    delete macPackageStep.env.CSC_LINK
+    expect(() => validateDesktopReleaseWorkflow(candidate)).toThrow("CSC_LINK")
   })
 
   it("客户端构建不包含 GitHub Token 或可变更新仓库", async () => {

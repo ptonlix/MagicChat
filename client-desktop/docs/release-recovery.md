@@ -26,6 +26,36 @@ HTTPS、版本、平台、架构、文件大小和 SHA-512。
 
 ## Stable 发布流程
 
+### macOS 签名与公证凭据
+
+macOS Stable 制品使用 `Developer ID Application` 签名，并通过 App Store Connect Team
+API Key 提交 Apple 公证。GitHub 仓库的 `Settings -> Secrets and variables -> Actions`
+必须配置以下 Repository Secrets：
+
+- `MACOS_CERTIFICATE_P12_BASE64`：包含 Developer ID Application 证书及私钥的 `.p12`
+  文件 Base64 内容。
+- `MACOS_CERTIFICATE_PASSWORD`：导出 `.p12` 时设置的密码。
+- `MACOS_NOTARY_API_KEY_P8_BASE64`：App Store Connect Team API `.p8` 文件 Base64 内容。
+
+同一页面的 Variables 必须配置：
+
+- `APPLE_API_KEY_ID`：App Store Connect Team API Key ID。
+- `APPLE_API_ISSUER`：App Store Connect Team API Issuer ID。
+
+Key ID、Issuer ID 和 Team ID 不是私钥，但不得把 `.p8`、`.p12`、证书密码或其 Base64
+内容写入工作流、仓库文件、Actions artifact 或日志。macOS 可使用以下命令生成单行 Secret
+内容，并分别粘贴到 GitHub；命令不会修改源文件：
+
+```bash
+base64 -i "/path/to/DeveloperIDApplication.p12" | pbcopy
+base64 -i "/path/to/AuthKey_KEYID.p8" | pbcopy
+```
+
+发布工作流只在 Tag 触发的 macOS package 步骤中注入这些凭据。electron-builder 必须完成
+hardened runtime 签名、公证和票据 stapling；`verify:package` 随后分别解开 ZIP 和挂载 DMG，
+验证 Developer ID Application、Team ID `8RK3WCWST9`、代码签名完整性、公证票据和
+Gatekeeper。任一步失败都不得上传或发布 macOS 制品。
+
 1. 使用任意 Markdown 文件编写本版说明；[人工发布说明模板](release-notes-template.md) 仅供
    参考，不要求固定章节或标题。Markdown 标题会被 Git 默认清理规则当作注释，因此必须
    使用 `--cleanup=verbatim`：
@@ -79,7 +109,8 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
   Machine、ProductVersion 与 `app.asar` 版本。最终安装器继续通过清单 size、SHA-512 和
   外置 blockmap 复核。
 - macOS Universal：`ditto` 解 ZIP，`hdiutil` 只读挂载 DMG，`plutil` 读取版本，
-  `lipo -archs` 必须精确返回 `x86_64` 与 `arm64`。
+  `lipo -archs` 必须精确返回 `x86_64` 与 `arm64`；ZIP 与 DMG 内应用还必须分别通过
+  `codesign --verify`、Developer ID/Team ID 检查、`stapler validate` 和 `spctl --assess`。
 - Linux x64/arm64：AppImage 自解包后由 Node 读取主程序 ELF Machine，并从文件尾部验证
   内嵌 blockmap；`dpkg-deb -f/-x` 分别读取 deb 的 Architecture、Version 与包内主程序。
 
@@ -90,8 +121,9 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
 ### 本地真实制品记录
 
 - 2026-07-24，macOS arm64 主机：对现有 `MagicChat-0.1.0-mac-universal.zip` 与 `.dmg`
-  执行 `verify:package`，Info.plist 版本为 `0.1.0`，ZIP 与 DMG 主二进制均由
-  `lipo -archs` 确认为 `x86_64 arm64`，校验通过。
+  执行签名门禁引入前的 `verify:package`，Info.plist 版本为 `0.1.0`，ZIP 与 DMG 主二进制
+  均由 `lipo -archs` 确认为 `x86_64 arm64`。该记录只作为版本和架构基线，不能证明
+  Developer ID 签名、公证或 Gatekeeper 验收通过。
 - Windows x64/arm64 与 Linux x64/arm64 必须由对应 GitHub Runner 保存结果；不得由本机
   macOS 记录推断通过。
 

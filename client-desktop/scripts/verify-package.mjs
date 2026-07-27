@@ -48,6 +48,7 @@ if (platform === "win") {
   nativeResult = await verifyMacPackage({
     dmg: artifact("mac-universal.dmg"),
     expectedVersion,
+    expectedTeamId: "8RK3WCWST9",
     zip: artifact("mac-universal.zip"),
   })
 } else {
