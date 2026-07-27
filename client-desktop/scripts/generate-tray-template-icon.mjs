@@ -20,14 +20,9 @@ for (let y = 0; y < size; y += 1) {
     for (let index = 0; index < points.length; index += 1) {
       const start = points[index]
       const end = points[(index + 1) % points.length]
-      distance = Math.min(
-        distance,
-        distanceToSegment(x + 0.5, y + 0.5, start, end),
-      )
+      distance = Math.min(distance, distanceToSegment(x + 0.5, y + 0.5, start, end))
     }
-    const alpha = Math.round(
-      255 * Math.max(0, Math.min(1, strokeRadius + 1 - distance)),
-    )
+    const alpha = Math.round(255 * Math.max(0, Math.min(1, strokeRadius + 1 - distance)))
     if (alpha === 0) continue
     const offset = (y * size + x) * 4
     pixels[offset] = 38
@@ -41,10 +36,7 @@ const scanlines = Buffer.alloc((size * 4 + 1) * size)
 for (let y = 0; y < size; y += 1) {
   const rowOffset = y * (size * 4 + 1)
   scanlines[rowOffset] = 0
-  scanlines.set(
-    pixels.subarray(y * size * 4, (y + 1) * size * 4),
-    rowOffset + 1,
-  )
+  scanlines.set(pixels.subarray(y * size * 4, (y + 1) * size * 4), rowOffset + 1)
 }
 
 const png = Buffer.concat([
@@ -71,16 +63,9 @@ function distanceToSegment(x, y, start, end) {
   const lengthSquared = deltaX * deltaX + deltaY * deltaY
   const ratio = Math.max(
     0,
-    Math.min(
-      1,
-      ((x - start[0]) * deltaX + (y - start[1]) * deltaY) /
-        lengthSquared,
-    ),
+    Math.min(1, ((x - start[0]) * deltaX + (y - start[1]) * deltaY) / lengthSquared),
   )
-  return Math.hypot(
-    x - (start[0] + ratio * deltaX),
-    y - (start[1] + ratio * deltaY),
-  )
+  return Math.hypot(x - (start[0] + ratio * deltaX), y - (start[1] + ratio * deltaY))
 }
 
 function pngChunk(type, data) {
@@ -98,8 +83,7 @@ function crc32(data) {
   for (const byte of data) {
     checksum ^= byte
     for (let bit = 0; bit < 8; bit += 1) {
-      checksum =
-        (checksum >>> 1) ^ (0xedb88320 & -(checksum & 1))
+      checksum = (checksum >>> 1) ^ (0xedb88320 & -(checksum & 1))
     }
   }
   return (checksum ^ 0xffffffff) >>> 0

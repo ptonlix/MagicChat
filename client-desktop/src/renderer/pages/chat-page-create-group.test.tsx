@@ -4,19 +4,9 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChatPage } from "@/pages/chat-page"
-import type {
-  ClientConversation,
-  ClientMessage,
-  ClientUser,
-} from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
-import {
-  readLastConversationId,
-  writeLastConversationId,
-} from "@/lib/last-conversation"
+import type { ClientConversation, ClientMessage, ClientUser } from "@/lib/client-data-api"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
+import { readLastConversationId, writeLastConversationId } from "@/lib/last-conversation"
 
 const mocks = vi.hoisted(() => ({
   createConversationTopic: vi.fn(),
@@ -31,9 +21,7 @@ describe("ChatPage create group dialog", () => {
   it("creates groups with and without selected apps", async () => {
     for (const appIds of [[], ["app-1"]]) {
       const user = userEvent.setup()
-      const createGroupConversation = vi
-        .fn()
-        .mockResolvedValue(createGroupConversationResponse())
+      const createGroupConversation = vi.fn().mockResolvedValue(createGroupConversationResponse())
       const view = renderChatPage({ createGroupConversation })
 
       await openCreateGroupDialog(user)
@@ -45,11 +33,7 @@ describe("ChatPage create group dialog", () => {
       }
 
       await user.click(screen.getByRole("button", { name: "创建" }))
-      expect(createGroupConversation).toHaveBeenCalledWith(
-        "新建群聊",
-        [],
-        appIds
-      )
+      expect(createGroupConversation).toHaveBeenCalledWith("新建群聊", [], appIds)
 
       view.unmount()
     }
@@ -62,9 +46,7 @@ describe("ChatPage create topic confirmation", () => {
     const conversation = createConversation("conversation-1", "产品群")
     const sourceMessage = createSourceMessage(conversation.id)
     mocks.createConversationTopic.mockReset()
-    mocks.createConversationTopic.mockImplementation(
-      () => new Promise(() => undefined)
-    )
+    mocks.createConversationTopic.mockImplementation(() => new Promise(() => undefined))
     renderChatPage(
       {
         ...createConversationOverrides([conversation]),
@@ -79,7 +61,7 @@ describe("ChatPage create topic confirmation", () => {
         })),
         updateMessageTopic: vi.fn(),
       },
-      `/chat/${conversation.id}`
+      `/chat/${conversation.id}`,
     )
 
     const sourceBody = await screen.findByText("讨论发布计划")
@@ -90,18 +72,13 @@ describe("ChatPage create topic confirmation", () => {
 
     expect(mocks.createConversationTopic).not.toHaveBeenCalled()
     expect(
-      screen.getByText(
-        "将以这条消息作为起点创建一个独立话题，方便围绕它继续讨论。"
-      )
+      screen.getByText("将以这条消息作为起点创建一个独立话题，方便围绕它继续讨论。"),
     ).toBeVisible()
 
     await user.click(screen.getByRole("button", { name: "确认创建" }))
 
     await waitFor(() =>
-      expect(mocks.createConversationTopic).toHaveBeenCalledWith(
-        conversation.id,
-        sourceMessage.id
-      )
+      expect(mocks.createConversationTopic).toHaveBeenCalledWith(conversation.id, sourceMessage.id),
     )
   })
 })
@@ -127,13 +104,11 @@ describe("ChatPage app direct access", () => {
           sending: false,
         })),
       },
-      `/chat/${conversation.id}`
+      `/chat/${conversation.id}`,
     )
 
     expect(await screen.findByText("你当前无权直接使用此应用")).toBeVisible()
-    expect(
-      screen.queryByTestId("conversation-panel-composer")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId("conversation-panel-composer")).not.toBeInTheDocument()
   })
 })
 
@@ -144,14 +119,9 @@ describe("ChatPage last conversation", () => {
 
   it("records the active conversation for the current user", async () => {
     const conversation = createConversation("conversation-1", "产品群")
-    renderChatPage(
-      createConversationOverrides([conversation]),
-      "/chat/conversation-1"
-    )
+    renderChatPage(createConversationOverrides([conversation]), "/chat/conversation-1")
 
-    await waitFor(() =>
-      expect(readLastConversationId("user-1")).toBe("conversation-1")
-    )
+    await waitFor(() => expect(readLastConversationId("user-1")).toBe("conversation-1"))
   })
 
   it("restores the last valid conversation when entering /chat", async () => {
@@ -162,13 +132,9 @@ describe("ChatPage last conversation", () => {
     renderChatPage(overrides)
 
     await waitFor(() =>
-      expect(screen.getByTestId("chat-location")).toHaveTextContent(
-        "/chat/conversation-1"
-      )
+      expect(screen.getByTestId("chat-location")).toHaveTextContent("/chat/conversation-1"),
     )
-    expect(overrides.ensureConversationMessages).toHaveBeenCalledWith(
-      "conversation-1"
-    )
+    expect(overrides.ensureConversationMessages).toHaveBeenCalledWith("conversation-1")
   })
 
   it("clears a stored conversation that is no longer available", async () => {
@@ -181,27 +147,17 @@ describe("ChatPage last conversation", () => {
   })
 
   it("keeps an explicit conversation route and records it as the latest", async () => {
-    const previousConversation = createConversation(
-      "conversation-1",
-      "之前的群聊"
-    )
-    const explicitConversation = createConversation(
-      "conversation-2",
-      "显式打开的群聊"
-    )
+    const previousConversation = createConversation("conversation-1", "之前的群聊")
+    const explicitConversation = createConversation("conversation-2", "显式打开的群聊")
     writeLastConversationId("user-1", previousConversation.id)
 
     renderChatPage(
       createConversationOverrides([previousConversation, explicitConversation]),
-      "/chat/conversation-2"
+      "/chat/conversation-2",
     )
 
-    expect(screen.getByTestId("chat-location")).toHaveTextContent(
-      "/chat/conversation-2"
-    )
-    await waitFor(() =>
-      expect(readLastConversationId("user-1")).toBe("conversation-2")
-    )
+    expect(screen.getByTestId("chat-location")).toHaveTextContent("/chat/conversation-2")
+    await waitFor(() => expect(readLastConversationId("user-1")).toBe("conversation-2"))
   })
 })
 
@@ -210,10 +166,7 @@ async function openCreateGroupDialog(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("menuitem", { name: "发起群聊" }))
 }
 
-function renderChatPage(
-  overrides: Partial<ClientDataContextValue> = {},
-  initialEntry = "/chat"
-) {
+function renderChatPage(overrides: Partial<ClientDataContextValue> = {}, initialEntry = "/chat") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <ClientDataContext.Provider value={createClientDataValue(overrides)}>
@@ -229,7 +182,7 @@ function renderChatPage(
           />
         </Routes>
       </ClientDataContext.Provider>
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 
@@ -238,23 +191,19 @@ function LocationProbe() {
 }
 
 function createConversationOverrides(
-  conversations: ClientConversation[]
+  conversations: ClientConversation[],
 ): Partial<ClientDataContextValue> {
   return {
     conversations,
     ensureConversationMessages: vi.fn(),
     getConversation: vi.fn(
       (conversationId: string) =>
-        conversations.find(
-          (conversation) => conversation.id === conversationId
-        ) ?? null
+        conversations.find((conversation) => conversation.id === conversationId) ?? null,
     ),
   }
 }
 
-function createClientDataValue(
-  overrides: Partial<ClientDataContextValue>
-): ClientDataContextValue {
+function createClientDataValue(overrides: Partial<ClientDataContextValue>): ClientDataContextValue {
   const me: ClientUser = {
     avatar: "",
     createdAt: "2026-07-10T00:00:00Z",

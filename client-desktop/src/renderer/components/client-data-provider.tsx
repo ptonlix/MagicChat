@@ -68,10 +68,8 @@ const maxReactionSnapshotCatchUpAttempts = 3
 export function ClientDataProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const { setAuthenticated } = useAppInfo()
-  const [bootstrapError, setBootstrapError] =
-    useState<ClientDataRequestError | null>(null)
-  const [bootstrapState, setBootstrapState] =
-    useState<BootstrapState>("loading")
+  const [bootstrapError, setBootstrapError] = useState<ClientDataRequestError | null>(null)
+  const [bootstrapState, setBootstrapState] = useState<BootstrapState>("loading")
   const [conversations, setConversations] = useState<ClientConversation[]>([])
   const [conversationMessageStates, setConversationMessageStates] = useState<
     Record<string, ClientConversationMessageState>
@@ -80,24 +78,19 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const [contactApps, setContactApps] = useState<ContactApp[]>([])
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([])
   const [contacts, setContacts] = useState<ContactUser[]>([])
-  const [contactsError, setContactsError] =
-    useState<ClientDataRequestError | null>(null)
+  const [contactsError, setContactsError] = useState<ClientDataRequestError | null>(null)
   const [contactsLoading, setContactsLoading] = useState(true)
   const [contactsRefreshing, setContactsRefreshing] = useState(false)
   const [me, setMe] = useState<ClientUser | null>(null)
   const [meError, setMeError] = useState<ClientDataRequestError | null>(null)
   const [meLoading, setMeLoading] = useState(true)
   const [meRefreshing, setMeRefreshing] = useState(false)
-  const [personalProject, setPersonalProject] =
-    useState<ClientProjectSummary | null>(null)
+  const [personalProject, setPersonalProject] = useState<ClientProjectSummary | null>(null)
   const [projects, setProjects] = useState<ClientProjectSummary[]>([])
-  const [projectsError, setProjectsError] =
-    useState<ClientDataRequestError | null>(null)
+  const [projectsError, setProjectsError] = useState<ClientDataRequestError | null>(null)
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsLoadingMore, setProjectsLoadingMore] = useState(false)
-  const [projectsNextCursor, setProjectsNextCursor] = useState<string | null>(
-    null
-  )
+  const [projectsNextCursor, setProjectsNextCursor] = useState<string | null>(null)
   const [projectsRefreshing, setProjectsRefreshing] = useState(false)
   const conversationMessageStatesRef = useRef(conversationMessageStates)
   const conversationsRef = useRef(conversations)
@@ -105,9 +98,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const loadingConversationIdsRef = useRef<Set<string>>(new Set())
   const syncingAfterConversationIdsRef = useRef<Set<string>>(new Set())
   const refreshingReactionSnapshotKeysRef = useRef<Set<string>>(new Set())
-  const reactionSnapshotMinimumVersionsRef = useRef<Map<string, number>>(
-    new Map()
-  )
+  const reactionSnapshotMinimumVersionsRef = useRef<Map<string, number>>(new Map())
 
   useEffect(() => {
     conversationMessageStatesRef.current = conversationMessageStates
@@ -133,7 +124,13 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mountedRef.current = false
-      updateDiagnosticData({ contacts: 0, conversations: 0, loadedConversations: 0, messages: 0, projects: 0 })
+      updateDiagnosticData({
+        contacts: 0,
+        conversations: 0,
+        loadedConversations: 0,
+        messages: 0,
+        projects: 0,
+      })
     }
   }, [])
 
@@ -163,79 +160,93 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
       return requestError
     },
-    [navigate, setAuthenticated]
+    [navigate, setAuthenticated],
   )
 
-  const refreshMe = useCallback(() => trackDiagnosticRefresh("me", async () => {
-    const isInitialLoad = me === null
-    setMeError(null)
-    setMeLoading(isInitialLoad)
-    setMeRefreshing(!isInitialLoad)
+  const refreshMe = useCallback(
+    () =>
+      trackDiagnosticRefresh("me", async () => {
+        const isInitialLoad = me === null
+        setMeError(null)
+        setMeLoading(isInitialLoad)
+        setMeRefreshing(!isInitialLoad)
 
-    try {
-      setMe(await getCurrentClientUser())
-    } catch (error) {
-      const requestError = handleError(error, "加载当前用户失败")
-      setMeError(requestError)
-      throw requestError
-    } finally {
-      setMeLoading(false)
-      setMeRefreshing(false)
-    }
-  }), [handleError, me])
+        try {
+          setMe(await getCurrentClientUser())
+        } catch (error) {
+          const requestError = handleError(error, "加载当前用户失败")
+          setMeError(requestError)
+          throw requestError
+        } finally {
+          setMeLoading(false)
+          setMeRefreshing(false)
+        }
+      }),
+    [handleError, me],
+  )
 
-  const refreshContacts = useCallback(() => trackDiagnosticRefresh("contacts", async () => {
-    const isInitialLoad =
-      contacts.length === 0 &&
-      contactApps.length === 0 &&
-      contactGroups.length === 0
-    setContactsError(null)
-    setContactsLoading(isInitialLoad)
-    setContactsRefreshing(!isInitialLoad)
+  const refreshContacts = useCallback(
+    () =>
+      trackDiagnosticRefresh("contacts", async () => {
+        const isInitialLoad =
+          contacts.length === 0 && contactApps.length === 0 && contactGroups.length === 0
+        setContactsError(null)
+        setContactsLoading(isInitialLoad)
+        setContactsRefreshing(!isInitialLoad)
 
-    try {
-      const nextContacts = await listClientContacts()
-      setContactApps(nextContacts.apps)
-      setContactGroups(nextContacts.groups)
-      setContacts(nextContacts.users)
-    } catch (error) {
-      const requestError = handleError(error, "加载通讯录失败")
-      setContactsError(requestError)
-      throw requestError
-    } finally {
-      setContactsLoading(false)
-      setContactsRefreshing(false)
-    }
-  }), [contactApps.length, contactGroups.length, contacts.length, handleError])
+        try {
+          const nextContacts = await listClientContacts()
+          setContactApps(nextContacts.apps)
+          setContactGroups(nextContacts.groups)
+          setContacts(nextContacts.users)
+        } catch (error) {
+          const requestError = handleError(error, "加载通讯录失败")
+          setContactsError(requestError)
+          throw requestError
+        } finally {
+          setContactsLoading(false)
+          setContactsRefreshing(false)
+        }
+      }),
+    [contactApps.length, contactGroups.length, contacts.length, handleError],
+  )
 
-  const refreshConversations = useCallback(() => trackDiagnosticRefresh("conversations", async () => {
-    try {
-      setConversations(orderConversations(await listClientConversations()))
-    } catch (error) {
-      throw handleError(error, "加载会话列表失败")
-    }
-  }), [handleError])
+  const refreshConversations = useCallback(
+    () =>
+      trackDiagnosticRefresh("conversations", async () => {
+        try {
+          setConversations(orderConversations(await listClientConversations()))
+        } catch (error) {
+          throw handleError(error, "加载会话列表失败")
+        }
+      }),
+    [handleError],
+  )
 
-  const refreshProjects = useCallback(() => trackDiagnosticRefresh("projects", async () => {
-    const isInitialLoad = personalProject === null && projects.length === 0
-    setProjectsError(null)
-    setProjectsLoading(isInitialLoad)
-    setProjectsRefreshing(!isInitialLoad)
+  const refreshProjects = useCallback(
+    () =>
+      trackDiagnosticRefresh("projects", async () => {
+        const isInitialLoad = personalProject === null && projects.length === 0
+        setProjectsError(null)
+        setProjectsLoading(isInitialLoad)
+        setProjectsRefreshing(!isInitialLoad)
 
-    try {
-      const page = await listClientProjects({ limit: 100 })
-      setPersonalProject(page.personalProject)
-      setProjects(page.projects)
-      setProjectsNextCursor(page.nextCursor)
-    } catch (error) {
-      const requestError = handleError(error, "加载项目列表失败")
-      setProjectsError(requestError)
-      throw requestError
-    } finally {
-      setProjectsLoading(false)
-      setProjectsRefreshing(false)
-    }
-  }), [handleError, personalProject, projects.length])
+        try {
+          const page = await listClientProjects({ limit: 100 })
+          setPersonalProject(page.personalProject)
+          setProjects(page.projects)
+          setProjectsNextCursor(page.nextCursor)
+        } catch (error) {
+          const requestError = handleError(error, "加载项目列表失败")
+          setProjectsError(requestError)
+          throw requestError
+        } finally {
+          setProjectsLoading(false)
+          setProjectsRefreshing(false)
+        }
+      }),
+    [handleError, personalProject, projects.length],
+  )
 
   const loadMoreProjects = useCallback(async () => {
     if (!projectsNextCursor || projectsLoadingMore) {
@@ -250,9 +261,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       })
       setPersonalProject(page.personalProject)
       setProjects((currentProjects) => {
-        const projectById = new Map(
-          currentProjects.map((project) => [project.id, project])
-        )
+        const projectById = new Map(currentProjects.map((project) => [project.id, project]))
 
         for (const project of page.projects) {
           projectById.set(project.id, project)
@@ -286,19 +295,16 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
       return project
     },
-    [handleError, refreshProjects]
+    [handleError, refreshProjects],
   )
 
   const updateConversationMessageState = useCallback(
     (
       conversationId: string,
-      updater: (
-        state: ClientConversationMessageState
-      ) => ClientConversationMessageState
+      updater: (state: ClientConversationMessageState) => ClientConversationMessageState,
     ) => {
       setConversationMessageStates((currentStates) => {
-        const previousState =
-          currentStates[conversationId] ?? createConversationMessageState()
+        const previousState = currentStates[conversationId] ?? createConversationMessageState()
         const nextState = updater(previousState)
 
         return {
@@ -307,19 +313,18 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         }
       })
     },
-    []
+    [],
   )
 
   const applyConversationMessageToList = useCallback(
     (message: ClientMessage, options: { countUnread?: boolean } = {}) => {
       const conversationExists = conversationsRef.current.some(
-        (conversation) => conversation.id === message.conversationId
+        (conversation) => conversation.id === message.conversationId,
       )
 
       setConversations((currentConversations) => {
         const conversation = currentConversations.find(
-          (currentConversation) =>
-            currentConversation.id === message.conversationId
+          (currentConversation) => currentConversation.id === message.conversationId,
         )
 
         if (!conversation) {
@@ -348,8 +353,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         return orderConversations([
           updatedConversation,
           ...currentConversations.filter(
-            (currentConversation) =>
-              currentConversation.id !== message.conversationId
+            (currentConversation) => currentConversation.id !== message.conversationId,
           ),
         ])
       })
@@ -358,28 +362,26 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         void refreshConversations().catch(() => undefined)
       }
     },
-    [refreshConversations]
+    [refreshConversations],
   )
 
   const updateConversationLastMessage = useCallback(
     (message: ClientMessage) => {
       applyConversationMessageToList(message)
     },
-    [applyConversationMessageToList]
+    [applyConversationMessageToList],
   )
 
   const rememberConversationMessage = useCallback(
     (message: ClientMessage) => {
       applyConversationMessageToList(message)
     },
-    [applyConversationMessageToList]
+    [applyConversationMessageToList],
   )
 
   const updateTopicSourcePreview = useCallback((message: ClientMessage) => {
     const topicConversation = conversationsRef.current.find(
-      (conversation) =>
-        conversation.id === message.conversationId &&
-        conversation.type === "topic"
+      (conversation) => conversation.id === message.conversationId && conversation.type === "topic",
     )
     const topic = topicConversation?.topic
     if (!topic || message.sender.type === "system") {
@@ -393,15 +395,12 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       }
       let changed = false
       const messages = parentState.messages.map((sourceMessage) => {
-        if (
-          sourceMessage.id !== topic.sourceMessageId ||
-          !sourceMessage.topic
-        ) {
+        if (sourceMessage.id !== topic.sourceMessageId || !sourceMessage.topic) {
           return sourceMessage
         }
-        const existingReplies = (
-          sourceMessage.topic.recentReplies ?? []
-        ).filter((reply) => reply.id !== message.id)
+        const existingReplies = (sourceMessage.topic.recentReplies ?? []).filter(
+          (reply) => reply.id !== message.id,
+        )
         const recentReplies =
           message.body.type === "revoked"
             ? existingReplies
@@ -430,10 +429,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const mergeIncomingConversationMessage = useCallback(
-    (
-      message: ClientMessage,
-      options: { markLoaded?: boolean; updateList?: boolean } = {}
-    ) => {
+    (message: ClientMessage, options: { markLoaded?: boolean; updateList?: boolean } = {}) => {
       updateConversationMessageState(message.conversationId, (state) => {
         const messages = mergeConversationMessages(state.messages, [message])
 
@@ -450,11 +446,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         rememberConversationMessage(message)
       }
     },
-    [
-      rememberConversationMessage,
-      updateConversationMessageState,
-      updateTopicSourcePreview,
-    ]
+    [rememberConversationMessage, updateConversationMessageState, updateTopicSourcePreview],
   )
 
   const currentUserId = me?.id ?? ""
@@ -465,11 +457,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         return !refreshingReactionSnapshotKeysRef.current.has(key)
       })
       const batches: string[][] = []
-      for (
-        let index = 0;
-        index < messageIds.length;
-        index += reactionSnapshotBatchSize
-      ) {
+      for (let index = 0; index < messageIds.length; index += reactionSnapshotBatchSize) {
         batches.push(messageIds.slice(index, index + reactionSnapshotBatchSize))
       }
 
@@ -477,36 +465,25 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         batches.map(async (initialBatch) => {
           let batch = initialBatch
           let attempts = 0
-          while (
-            batch.length > 0 &&
-            attempts < maxReactionSnapshotCatchUpAttempts
-          ) {
+          while (batch.length > 0 && attempts < maxReactionSnapshotCatchUpAttempts) {
             attempts += 1
             for (const messageId of batch) {
-              refreshingReactionSnapshotKeysRef.current.add(
-                `${conversationId}:${messageId}`
-              )
+              refreshingReactionSnapshotKeysRef.current.add(`${conversationId}:${messageId}`)
             }
             let snapshots: MessageReactionSnapshot[]
             try {
-              snapshots = await listConversationMessageReactionSnapshots(
-                conversationId,
-                batch
-              )
+              snapshots = await listConversationMessageReactionSnapshots(conversationId, batch)
               setConversationMessageStates((currentStates) => {
                 const state = currentStates[conversationId]
                 if (!state) return currentStates
                 const snapshotsByMessageId = new Map(
-                  snapshots.map((snapshot) => [snapshot.messageId, snapshot])
+                  snapshots.map((snapshot) => [snapshot.messageId, snapshot]),
                 )
                 let changed = false
                 const messages = state.messages.map((message) => {
                   const snapshot = snapshotsByMessageId.get(message.id)
                   if (!snapshot) return message
-                  const nextMessage = applyMessageReactionSnapshot(
-                    message,
-                    snapshot
-                  )
+                  const nextMessage = applyMessageReactionSnapshot(message, snapshot)
                   if (nextMessage !== message) changed = true
                   return nextMessage
                 })
@@ -519,29 +496,21 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
               })
             } catch (error) {
               for (const messageId of batch) {
-                reactionSnapshotMinimumVersionsRef.current.delete(
-                  `${conversationId}:${messageId}`
-                )
+                reactionSnapshotMinimumVersionsRef.current.delete(`${conversationId}:${messageId}`)
               }
               throw error
             } finally {
               for (const messageId of batch) {
-                refreshingReactionSnapshotKeysRef.current.delete(
-                  `${conversationId}:${messageId}`
-                )
+                refreshingReactionSnapshotKeysRef.current.delete(`${conversationId}:${messageId}`)
               }
             }
 
             const versionsByMessageId = new Map(
-              snapshots.map((snapshot) => [
-                snapshot.messageId,
-                snapshot.reactionVersion,
-              ])
+              snapshots.map((snapshot) => [snapshot.messageId, snapshot.reactionVersion]),
             )
             batch = batch.filter((messageId) => {
               const key = `${conversationId}:${messageId}`
-              const minimumVersion =
-                reactionSnapshotMinimumVersionsRef.current.get(key) ?? 0
+              const minimumVersion = reactionSnapshotMinimumVersionsRef.current.get(key) ?? 0
               if ((versionsByMessageId.get(messageId) ?? -1) < minimumVersion) {
                 return true
               }
@@ -550,38 +519,30 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
             })
           }
           for (const messageId of batch) {
-            reactionSnapshotMinimumVersionsRef.current.delete(
-              `${conversationId}:${messageId}`
-            )
+            reactionSnapshotMinimumVersionsRef.current.delete(`${conversationId}:${messageId}`)
           }
-        })
+        }),
       )
     },
-    []
+    [],
   )
 
   const handleIncomingConversationMessage = useCallback(
     (
       message: ClientMessage,
-      options: { activeConversationId?: string; visible?: boolean } = {}
+      options: { activeConversationId?: string; visible?: boolean } = {},
     ) => {
       const fromCurrentUser =
-        currentUserId !== "" &&
-        isClientMessageInitiatedByUser(message, currentUserId)
+        currentUserId !== "" && isClientMessageInitiatedByUser(message, currentUserId)
       const visibleInActiveConversation =
-        Boolean(options.visible) &&
-        options.activeConversationId === message.conversationId
+        Boolean(options.visible) && options.activeConversationId === message.conversationId
 
       mergeIncomingConversationMessage(message, { updateList: false })
       applyConversationMessageToList(message, {
         countUnread: !fromCurrentUser && !visibleInActiveConversation,
       })
     },
-    [
-      applyConversationMessageToList,
-      currentUserId,
-      mergeIncomingConversationMessage,
-    ]
+    [applyConversationMessageToList, currentUserId, mergeIncomingConversationMessage],
   )
 
   const handleIncomingConversationMessageUpdate = useCallback(
@@ -606,29 +567,24 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       })
       updateTopicSourcePreview(message)
     },
-    [updateTopicSourcePreview]
+    [updateTopicSourcePreview],
   )
 
   const handleIncomingMessageReactionsUpdate = useCallback(
     (event: MessageReactionsUpdatedEvent) => {
       const state = conversationMessageStatesRef.current[event.conversationId]
-      const message = state?.messages.find(
-        (candidate) => candidate.id === event.messageId
-      )
+      const message = state?.messages.find((candidate) => candidate.id === event.messageId)
       if (!message || message.reactionVersion >= event.reactionVersion) {
         return
       }
       if (event.reactionVersion > message.reactionVersion + 1) {
         const key = `${event.conversationId}:${event.messageId}`
-        const previousMinimum =
-          reactionSnapshotMinimumVersionsRef.current.get(key) ?? 0
+        const previousMinimum = reactionSnapshotMinimumVersionsRef.current.get(key) ?? 0
         reactionSnapshotMinimumVersionsRef.current.set(
           key,
-          Math.max(previousMinimum, event.reactionVersion)
+          Math.max(previousMinimum, event.reactionVersion),
         )
-        void refreshMessageReactions(event.conversationId, [
-          event.messageId,
-        ]).catch(() => undefined)
+        void refreshMessageReactions(event.conversationId, [event.messageId]).catch(() => undefined)
         return
       }
       setConversationMessageStates((currentStates) => {
@@ -636,13 +592,10 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         if (!state) {
           return currentStates
         }
-        const messageIndex = state.messages.findIndex(
-          (message) => message.id === event.messageId
-        )
+        const messageIndex = state.messages.findIndex((message) => message.id === event.messageId)
         if (
           messageIndex < 0 ||
-          (state.messages[messageIndex].reactionVersion ?? 0) >=
-            event.reactionVersion
+          (state.messages[messageIndex].reactionVersion ?? 0) >= event.reactionVersion
         ) {
           return currentStates
         }
@@ -650,7 +603,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         messages[messageIndex] = applyMessageReactionsUpdate(
           messages[messageIndex],
           event,
-          currentUserId
+          currentUserId,
         )
         return {
           ...currentStates,
@@ -658,37 +611,26 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         }
       })
     },
-    [currentUserId, refreshMessageReactions]
+    [currentUserId, refreshMessageReactions],
   )
 
   const setMessageReaction = useCallback(
-    async (
-      conversationId: string,
-      messageId: string,
-      text: string,
-      reacted: boolean
-    ) => {
-      const result = await setConversationMessageReactionRequest(
-        conversationId,
-        messageId,
-        { reacted, text }
-      )
+    async (conversationId: string, messageId: string, text: string, reacted: boolean) => {
+      const result = await setConversationMessageReactionRequest(conversationId, messageId, {
+        reacted,
+        text,
+      })
       setConversationMessageStates((currentStates) => {
         const state = currentStates[result.conversationId]
         if (!state) {
           return currentStates
         }
-        const messageIndex = state.messages.findIndex(
-          (message) => message.id === result.messageId
-        )
+        const messageIndex = state.messages.findIndex((message) => message.id === result.messageId)
         if (messageIndex < 0) {
           return currentStates
         }
         const messages = [...state.messages]
-        messages[messageIndex] = applyMessageReactionSnapshot(
-          messages[messageIndex],
-          result
-        )
+        messages[messageIndex] = applyMessageReactionSnapshot(messages[messageIndex], result)
         if (messages[messageIndex] === state.messages[messageIndex]) {
           return currentStates
         }
@@ -699,7 +641,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       })
       return result
     },
-    []
+    [],
   )
 
   const updateConversationLastMentionedSeq = useCallback(
@@ -713,66 +655,52 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           conversation.id === conversationId
             ? {
                 ...conversation,
-                lastMentionedSeq: Math.max(
-                  conversation.lastMentionedSeq,
-                  lastMentionedSeq
-                ),
+                lastMentionedSeq: Math.max(conversation.lastMentionedSeq, lastMentionedSeq),
               }
-            : conversation
-        )
+            : conversation,
+        ),
       )
     },
-    []
+    [],
   )
 
-  const updateConversationPinned = useCallback(
-    (conversationId: string, pinned: boolean) => {
-      if (!conversationId) {
-        return
-      }
-      setConversations((currentConversations) =>
-        orderConversations(
-          currentConversations.map((conversation) =>
-            conversation.id === conversationId
-              ? { ...conversation, pinned }
-              : conversation
-          )
-        )
-      )
-    },
-    []
-  )
+  const updateConversationPinned = useCallback((conversationId: string, pinned: boolean) => {
+    if (!conversationId) {
+      return
+    }
+    setConversations((currentConversations) =>
+      orderConversations(
+        currentConversations.map((conversation) =>
+          conversation.id === conversationId ? { ...conversation, pinned } : conversation,
+        ),
+      ),
+    )
+  }, [])
 
   const setConversationPinned = useCallback(
     async (conversationId: string, pinned: boolean) => {
       try {
-        const result = await setConversationPinnedRequest(
-          conversationId,
-          pinned
-        )
+        const result = await setConversationPinnedRequest(conversationId, pinned)
         updateConversationPinned(result.conversationId, result.pinned)
       } catch (error) {
         throw handleError(error, pinned ? "置顶会话失败" : "取消置顶失败")
       }
     },
-    [handleError, updateConversationPinned]
+    [handleError, updateConversationPinned],
   )
 
-  const updateConversationMuted = useCallback(
-    (conversationId: string, muted: boolean) => {
-      if (!conversationId) {
-        return
-      }
-      setConversations((currentConversations) =>
-        currentConversations.map((conversation) =>
-          conversation.id === conversationId
-            ? { ...conversation, notificationMuted: muted }
-            : conversation
-        )
-      )
-    },
-    []
-  )
+  const updateConversationMuted = useCallback((conversationId: string, muted: boolean) => {
+    if (!conversationId) {
+      return
+    }
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === conversationId
+          ? { ...conversation, notificationMuted: muted }
+          : conversation,
+      ),
+    )
+  }, [])
 
   const setConversationMuted = useCallback(
     async (conversationId: string, muted: boolean) => {
@@ -780,34 +708,29 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         const result = await setConversationMutedRequest(conversationId, muted)
         updateConversationMuted(result.conversationId, result.muted)
       } catch (error) {
-        throw handleError(
-          error,
-          muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
-        )
+        throw handleError(error, muted ? "开启消息免打扰失败" : "取消消息免打扰失败")
       }
     },
-    [handleError, updateConversationMuted]
+    [handleError, updateConversationMuted],
   )
 
   const updateMessageTopic = useCallback(
     (
       parentConversationId: string,
       sourceMessageId: string,
-      topic: Pick<ClientMessageTopic, "archived" | "conversationId">
+      topic: Pick<ClientMessageTopic, "archived" | "conversationId">,
     ) => {
       setConversations((currentConversations) =>
         topic.archived
-          ? currentConversations.filter(
-              (conversation) => conversation.id !== topic.conversationId
-            )
+          ? currentConversations.filter((conversation) => conversation.id !== topic.conversationId)
           : currentConversations.map((conversation) =>
               conversation.id === topic.conversationId && conversation.topic
                 ? {
                     ...conversation,
                     topic: { ...conversation.topic, archived: false },
                   }
-                : conversation
-            )
+                : conversation,
+            ),
       )
       setConversationMessageStates((currentStates) => {
         const state = currentStates[parentConversationId]
@@ -837,23 +760,17 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           : currentStates
       })
     },
-    []
+    [],
   )
 
   const markConversationRead = useCallback(
-    async (
-      conversationId: string,
-      options: MarkConversationReadOptions = {}
-    ) => {
+    async (conversationId: string, options: MarkConversationReadOptions = {}) => {
       if (!conversationId) {
         return
       }
 
       try {
-        const result = await markConversationReadRequest(
-          conversationId,
-          options
-        )
+        const result = await markConversationReadRequest(conversationId, options)
         setConversations((currentConversations) =>
           currentConversations.map((conversation) =>
             conversation.id === result.conversationId
@@ -862,14 +779,14 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
                   lastReadSeq: result.lastReadSeq,
                   unreadCount: result.unreadCount,
                 }
-              : conversation
-          )
+              : conversation,
+          ),
         )
       } catch (error) {
         throw handleError(error, "标记会话已读失败")
       }
     },
-    [handleError]
+    [handleError],
   )
 
   const ensureConversationMessages = useCallback(
@@ -903,10 +820,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
             error: null,
             loaded: true,
             loading: false,
-            messages: mergeConversationMessages(
-              currentState.messages,
-              result.messages
-            ),
+            messages: mergeConversationMessages(currentState.messages, result.messages),
             page: result.page,
           }))
         })
@@ -924,7 +838,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           loadingConversationIdsRef.current.delete(conversationId)
         })
     },
-    [updateConversationMessageState]
+    [updateConversationMessageState],
   )
 
   const loadBeforeConversationMessages = useCallback(
@@ -947,10 +861,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       })
         .then((result) => {
           updateConversationMessageState(conversationId, (currentState) => {
-            const messages = mergeConversationMessages(
-              currentState.messages,
-              result.messages
-            )
+            const messages = mergeConversationMessages(currentState.messages, result.messages)
 
             return {
               ...currentState,
@@ -958,11 +869,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
               loaded: true,
               loadingBefore: false,
               messages,
-              page: mergePageWithBeforeResult(
-                currentState.page,
-                result.page,
-                messages
-              ),
+              page: mergePageWithBeforeResult(currentState.page, result.page, messages),
             }
           })
         })
@@ -976,7 +883,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           toast.error(message)
         })
     },
-    [updateConversationMessageState]
+    [updateConversationMessageState],
   )
 
   const syncAfterConversationMessages = useCallback(
@@ -992,23 +899,15 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         limit: messagePageLimit,
       })
         .then((result) => {
-          const lastReceivedMessage =
-            result.messages[result.messages.length - 1]
+          const lastReceivedMessage = result.messages[result.messages.length - 1]
           updateConversationMessageState(conversationId, (currentState) => {
-            const messages = mergeConversationMessages(
-              currentState.messages,
-              result.messages
-            )
+            const messages = mergeConversationMessages(currentState.messages, result.messages)
 
             return {
               ...currentState,
               error: null,
               messages,
-              page: mergePageWithAfterResult(
-                currentState.page,
-                result.page,
-                messages
-              ),
+              page: mergePageWithAfterResult(currentState.page, result.page, messages),
             }
           })
 
@@ -1023,13 +922,11 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           syncingAfterConversationIdsRef.current.delete(conversationId)
         })
     },
-    [rememberConversationMessage, updateConversationMessageState]
+    [rememberConversationMessage, updateConversationMessageState],
   )
 
   const syncLoadedConversationMessages = useCallback(() => {
-    for (const [conversationId, state] of Object.entries(
-      conversationMessageStatesRef.current
-    )) {
+    for (const [conversationId, state] of Object.entries(conversationMessageStatesRef.current)) {
       if (!state.loaded) {
         continue
       }
@@ -1040,7 +937,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       }
       void refreshMessageReactions(
         conversationId,
-        state.messages.map((message) => message.id)
+        state.messages.map((message) => message.id),
       ).catch(() => undefined)
     }
   }, [refreshMessageReactions, syncAfterConversationMessages])
@@ -1091,13 +988,12 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     const minimumLoading = wait(minimumBootstrapLoadingMs)
 
     try {
-      const [nextMe, nextContacts, nextConversations, nextProjects] =
-        await Promise.all([
-          getCurrentClientUser(),
-          listClientContacts(),
-          listClientConversations(),
-          listClientProjects({ limit: 100 }),
-        ])
+      const [nextMe, nextContacts, nextConversations, nextProjects] = await Promise.all([
+        getCurrentClientUser(),
+        listClientContacts(),
+        listClientConversations(),
+        listClientProjects({ limit: 100 }),
+      ])
 
       await minimumLoading
       setMe(nextMe)
@@ -1155,12 +1051,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     refreshContacts,
     refreshProjects,
   ])
-  refreshTasksRef.current = [
-    refreshMe,
-    refreshConversations,
-    refreshContacts,
-    refreshProjects,
-  ]
+  refreshTasksRef.current = [refreshMe, refreshConversations, refreshContacts, refreshProjects]
 
   useEffect(() => {
     let active = true
@@ -1184,10 +1075,8 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     }
 
     const poller = startStaggeredRefresh(
-      refreshTasksRef.current.map(
-        (_task, index) => () => refreshTasksRef.current[index]()
-      ),
-      refreshIntervalMs
+      refreshTasksRef.current.map((_task, index) => () => refreshTasksRef.current[index]()),
+      refreshIntervalMs,
     )
 
     function handleVisibilityChange() {
@@ -1291,11 +1180,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     updateGroupConversationName,
   }
 
-  return (
-    <ClientDataContext.Provider value={value}>
-      {children}
-    </ClientDataContext.Provider>
-  )
+  return <ClientDataContext.Provider value={value}>{children}</ClientDataContext.Provider>
 }
 
 function wait(ms: number) {
@@ -1304,13 +1189,7 @@ function wait(ms: number) {
   })
 }
 
-function ClientDataErrorPage({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry: () => void
-}) {
+function ClientDataErrorPage({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="flex h-svh items-center justify-center bg-background px-4 text-foreground">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">

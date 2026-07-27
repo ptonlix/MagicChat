@@ -3,10 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
 
 describe("AddGroupMembersDialog", () => {
@@ -20,7 +17,7 @@ describe("AddGroupMembersDialog", () => {
         value={createClientDataContextValue({ addGroupConversationMembers })}
       >
         <AddGroupMembersDialog conversation={conversation} />
-      </ClientDataContext.Provider>
+      </ClientDataContext.Provider>,
     )
 
     await user.click(screen.getByRole("button", { name: "添加成员" }))
@@ -28,16 +25,12 @@ describe("AddGroupMembersDialog", () => {
     await user.click(screen.getByRole("checkbox", { name: "茉莉" }))
     await user.click(screen.getByRole("button", { name: "添加" }))
 
-    expect(addGroupConversationMembers).toHaveBeenCalledWith(
-      "conversation-group-1",
-      [],
-      ["app-1"]
-    )
+    expect(addGroupConversationMembers).toHaveBeenCalledWith("conversation-group-1", [], ["app-1"])
   })
 })
 
 function createClientDataContextValue(
-  overrides: Partial<ClientDataContextValue>
+  overrides: Partial<ClientDataContextValue>,
 ): ClientDataContextValue {
   const me: ClientUser = {
     avatar: "",

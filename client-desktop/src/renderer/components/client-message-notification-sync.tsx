@@ -16,6 +16,7 @@ import {
   type ClientUser,
   type ContactApp,
   type ContactUser,
+  normalizeMessageCreatedEventNotificationMuted,
   normalizeMessageCreatedEventPayload,
 } from "@/lib/client-data-api"
 import { getConversationAppDisplayName } from "@/lib/conversation-app-profile"
@@ -29,24 +30,20 @@ import { useRealtime } from "@/lib/realtime-context"
 import { showHostMessageNotification } from "@/lib/desktop-host"
 
 const enableNotificationToastId = "enable-browser-message-notifications"
-const enableNotificationToastText =
-  "收到新消息，左上角点击头像，在设置中可以开启桌面通知"
+const enableNotificationToastText = "收到新消息，左上角点击头像，在设置中可以开启桌面通知"
 
 export function ClientMessageNotificationSync() {
   const location = useLocation()
   const navigate = useNavigate()
   const { subscribeRealtimeEvent } = useRealtime()
-  const { contactApps, contacts, conversations, foregroundConversationId, me } =
-    useClientData()
+  const { contactApps, contacts, conversations, foregroundConversationId, me } = useClientData()
   const contactAppsById = React.useMemo(
     () => new Map(contactApps.map((app) => [app.id, app])),
-    [contactApps]
+    [contactApps],
   )
   const activeConversationId = React.useMemo(
-    () =>
-      matchPath("/chat/:conversationId", location.pathname)?.params
-        .conversationId ?? "",
-    [location.pathname]
+    () => matchPath("/chat/:conversationId", location.pathname)?.params.conversationId ?? "",
+    [location.pathname],
   )
   const visibleConversationId = foregroundConversationId || activeConversationId
 
@@ -58,12 +55,18 @@ export function ClientMessageNotificationSync() {
     return subscribeRealtimeEvent("message.created", (payload) => {
       try {
         const message = normalizeMessageCreatedEventPayload(payload)
-        if (isClientMessageInitiatedByUser(message, me.id)) {
+        const conversation = conversations.find(
+          (currentConversation) => currentConversation.id === message.conversationId,
+        )
+        if (
+          isClientMessageInitiatedByUser(message, me.id) ||
+          message.sender.type === "system" ||
+          normalizeMessageCreatedEventNotificationMuted(payload) ||
+          conversation?.notificationMuted
+        ) {
           return
         }
-        if (message.sender.type !== "system") {
-          playMessageNotificationSound()
-        }
+        playMessageNotificationSound()
         if (
           document.visibilityState === "visible" &&
           message.conversationId === visibleConversationId
@@ -71,10 +74,6 @@ export function ClientMessageNotificationSync() {
           return
         }
 
-        const conversation = conversations.find(
-          (currentConversation) =>
-            currentConversation.id === message.conversationId
-        )
         const senderName = getMessageNotificationSenderName({
           appsById: contactAppsById,
           contacts,
@@ -90,12 +89,14 @@ export function ClientMessageNotificationSync() {
           message,
         })}`
 
-        if (showHostMessageNotification({
-          conversationId: message.conversationId,
-          messageId: message.id,
-          preview: body,
-          sender: senderName,
-        })) {
+        if (
+          showHostMessageNotification({
+            conversationId: message.conversationId,
+            messageId: message.id,
+            preview: body,
+            sender: senderName,
+          })
+        ) {
           return
         }
 
@@ -162,16 +163,12 @@ function getMessageNotificationSenderName({
     return formatUserName(me)
   }
 
-  const contact = contacts.find(
-    (currentContact) => currentContact.id === sender.id
-  )
+  const contact = contacts.find((currentContact) => currentContact.id === sender.id)
   if (contact) {
     return formatUserName(contact)
   }
 
-  const member = conversation?.members?.find(
-    (currentMember) => currentMember.id === sender.id
-  )
+  const member = conversation?.members?.find((currentMember) => currentMember.id === sender.id)
   if (member) {
     return formatUserName(member)
   }
@@ -204,7 +201,7 @@ function getMessageNotificationSummary({
   })
   const summary = formatMentionTemplateText(
     formatClientMessageBodySummary(message.body),
-    mentionLabelResolver
+    mentionLabelResolver,
   )
     .trim()
     .replace(/\s+/g, " ")

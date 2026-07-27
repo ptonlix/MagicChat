@@ -14,30 +14,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarMenuButton,
-} from "@/components/ui/sidebar"
+import { Sidebar, SidebarContent, SidebarHeader, SidebarMenuButton } from "@/components/ui/sidebar"
 import { formatActivityTime } from "@/lib/activity-time"
-import type {
-  ClientConversation,
-  ClientUser,
-  ContactApp,
-  ContactUser,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ClientUser, ContactApp, ContactUser } from "@/lib/client-data-api"
 import { getConversationDisplayName } from "@/lib/conversation-avatar-presentation"
-import {
-  getClientDataErrorMessage,
-  isBuiltinAssistantConversation,
-} from "@/lib/client-data-state"
+import { getClientDataErrorMessage, isBuiltinAssistantConversation } from "@/lib/client-data-state"
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import type { ConversationDrafts } from "@/lib/conversation-drafts"
-import {
-  formatMentionTemplateText,
-  type MentionLabelResolver,
-} from "@/lib/message-mentions"
+import { formatMentionTemplateText, type MentionLabelResolver } from "@/lib/message-mentions"
 import { cn } from "@/lib/utils"
 
 export function ConversationSidebar({
@@ -60,23 +44,14 @@ export function ConversationSidebar({
   drafts: ConversationDrafts
   onCreateGroup: () => void
   onSelectConversation: (conversationId: string) => void
-  onSetConversationMuted: (
-    conversationId: string,
-    muted: boolean
-  ) => Promise<void>
-  onSetConversationPinned: (
-    conversationId: string,
-    pinned: boolean
-  ) => Promise<void>
+  onSetConversationMuted: (conversationId: string, muted: boolean) => Promise<void>
+  onSetConversationPinned: (conversationId: string, pinned: boolean) => Promise<void>
 }) {
   const [mutingConversationId, setMutingConversationId] = React.useState("")
   const [pinningConversationId, setPinningConversationId] = React.useState("")
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
-  async function handlePinnedChange(
-    conversation: ClientConversation,
-    pinned: boolean
-  ) {
+  async function handlePinnedChange(conversation: ClientConversation, pinned: boolean) {
     if (pinningConversationId) {
       return
     }
@@ -85,21 +60,13 @@ export function ConversationSidebar({
       await onSetConversationPinned(conversation.id, pinned)
       toast.success(pinned ? "会话已置顶" : "已取消置顶")
     } catch (error) {
-      toast.error(
-        getClientDataErrorMessage(
-          error,
-          pinned ? "置顶会话失败" : "取消置顶失败"
-        )
-      )
+      toast.error(getClientDataErrorMessage(error, pinned ? "置顶会话失败" : "取消置顶失败"))
     } finally {
       setPinningConversationId("")
     }
   }
 
-  async function handleMutedChange(
-    conversation: ClientConversation,
-    muted: boolean
-  ) {
+  async function handleMutedChange(conversation: ClientConversation, muted: boolean) {
     if (mutingConversationId) {
       return
     }
@@ -109,25 +76,17 @@ export function ConversationSidebar({
       toast.success(muted ? "消息免打扰已开启" : "消息免打扰已关闭")
     } catch (error) {
       toast.error(
-        getClientDataErrorMessage(
-          error,
-          muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
-        )
+        getClientDataErrorMessage(error, muted ? "开启消息免打扰失败" : "取消消息免打扰失败"),
       )
     } finally {
       setMutingConversationId("")
     }
   }
 
-  function handleConversationListContextMenu(
-    event: React.MouseEvent<HTMLDivElement>
-  ) {
+  function handleConversationListContextMenu(event: React.MouseEvent<HTMLDivElement>) {
     const target = event.target
 
-    if (
-      target instanceof Element &&
-      target.closest("[data-conversation-list-item-trigger]")
-    ) {
+    if (target instanceof Element && target.closest("[data-conversation-list-item-trigger]")) {
       return
     }
 
@@ -142,32 +101,24 @@ export function ConversationSidebar({
         contactsById,
         conversation,
         currentUser,
-      })
+      }),
     )
   }
 
   function renderConversationItem(conversation: ClientConversation) {
     const selected = conversation.id === activeConversationId
-    const lastMessageTime = formatActivityTime(
-      conversation.lastMessageAt ?? conversation.createdAt
-    )
+    const lastMessageTime = formatActivityTime(conversation.lastMessageAt ?? conversation.createdAt)
     const mentionLabelResolver = createConversationMentionLabelResolver({
       appsById,
       contactsById,
       conversation,
       currentUser,
     })
-    const hasUnreadMention =
-      conversation.lastMentionedSeq > conversation.lastReadSeq
+    const hasUnreadMention = conversation.lastMentionedSeq > conversation.lastReadSeq
     const preview = getConversationListPreview({
-      draftText: conversation.topic?.archived
-        ? undefined
-        : drafts[conversation.id]?.text,
+      draftText: conversation.topic?.archived ? undefined : drafts[conversation.id]?.text,
       hasUnreadMention,
-      messageDescription: getConversationListDescription(
-        conversation,
-        mentionLabelResolver
-      ),
+      messageDescription: getConversationListDescription(conversation, mentionLabelResolver),
       selected,
     })
 
@@ -176,26 +127,19 @@ export function ConversationSidebar({
         key={conversation.id}
         muted={Boolean(conversation.notificationMuted)}
         muting={mutingConversationId === conversation.id}
-        onMutedChange={(muted) =>
-          void handleMutedChange(conversation, muted)
-        }
-        onPinnedChange={(pinned) =>
-          void handlePinnedChange(conversation, pinned)
-        }
+        onMutedChange={(muted) => void handleMutedChange(conversation, muted)}
+        onPinnedChange={(pinned) => void handlePinnedChange(conversation, pinned)}
         pinned={Boolean(conversation.pinned)}
         pinning={pinningConversationId === conversation.id}
         showPinAction={!isBuiltinAssistantConversation(conversation)}
       >
-        <div
-          className="group/menu-item relative"
-          data-conversation-list-item-trigger
-        >
+        <div className="group/menu-item relative" data-conversation-list-item-trigger>
           <SidebarMenuButton
             aria-selected={selected}
             className={cn(
               "h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
               conversation.pinned &&
-                "bg-neutral-100 hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-900"
+                "bg-neutral-100 hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-900",
             )}
             isActive={selected}
             onClick={() => onSelectConversation(conversation.id)}
@@ -267,9 +211,7 @@ export function ConversationSidebar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
-              <DropdownMenuItem onSelect={onCreateGroup}>
-                发起群聊
-              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onCreateGroup}>发起群聊</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -282,16 +224,11 @@ export function ConversationSidebar({
           />
         </div>
       </SidebarHeader>
-      <SidebarContent
-        ref={scrollRef}
-        onContextMenu={handleConversationListContextMenu}
-      >
+      <SidebarContent ref={scrollRef} onContextMenu={handleConversationListContextMenu}>
         {conversations.length === 0 ? (
           <div className="px-2 pb-3" role="listbox">
             <div className="group/menu-item relative">
-              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                暂无会话
-              </div>
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">暂无会话</div>
             </div>
           </div>
         ) : (
@@ -312,13 +249,11 @@ export function ConversationSidebar({
 
 function getConversationListDescription(
   conversation: ClientConversation,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ) {
   const summary = conversation.lastMessageSummary.trim()
 
-  return summary
-    ? formatMentionTemplateText(summary, mentionLabelResolver)
-    : "暂无消息"
+  return summary ? formatMentionTemplateText(summary, mentionLabelResolver) : "暂无消息"
 }
 
 function getConversationListPreview({
@@ -359,11 +294,7 @@ function getConversationListPreview({
   }
 }
 
-function ConversationListAvatar({
-  conversation,
-}: {
-  conversation: ClientConversation
-}) {
+function ConversationListAvatar({ conversation }: { conversation: ClientConversation }) {
   return (
     <div className="relative shrink-0">
       <ConversationAvatar
@@ -374,10 +305,7 @@ function ConversationListAvatar({
       {conversation.unreadCount > 0 && (
         <span className="absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/3">
           {conversation.notificationMuted ? (
-            <span
-              aria-label="有未读消息"
-              className="block size-2 rounded-full bg-rose-700"
-            />
+            <span aria-label="有未读消息" className="block size-2 rounded-full bg-rose-700" />
           ) : (
             <ConversationUnreadBadge count={conversation.unreadCount} />
           )}

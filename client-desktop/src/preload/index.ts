@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron"
-import { BRIDGE_VERSION, IPC, type DesktopAuthResult, type DesktopBridge, type UpdaterState } from "@shared/bridge"
+import {
+  BRIDGE_VERSION,
+  IPC,
+  type DesktopAuthResult,
+  type DesktopBridge,
+  type UpdaterState,
+} from "@shared/bridge"
 import type { RealtimeEnvelope } from "@shared/client-contract"
 
 const bridge: DesktopBridge = {
@@ -32,13 +38,15 @@ const bridge: DesktopBridge = {
   notifications: { show: (input) => ipcRenderer.invoke(IPC.notificationShow, input) },
   navigation: {
     subscribe: (listener) => subscribe<string>(IPC.navigate, listener),
-    subscribeUnknownServer: (listener) => subscribe<{ serverId: string }>(IPC.unknownServer, listener),
+    subscribeUnknownServer: (listener) =>
+      subscribe<{ serverId: string }>(IPC.unknownServer, listener),
   },
   permissions: { request: (kind) => ipcRenderer.invoke(IPC.permissionsRequest, kind) },
   realtime: {
     close: (target) => ipcRenderer.invoke(IPC.realtimeClose, target),
     connect: (target) => ipcRenderer.invoke(IPC.realtimeConnect, target),
-    send: (target, method, payload) => ipcRenderer.invoke(IPC.realtimeSend, target, method, payload),
+    send: (target, method, payload) =>
+      ipcRenderer.invoke(IPC.realtimeSend, target, method, payload),
     subscribe: (listener) => subscribe<RealtimeEnvelope>(IPC.realtimeEvent, listener),
     subscribeUnauthorized: (listener) => subscribe(IPC.realtimeUnauthorized, listener),
   },
@@ -74,10 +82,14 @@ const bridge: DesktopBridge = {
 }
 
 if (process.argv.includes("--magicchat-proxy-auth")) {
-  contextBridge.exposeInMainWorld("proxyAuth", Object.freeze({
-    cancel: () => ipcRenderer.send("desktop:internal:proxy-auth-cancel"),
-    submit: (username: string, password: string) => ipcRenderer.send("desktop:internal:proxy-auth-submit", { password, username }),
-  }))
+  contextBridge.exposeInMainWorld(
+    "proxyAuth",
+    Object.freeze({
+      cancel: () => ipcRenderer.send("desktop:internal:proxy-auth-cancel"),
+      submit: (username: string, password: string) =>
+        ipcRenderer.send("desktop:internal:proxy-auth-submit", { password, username }),
+    }),
+  )
 } else {
   contextBridge.exposeInMainWorld("desktop", Object.freeze(bridge))
 }

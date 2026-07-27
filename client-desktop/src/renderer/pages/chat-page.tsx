@@ -22,10 +22,7 @@ import {
   readLastConversationId,
   writeLastConversationId,
 } from "@/lib/last-conversation"
-import {
-  emptyConversationDraft,
-  type ConversationDraftMention,
-} from "@/lib/conversation-drafts"
+import { emptyConversationDraft, type ConversationDraftMention } from "@/lib/conversation-drafts"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
 import {
   formatConversationMessageSummary,
@@ -76,9 +73,7 @@ function normalizeSingleLinkMessageURL(content: string) {
     return null
   }
 
-  const linkCandidate = value.toLowerCase().startsWith("www.")
-    ? `https://${value}`
-    : value
+  const linkCandidate = value.toLowerCase().startsWith("www.") ? `https://${value}` : value
 
   try {
     const url = new URL(linkCandidate)
@@ -124,41 +119,27 @@ export function ChatPage() {
     setForegroundConversationId,
     updateMessageTopic,
   } = useClientData()
-  const {
-    clearConversationDraft,
-    drafts,
-    flushDrafts,
-    updateConversationDraft,
-  } = useConversationDrafts(me.id)
+  const { clearConversationDraft, drafts, flushDrafts, updateConversationDraft } =
+    useConversationDrafts(me.id)
   const [richTextMode, setRichTextMode] = React.useState(false)
-  const [createGroupDialogOpen, setCreateGroupDialogOpen] =
-    React.useState(false)
-  const [forwardOperation, setForwardOperation] =
-    React.useState<ForwardOperation | null>(null)
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = React.useState(false)
+  const [forwardOperation, setForwardOperation] = React.useState<ForwardOperation | null>(null)
   const [createTopicOperation, setCreateTopicOperation] =
     React.useState<CreateTopicOperation | null>(null)
   const [creatingTopic, setCreatingTopic] = React.useState(false)
-  const [topicDrawerConversationId, setTopicDrawerConversationId] =
-    React.useState("")
-  React.useEffect(
-    () => () => setForegroundConversationId?.(""),
-    [setForegroundConversationId]
-  )
+  const [topicDrawerConversationId, setTopicDrawerConversationId] = React.useState("")
+  React.useEffect(() => () => setForegroundConversationId?.(""), [setForegroundConversationId])
   const requestedConversationId = conversationId ?? ""
   const storedConversationId = React.useMemo(
     () => (requestedConversationId ? "" : readLastConversationId(me.id)),
-    [me.id, requestedConversationId]
+    [me.id, requestedConversationId],
   )
-  const storedConversation = storedConversationId
-    ? getConversation(storedConversationId)
-    : null
-  const resolvedConversationId =
-    requestedConversationId || storedConversation?.id || ""
+  const storedConversation = storedConversationId ? getConversation(storedConversationId) : null
+  const resolvedConversationId = requestedConversationId || storedConversation?.id || ""
 
   const activeConversation = React.useMemo(
-    () =>
-      resolvedConversationId ? getConversation(resolvedConversationId) : null,
-    [getConversation, resolvedConversationId]
+    () => (resolvedConversationId ? getConversation(resolvedConversationId) : null),
+    [getConversation, resolvedConversationId],
   )
 
   const activeConversationId = activeConversation?.id ?? ""
@@ -178,13 +159,13 @@ export function ChatPage() {
   const activeConversationHasUnreadProgress = Boolean(
     activeConversation &&
     (activeConversation.unreadCount > 0 ||
-      activeConversation.lastReadSeq < activeConversation.lastMessageSeq)
+      activeConversation.lastReadSeq < activeConversation.lastMessageSeq),
   )
   const historyLoading = Boolean(
     activeConversation &&
     activeMessageState &&
     !activeMessageState.loaded &&
-    !activeMessageState.error
+    !activeMessageState.error,
   )
   const activeConversationReadOnlyReason =
     activeConversation?.canSend === false && !activeConversation.topic?.archived
@@ -193,11 +174,10 @@ export function ChatPage() {
         ? "你当前无权直接使用此应用"
         : "当前会话不能发送消息"
       : undefined
-  const activeClientMessages =
-    activeMessageState?.messages ?? emptyClientMessages
+  const activeClientMessages = activeMessageState?.messages ?? emptyClientMessages
   const activeClientMessagesById = React.useMemo(
     () => new Map(activeClientMessages.map((message) => [message.id, message])),
-    [activeClientMessages]
+    [activeClientMessages],
   )
   const activeClientMessagesByIdRef = React.useRef(activeClientMessagesById)
   React.useEffect(() => {
@@ -205,7 +185,7 @@ export function ChatPage() {
   }, [activeClientMessagesById])
   const contactsById = React.useMemo(
     () => new Map(contacts.map((contact) => [contact.id, contact])),
-    [contacts]
+    [contacts],
   )
   const contactAppsByLookup = React.useMemo(() => {
     const appsByLookup = new Map<string, ContactApp>()
@@ -229,26 +209,14 @@ export function ChatPage() {
           nickname: me.nickname,
         },
       }),
-    [
-      activeConversation?.members,
-      contactAppsByLookup,
-      contactsById,
-      me.id,
-      me.name,
-      me.nickname,
-    ]
+    [activeConversation?.members, contactAppsByLookup, contactsById, me.id, me.name, me.nickname],
   )
   const activeMentionLabelResolverRef = React.useRef(activeMentionLabelResolver)
   React.useEffect(() => {
     activeMentionLabelResolverRef.current = activeMentionLabelResolver
   }, [activeMentionLabelResolver])
   const activeConversationOnline = activeConversation
-    ? getConversationOnlineStatus(
-        activeConversation,
-        me.id,
-        contactsById,
-        contactAppsByLookup
-      )
+    ? getConversationOnlineStatus(activeConversation, me.id, contactsById, contactAppsByLookup)
     : undefined
   const activeMessages = React.useMemo(
     () =>
@@ -261,8 +229,8 @@ export function ChatPage() {
               contactsById,
               contactAppsByLookup,
               activeClientMessagesById,
-              activeMentionLabelResolver
-            )
+              activeMentionLabelResolver,
+            ),
           )
         : [],
     [
@@ -273,7 +241,7 @@ export function ChatPage() {
       contactAppsByLookup,
       contactsById,
       me,
-    ]
+    ],
   )
   const selectedClientMessages = React.useMemo(
     () =>
@@ -282,18 +250,16 @@ export function ChatPage() {
           selectedMessageIds.has(message.id) &&
           message.body.type !== "revoked" &&
           message.body.type !== "unsupported" &&
-          message.body.type !== "system_event"
+          message.body.type !== "system_event",
       ),
-    [activeClientMessages, selectedMessageIds]
+    [activeClientMessages, selectedMessageIds],
   )
   const visibleMessageSelection = React.useMemo(
     () => ({
       active: messageSelection.active,
-      selectedMessageIds: new Set(
-        selectedClientMessages.map((message) => message.id)
-      ),
+      selectedMessageIds: new Set(selectedClientMessages.map((message) => message.id)),
     }),
-    [messageSelection.active, selectedClientMessages]
+    [messageSelection.active, selectedClientMessages],
   )
 
   React.useEffect(() => {
@@ -309,13 +275,7 @@ export function ChatPage() {
     navigate(`/chat/${encodeURIComponent(storedConversation.id)}`, {
       replace: true,
     })
-  }, [
-    me.id,
-    navigate,
-    requestedConversationId,
-    storedConversation,
-    storedConversationId,
-  ])
+  }, [me.id, navigate, requestedConversationId, storedConversation, storedConversationId])
 
   React.useEffect(() => {
     if (activeConversationId) {
@@ -331,7 +291,7 @@ export function ChatPage() {
         text: nextDraft,
       }))
     },
-    [activeConversationId, updateConversationDraft]
+    [activeConversationId, updateConversationDraft],
   )
 
   React.useEffect(() => {
@@ -368,11 +328,7 @@ export function ChatPage() {
       window.clearInterval(interval)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
-  }, [
-    activeConversationId,
-    activeConversationHasUnreadProgress,
-    markConversationRead,
-  ])
+  }, [activeConversationId, activeConversationHasUnreadProgress, markConversationRead])
 
   const loadBeforeMessages = React.useCallback(() => {
     if (!activeConversationId) {
@@ -398,12 +354,12 @@ export function ChatPage() {
           author: message.author,
           summary: formatConversationMessageSummary(
             message.body,
-            activeMentionLabelResolverRef.current
+            activeMentionLabelResolverRef.current,
           ),
         },
       }))
     },
-    [activeConversationId, updateConversationDraft]
+    [activeConversationId, updateConversationDraft],
   )
 
   const revokeMessage = React.useCallback(
@@ -412,24 +368,18 @@ export function ChatPage() {
         return
       }
 
-      void revokeConversationMessage(activeConversationId, message.id).catch(
-        () => {
-          toast.error("撤回消息失败")
-        }
-      )
+      void revokeConversationMessage(activeConversationId, message.id).catch(() => {
+        toast.error("撤回消息失败")
+      })
     },
-    [activeConversationId, revokeConversationMessage]
+    [activeConversationId, revokeConversationMessage],
   )
 
   const updateMessageReaction = React.useCallback(
-    async (
-      message: ConversationPanelMessage,
-      text: string,
-      reacted: boolean
-    ) => {
+    async (message: ConversationPanelMessage, text: string, reacted: boolean) => {
       await setMessageReaction(activeConversationId, message.id, text, reacted)
     },
-    [activeConversationId, setMessageReaction]
+    [activeConversationId, setMessageReaction],
   )
 
   const openForwardOperation = React.useCallback(
@@ -448,7 +398,7 @@ export function ChatPage() {
         sourceConversationId: activeConversationId,
       })
     },
-    [activeConversationId]
+    [activeConversationId],
   )
 
   const forwardSingleMessage = React.useCallback(
@@ -458,12 +408,12 @@ export function ChatPage() {
         openForwardOperation([clientMessage], "separate")
       }
     },
-    [openForwardOperation]
+    [openForwardOperation],
   )
 
   const startMessageSelection = React.useCallback(
     (message: ConversationPanelMessage) => startSelectingMessage(message.id),
-    [startSelectingMessage]
+    [startSelectingMessage],
   )
 
   const toggleMessageSelection = React.useCallback(
@@ -475,29 +425,26 @@ export function ChatPage() {
       }
       toggleSelectedMessage(message.id)
     },
-    [maxSelectedMessages, selectedMessageIds, toggleSelectedMessage]
+    [maxSelectedMessages, selectedMessageIds, toggleSelectedMessage],
   )
 
   const forwardSelectedMessages = React.useCallback(
     (mode: ConversationPanelForwardMode) => {
       openForwardOperation(selectedClientMessages, mode)
     },
-    [openForwardOperation, selectedClientMessages]
+    [openForwardOperation, selectedClientMessages],
   )
 
   async function submitForwardOperation(targetConversationIds: string[]) {
     if (!forwardOperation) {
       throw new Error("转发操作不存在")
     }
-    const result = await forwardConversationMessages(
-      forwardOperation.sourceConversationId,
-      {
-        clientForwardId: forwardOperation.clientForwardId,
-        messageIds: forwardOperation.messageIds,
-        mode: forwardOperation.mode,
-        targetConversationIds,
-      }
-    )
+    const result = await forwardConversationMessages(forwardOperation.sourceConversationId, {
+      clientForwardId: forwardOperation.clientForwardId,
+      messageIds: forwardOperation.messageIds,
+      mode: forwardOperation.mode,
+      targetConversationIds,
+    })
     for (const target of result.results) {
       if (target.status !== "sent") {
         continue
@@ -509,10 +456,7 @@ export function ChatPage() {
     return result
   }
 
-  function clearSentReplyTarget(
-    conversationId: string,
-    replyToMessageId: string | undefined
-  ) {
+  function clearSentReplyTarget(conversationId: string, replyToMessageId: string | undefined) {
     if (!replyToMessageId) {
       return
     }
@@ -520,7 +464,7 @@ export function ChatPage() {
     updateConversationDraft(conversationId, (currentDraft) =>
       currentDraft.replyTarget?.id === replyToMessageId
         ? { ...currentDraft, replyTarget: null }
-        : currentDraft
+        : currentDraft,
     )
     flushDrafts()
   }
@@ -608,11 +552,7 @@ export function ChatPage() {
     navigate(`/chat/${encodeURIComponent(conversationId)}`, { replace: true })
   }
 
-  async function startGroupConversation(
-    name: string,
-    memberIds: string[],
-    appIds: string[]
-  ) {
+  async function startGroupConversation(name: string, memberIds: string[], appIds: string[]) {
     const conversation = await createGroupConversation(name, memberIds, appIds)
     flushDrafts()
     navigate(`/chat/${encodeURIComponent(conversation.id)}`)
@@ -635,10 +575,7 @@ export function ChatPage() {
     const operation = createTopicOperation
     setCreatingTopic(true)
     try {
-      const result = await createConversationTopic(
-        operation.conversationId,
-        operation.message.id
-      )
+      const result = await createConversationTopic(operation.conversationId, operation.message.id)
       updateMessageTopic?.(operation.conversationId, operation.message.id, {
         archived: Boolean(result.conversation.topic?.archived),
         conversationId: result.conversation.id,
@@ -702,15 +639,12 @@ export function ChatPage() {
               conversationId={activeConversation.id}
               currentUserId={me.id}
               mentionLabelResolver={activeMentionLabelResolver}
-              reactionConversationId={
-                activeConversation.topic?.parentConversationId
-              }
+              reactionConversationId={activeConversation.topic?.parentConversationId}
             />
           ) : undefined
         }
         headerActions={
-          activeConversation?.type === "topic" &&
-          activeConversation.canSend !== false ? (
+          activeConversation?.type === "topic" && activeConversation.canSend !== false ? (
             <TopicArchiveAction conversationId={activeConversation.id} />
           ) : undefined
         }
@@ -722,8 +656,7 @@ export function ChatPage() {
         onDraftBlur={flushDrafts}
         onDraftChange={setDraft}
         onCreateTopic={
-          activeConversation?.type === "topic" ||
-          activeConversation?.canSend === false
+          activeConversation?.type === "topic" || activeConversation?.canSend === false
             ? undefined
             : requestCreateTopic
         }
@@ -743,10 +676,7 @@ export function ChatPage() {
         onToggleMessageSelection={toggleMessageSelection}
         replyTarget={replyTarget}
         richTextMode={richTextMode}
-        readOnly={
-          activeConversation?.topic?.archived ||
-          activeConversation?.canSend === false
-        }
+        readOnly={activeConversation?.topic?.archived || activeConversation?.canSend === false}
         readOnlyReason={activeConversationReadOnlyReason}
         sending={Boolean(activeMessageState?.sending)}
       />
@@ -837,16 +767,12 @@ function getConversationOnlineStatus(
   conversation: ClientConversation,
   currentUserId: string,
   contactsById: ReadonlyMap<string, ContactUser>,
-  contactAppsByLookup: ReadonlyMap<string, ContactApp>
+  contactAppsByLookup: ReadonlyMap<string, ContactApp>,
 ) {
   if (conversation.type === "direct") {
-    const otherMember = conversation.members?.find(
-      (member) => member.id !== currentUserId
-    )
+    const otherMember = conversation.members?.find((member) => member.id !== currentUserId)
 
-    return otherMember
-      ? (contactsById.get(otherMember.id)?.online ?? false)
-      : false
+    return otherMember ? (contactsById.get(otherMember.id)?.online ?? false) : false
   }
 
   if (conversation.type === "app") {

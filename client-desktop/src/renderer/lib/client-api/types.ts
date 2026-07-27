@@ -1,7 +1,4 @@
-export type ClientDataFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>
+export type ClientDataFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 export type ClientDataSuccessEnvelope<T> = {
   data?: T
@@ -533,6 +530,7 @@ export type MarkConversationReadResponse = {
 
 export type MessageCreatedEventPayloadResponse = {
   message?: MessageResponse
+  notification_muted?: boolean
 }
 
 export type MessageUpdatedEventPayloadResponse = {
@@ -851,8 +849,7 @@ export type ClientEntityCardMessageInput = {
   type: "entity_card"
 }
 
-export type ClientCardSendInput =
-  ClientCardMessageBody | ClientEntityCardMessageInput
+export type ClientCardSendInput = ClientCardMessageBody | ClientEntityCardMessageInput
 
 export type ClientFileMessageBody = {
   fileId: string

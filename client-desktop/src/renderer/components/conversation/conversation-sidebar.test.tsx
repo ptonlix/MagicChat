@@ -22,17 +22,14 @@ describe("ConversationSidebar", () => {
           onSetConversationMuted={vi.fn()}
           onSetConversationPinned={onSetConversationPinned}
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     fireEvent.contextMenu(screen.getByText("智能助手").closest("button")!)
     fireEvent.click(await screen.findByText("置顶对话"))
 
     await waitFor(() =>
-      expect(onSetConversationPinned).toHaveBeenCalledWith(
-        "conversation-app-1",
-        true
-      )
+      expect(onSetConversationPinned).toHaveBeenCalledWith("conversation-app-1", true),
     )
   })
 
@@ -66,7 +63,7 @@ describe("ConversationSidebar", () => {
           onSetConversationMuted={vi.fn()}
           onSetConversationPinned={vi.fn()}
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     fireEvent.contextMenu(screen.getByText("茉莉").closest("button")!)
@@ -91,17 +88,14 @@ describe("ConversationSidebar", () => {
           onSetConversationMuted={onSetConversationMuted}
           onSetConversationPinned={vi.fn()}
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     fireEvent.contextMenu(screen.getByText("智能助手").closest("button")!)
     fireEvent.click(await screen.findByText("消息免打扰"))
 
     await waitFor(() =>
-      expect(onSetConversationMuted).toHaveBeenCalledWith(
-        "conversation-app-1",
-        true
-      )
+      expect(onSetConversationMuted).toHaveBeenCalledWith("conversation-app-1", true),
     )
   })
 
@@ -125,7 +119,7 @@ describe("ConversationSidebar", () => {
           onSetConversationMuted={vi.fn()}
           onSetConversationPinned={vi.fn()}
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     expect(screen.getByLabelText("已置顶")).toBeInTheDocument()
@@ -133,7 +127,6 @@ describe("ConversationSidebar", () => {
     expect(screen.getByLabelText("有未读消息")).toBeInTheDocument()
     expect(screen.queryByLabelText("6 条未读消息")).not.toBeInTheDocument()
   })
-
 })
 
 function createAppConversation(): ClientConversation {

@@ -8,10 +8,7 @@ const updateConversationMuted = vi.fn()
 vi.mock("@/lib/realtime-context", () => ({
   useRealtime: () => ({
     ready: true,
-    subscribeRealtimeEvent: (
-      event: string,
-      callback: (payload: unknown) => void
-    ) => {
+    subscribeRealtimeEvent: (event: string, callback: (payload: unknown) => void) => {
       callbacks.set(event, callback)
       return () => callbacks.delete(event)
     },
@@ -41,7 +38,7 @@ describe("ClientConversationRealtimeSync", () => {
     render(
       <MemoryRouter initialEntries={["/chat/conversation-1"]}>
         <ClientConversationRealtimeSync />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     act(() => {

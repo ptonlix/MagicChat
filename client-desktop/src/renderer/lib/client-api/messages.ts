@@ -56,7 +56,7 @@ export async function setConversationMessageReaction(
   conversationId: string,
   messageId: string,
   input: SetMessageReactionInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<MessageReactionSnapshot> {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/reactions`,
@@ -65,18 +65,15 @@ export async function setConversationMessageReaction(
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "PUT",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<SetMessageReactionResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<SetMessageReactionResponse>
   >(response)
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "更新消息表情失败")
   }
-  const data = (
-    payload as ClientDataSuccessEnvelope<SetMessageReactionResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<SetMessageReactionResponse> | undefined)?.data
   if (
     !data?.conversation_id ||
     !data.message_id ||
@@ -96,7 +93,7 @@ export async function setConversationMessageReaction(
 export async function listConversationMessageReactionSnapshots(
   conversationId: string,
   messageIds: string[],
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<MessageReactionSnapshot[]> {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/reactions/query`,
@@ -105,24 +102,18 @@ export async function listConversationMessageReactionSnapshots(
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ListMessageReactionSnapshotsResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListMessageReactionSnapshotsResponse>
   >(response)
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "同步消息表情失败")
   }
   const data = (
-    payload as
-      | ClientDataSuccessEnvelope<ListMessageReactionSnapshotsResponse>
-      | undefined
+    payload as ClientDataSuccessEnvelope<ListMessageReactionSnapshotsResponse> | undefined
   )?.data
-  if (
-    data?.conversation_id !== conversationId ||
-    !Array.isArray(data.snapshots)
-  ) {
+  if (data?.conversation_id !== conversationId || !Array.isArray(data.snapshots)) {
     throw new ClientDataRequestError("消息表情快照响应格式不正确")
   }
   const snapshots = data.snapshots.map((snapshot) => {
@@ -143,9 +134,7 @@ export async function listConversationMessageReactionSnapshots(
   const requestedMessageIds = [...new Set(messageIds)]
   if (
     snapshots.length !== requestedMessageIds.length ||
-    snapshots.some(
-      (snapshot, index) => snapshot.messageId !== requestedMessageIds[index]
-    )
+    snapshots.some((snapshot, index) => snapshot.messageId !== requestedMessageIds[index])
   ) {
     throw new ClientDataRequestError("消息表情快照响应格式不正确")
   }
@@ -156,25 +145,21 @@ export async function listConversationMessageReactionUsers(
   conversationId: string,
   messageId: string,
   text: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<ClientMessageReactionUser[]> {
   const searchParams = new URLSearchParams({ text })
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/reactions/users?${searchParams.toString()}`,
-    { credentials: "include", method: "GET" }
+    { credentials: "include", method: "GET" },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ListMessageReactionUsersResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListMessageReactionUsersResponse>
   >(response)
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "加载表情参与者失败")
   }
-  const data = (
-    payload as
-      | ClientDataSuccessEnvelope<ListMessageReactionUsersResponse>
-      | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<ListMessageReactionUsersResponse> | undefined)
+    ?.data
   if (
     data?.conversation_id !== conversationId ||
     data.message_id !== messageId ||
@@ -188,7 +173,7 @@ export async function listConversationMessageReactionUsers(
 export async function listConversationMessages(
   conversationId: string,
   options: ListConversationMessagesOptions = {},
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const searchParams = new URLSearchParams()
   searchParams.set("limit", String(options.limit ?? 20))
@@ -201,26 +186,23 @@ export async function listConversationMessages(
 
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(
-      conversationId
+      conversationId,
     )}/messages?${searchParams.toString()}`,
     {
       credentials: "include",
       method: "GET",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ListConversationMessagesResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListConversationMessagesResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "加载消息失败")
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<ListConversationMessagesResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<ListConversationMessagesResponse> | undefined)
+    ?.data
 
   if (!data?.messages || !data.page) {
     throw new ClientDataRequestError("消息列表响应格式不正确")
@@ -235,7 +217,7 @@ export async function listConversationMessages(
 export async function forwardConversationMessages(
   sourceConversationId: string,
   input: ForwardConversationMessagesInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<ForwardConversationMessagesResult> {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(sourceConversationId)}/messages/forward`,
@@ -251,11 +233,10 @@ export async function forwardConversationMessages(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ForwardConversationMessagesResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ForwardConversationMessagesResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -263,8 +244,7 @@ export async function forwardConversationMessages(
   }
 
   const data = (
-    payload as
-      ClientDataSuccessEnvelope<ForwardConversationMessagesResponse> | undefined
+    payload as ClientDataSuccessEnvelope<ForwardConversationMessagesResponse> | undefined
   )?.data
   if (
     typeof data?.sent_count !== "number" ||
@@ -277,10 +257,7 @@ export async function forwardConversationMessages(
   return {
     failedCount: data.failed_count,
     results: data.results.map((result) => {
-      if (
-        !result.conversation_id ||
-        (result.status !== "sent" && result.status !== "failed")
-      ) {
+      if (!result.conversation_id || (result.status !== "sent" && result.status !== "failed")) {
         throw new ClientDataRequestError("转发消息响应格式不正确")
       }
 
@@ -315,7 +292,7 @@ export async function forwardConversationMessages(
 export async function sendConversationTextMessage(
   conversationId: string,
   input: SendConversationTextMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -333,7 +310,7 @@ export async function sendConversationTextMessage(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -343,9 +320,8 @@ export async function sendConversationTextMessage(
     throw createRequestError(payload, response, "发送消息失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -353,7 +329,7 @@ export async function sendConversationTextMessage(
 export async function sendConversationMarkdownMessage(
   conversationId: string,
   input: SendConversationMarkdownMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -371,7 +347,7 @@ export async function sendConversationMarkdownMessage(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -381,9 +357,8 @@ export async function sendConversationMarkdownMessage(
     throw createRequestError(payload, response, "发送富文本消息失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -391,7 +366,7 @@ export async function sendConversationMarkdownMessage(
 export async function sendConversationLinkMessage(
   conversationId: string,
   input: SendConversationLinkMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -409,7 +384,7 @@ export async function sendConversationLinkMessage(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -419,9 +394,8 @@ export async function sendConversationLinkMessage(
     throw createRequestError(payload, response, "发送链接失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -429,7 +403,7 @@ export async function sendConversationLinkMessage(
 export async function sendConversationCardMessage(
   conversationId: string,
   input: SendConversationCardMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -449,7 +423,7 @@ export async function sendConversationCardMessage(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -459,9 +433,8 @@ export async function sendConversationCardMessage(
     throw createRequestError(payload, response, "发送卡片失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -469,7 +442,7 @@ export async function sendConversationCardMessage(
 export async function sendConversationChartMessage(
   conversationId: string,
   input: SendConversationChartMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -490,7 +463,7 @@ export async function sendConversationChartMessage(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -500,9 +473,8 @@ export async function sendConversationChartMessage(
     throw createRequestError(payload, response, "发送图表失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -510,7 +482,7 @@ export async function sendConversationChartMessage(
 export async function sendConversationEntityCardMessage(
   conversationId: string,
   input: SendConversationEntityCardMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -529,7 +501,7 @@ export async function sendConversationEntityCardMessage(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -539,9 +511,8 @@ export async function sendConversationEntityCardMessage(
     throw createRequestError(payload, response, "发送对象卡片失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -549,7 +520,7 @@ export async function sendConversationEntityCardMessage(
 export async function sendConversationFileMessage(
   conversationId: string,
   input: SendConversationFileMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const formData = new FormData()
   formData.set("client_message_id", input.clientMessageId)
@@ -564,7 +535,7 @@ export async function sendConversationFileMessage(
       body: formData,
       credentials: "include",
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -574,9 +545,8 @@ export async function sendConversationFileMessage(
     throw createRequestError(payload, response, "发送文件失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -584,7 +554,7 @@ export async function sendConversationFileMessage(
 export async function sendConversationImageMessage(
   conversationId: string,
   input: SendConversationImageMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const formData = new FormData()
   formData.set("client_message_id", input.clientMessageId)
@@ -599,7 +569,7 @@ export async function sendConversationImageMessage(
       body: formData,
       credentials: "include",
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -609,9 +579,8 @@ export async function sendConversationImageMessage(
     throw createRequestError(payload, response, "发送图片失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -619,7 +588,7 @@ export async function sendConversationImageMessage(
 export async function sendConversationVoiceMessage(
   conversationId: string,
   input: SendConversationVoiceMessageInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const formData = new FormData()
   formData.set("client_message_id", input.clientMessageId)
@@ -635,7 +604,7 @@ export async function sendConversationVoiceMessage(
       body: formData,
       credentials: "include",
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateMessageResponse>
@@ -645,9 +614,8 @@ export async function sendConversationVoiceMessage(
     throw createRequestError(payload, response, "发送语音失败")
   }
 
-  const message = (
-    payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined
-  )?.data?.message
+  const message = (payload as ClientDataSuccessEnvelope<CreateMessageResponse> | undefined)?.data
+    ?.message
 
   return normalizeMessage(message)
 }
@@ -655,28 +623,25 @@ export async function sendConversationVoiceMessage(
 export async function revokeConversationMessage(
   conversationId: string,
   messageId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/revoke`,
     {
       credentials: "include",
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<RevokeConversationMessageResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<RevokeConversationMessageResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "撤回消息失败")
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<RevokeConversationMessageResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<RevokeConversationMessageResponse> | undefined)
+    ?.data
   if (!data?.message || !data.system_message) {
     throw new ClientDataRequestError("撤回消息响应格式不正确")
   }
@@ -689,7 +654,7 @@ export async function revokeConversationMessage(
 
 export async function readTemporaryFileURLs(
   fileIds: string[],
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<TemporaryFileReadURL[]> {
   if (fileIds.length === 0) {
     return []
@@ -726,18 +691,15 @@ export async function readTemporaryFileURLs(
     method: "POST",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ReadTemporaryFileURLsResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ReadTemporaryFileURLsResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "获取文件下载地址失败")
   }
 
-  const urls = (
-    payload as
-      ClientDataSuccessEnvelope<ReadTemporaryFileURLsResponse> | undefined
-  )?.data?.urls
+  const urls = (payload as ClientDataSuccessEnvelope<ReadTemporaryFileURLsResponse> | undefined)
+    ?.data?.urls
 
   if (!Array.isArray(urls)) {
     throw new ClientDataRequestError("文件下载地址响应格式不正确")
@@ -759,7 +721,7 @@ export async function readTemporaryFileURLs(
 export async function markConversationRead(
   conversationId: string,
   options: MarkConversationReadOptions = {},
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<MarkConversationReadResult> {
   const body =
     options.upToSeq === undefined
@@ -776,11 +738,10 @@ export async function markConversationRead(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<MarkConversationReadResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<MarkConversationReadResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -788,39 +749,36 @@ export async function markConversationRead(
   }
 
   return normalizeMarkConversationReadResult(
-    (
-      payload as
-        ClientDataSuccessEnvelope<MarkConversationReadResponse> | undefined
-    )?.data
+    (payload as ClientDataSuccessEnvelope<MarkConversationReadResponse> | undefined)?.data,
   )
 }
 
-export function normalizeMessageCreatedEventPayload(
-  payload: unknown
-): ClientMessage {
+export function normalizeMessageCreatedEventPayload(payload: unknown): ClientMessage {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("消息推送格式不正确")
   }
 
-  return normalizeMessage(
-    (payload as MessageCreatedEventPayloadResponse).message
-  )
+  return normalizeMessage((payload as MessageCreatedEventPayloadResponse).message)
 }
 
-export function normalizeMessageUpdatedEventPayload(
-  payload: unknown
-): ClientMessage {
+export function normalizeMessageCreatedEventNotificationMuted(payload: unknown) {
+  if (!isObject(payload)) {
+    throw new ClientDataRequestError("消息推送格式不正确")
+  }
+
+  return Boolean((payload as MessageCreatedEventPayloadResponse).notification_muted)
+}
+
+export function normalizeMessageUpdatedEventPayload(payload: unknown): ClientMessage {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("消息更新推送格式不正确")
   }
 
-  return normalizeMessage(
-    (payload as MessageUpdatedEventPayloadResponse).message
-  )
+  return normalizeMessage((payload as MessageUpdatedEventPayloadResponse).message)
 }
 
 export function normalizeMessageReactionsUpdatedEventPayload(
-  payload: unknown
+  payload: unknown,
 ): MessageReactionsUpdatedEvent {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("消息表情推送格式不正确")
@@ -874,8 +832,7 @@ export function normalizeConversationRemovedEventPayload(payload: unknown) {
     throw new ClientDataRequestError("会话移除推送格式不正确")
   }
 
-  const conversationId = (payload as ConversationRemovedEventPayloadResponse)
-    .conversation_id
+  const conversationId = (payload as ConversationRemovedEventPayloadResponse).conversation_id
   if (typeof conversationId !== "string" || conversationId.trim() === "") {
     throw new ClientDataRequestError("会话移除推送格式不正确")
   }
@@ -885,9 +842,7 @@ export function normalizeConversationRemovedEventPayload(payload: unknown) {
   }
 }
 
-export function normalizeConversationMemberMentionedEventPayload(
-  payload: unknown
-) {
+export function normalizeConversationMemberMentionedEventPayload(payload: unknown) {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("会话提醒推送格式不正确")
   }
@@ -912,11 +867,7 @@ export function normalizeTopicEventPayload(payload: unknown) {
     throw new ClientDataRequestError("话题推送格式不正确")
   }
   const event = payload as TopicEventPayloadResponse
-  if (
-    !event.conversation_id ||
-    !event.parent_conversation_id ||
-    !event.source_message_id
-  ) {
+  if (!event.conversation_id || !event.parent_conversation_id || !event.source_message_id) {
     throw new ClientDataRequestError("话题推送格式不正确")
   }
   return {
@@ -1037,7 +988,7 @@ function formatMarkdownMessageSummary(content: string) {
       block
         .replace(/^```[^\n]*\n?/, "")
         .replace(/```$/, "")
-        .trim()
+        .trim(),
     )
     .replace(/`([^`]*)`/g, "$1")
     .replace(/!\[[^\]]*]\([^)]*\)/g, "")
@@ -1053,10 +1004,7 @@ function formatMarkdownMessageSummary(content: string) {
     .join("\n")
 }
 
-export function isClientMessageInitiatedByUser(
-  message: ClientMessage,
-  userId: string
-) {
+export function isClientMessageInitiatedByUser(message: ClientMessage, userId: string) {
   if (message.sender.type === "user") {
     return message.sender.id === userId
   }

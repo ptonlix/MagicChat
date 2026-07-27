@@ -15,10 +15,7 @@ import {
   type ContactGroup,
   type ContactUser,
 } from "@/lib/client-data-api"
-import type {
-  ClientProjectDetail,
-  ClientProjectSummary,
-} from "@/lib/project-data-api"
+import type { ClientProjectDetail, ClientProjectSummary } from "@/lib/project-data-api"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
 
 export type ClientConversationMessageState = {
@@ -58,56 +55,40 @@ export type ClientDataContextValue = {
   addGroupConversationMembers: (
     conversationId: string,
     memberIds: string[],
-    appIds?: string[]
+    appIds?: string[],
   ) => Promise<ClientConversation>
   createGroupConversation: (
     name: string,
     memberIds: string[],
-    appIds?: string[]
+    appIds?: string[],
   ) => Promise<ClientConversation>
-  createProject: (
-    name: string,
-    groupIds?: string[]
-  ) => Promise<ClientProjectDetail>
+  createProject: (name: string, groupIds?: string[]) => Promise<ClientProjectDetail>
   dissolveGroupConversation: (conversationId: string) => Promise<void>
   ensureConversationMessages: (conversationId: string) => void
   getConversation: (conversationId: string) => ClientConversation | null
-  getConversationMessageState: (
-    conversationId: string
-  ) => ClientConversationMessageState
+  getConversationMessageState: (conversationId: string) => ClientConversationMessageState
   loadBeforeConversationMessages: (conversationId: string) => void
   markConversationRead: (
     conversationId: string,
-    options?: MarkConversationReadOptions
+    options?: MarkConversationReadOptions,
   ) => Promise<void>
-  setConversationPinned: (
-    conversationId: string,
-    pinned: boolean
-  ) => Promise<void>
-  setConversationMuted: (
-    conversationId: string,
-    muted: boolean
-  ) => Promise<void>
+  setConversationPinned: (conversationId: string, pinned: boolean) => Promise<void>
+  setConversationMuted: (conversationId: string, muted: boolean) => Promise<void>
   handleIncomingConversationMessage: (
     message: ClientMessage,
-    options?: { activeConversationId?: string; visible?: boolean }
+    options?: { activeConversationId?: string; visible?: boolean },
   ) => void
   handleIncomingConversationMessageUpdate: (message: ClientMessage) => void
-  handleIncomingMessageReactionsUpdate: (
-    event: MessageReactionsUpdatedEvent
-  ) => void
-  updateConversationLastMentionedSeq: (
-    conversationId: string,
-    lastMentionedSeq: number
-  ) => void
+  handleIncomingMessageReactionsUpdate: (event: MessageReactionsUpdatedEvent) => void
+  updateConversationLastMentionedSeq: (conversationId: string, lastMentionedSeq: number) => void
   updateMessageTopic?: (
     parentConversationId: string,
     sourceMessageId: string,
-    topic: Pick<ClientMessageTopic, "archived" | "conversationId">
+    topic: Pick<ClientMessageTopic, "archived" | "conversationId">,
   ) => void
   mergeIncomingConversationMessage: (
     message: ClientMessage,
-    options?: { markLoaded?: boolean; updateList?: boolean }
+    options?: { markLoaded?: boolean; updateList?: boolean },
   ) => void
   openDirectConversation: (userId: string) => Promise<ClientConversation>
   openAppConversation: (appId: string) => Promise<ClientConversation>
@@ -117,28 +98,18 @@ export type ClientDataContextValue = {
   removeGroupConversationMember: (
     conversationId: string,
     memberId: string,
-    memberType?: "user" | "app"
+    memberType?: "user" | "app",
   ) => Promise<ClientConversation>
-  revokeConversationMessage: (
-    conversationId: string,
-    messageId: string
-  ) => Promise<void>
+  revokeConversationMessage: (conversationId: string, messageId: string) => Promise<void>
   setMessageReaction: (
     conversationId: string,
     messageId: string,
     text: string,
-    reacted: boolean
+    reacted: boolean,
   ) => Promise<MessageReactionSnapshot>
-  setGroupConversationPublic: (
-    conversationId: string
-  ) => Promise<ClientConversation>
-  setGroupConversationPrivate: (
-    conversationId: string
-  ) => Promise<ClientConversation>
-  updateGroupConversationName: (
-    conversationId: string,
-    name: string
-  ) => Promise<ClientConversation>
+  setGroupConversationPublic: (conversationId: string) => Promise<ClientConversation>
+  setGroupConversationPrivate: (conversationId: string) => Promise<ClientConversation>
+  updateGroupConversationName: (conversationId: string, name: string) => Promise<ClientConversation>
   refreshConversations: () => Promise<void>
   refreshContacts: () => Promise<void>
   refreshMe: () => Promise<void>
@@ -147,52 +118,47 @@ export type ClientDataContextValue = {
   sendConversationText: (
     conversationId: string,
     content: string,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationMarkdown: (
     conversationId: string,
     content: string,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationLink: (
     conversationId: string,
     url: string,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationCard: (
     conversationId: string,
     card: ClientCardSendInput,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationFile: (
     conversationId: string,
     file: File,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationImage: (
     conversationId: string,
     image: File,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationVoice: (
     conversationId: string,
     voice: VoiceMessageRecording,
-    options?: SendConversationMessageOptions
+    options?: SendConversationMessageOptions,
   ) => Promise<ClientMessage | null>
   setForegroundConversationId?: (conversationId: string) => void
   syncLoadedConversationMessages: () => void
   updateConversationLastMessage: (message: ClientMessage) => void
   updateConversationPinned: (conversationId: string, pinned: boolean) => void
   updateConversationMuted: (conversationId: string, muted: boolean) => void
-  updateGroupConversationAvatar: (
-    conversationId: string,
-    file: File
-  ) => Promise<ClientConversation>
+  updateGroupConversationAvatar: (conversationId: string, file: File) => Promise<ClientConversation>
 }
 
-export const ClientDataContext = createContext<ClientDataContextValue | null>(
-  null
-)
+export const ClientDataContext = createContext<ClientDataContextValue | null>(null)
 
 export function useClientData() {
   const context = useContext(ClientDataContext)

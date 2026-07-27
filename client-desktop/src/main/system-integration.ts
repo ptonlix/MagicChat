@@ -1,7 +1,16 @@
 import path from "node:path"
 import { mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
-import { app, Menu, nativeImage, nativeTheme, session, systemPreferences, Tray, type NativeImage } from "electron"
+import {
+  app,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  session,
+  systemPreferences,
+  Tray,
+  type NativeImage,
+} from "electron"
 import { ConfigStore } from "@main/config-store"
 import { presentTrayMessage } from "@main/tray-message-presentation"
 import { formatUnreadBadge } from "@main/unread-badge"
@@ -14,7 +23,10 @@ export class SystemIntegration {
   private trayMessages: ReadonlyArray<TrayMessage> = []
   private readonly granted = new Set<"microphone" | "notifications">()
 
-  constructor(private readonly store: ConfigStore, private readonly windows: WindowController) {}
+  constructor(
+    private readonly store: ConfigStore,
+    private readonly windows: WindowController,
+  ) {}
 
   createTray(iconPath: string): boolean {
     try {
@@ -25,7 +37,9 @@ export class SystemIntegration {
       this.refreshTrayMenu()
       this.tray.on("click", () => this.tray?.popUpContextMenu())
       return true
-    } catch { return false }
+    } catch {
+      return false
+    }
   }
 
   setThemeSource(source: DesktopThemeSource): void {
@@ -35,7 +49,12 @@ export class SystemIntegration {
 
   async setAutoLaunch(enabled: boolean): Promise<void> {
     if (process.platform === "linux") await setLinuxAutoLaunch(enabled)
-    else app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: enabled, args: enabled ? ["--hidden"] : [] })
+    else
+      app.setLoginItemSettings({
+        openAtLogin: enabled,
+        openAsHidden: enabled,
+        args: enabled ? ["--hidden"] : [],
+      })
     await this.store.setSettings({ autoLaunch: enabled })
   }
 
@@ -45,8 +64,7 @@ export class SystemIntegration {
       const badge = formatUnreadBadge(normalized)
       app.dock?.setBadge(badge)
       this.tray?.setTitle(badge ? ` ${badge}` : "")
-    }
-    else if (process.platform === "linux") app.setBadgeCount(normalized)
+    } else if (process.platform === "linux") app.setBadgeCount(normalized)
     else this.tray?.setToolTip(normalized ? `即应（${normalized} 条未读）` : "即应")
   }
 
@@ -62,20 +80,23 @@ export class SystemIntegration {
   private refreshTrayMenu(): void {
     if (!this.tray) return
     const privacy = this.store.getSettings().notificationPrivacy
-    const messageItems = this.trayMessages.length > 0
-      ? this.trayMessages.map((message) => ({
-          ...presentTrayMessage(message, privacy),
-          click: () => void this.openTrayMessage(message).catch(() => this.windows.show()),
-        }))
-      : [{ enabled: false, label: "暂无最新消息" }]
+    const messageItems =
+      this.trayMessages.length > 0
+        ? this.trayMessages.map((message) => ({
+            ...presentTrayMessage(message, privacy),
+            click: () => void this.openTrayMessage(message).catch(() => this.windows.show()),
+          }))
+        : [{ enabled: false, label: "暂无最新消息" }]
 
-    this.tray.setContextMenu(Menu.buildFromTemplate([
-      { enabled: false, label: "最新消息" },
-      ...messageItems,
-      { type: "separator" },
-      { label: "打开即应", click: () => this.windows.show() },
-      { label: "关闭即应", click: () => app.quit() },
-    ]))
+    this.tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { enabled: false, label: "最新消息" },
+        ...messageItems,
+        { type: "separator" },
+        { label: "打开即应", click: () => this.windows.show() },
+        { label: "关闭即应", click: () => app.quit() },
+      ]),
+    )
   }
 
   private async openTrayMessage(message: TrayMessage): Promise<void> {
@@ -84,8 +105,12 @@ export class SystemIntegration {
   }
 
   configurePermissions(): void {
-    session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => callback(this.isGranted(permission)))
-    session.defaultSession.setPermissionCheckHandler((_contents, permission) => this.isGranted(permission))
+    session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) =>
+      callback(this.isGranted(permission)),
+    )
+    session.defaultSession.setPermissionCheckHandler((_contents, permission) =>
+      this.isGranted(permission),
+    )
   }
 
   async requestPermission(kind: "microphone" | "notifications"): Promise<boolean> {
@@ -115,19 +140,16 @@ export function prepareTrayImage(
 }
 
 export function runtimeIconPath(): string {
-  return app.isPackaged ? path.join(process.resourcesPath, "logo.png") : path.resolve(__dirname, "../../../client-desktop/public/logo.png")
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "logo.png")
+    : path.resolve(__dirname, "../../../client-desktop/public/logo.png")
 }
 
-export function runtimeTrayIconPath(
-  platform: NodeJS.Platform = process.platform,
-): string {
+export function runtimeTrayIconPath(platform: NodeJS.Platform = process.platform): string {
   if (platform !== "darwin") return runtimeIconPath()
   return app.isPackaged
     ? path.join(process.resourcesPath, "trayTemplate.png")
-    : path.resolve(
-        __dirname,
-        "../../../client-desktop/public/trayTemplate.png",
-      )
+    : path.resolve(__dirname, "../../../client-desktop/public/trayTemplate.png")
 }
 
 async function setLinuxAutoLaunch(enabled: boolean): Promise<void> {

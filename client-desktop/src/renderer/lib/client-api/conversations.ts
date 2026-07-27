@@ -1,13 +1,5 @@
-import {
-  ClientDataRequestError,
-  createRequestError,
-  normalizeVisibility,
-  readJson,
-} from "./core"
-import {
-  normalizeClientMessageBody,
-  normalizeMessage,
-} from "./message-normalizers"
+import { ClientDataRequestError, createRequestError, normalizeVisibility, readJson } from "./core"
+import { normalizeClientMessageBody, normalizeMessage } from "./message-normalizers"
 import type {
   ClientDataFetch,
   ClientDataSuccessEnvelope,
@@ -45,16 +37,13 @@ import type {
   ConversationMuteUpdatedEventPayloadResponse,
 } from "./types"
 
-export async function listClientConversations(
-  fetcher: ClientDataFetch = fetch
-) {
+export async function listClientConversations(fetcher: ClientDataFetch = fetch) {
   const response = await fetcher("/api/client/conversations", {
     credentials: "include",
     method: "GET",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ListClientConversationsResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListClientConversationsResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -62,8 +51,7 @@ export async function listClientConversations(
   }
 
   const conversations = (
-    payload as
-      ClientDataSuccessEnvelope<ListClientConversationsResponse> | undefined
+    payload as ClientDataSuccessEnvelope<ListClientConversationsResponse> | undefined
   )?.data?.conversations
 
   if (!conversations) {
@@ -76,29 +64,22 @@ export async function listClientConversations(
 export async function setConversationPinned(
   conversationId: string,
   pinned: boolean,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/pin`,
     {
       credentials: "include",
       method: pinned ? "PUT" : "DELETE",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<SetConversationPinResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<SetConversationPinResponse>
   >(response)
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(
-      payload,
-      response,
-      pinned ? "置顶会话失败" : "取消置顶失败"
-    )
+    throw createRequestError(payload, response, pinned ? "置顶会话失败" : "取消置顶失败")
   }
-  const data = (
-    payload as ClientDataSuccessEnvelope<SetConversationPinResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<SetConversationPinResponse> | undefined)?.data
   if (
     typeof data?.conversation_id !== "string" ||
     data.conversation_id.trim() === "" ||
@@ -115,30 +96,22 @@ export async function setConversationPinned(
 export async function setConversationMuted(
   conversationId: string,
   muted: boolean,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/mute`,
     {
       credentials: "include",
       method: muted ? "PUT" : "DELETE",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<SetConversationMuteResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<SetConversationMuteResponse>
   >(response)
   if (!response.ok || payload?.success === false) {
-    throw createRequestError(
-      payload,
-      response,
-      muted ? "开启消息免打扰失败" : "取消消息免打扰失败"
-    )
+    throw createRequestError(payload, response, muted ? "开启消息免打扰失败" : "取消消息免打扰失败")
   }
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<SetConversationMuteResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<SetConversationMuteResponse> | undefined)?.data
   if (
     typeof data?.conversation_id !== "string" ||
     data.conversation_id.trim() === "" ||
@@ -188,10 +161,7 @@ export function normalizeConversationMuteUpdatedEventPayload(payload: unknown) {
   }
 }
 
-export async function createDirectConversation(
-  userId: string,
-  fetcher: ClientDataFetch = fetch
-) {
+export async function createDirectConversation(userId: string, fetcher: ClientDataFetch = fetch) {
   const response = await fetcher("/api/client/conversations/direct", {
     body: JSON.stringify({
       user_id: userId,
@@ -203,8 +173,7 @@ export async function createDirectConversation(
     method: "POST",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<CreateDirectConversationResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateDirectConversationResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -212,17 +181,13 @@ export async function createDirectConversation(
   }
 
   const conversation = (
-    payload as
-      ClientDataSuccessEnvelope<CreateDirectConversationResponse> | undefined
+    payload as ClientDataSuccessEnvelope<CreateDirectConversationResponse> | undefined
   )?.data?.conversation
 
   return normalizeConversation(conversation)
 }
 
-export async function openAppConversation(
-  appId: string,
-  fetcher: ClientDataFetch = fetch
-) {
+export async function openAppConversation(appId: string, fetcher: ClientDataFetch = fetch) {
   const response = await fetcher("/api/client/conversations/apps", {
     body: JSON.stringify({
       app_id: appId,
@@ -234,8 +199,7 @@ export async function openAppConversation(
     method: "POST",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<CreateAppConversationResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateAppConversationResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -243,8 +207,7 @@ export async function openAppConversation(
   }
 
   const conversation = (
-    payload as
-      ClientDataSuccessEnvelope<CreateAppConversationResponse> | undefined
+    payload as ClientDataSuccessEnvelope<CreateAppConversationResponse> | undefined
   )?.data?.conversation
 
   return normalizeConversation(conversation)
@@ -252,7 +215,7 @@ export async function openAppConversation(
 
 export async function createGroupConversation(
   input: CreateGroupConversationInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher("/api/client/conversations/groups", {
     body: JSON.stringify({
@@ -267,8 +230,7 @@ export async function createGroupConversation(
     method: "POST",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<CreateGroupConversationResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateGroupConversationResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -276,8 +238,7 @@ export async function createGroupConversation(
   }
 
   const conversation = (
-    payload as
-      ClientDataSuccessEnvelope<CreateGroupConversationResponse> | undefined
+    payload as ClientDataSuccessEnvelope<CreateGroupConversationResponse> | undefined
   )?.data?.conversation
 
   return normalizeConversation(conversation)
@@ -286,11 +247,11 @@ export async function createGroupConversation(
 export async function createConversationTopic(
   conversationId: string,
   messageId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/topic`,
-    { credentials: "include", method: "POST" }
+    { credentials: "include", method: "POST" },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CreateTopicResponse>
@@ -310,11 +271,11 @@ export async function createConversationTopic(
 
 export async function getConversationTopic(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<ClientTopicDetail> {
   const response = await fetcher(
     `/api/client/conversations/topics/${encodeURIComponent(conversationId)}`,
-    { credentials: "include", method: "GET" }
+    { credentials: "include", method: "GET" },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<TopicDetailResponse>
@@ -322,55 +283,41 @@ export async function getConversationTopic(
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "加载话题失败")
   }
-  return normalizeTopicDetail(
-    (payload as ClientDataSuccessEnvelope<TopicDetailResponse>)?.data
-  )
+  return normalizeTopicDetail((payload as ClientDataSuccessEnvelope<TopicDetailResponse>)?.data)
 }
 
 export async function participateConversationTopic(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
-  return mutateConversationTopic(
-    conversationId,
-    "participate",
-    "参与话题失败",
-    fetcher
-  )
+  return mutateConversationTopic(conversationId, "participate", "参与话题失败", fetcher)
 }
 
 export async function archiveConversationTopic(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
-  return mutateConversationTopic(
-    conversationId,
-    "archive",
-    "关闭话题失败",
-    fetcher
-  )
+  return mutateConversationTopic(conversationId, "archive", "关闭话题失败", fetcher)
 }
 
 async function mutateConversationTopic(
   conversationId: string,
   action: "participate" | "archive",
   fallbackMessage: string,
-  fetcher: ClientDataFetch
+  fetcher: ClientDataFetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/topics/${encodeURIComponent(conversationId)}/${action}`,
-    { credentials: "include", method: "POST" }
+    { credentials: "include", method: "POST" },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<TopicConversationResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<TopicConversationResponse>
   >(response)
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, fallbackMessage)
   }
-  const conversation = (
-    payload as ClientDataSuccessEnvelope<TopicConversationResponse>
-  )?.data?.conversation
+  const conversation = (payload as ClientDataSuccessEnvelope<TopicConversationResponse>)?.data
+    ?.conversation
   if (!conversation) {
     throw new ClientDataRequestError(`${fallbackMessage}响应格式不正确`)
   }
@@ -379,41 +326,41 @@ async function mutateConversationTopic(
 
 export async function joinGroupConversation(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<GroupConversationActionResult> {
   return postGroupConversationAction(
     `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/join`,
     "加入群聊失败",
-    fetcher
+    fetcher,
   )
 }
 
 export async function setGroupConversationPublic(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<GroupConversationActionResult> {
   return postGroupConversationAction(
     `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/public`,
     "设置公开群失败",
-    fetcher
+    fetcher,
   )
 }
 
 export async function setGroupConversationPrivate(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<GroupConversationActionResult> {
   return postGroupConversationAction(
     `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/private`,
     "取消公开群失败",
-    fetcher
+    fetcher,
   )
 }
 
 export async function updateGroupConversationName(
   conversationId: string,
   input: UpdateGroupConversationNameInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<GroupConversationActionResult> {
   const response = await fetcher(
     `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/name`,
@@ -426,21 +373,18 @@ export async function updateGroupConversationName(
         "Content-Type": "application/json",
       },
       method: "PATCH",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<GroupConversationActionResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<GroupConversationActionResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "修改群聊名称失败")
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined)
+    ?.data
 
   if (!data?.conversation) {
     throw new ClientDataRequestError("修改群聊名称响应格式不正确")
@@ -454,28 +398,25 @@ export async function updateGroupConversationName(
 
 export async function leaveGroupConversation(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<LeaveGroupConversationResult> {
   const response = await fetcher(
     `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/leave`,
     {
       credentials: "include",
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<LeaveGroupConversationResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<LeaveGroupConversationResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "退出群聊失败")
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<LeaveGroupConversationResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<LeaveGroupConversationResponse> | undefined)
+    ?.data
 
   if (!data?.conversation_id || !data.message) {
     throw new ClientDataRequestError("退出群聊响应格式不正确")
@@ -489,28 +430,25 @@ export async function leaveGroupConversation(
 
 export async function dissolveGroupConversation(
   conversationId: string,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<DissolveGroupConversationResult> {
   const response = await fetcher(
     `/api/client/conversations/groups/${encodeURIComponent(conversationId)}`,
     {
       credentials: "include",
       method: "DELETE",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<DissolveGroupConversationResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<DissolveGroupConversationResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "解散群聊失败")
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<DissolveGroupConversationResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<DissolveGroupConversationResponse> | undefined)
+    ?.data
 
   if (!data?.conversation_id) {
     throw new ClientDataRequestError("解散群聊响应格式不正确")
@@ -525,12 +463,10 @@ export async function removeGroupConversationMember(
   conversationId: string,
   memberId: string,
   memberTypeOrFetcher: "user" | "app" | ClientDataFetch = "user",
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<GroupConversationActionResult> {
-  const memberType =
-    typeof memberTypeOrFetcher === "function" ? "user" : memberTypeOrFetcher
-  const activeFetcher =
-    typeof memberTypeOrFetcher === "function" ? memberTypeOrFetcher : fetcher
+  const memberType = typeof memberTypeOrFetcher === "function" ? "user" : memberTypeOrFetcher
+  const activeFetcher = typeof memberTypeOrFetcher === "function" ? memberTypeOrFetcher : fetcher
   const url =
     memberType === "user"
       ? `/api/client/conversations/groups/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(memberId)}`
@@ -541,18 +477,15 @@ export async function removeGroupConversationMember(
     method: "DELETE",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<GroupConversationActionResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<GroupConversationActionResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "移出群聊成员失败")
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined)
+    ?.data
 
   if (!data?.conversation) {
     throw new ClientDataRequestError("移出群聊成员响应格式不正确")
@@ -567,25 +500,22 @@ export async function removeGroupConversationMember(
 async function postGroupConversationAction(
   url: string,
   fallbackMessage: string,
-  fetcher: ClientDataFetch
+  fetcher: ClientDataFetch,
 ): Promise<GroupConversationActionResult> {
   const response = await fetcher(url, {
     credentials: "include",
     method: "POST",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<GroupConversationActionResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<GroupConversationActionResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, fallbackMessage)
   }
 
-  const data = (
-    payload as
-      ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<GroupConversationActionResponse> | undefined)
+    ?.data
 
   if (!data?.conversation) {
     throw new ClientDataRequestError("群聊操作响应格式不正确")
@@ -600,7 +530,7 @@ async function postGroupConversationAction(
 export async function addGroupConversationMembers(
   conversationId: string,
   input: AddGroupConversationMembersInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<AddGroupConversationMembersResult> {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/members`,
@@ -614,11 +544,10 @@ export async function addGroupConversationMembers(
         "Content-Type": "application/json",
       },
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<AddGroupConversationMembersResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<AddGroupConversationMembersResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -626,8 +555,7 @@ export async function addGroupConversationMembers(
   }
 
   const data = (
-    payload as
-      ClientDataSuccessEnvelope<AddGroupConversationMembersResponse> | undefined
+    payload as ClientDataSuccessEnvelope<AddGroupConversationMembersResponse> | undefined
   )?.data
 
   if (!data?.conversation) {
@@ -643,7 +571,7 @@ export async function addGroupConversationMembers(
 export async function uploadGroupConversationAvatar(
   conversationId: string,
   file: File,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ): Promise<UploadGroupConversationAvatarResult> {
   const formData = new FormData()
   formData.set("file", file)
@@ -654,11 +582,10 @@ export async function uploadGroupConversationAvatar(
       body: formData,
       credentials: "include",
       method: "POST",
-    }
+    },
   )
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<UploadGroupConversationAvatarResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<UploadGroupConversationAvatarResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -666,9 +593,7 @@ export async function uploadGroupConversationAvatar(
   }
 
   const data = (
-    payload as
-      | ClientDataSuccessEnvelope<UploadGroupConversationAvatarResponse>
-      | undefined
+    payload as ClientDataSuccessEnvelope<UploadGroupConversationAvatarResponse> | undefined
   )?.data
 
   if (!data?.conversation || !data.message) {
@@ -681,9 +606,7 @@ export async function uploadGroupConversationAvatar(
   }
 }
 
-function normalizeConversation(
-  conversation: ConversationResponse | undefined
-): ClientConversation {
+function normalizeConversation(conversation: ConversationResponse | undefined): ClientConversation {
   if (!conversation?.created_at || !conversation.id || !conversation.name) {
     throw new ClientDataRequestError("会话列表响应格式不正确")
   }
@@ -712,15 +635,11 @@ function normalizeConversation(
   }
 
   if (conversation.members) {
-    normalizedConversation.members = conversation.members.map(
-      normalizeConversationMember
-    )
+    normalizedConversation.members = conversation.members.map(normalizeConversationMember)
   }
 
   if (conversation.projects) {
-    normalizedConversation.projects = conversation.projects.map(
-      normalizeConversationProject
-    )
+    normalizedConversation.projects = conversation.projects.map(normalizeConversationProject)
   }
 
   if (conversation.topic) {
@@ -739,9 +658,7 @@ function normalizeConversation(
       archived: Boolean(topic.archived),
       parentConversationId: topic.parent_conversation_id,
       parentConversationName: topic.parent_conversation_name,
-      parentConversationType: normalizeParentConversationType(
-        topic.parent_conversation_type
-      ),
+      parentConversationType: normalizeParentConversationType(topic.parent_conversation_type),
       participating: Boolean(topic.participating),
       sourceMessageId: topic.source_message_id,
       sourceMessageSeq: topic.source_message_seq,
@@ -758,7 +675,7 @@ function normalizeConversation(
 }
 
 function normalizeConversationProject(
-  project: ConversationProjectResponse | undefined
+  project: ConversationProjectResponse | undefined,
 ): ClientConversationProject {
   if (!project?.id || !project.name) {
     throw new ClientDataRequestError("会话关联项目响应格式不正确")
@@ -773,7 +690,7 @@ function normalizeConversationProject(
 }
 
 function normalizeConversationMember(
-  member: ConversationMemberResponse | undefined
+  member: ConversationMemberResponse | undefined,
 ): ClientConversationMember {
   const memberType = member?.type === "app" ? "app" : "user"
   if (!member?.id || !member.name || (memberType === "user" && !member.email)) {
@@ -822,9 +739,7 @@ function normalizeTopicSourceSenderType(type: string | undefined) {
   throw new ClientDataRequestError("话题来源消息发送者响应格式不正确")
 }
 
-function normalizeTopicDetail(
-  detail: TopicDetailResponse | undefined
-): ClientTopicDetail {
+function normalizeTopicDetail(detail: TopicDetailResponse | undefined): ClientTopicDetail {
   const parent = detail?.parent_conversation
   const source = detail?.source_message
   const senderType = source?.sender?.type
@@ -852,9 +767,7 @@ function normalizeTopicDetail(
       type: normalizeParentConversationType(parent.type),
     },
     sourceMessage: {
-      body: source.revoked_at
-        ? { type: "revoked" }
-        : normalizeClientMessageBody(source.body),
+      body: source.revoked_at ? { type: "revoked" } : normalizeClientMessageBody(source.body),
       createdAt: source.created_at,
       id: source.id,
       revokedAt: source.revoked_at ?? null,

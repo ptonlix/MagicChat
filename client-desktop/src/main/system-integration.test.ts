@@ -22,10 +22,7 @@ describe("prepareTrayImage", () => {
     const image = { resize: vi.fn(() => resizedImage) }
 
     expect(
-      prepareTrayImage(
-        image as unknown as Parameters<typeof prepareTrayImage>[0],
-        "darwin"
-      )
+      prepareTrayImage(image as unknown as Parameters<typeof prepareTrayImage>[0], "darwin"),
     ).toBe(resizedImage)
     expect(image.resize).toHaveBeenCalledWith({ height: 20, width: 20 })
     expect(resizedImage.setTemplateImage).toHaveBeenCalledWith(true)
@@ -35,10 +32,7 @@ describe("prepareTrayImage", () => {
     const resizedImage = { setTemplateImage: vi.fn() }
     const image = { resize: vi.fn(() => resizedImage) }
 
-    prepareTrayImage(
-      image as unknown as Parameters<typeof prepareTrayImage>[0],
-      "win32"
-    )
+    prepareTrayImage(image as unknown as Parameters<typeof prepareTrayImage>[0], "win32")
 
     expect(resizedImage.setTemplateImage).not.toHaveBeenCalled()
   })

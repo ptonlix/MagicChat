@@ -11,6 +11,7 @@
 ### Task 1: 原生主题同步契约
 
 **Files:**
+
 - Modify: `client-desktop/src/shared/bridge.ts`
 - Modify: `client-desktop/src/preload/index.ts`
 - Modify: `client-desktop/src/main/ipc.ts`
@@ -20,6 +21,7 @@
 - Test: `client-desktop/src/renderer/components/theme-provider.test.tsx`
 
 **Steps:**
+
 1. 写失败测试，要求 Bridge 暴露 `appearance.setThemeSource`。
 2. 运行定向测试确认因契约缺失而失败。
 3. 增加严格枚举校验和 Main 原生主题更新。
@@ -29,10 +31,12 @@
 ### Task 2: macOS 菜单栏模板图标
 
 **Files:**
+
 - Modify: `client-desktop/src/main/system-integration.ts`
 - Test: `client-desktop/src/main/system-integration.test.ts`
 
 **Steps:**
+
 1. 写失败测试，要求 macOS 图标标记为 Template Image。
 2. 运行测试确认当前实现未调用 `setTemplateImage`。
 3. 抽取最小图标准备函数并接入 `createTray`。
@@ -41,6 +45,7 @@
 ### Task 3: 会话免打扰数据链路
 
 **Files:**
+
 - Modify: `client-desktop/src/renderer/lib/client-api/conversations.ts`
 - Modify: `client-desktop/src/renderer/lib/client-api/types.ts`
 - Modify: `client-desktop/src/renderer/lib/client-data-context.ts`
@@ -49,6 +54,7 @@
 - Test: `client-desktop/src/renderer/lib/client-data-api.test.ts`
 
 **Steps:**
+
 1. 写失败测试覆盖开启/关闭免打扰和事件归一化。
 2. 运行测试确认 API 与归一化函数缺失。
 3. 实现请求、状态更新和实时事件订阅。
@@ -58,12 +64,14 @@
 ### Task 4: Sidebar 操作与状态图标
 
 **Files:**
+
 - Modify: `client-desktop/src/renderer/components/conversation-list-item-menu.tsx`
 - Modify: `client-desktop/src/renderer/components/conversation/conversation-sidebar.tsx`
 - Modify: `client-desktop/src/renderer/pages/chat-page.tsx`
 - Test: `client-desktop/src/renderer/components/conversation/conversation-sidebar.test.tsx`
 
 **Steps:**
+
 1. 写失败测试覆盖免打扰点击、置顶图标、免打扰图标和静音未读红点。
 2. 运行测试确认当前菜单无回调且无状态图标。
 3. 增加独立 busy 状态和错误 Toast。
@@ -73,11 +81,13 @@
 ### Task 5: 服务器配置页主题化改版
 
 **Files:**
+
 - Modify: `client-desktop/src/renderer/desktop-root.tsx`
 - Modify: `client-desktop/src/renderer/styles.css`
 - Test: `client-desktop/src/renderer/desktop-root.test.tsx`
 
 **Steps:**
+
 1. 写失败测试确认所有启动状态都位于 `ThemeProvider` 内并具备新版语义结构。
 2. 运行测试确认当前未同步主题且旧结构仍存在。
 3. 调整 Root 包裹层和配置页结构。
@@ -87,9 +97,11 @@
 ### Task 6: 差异清单与完整验证
 
 **Files:**
+
 - Create: `client-desktop/docs/web-chat-parity.md`
 
 **Steps:**
+
 1. 记录本轮已对齐能力和剩余 Web 差异。
 2. 运行相关 Vitest 测试。
 3. 运行 `pnpm typecheck`、`pnpm lint`、`pnpm verify:boundaries`。

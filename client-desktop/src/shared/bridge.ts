@@ -100,8 +100,18 @@ export type RendererRuntimeSnapshot = Readonly<{
     projects: number
   }>
   eventLoopLagMs: number
-  lastRefresh?: Readonly<{ ageMs: number; durationMs: number; name: "contacts" | "conversations" | "me" | "projects" }>
-  lastRequest?: Readonly<{ ageMs: number; durationMs: number; group: string; method: string; status?: number }>
+  lastRefresh?: Readonly<{
+    ageMs: number
+    durationMs: number
+    name: "contacts" | "conversations" | "me" | "projects"
+  }>
+  lastRequest?: Readonly<{
+    ageMs: number
+    durationMs: number
+    group: string
+    method: string
+    status?: number
+  }>
   longTasks: Readonly<{ count: number; maxDurationMs: number }>
   page: "chat" | "contacts" | "init" | "login" | "projects" | "setup" | "unknown"
 }>
@@ -170,9 +180,15 @@ export interface DesktopBridge {
     reportRuntime(snapshot: RendererRuntimeSnapshot): void
   }
   files: {
-    download(target: AuthenticatedTarget, path: string, suggestedName: string): Promise<{ path?: string }>
+    download(
+      target: AuthenticatedTarget,
+      path: string,
+      suggestedName: string,
+    ): Promise<{ path?: string }>
     openLocation(path: string): Promise<void>
-    pick(options?: { multiple?: boolean }): Promise<ReadonlyArray<{ id: string; name: string; size: number }>>
+    pick(options?: {
+      multiple?: boolean
+    }): Promise<ReadonlyArray<{ id: string; name: string; size: number }>>
     upload(target: AuthenticatedTarget, apiPath: string, fileId: string): Promise<ClientResponse>
   }
   notifications: { show(input: NotificationInput): Promise<void> }
@@ -206,7 +222,10 @@ export interface DesktopBridge {
     streamAbort(streamId: string): Promise<void>
     streamChunk(streamId: string, chunk: Uint8Array): Promise<void>
     streamFinish<T>(streamId: string): Promise<ClientResponse<T>>
-    streamStart(target: AuthenticatedTarget, request: Pick<ClientRequest, "headers" | "method" | "path" | "requestId">): Promise<string>
+    streamStart(
+      target: AuthenticatedTarget,
+      request: Pick<ClientRequest, "headers" | "method" | "path" | "requestId">,
+    ): Promise<string>
   }
   updater: {
     check(): Promise<UpdaterState>

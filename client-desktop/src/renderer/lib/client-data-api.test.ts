@@ -46,8 +46,8 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     await expect(getCurrentClientUser(fetcher)).resolves.toEqual({
@@ -123,8 +123,8 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     await expect(listClientContacts(fetcher)).resolves.toEqual({
@@ -205,8 +205,8 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     await expect(listClientConversations(fetcher)).resolves.toEqual([
@@ -242,17 +242,18 @@ describe("client data API", () => {
           success: true,
           data: { conversation_id: "conversation-1", pinned: true },
         }),
-        { headers: { "content-type": "application/json" }, status: 200 }
-      )
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
     )
 
-    await expect(
-      setConversationPinned("conversation-1", true, fetcher)
-    ).resolves.toEqual({ conversationId: "conversation-1", pinned: true })
-    expect(fetcher).toHaveBeenCalledWith(
-      "/api/client/conversations/conversation-1/pin",
-      { credentials: "include", method: "PUT" }
-    )
+    await expect(setConversationPinned("conversation-1", true, fetcher)).resolves.toEqual({
+      conversationId: "conversation-1",
+      pinned: true,
+    })
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/conversation-1/pin", {
+      credentials: "include",
+      method: "PUT",
+    })
 
     fetcher.mockResolvedValueOnce(
       new Response(
@@ -260,16 +261,17 @@ describe("client data API", () => {
           success: true,
           data: { conversation_id: "conversation-1", pinned: false },
         }),
-        { headers: { "content-type": "application/json" }, status: 200 }
-      )
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
     )
-    await expect(
-      setConversationPinned("conversation-1", false, fetcher)
-    ).resolves.toEqual({ conversationId: "conversation-1", pinned: false })
-    expect(fetcher).toHaveBeenLastCalledWith(
-      "/api/client/conversations/conversation-1/pin",
-      { credentials: "include", method: "DELETE" }
-    )
+    await expect(setConversationPinned("conversation-1", false, fetcher)).resolves.toEqual({
+      conversationId: "conversation-1",
+      pinned: false,
+    })
+    expect(fetcher).toHaveBeenLastCalledWith("/api/client/conversations/conversation-1/pin", {
+      credentials: "include",
+      method: "DELETE",
+    })
   })
 
   it("normalizes conversation pin realtime events", () => {
@@ -277,7 +279,7 @@ describe("client data API", () => {
       normalizeConversationPinUpdatedEventPayload({
         conversation_id: "conversation-1",
         pinned: false,
-      })
+      }),
     ).toEqual({ conversationId: "conversation-1", pinned: false })
   })
 
@@ -290,8 +292,8 @@ describe("client data API", () => {
             success: true,
             data: { conversation_id: "conversation-1", muted: true },
           }),
-          { headers: { "content-type": "application/json" }, status: 200 }
-        )
+          { headers: { "content-type": "application/json" }, status: 200 },
+        ),
       )
       .mockResolvedValueOnce(
         new Response(
@@ -299,27 +301,27 @@ describe("client data API", () => {
             success: true,
             data: { conversation_id: "conversation-1", muted: false },
           }),
-          { headers: { "content-type": "application/json" }, status: 200 }
-        )
+          { headers: { "content-type": "application/json" }, status: 200 },
+        ),
       )
 
-    await expect(
-      setConversationMuted("conversation-1", true, fetcher)
-    ).resolves.toEqual({ conversationId: "conversation-1", muted: true })
-    expect(fetcher).toHaveBeenNthCalledWith(
-      1,
-      "/api/client/conversations/conversation-1/mute",
-      { credentials: "include", method: "PUT" }
-    )
+    await expect(setConversationMuted("conversation-1", true, fetcher)).resolves.toEqual({
+      conversationId: "conversation-1",
+      muted: true,
+    })
+    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/client/conversations/conversation-1/mute", {
+      credentials: "include",
+      method: "PUT",
+    })
 
-    await expect(
-      setConversationMuted("conversation-1", false, fetcher)
-    ).resolves.toEqual({ conversationId: "conversation-1", muted: false })
-    expect(fetcher).toHaveBeenNthCalledWith(
-      2,
-      "/api/client/conversations/conversation-1/mute",
-      { credentials: "include", method: "DELETE" }
-    )
+    await expect(setConversationMuted("conversation-1", false, fetcher)).resolves.toEqual({
+      conversationId: "conversation-1",
+      muted: false,
+    })
+    expect(fetcher).toHaveBeenNthCalledWith(2, "/api/client/conversations/conversation-1/mute", {
+      credentials: "include",
+      method: "DELETE",
+    })
   })
 
   it("normalizes conversation mute realtime events", () => {
@@ -327,7 +329,7 @@ describe("client data API", () => {
       normalizeConversationMuteUpdatedEventPayload({
         conversation_id: "conversation-1",
         muted: false,
-      })
+      }),
     ).toEqual({ conversationId: "conversation-1", muted: false })
   })
 
@@ -375,8 +377,8 @@ describe("client data API", () => {
               "content-type": "application/json",
             },
             status: 201,
-          }
-        )
+          },
+        ),
     )
 
     await expect(
@@ -386,8 +388,8 @@ describe("client data API", () => {
           memberIds: ["user-2"],
           name: "新品讨论组",
         },
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toEqual({
       avatar: "",
       canSend: true,
@@ -483,8 +485,8 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     await expect(
@@ -494,8 +496,8 @@ describe("client data API", () => {
           appIds: ["app-1"],
           memberIds: ["user-2"],
         },
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toMatchObject({
       conversation: {
         id: "conversation-group-1",
@@ -503,20 +505,17 @@ describe("client data API", () => {
       },
       message: null,
     })
-    expect(fetcher).toHaveBeenCalledWith(
-      "/api/client/conversations/conversation-group-1/members",
-      {
-        body: JSON.stringify({
-          app_ids: ["app-1"],
-          member_ids: ["user-2"],
-        }),
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      }
-    )
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/conversation-group-1/members", {
+      body: JSON.stringify({
+        app_ids: ["app-1"],
+        member_ids: ["user-2"],
+      }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    })
   })
 
   it("loads conversation messages with pagination params", async () => {
@@ -561,8 +560,8 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     await expect(
@@ -572,8 +571,8 @@ describe("client data API", () => {
           beforeSeq: 13,
           limit: 20,
         },
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toEqual({
       messages: [
         {
@@ -612,7 +611,7 @@ describe("client data API", () => {
       {
         credentials: "include",
         method: "GET",
-      }
+      },
     )
   })
 
@@ -645,9 +644,9 @@ describe("client data API", () => {
               "content-type": "application/json",
             },
             status: 201,
-          }
-        )
-      )
+          },
+        ),
+      ),
     )
 
     await sendConversationTextMessage(
@@ -657,7 +656,7 @@ describe("client data API", () => {
         content: "文本回复",
         replyToMessageId: "message-quoted",
       },
-      fetcher
+      fetcher,
     )
     await sendConversationMarkdownMessage(
       "conversation-1",
@@ -666,7 +665,7 @@ describe("client data API", () => {
         content: "**富文本回复**",
         replyToMessageId: "message-quoted",
       },
-      fetcher
+      fetcher,
     )
     await sendConversationLinkMessage(
       "conversation-1",
@@ -675,7 +674,7 @@ describe("client data API", () => {
         url: "https://example.com",
         replyToMessageId: "message-quoted",
       },
-      fetcher
+      fetcher,
     )
     await sendConversationCardMessage(
       "conversation-1",
@@ -686,7 +685,7 @@ describe("client data API", () => {
         title: "任务标题",
         url: "/projects/project-1?taskId=task-1",
       },
-      fetcher
+      fetcher,
     )
     await sendConversationFileMessage(
       "conversation-1",
@@ -695,7 +694,7 @@ describe("client data API", () => {
         file: new File(["file"], "report.txt", { type: "text/plain" }),
         replyToMessageId: "message-quoted",
       },
-      fetcher
+      fetcher,
     )
     await sendConversationImageMessage(
       "conversation-1",
@@ -704,7 +703,7 @@ describe("client data API", () => {
         image: new File(["image"], "photo.webp", { type: "image/webp" }),
         replyToMessageId: "message-quoted",
       },
-      fetcher
+      fetcher,
     )
 
     const textBody = JSON.parse(String(fetcher.mock.calls[0][1]?.body))
@@ -727,14 +726,10 @@ describe("client data API", () => {
 
     const fileBody = fetcher.mock.calls[4][1]?.body
     expect(fileBody).toBeInstanceOf(FormData)
-    expect((fileBody as FormData).get("reply_to_message_id")).toBe(
-      "message-quoted"
-    )
+    expect((fileBody as FormData).get("reply_to_message_id")).toBe("message-quoted")
     const imageBody = fetcher.mock.calls[5][1]?.body
     expect(imageBody).toBeInstanceOf(FormData)
-    expect((imageBody as FormData).get("reply_to_message_id")).toBe(
-      "message-quoted"
-    )
+    expect((imageBody as FormData).get("reply_to_message_id")).toBe("message-quoted")
   })
 
   it("sends and normalizes card message messages", async () => {
@@ -762,8 +757,8 @@ describe("client data API", () => {
         {
           headers: { "content-type": "application/json" },
           status: 201,
-        }
-      )
+        },
+      ),
     )
 
     const message = await sendConversationCardMessage(
@@ -774,7 +769,7 @@ describe("client data API", () => {
         title: "任务标题",
         url: "/projects/project-1?taskId=task-1",
       },
-      fetcher
+      fetcher,
     )
 
     expect(message.body).toEqual({
@@ -792,8 +787,7 @@ describe("client data API", () => {
           data: {
             message: {
               body: {
-                description:
-                  "项目：官网 · 状态：进行中 · 负责人：张三 · 截止：2026-07-20",
+                description: "项目：官网 · 状态：进行中 · 负责人：张三 · 截止：2026-07-20",
                 title: "完成首页改版",
                 type: "card",
                 url: "/projects/project-1?taskId=task-1",
@@ -811,8 +805,8 @@ describe("client data API", () => {
         {
           headers: { "content-type": "application/json" },
           status: 201,
-        }
-      )
+        },
+      ),
     )
 
     const message = await sendConversationEntityCardMessage(
@@ -822,7 +816,7 @@ describe("client data API", () => {
         entityId: "task-1",
         entityType: "task",
       },
-      fetcher
+      fetcher,
     )
 
     expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({
@@ -833,8 +827,7 @@ describe("client data API", () => {
       },
     })
     expect(message.body).toEqual({
-      description:
-        "项目：官网 · 状态：进行中 · 负责人：张三 · 截止：2026-07-20",
+      description: "项目：官网 · 状态：进行中 · 负责人：张三 · 截止：2026-07-20",
       title: "完成首页改版",
       type: "card",
       url: "/projects/project-1?taskId=task-1",
@@ -888,13 +881,11 @@ describe("client data API", () => {
           headers: {
             "content-type": "application/json",
           },
-        }
-      )
+        },
+      ),
     )
 
-    await expect(
-      listConversationMessages("conversation-1", {}, fetcher)
-    ).resolves.toMatchObject({
+    await expect(listConversationMessages("conversation-1", {}, fetcher)).resolves.toMatchObject({
       messages: [
         {
           id: "message-reply",
@@ -949,13 +940,11 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
-    await expect(
-      listConversationMessages("conversation-1", {}, fetcher)
-    ).resolves.toEqual({
+    await expect(listConversationMessages("conversation-1", {}, fetcher)).resolves.toEqual({
       messages: [
         {
           id: "message-revoked",
@@ -1037,13 +1026,11 @@ describe("client data API", () => {
         {
           headers: { "content-type": "application/json" },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
-    await expect(
-      listConversationMessages("conversation-1", {}, fetcher)
-    ).resolves.toMatchObject({
+    await expect(listConversationMessages("conversation-1", {}, fetcher)).resolves.toMatchObject({
       messages: [
         {
           id: "message-unsupported",
@@ -1073,7 +1060,7 @@ describe("client data API", () => {
           client_message_id: "client-realtime-unsupported",
           created_at: "2026-07-03T08:03:00Z",
         },
-      })
+      }),
     ).toMatchObject({
       id: "message-realtime-unsupported",
       body: { type: "unsupported" },
@@ -1095,8 +1082,8 @@ describe("client data API", () => {
             "content-type": "application/json",
           },
           status: 401,
-        }
-      )
+        },
+      ),
     )
 
     await expect(getCurrentClientUser(fetcher)).rejects.toMatchObject({

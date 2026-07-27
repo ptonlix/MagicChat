@@ -34,10 +34,8 @@ export function ClientConversationRealtimeSync() {
   const hasSeenRealtimeReadyRef = React.useRef(realtimeReady)
   const previousRealtimeReadyRef = React.useRef(realtimeReady)
   const activeConversationId = React.useMemo(
-    () =>
-      matchPath("/chat/:conversationId", location.pathname)?.params
-        .conversationId ?? "",
-    [location.pathname]
+    () => matchPath("/chat/:conversationId", location.pathname)?.params.conversationId ?? "",
+    [location.pathname],
   )
   const visibleConversationId = foregroundConversationId || activeConversationId
 
@@ -83,9 +81,7 @@ export function ClientConversationRealtimeSync() {
   React.useEffect(() => {
     return subscribeRealtimeEvent("message.reactions_updated", (payload) => {
       try {
-        handleIncomingMessageReactionsUpdate(
-          normalizeMessageReactionsUpdatedEventPayload(payload)
-        )
+        handleIncomingMessageReactionsUpdate(normalizeMessageReactionsUpdatedEventPayload(payload))
       } catch {
         // Ignore malformed realtime events. The websocket remains usable.
       }
@@ -104,12 +100,7 @@ export function ClientConversationRealtimeSync() {
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
-  }, [
-    activeConversationId,
-    navigate,
-    removeConversation,
-    subscribeRealtimeEvent,
-  ])
+  }, [activeConversationId, navigate, removeConversation, subscribeRealtimeEvent])
 
   React.useEffect(() => {
     return subscribeRealtimeEvent("conversation.mute_updated", (payload) => {
@@ -134,35 +125,24 @@ export function ClientConversationRealtimeSync() {
   }, [subscribeRealtimeEvent, updateConversationPinned])
 
   React.useEffect(() => {
-    return subscribeRealtimeEvent(
-      "conversation.member_mentioned",
-      (payload) => {
-        try {
-          const event =
-            normalizeConversationMemberMentionedEventPayload(payload)
-          updateConversationLastMentionedSeq(
-            event.conversationId,
-            event.lastMentionedSeq
-          )
-        } catch {
-          // Ignore malformed realtime events. The websocket remains usable.
-        }
+    return subscribeRealtimeEvent("conversation.member_mentioned", (payload) => {
+      try {
+        const event = normalizeConversationMemberMentionedEventPayload(payload)
+        updateConversationLastMentionedSeq(event.conversationId, event.lastMentionedSeq)
+      } catch {
+        // Ignore malformed realtime events. The websocket remains usable.
       }
-    )
+    })
   }, [subscribeRealtimeEvent, updateConversationLastMentionedSeq])
 
   React.useEffect(() => {
     const handleTopicEvent = (payload: unknown) => {
       try {
         const event = normalizeTopicEventPayload(payload)
-        updateMessageTopic?.(
-          event.parentConversationId,
-          event.sourceMessageId,
-          {
-            archived: event.archived,
-            conversationId: event.conversationId,
-          }
-        )
+        updateMessageTopic?.(event.parentConversationId, event.sourceMessageId, {
+          archived: event.archived,
+          conversationId: event.conversationId,
+        })
         void refreshConversations().catch(() => undefined)
       } catch {
         // Ignore malformed realtime events. The websocket remains usable.

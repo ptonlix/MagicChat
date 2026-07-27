@@ -6,10 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import { GroupConversationInfo } from "@/components/group-conversation-info"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 describe("GroupConversationInfo", () => {
   it("confirms before leaving a group conversation", async () => {
@@ -23,7 +20,7 @@ describe("GroupConversationInfo", () => {
           value={createClientDataContextValue({
             conversations: [conversation],
             getConversation: vi.fn((conversationId: string) =>
-              conversationId === conversation.id ? conversation : null
+              conversationId === conversation.id ? conversation : null,
             ),
             leaveGroupConversation,
           })}
@@ -34,7 +31,7 @@ describe("GroupConversationInfo", () => {
             </SheetContent>
           </Sheet>
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     await user.click(screen.getByRole("button", { name: "退出群聊" }))
@@ -44,16 +41,12 @@ describe("GroupConversationInfo", () => {
     const dialog = await screen.findByRole("alertdialog", {
       name: "确认退出群聊",
     })
-    expect(
-      within(dialog).getByText("退出后将无法继续查看和发送该群聊消息。")
-    ).toBeInTheDocument()
+    expect(within(dialog).getByText("退出后将无法继续查看和发送该群聊消息。")).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole("button", { name: "退出群聊" }))
 
     await waitFor(() => {
-      expect(leaveGroupConversation).toHaveBeenCalledWith(
-        "conversation-group-1"
-      )
+      expect(leaveGroupConversation).toHaveBeenCalledWith("conversation-group-1")
     })
   })
 
@@ -69,7 +62,7 @@ describe("GroupConversationInfo", () => {
             conversations: [conversation],
             dissolveGroupConversation,
             getConversation: vi.fn((conversationId: string) =>
-              conversationId === conversation.id ? conversation : null
+              conversationId === conversation.id ? conversation : null,
             ),
           })}
         >
@@ -79,12 +72,10 @@ describe("GroupConversationInfo", () => {
             </SheetContent>
           </Sheet>
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
-    expect(
-      screen.queryByRole("button", { name: "退出群聊" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "退出群聊" })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "解散群聊" }))
 
@@ -94,23 +85,19 @@ describe("GroupConversationInfo", () => {
       name: "确认解散群聊",
     })
     expect(
-      within(dialog).getByText(
-        "解散后所有成员都无法继续查看和发送该群聊消息。此操作不可恢复。"
-      )
+      within(dialog).getByText("解散后所有成员都无法继续查看和发送该群聊消息。此操作不可恢复。"),
     ).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole("button", { name: "解散群聊" }))
 
     await waitFor(() => {
-      expect(dissolveGroupConversation).toHaveBeenCalledWith(
-        "conversation-group-1"
-      )
+      expect(dissolveGroupConversation).toHaveBeenCalledWith("conversation-group-1")
     })
   })
 })
 
 function createClientDataContextValue(
-  overrides: Partial<ClientDataContextValue>
+  overrides: Partial<ClientDataContextValue>,
 ): ClientDataContextValue {
   const me: ClientUser = {
     avatar: "",
@@ -150,7 +137,7 @@ function createClientDataContextValue(
     ensureConversationMessages: vi.fn(),
     dissolveGroupConversation: vi.fn(),
     getConversation: vi.fn((conversationId: string) =>
-      conversationId === conversation.id ? conversation : null
+      conversationId === conversation.id ? conversation : null,
     ),
     getConversationMessageState: vi.fn(),
     handleIncomingConversationMessage: vi.fn(),

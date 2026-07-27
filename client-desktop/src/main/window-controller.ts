@@ -8,7 +8,12 @@ export class WindowController {
   private mainWindow?: BrowserWindow
   private quitting = false
 
-  constructor(private readonly store: ConfigStore, private readonly diagnostics: Diagnostics, private readonly preloadPath: string, private readonly iconPath: string) {}
+  constructor(
+    private readonly store: ConfigStore,
+    private readonly diagnostics: Diagnostics,
+    private readonly preloadPath: string,
+    private readonly iconPath: string,
+  ) {}
 
   create(startHidden = false): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) return this.mainWindow
@@ -33,7 +38,9 @@ export class WindowController {
     window.removeMenu()
     this.mainWindow = window
     this.installSecurity(window)
-    window.on("ready-to-show", () => { if (!startHidden) window.show() })
+    window.on("ready-to-show", () => {
+      if (!startHidden) window.show()
+    })
     window.on("close", (event) => this.handleClose(event))
     window.webContents.on("render-process-gone", (_event, details) => {
       void this.diagnostics.record("renderer", details.reason)
@@ -53,10 +60,18 @@ export class WindowController {
     window.focus()
   }
 
-  hide(): void { this.mainWindow?.hide() }
-  current(): BrowserWindow | undefined { return this.mainWindow?.isDestroyed() ? undefined : this.mainWindow }
-  cancelPrepareToQuit(): void { this.quitting = false }
-  prepareToQuit(): void { this.quitting = true }
+  hide(): void {
+    this.mainWindow?.hide()
+  }
+  current(): BrowserWindow | undefined {
+    return this.mainWindow?.isDestroyed() ? undefined : this.mainWindow
+  }
+  cancelPrepareToQuit(): void {
+    this.quitting = false
+  }
+  prepareToQuit(): void {
+    this.quitting = true
+  }
 
   setThemeBackground(dark: boolean): void {
     this.current()?.setBackgroundColor(dark ? "#09090b" : "#ffffff")
@@ -109,11 +124,20 @@ export class WindowController {
 function isTrustedRenderer(rawUrl: string): boolean {
   if (rawUrl.startsWith("magicchat-app://app/")) return true
   if (!app.isPackaged) {
-    try { const url = new URL(rawUrl); return url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname) } catch { return false }
+    try {
+      const url = new URL(rawUrl)
+      return url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname)
+    } catch {
+      return false
+    }
   }
   return false
 }
 
 function isAllowedExternal(rawUrl: string): boolean {
-  try { return new URL(rawUrl).protocol === "https:" } catch { return false }
+  try {
+    return new URL(rawUrl).protocol === "https:"
+  } catch {
+    return false
+  }
 }

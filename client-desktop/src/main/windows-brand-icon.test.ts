@@ -82,10 +82,7 @@ describe("Windows 品牌图标", () => {
   it("托盘使用独立图标路径且打包携带模板素材", async () => {
     const [mainSource, builderConfig] = await Promise.all([
       readFile(path.resolve(import.meta.dirname, "index.ts"), "utf8"),
-      readFile(
-        path.resolve(import.meta.dirname, "../../electron-builder.yml"),
-        "utf8",
-      ),
+      readFile(path.resolve(import.meta.dirname, "../../electron-builder.yml"), "utf8"),
     ])
 
     expect(mainSource).toContain("const trayIconPath = runtimeTrayIconPath()")
