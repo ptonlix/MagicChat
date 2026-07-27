@@ -1,9 +1,5 @@
 import { ClientDataRequestError } from "./core"
-import type {
-  ChartMessageBodyResponse,
-  ClientChartMessageBody,
-  ClientChartSeries,
-} from "./types"
+import type { ChartMessageBodyResponse, ClientChartMessageBody, ClientChartSeries } from "./types"
 
 const maxChartTitleLength = 16
 const maxChartDescriptionLength = 128
@@ -12,17 +8,9 @@ const maxChartLabels = 100
 const maxChartSeries = 5
 const maxChartValue = 1_000_000_000_000_000
 
-export function normalizeChartMessageBody(
-  body: ChartMessageBodyResponse
-): ClientChartMessageBody {
+export function normalizeChartMessageBody(body: ChartMessageBodyResponse): ClientChartMessageBody {
   if (
-    !hasOnlyKeys(body, [
-      "type",
-      "chart_type",
-      "title",
-      "data",
-      "description",
-    ]) ||
+    !hasOnlyKeys(body, ["type", "chart_type", "title", "data", "description"]) ||
     typeof body.title !== "string" ||
     typeof body.description !== "string"
   ) {
@@ -30,11 +18,7 @@ export function normalizeChartMessageBody(
   }
 
   const title = normalizeChartText(body.title, maxChartTitleLength, "图表标题")
-  const description = normalizeChartText(
-    body.description,
-    maxChartDescriptionLength,
-    "图表描述"
-  )
+  const description = normalizeChartText(body.description, maxChartDescriptionLength, "图表描述")
 
   if (body.chart_type === "line") {
     const data = normalizeCartesianData(body.data, 2)
@@ -51,15 +35,14 @@ export function normalizeChartMessageBody(
     if (
       !isRecord(body.data) ||
       !hasOnlyKeys(body.data, ["direction", "mode", "labels", "series"]) ||
-      (body.data.direction !== "horizontal" &&
-        body.data.direction !== "vertical") ||
+      (body.data.direction !== "horizontal" && body.data.direction !== "vertical") ||
       (body.data.mode !== "grouped" && body.data.mode !== "stacked")
     ) {
       throw invalidChartMessage()
     }
     const cartesian = normalizeCartesianData(
       { labels: body.data.labels, series: body.data.series },
-      1
+      1,
     )
     if (body.data.mode === "stacked") {
       validateStackedTotals(cartesian.series, cartesian.labels.length)
@@ -98,11 +81,7 @@ export function normalizeChartMessageBody(
       ) {
         throw invalidChartMessage()
       }
-      const name = normalizeChartText(
-        rawItem.name,
-        maxChartLabelLength,
-        "饼图项目名称"
-      )
+      const name = normalizeChartText(rawItem.name, maxChartLabelLength, "饼图项目名称")
       requireUniqueChartName(names, name)
       return { name, value: rawItem.value }
     })
@@ -138,25 +117,19 @@ export function normalizeChartMessageBody(
       ) {
         throw invalidChartMessage()
       }
-      const name = normalizeChartText(
-        rawAxis.name,
-        maxChartLabelLength,
-        "雷达图维度名称"
-      )
+      const name = normalizeChartText(rawAxis.name, maxChartLabelLength, "雷达图维度名称")
       requireUniqueChartName(axisNames, name)
       return { max: rawAxis.max, name }
     })
-    const series = normalizeSeries(body.data.series, axes.length, false).map(
-      (item) => ({
-        name: item.name,
-        values: item.values.map((value, index) => {
-          if (value === null || value < 0 || value > axes[index].max) {
-            throw invalidChartMessage()
-          }
-          return value
-        }),
-      })
-    )
+    const series = normalizeSeries(body.data.series, axes.length, false).map((item) => ({
+      name: item.name,
+      values: item.values.map((value, index) => {
+        if (value === null || value < 0 || value > axes[index].max) {
+          throw invalidChartMessage()
+        }
+        return value
+      }),
+    }))
     return {
       chartType: "radar",
       data: { axes, series },
@@ -171,7 +144,7 @@ export function normalizeChartMessageBody(
 
 function normalizeCartesianData(
   rawData: unknown,
-  minLabels: number
+  minLabels: number,
 ): { labels: string[]; series: ClientChartSeries[] } {
   if (
     !isRecord(rawData) ||
@@ -197,13 +170,9 @@ function normalizeCartesianData(
 function normalizeSeries(
   rawSeries: unknown,
   valueCount: number,
-  allowNull: boolean
+  allowNull: boolean,
 ): ClientChartSeries[] {
-  if (
-    !Array.isArray(rawSeries) ||
-    rawSeries.length < 1 ||
-    rawSeries.length > maxChartSeries
-  ) {
+  if (!Array.isArray(rawSeries) || rawSeries.length < 1 || rawSeries.length > maxChartSeries) {
     throw invalidChartMessage()
   }
   const names = new Set<string>()
@@ -217,22 +186,14 @@ function normalizeSeries(
     ) {
       throw invalidChartMessage()
     }
-    const name = normalizeChartText(
-      rawItem.name,
-      maxChartLabelLength,
-      "图表系列名称"
-    )
+    const name = normalizeChartText(rawItem.name, maxChartLabelLength, "图表系列名称")
     requireUniqueChartName(names, name)
     let hasNumber = false
     const values = rawItem.values.map((value) => {
       if (value === null && allowNull) {
         return null
       }
-      if (
-        typeof value !== "number" ||
-        !Number.isFinite(value) ||
-        Math.abs(value) > maxChartValue
-      ) {
+      if (typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > maxChartValue) {
         throw invalidChartMessage()
       }
       hasNumber = true
@@ -253,10 +214,7 @@ function normalizeChartText(value: string, limit: number, field: string) {
   return normalized
 }
 
-function validateStackedTotals(
-  series: ClientChartSeries[],
-  valueCount: number
-) {
+function validateStackedTotals(series: ClientChartSeries[], valueCount: number) {
   for (let valueIndex = 0; valueIndex < valueCount; valueIndex += 1) {
     let positiveTotal = 0
     let negativeTotal = 0
@@ -285,12 +243,7 @@ function requireUniqueChartName(names: Set<string>, name: string) {
 }
 
 function isPositiveChartNumber(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isFinite(value) &&
-    value > 0 &&
-    value <= maxChartValue
-  )
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= maxChartValue
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

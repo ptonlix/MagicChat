@@ -9,10 +9,7 @@ import {
   type ClientMessage,
   type MessageReactionsUpdatedEvent,
 } from "@/lib/client-data-api"
-import {
-  applyMessageReactionSnapshot,
-  applyMessageReactionsUpdate,
-} from "@/lib/client-data-state"
+import { applyMessageReactionSnapshot, applyMessageReactionsUpdate } from "@/lib/client-data-state"
 
 describe("message reactions", () => {
   it("treats a legacy null reaction list as empty", () => {
@@ -41,8 +38,8 @@ describe("message reactions", () => {
             ],
           },
         }),
-        { headers: { "content-type": "application/json" }, status: 200 }
-      )
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
     )
 
     await expect(
@@ -50,8 +47,8 @@ describe("message reactions", () => {
         "conversation-1",
         "message-1",
         { reacted: true, text: "自定义文本" },
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toEqual({
       conversationId: "conversation-1",
       messageId: "message-1",
@@ -73,7 +70,7 @@ describe("message reactions", () => {
       expect.objectContaining({
         body: JSON.stringify({ reacted: true, text: "自定义文本" }),
         method: "PUT",
-      })
+      }),
     )
   })
 
@@ -97,7 +94,7 @@ describe("message reactions", () => {
             ],
           },
         ],
-      })
+      }),
     ).toEqual({
       actorReacted: true,
       actorText: "👍",
@@ -151,16 +148,16 @@ describe("message reactions", () => {
             ],
           },
         }),
-        { headers: { "content-type": "application/json" }, status: 200 }
-      )
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
     )
 
     await expect(
       listConversationMessageReactionSnapshots(
         "conversation-1",
         ["message-2", "message-1"],
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toEqual([
       {
         conversationId: "conversation-1",
@@ -191,7 +188,7 @@ describe("message reactions", () => {
       expect.objectContaining({
         body: JSON.stringify({ message_ids: ["message-2", "message-1"] }),
         method: "POST",
-      })
+      }),
     )
   })
 
@@ -210,24 +207,19 @@ describe("message reactions", () => {
             ],
           },
         }),
-        { headers: { "content-type": "application/json" }, status: 200 }
-      )
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
     )
 
     await expect(
-      listConversationMessageReactionUsers(
-        "conversation-1",
-        "message-1",
-        "🏷",
-        fetcher
-      )
+      listConversationMessageReactionUsers("conversation-1", "message-1", "🏷", fetcher),
     ).resolves.toEqual([
       { id: "user-1", name: "Alice" },
       { id: "user-2", name: "Bob" },
     ])
     expect(fetcher).toHaveBeenCalledWith(
       "/api/client/conversations/conversation-1/messages/message-1/reactions/users?text=%F0%9F%8F%B7",
-      expect.objectContaining({ method: "GET" })
+      expect.objectContaining({ method: "GET" }),
     )
   })
 
@@ -257,11 +249,7 @@ describe("message reactions", () => {
         },
       ],
     }
-    const updated = applyMessageReactionsUpdate(
-      message,
-      otherUserEvent,
-      "user-1"
-    )
+    const updated = applyMessageReactionsUpdate(message, otherUserEvent, "user-1")
     expect(updated.reactions).toEqual([
       {
         count: 3,
@@ -284,14 +272,14 @@ describe("message reactions", () => {
     const stale = applyMessageReactionsUpdate(
       updated,
       { ...otherUserEvent, reactionVersion: 3, reactions: [] },
-      "user-1"
+      "user-1",
     )
     expect(stale).toBe(updated)
 
     const versionGap = applyMessageReactionsUpdate(
       updated,
       { ...otherUserEvent, reactionVersion: 5, reactions: [] },
-      "user-1"
+      "user-1",
     )
     expect(versionGap).toBe(updated)
 
@@ -314,7 +302,7 @@ describe("message reactions", () => {
           },
         ],
       },
-      "user-1"
+      "user-1",
     )
     expect(ownRemoval.reactions).toEqual([
       {
@@ -334,11 +322,7 @@ describe("message reactions", () => {
       reactions: [],
     }
     expect(
-      applyMessageReactionsUpdate(
-        revoked,
-        { ...otherUserEvent, reactionVersion: 5 },
-        "user-1"
-      )
+      applyMessageReactionsUpdate(revoked, { ...otherUserEvent, reactionVersion: 5 }, "user-1"),
     ).toBe(revoked)
     expect(
       applyMessageReactionSnapshot(revoked, {
@@ -353,7 +337,7 @@ describe("message reactions", () => {
             users: [{ id: "user-1", name: "Me" }],
           },
         ],
-      })
+      }),
     ).toBe(revoked)
   })
 })

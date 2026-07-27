@@ -97,7 +97,7 @@ function TaskItem({
       <Item
         className={cn(
           "cursor-pointer items-start bg-background px-3 py-3 shadow-xs hover:bg-muted",
-          closed && "bg-muted/40 text-muted-foreground"
+          closed && "bg-muted/40 text-muted-foreground",
         )}
         onClick={onOpenDetails}
         size="sm"
@@ -113,7 +113,7 @@ function TaskItem({
                   ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950"
                   : task.status === "canceled"
                     ? "border-stone-200 bg-stone-50 text-stone-600 dark:border-stone-800 dark:bg-stone-950"
-                    : "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-800 dark:bg-amber-950"
+                    : "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-800 dark:bg-amber-950",
             )}
           >
             <TaskStatusIcon status={task.status} />
@@ -123,7 +123,7 @@ function TaskItem({
           <ItemTitle
             className={cn(
               "line-clamp-none w-full transition-colors group-hover/item:text-sky-600",
-              closed && "text-muted-foreground"
+              closed && "text-muted-foreground",
             )}
           >
             <span className="flex w-full min-w-0 flex-wrap items-center gap-2">
@@ -176,7 +176,7 @@ function TaskItem({
                 aria-label={`修改任务负责人，当前为${task.assignee.nickname || task.assignee.name}`}
                 className={cn(
                   "cursor-pointer hover:ring-1 hover:ring-ring/50",
-                  closed && "text-muted-foreground"
+                  closed && "text-muted-foreground",
                 )}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -193,9 +193,7 @@ function TaskItem({
                     />
                   )}
                   <AvatarFallback className="rounded-sm text-[8px]">
-                    {getUserInitial(
-                      task.assignee.nickname || task.assignee.name
-                    )}
+                    {getUserInitial(task.assignee.nickname || task.assignee.name)}
                   </AvatarFallback>
                 </Avatar>
                 {task.assignee.nickname || task.assignee.name}
@@ -301,12 +299,7 @@ function TaskStatusIcon({
 }) {
   switch (status) {
     case "in_progress":
-      return (
-        <CircleDot
-          aria-hidden="true"
-          className={cn("size-4", colored && "text-sky-600")}
-        />
-      )
+      return <CircleDot aria-hidden="true" className={cn("size-4", colored && "text-sky-600")} />
     case "done":
       return (
         <CircleCheckBig
@@ -315,19 +308,9 @@ function TaskStatusIcon({
         />
       )
     case "canceled":
-      return (
-        <CircleX
-          aria-hidden="true"
-          className={cn("size-4", colored && "text-stone-400")}
-        />
-      )
+      return <CircleX aria-hidden="true" className={cn("size-4", colored && "text-stone-400")} />
     default:
-      return (
-        <Circle
-          aria-hidden="true"
-          className={cn("size-4", colored && "text-amber-600")}
-        />
-      )
+      return <Circle aria-hidden="true" className={cn("size-4", colored && "text-amber-600")} />
   }
 }
 
@@ -346,7 +329,7 @@ function StatusBadge({
         aria-label={`修改任务状态，当前为${statusLabels[status]}`}
         className={cn(
           "cursor-pointer hover:ring-1 hover:ring-ring/50",
-          muted && "text-muted-foreground"
+          muted && "text-muted-foreground",
         )}
         onClick={onClick}
         type="button"
@@ -373,7 +356,7 @@ function PriorityBadge({
         aria-label={`修改任务优先级，当前为${priorityLabels[priority]}`}
         className={cn(
           "cursor-pointer hover:ring-1 hover:ring-ring/50",
-          muted && "text-muted-foreground"
+          muted && "text-muted-foreground",
         )}
         onClick={onClick}
         type="button"
@@ -412,9 +395,8 @@ function TaskDateBadge({
         aria-label={`修改任务${label}日期，当前为${value}`}
         className={cn(
           "cursor-pointer hover:ring-1 hover:ring-ring/50",
-          overdue &&
-            "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",
-          !overdue && "text-muted-foreground"
+          overdue && "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",
+          !overdue && "text-muted-foreground",
         )}
         onClick={onClick}
         type="button"

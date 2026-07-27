@@ -18,7 +18,7 @@ describe("client app API", () => {
           app: createAppResponse(),
           connection_secret: "app-secret",
         },
-      })
+      }),
     )
 
     await expect(
@@ -29,8 +29,8 @@ describe("client app API", () => {
           userIds: ["user-2"],
           visibility: "restricted",
         },
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toEqual({
       app: {
         avatar: "",
@@ -71,15 +71,13 @@ describe("client app API", () => {
             avatar: "https://files.example.test/apps/app-1.webp",
           },
         },
-      })
+      }),
     )
     const file = new File(["avatar"], "avatar.webp", {
       type: "image/webp",
     })
 
-    await expect(
-      uploadClientAppAvatar("app/1", file, fetcher)
-    ).resolves.toMatchObject({
+    await expect(uploadClientAppAvatar("app/1", file, fetcher)).resolves.toMatchObject({
       avatar: "https://files.example.test/apps/app-1.webp",
       id: "app-1",
     })
@@ -101,12 +99,10 @@ describe("client app API", () => {
           app: createAppResponse(),
           connection_secret: "current-secret",
         },
-      })
+      }),
     )
 
-    await expect(
-      getClientAppCredentials("app/1", fetcher)
-    ).resolves.toMatchObject({
+    await expect(getClientAppCredentials("app/1", fetcher)).resolves.toMatchObject({
       app: { id: "app-1" },
       connectionSecret: "current-secret",
     })
@@ -124,21 +120,16 @@ describe("client app API", () => {
           app: createAppResponse(),
           connection_secret: "new-secret",
         },
-      })
+      }),
     )
 
-    await expect(
-      regenerateClientAppSecret("app-1", fetcher)
-    ).resolves.toMatchObject({
+    await expect(regenerateClientAppSecret("app-1", fetcher)).resolves.toMatchObject({
       connectionSecret: "new-secret",
     })
-    expect(fetcher).toHaveBeenCalledWith(
-      "/api/client/apps/app-1/secret/regenerate",
-      {
-        credentials: "include",
-        method: "POST",
-      }
-    )
+    expect(fetcher).toHaveBeenCalledWith("/api/client/apps/app-1/secret/regenerate", {
+      credentials: "include",
+      method: "POST",
+    })
   })
 
   it("updates only the provided owned application fields", async () => {
@@ -153,7 +144,7 @@ describe("client app API", () => {
             user_ids: [],
           },
         },
-      })
+      }),
     )
 
     await expect(
@@ -164,8 +155,8 @@ describe("client app API", () => {
           userIds: [],
           visibility: "public",
         },
-        fetcher
-      )
+        fetcher,
+      ),
     ).resolves.toMatchObject({
       name: "新版报表机器人",
       userIds: [],
@@ -190,7 +181,7 @@ describe("client app API", () => {
       buildAppWebSocketURL({
         host: "chat.example.com",
         protocol: "https:",
-      })
+      }),
     ).toBe("wss://chat.example.com/api/app/ws")
   })
 })

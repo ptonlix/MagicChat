@@ -18,9 +18,7 @@ import type { ClientUser } from "@/lib/client-data-api"
 
 type ProfileSettingsDialogProps = {
   onAvatarSave?: (avatar: string) => Promise<void> | void
-  onCustomAvatarSave?: (
-    avatar: CroppedAvatar
-  ) => Promise<string | void> | string | void
+  onCustomAvatarSave?: (avatar: CroppedAvatar) => Promise<string | void> | string | void
   onNicknameSave?: (nickname: string) => Promise<void> | void
   onOpenChange: (open: boolean) => void
   open: boolean
@@ -56,9 +54,7 @@ function ProfileSettingsDialogContent({
   user,
 }: {
   onAvatarSave?: (avatar: string) => Promise<void> | void
-  onCustomAvatarSave?: (
-    avatar: CroppedAvatar
-  ) => Promise<string | void> | string | void
+  onCustomAvatarSave?: (avatar: CroppedAvatar) => Promise<string | void> | string | void
   onNicknameSave?: (nickname: string) => Promise<void> | void
   user: ClientUser
 }) {
@@ -104,27 +100,17 @@ function ProfileSettingsDialogContent({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <DialogTitle className="text-base font-medium">个人资料</DialogTitle>
-          <DialogDescription className="sr-only">
-            查看个人资料并编辑昵称和头像
-          </DialogDescription>
+          <DialogDescription className="sr-only">查看个人资料并编辑昵称和头像</DialogDescription>
         </div>
         <DialogClose asChild>
-          <Button
-            aria-label="关闭个人资料"
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
+          <Button aria-label="关闭个人资料" size="icon-sm" type="button" variant="ghost">
             <X className="size-4" />
           </Button>
         </DialogClose>
       </div>
 
       <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-        <div
-          className="flex items-start gap-4"
-          data-testid="profile-settings-identity-row"
-        >
+        <div className="flex items-start gap-4" data-testid="profile-settings-identity-row">
           <Button
             aria-haspopup="dialog"
             aria-label="更换头像"
@@ -135,11 +121,7 @@ function ProfileSettingsDialogContent({
           >
             <Avatar className="size-17 rounded-sm bg-muted after:rounded-sm">
               {previewAvatar && (
-                <AvatarImage
-                  alt={displayName}
-                  className="rounded-sm"
-                  src={previewAvatar}
-                />
+                <AvatarImage alt={displayName} className="rounded-sm" src={previewAvatar} />
               )}
               <AvatarFallback className="rounded-sm text-lg">
                 {getAvatarInitial(displayName)}
@@ -170,9 +152,7 @@ function ProfileSettingsDialogContent({
                   onClick={() => void handleNicknameSave()}
                   type="button"
                 >
-                  {nicknameSaving && (
-                    <Loader2Icon aria-hidden="true" className="animate-spin" />
-                  )}
+                  {nicknameSaving && <Loader2Icon aria-hidden="true" className="animate-spin" />}
                   提交
                 </Button>
               )}
@@ -181,16 +161,8 @@ function ProfileSettingsDialogContent({
         </div>
 
         <FieldGroup className="gap-4">
-          <ReadonlyProfileField
-            id="profile-settings-name"
-            label="姓名"
-            value={user.name}
-          />
-          <ReadonlyProfileField
-            id="profile-settings-email"
-            label="邮箱"
-            value={user.email}
-          />
+          <ReadonlyProfileField id="profile-settings-name" label="姓名" value={user.name} />
+          <ReadonlyProfileField id="profile-settings-email" label="邮箱" value={user.email} />
           <ReadonlyProfileField
             id="profile-settings-phone"
             label="手机号"

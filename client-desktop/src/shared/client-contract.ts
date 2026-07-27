@@ -116,7 +116,11 @@ export function assertClientPath(path: string): string {
     throw new ClientTransportError("invalid_request", "API 路径不在允许范围内")
   }
   const url = new URL(path, "https://local.invalid")
-  if (url.origin !== "https://local.invalid" || !url.pathname.startsWith("/api/client/") || url.pathname.split("/").includes("..")) {
+  if (
+    url.origin !== "https://local.invalid" ||
+    !url.pathname.startsWith("/api/client/") ||
+    url.pathname.split("/").includes("..")
+  ) {
     throw new ClientTransportError("invalid_request", "API 路径包含越界内容")
   }
   return `${url.pathname}${url.search}`

@@ -10,7 +10,11 @@ import type { DesktopSettings, NotificationInput } from "@shared/bridge"
 export class NotificationService {
   private readonly shown = new Map<string, number>()
 
-  constructor(private readonly settings: () => DesktopSettings, private readonly onClick: (input: NotificationInput) => Promise<void>, private readonly enterpriseMaximum: DesktopSettings["notificationPrivacy"] = "preview") {}
+  constructor(
+    private readonly settings: () => DesktopSettings,
+    private readonly onClick: (input: NotificationInput) => Promise<void>,
+    private readonly enterpriseMaximum: DesktopSettings["notificationPrivacy"] = "preview",
+  ) {}
 
   async show(input: NotificationInput): Promise<void> {
     if (input.muted || !Notification.isSupported()) return
@@ -18,13 +22,23 @@ export class NotificationService {
     const key = `${targetKey(input.target)}:${input.messageId}`
     if (this.shown.has(key)) return
     this.shown.set(key, Date.now())
-    const privacy = resolveNotificationPrivacy(this.settings().notificationPrivacy, this.enterpriseMaximum)
-    const title = privacy === "hidden" ? "MagicChat 新消息" : cleanNotificationText(input.workspace || input.sender || "MagicChat", 80)
-    const body = privacy === "hidden"
-      ? "你收到了一条新消息"
-      : privacy === "metadata"
-        ? cleanNotificationText(input.sender ? `${input.sender} 发来新消息` : "会话中有新消息", 120)
-        : cleanNotificationPreview(input.preview)
+    const privacy = resolveNotificationPrivacy(
+      this.settings().notificationPrivacy,
+      this.enterpriseMaximum,
+    )
+    const title =
+      privacy === "hidden"
+        ? "MagicChat 新消息"
+        : cleanNotificationText(input.workspace || input.sender || "MagicChat", 80)
+    const body =
+      privacy === "hidden"
+        ? "你收到了一条新消息"
+        : privacy === "metadata"
+          ? cleanNotificationText(
+              input.sender ? `${input.sender} 发来新消息` : "会话中有新消息",
+              120,
+            )
+          : cleanNotificationPreview(input.preview)
     const notification = new Notification({ title, body, silent: false })
     notification.on("click", () => void this.onClick(input))
     notification.show()

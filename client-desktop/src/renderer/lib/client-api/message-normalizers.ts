@@ -50,7 +50,7 @@ const maxForwardBundleDepth = 5
 const maxForwardBundleLeafCount = 50
 
 export function normalizeMarkConversationReadResult(
-  result: MarkConversationReadResponse | undefined
+  result: MarkConversationReadResponse | undefined,
 ): MarkConversationReadResult {
   if (
     !result?.conversation_id ||
@@ -67,9 +67,7 @@ export function normalizeMarkConversationReadResult(
   }
 }
 
-export function normalizeMessage(
-  message: MessageResponse | undefined
-): ClientMessage {
+export function normalizeMessage(message: MessageResponse | undefined): ClientMessage {
   const senderType = normalizeMessageSenderType(message?.sender?.type)
   const senderId = message?.sender?.id ?? ""
   const revokedAt = message?.revoked_at
@@ -86,9 +84,7 @@ export function normalizeMessage(
   }
 
   const normalized: ClientMessage = {
-    body: revokedAt
-      ? { type: "revoked" }
-      : normalizeClientMessageBody(message.body),
+    body: revokedAt ? { type: "revoked" } : normalizeClientMessageBody(message.body),
     clientMessageId: message.client_message_id ?? "",
     conversationId: message.conversation_id,
     createdAt: message.created_at,
@@ -116,9 +112,7 @@ export function normalizeMessage(
     normalized.topic = {
       archived: Boolean(message.topic.archived),
       conversationId: message.topic.conversation_id,
-      recentReplies: (message.topic.recent_replies ?? []).map(
-        normalizeMessageTopicReply
-      ),
+      recentReplies: (message.topic.recent_replies ?? []).map(normalizeMessageTopicReply),
     }
   }
   if (message.reply_to_message_id) {
@@ -135,7 +129,7 @@ export function normalizeMessage(
 }
 
 export function normalizeMessageReactions(
-  reactions: MessageResponse["reactions"]
+  reactions: MessageResponse["reactions"],
 ): ClientMessageReaction[] {
   if (reactions == null) {
     return []
@@ -150,8 +144,7 @@ export function normalizeMessageReactions(
       typeof reaction.count !== "number" ||
       !Number.isInteger(reaction.count) ||
       reaction.count <= 0 ||
-      (reaction.reacted_by_me !== undefined &&
-        typeof reaction.reacted_by_me !== "boolean")
+      (reaction.reacted_by_me !== undefined && typeof reaction.reacted_by_me !== "boolean")
     ) {
       throw new ClientDataRequestError("消息表情响应格式不正确")
     }
@@ -164,9 +157,7 @@ export function normalizeMessageReactions(
   })
 }
 
-export function normalizeMessageReactionUsers(
-  value: MessageReactionUserResponse[] | undefined
-) {
+export function normalizeMessageReactionUsers(value: MessageReactionUserResponse[] | undefined) {
   if (value === undefined) return []
   if (
     !Array.isArray(value) ||
@@ -175,7 +166,7 @@ export function normalizeMessageReactionUsers(
         typeof user?.id !== "string" ||
         user.id.trim() === "" ||
         typeof user.name !== "string" ||
-        user.name.trim() === ""
+        user.name.trim() === "",
     )
   ) {
     throw new ClientDataRequestError("消息表情响应格式不正确")
@@ -193,9 +184,7 @@ function normalizeReactionVersion(value: number | undefined) {
   return value
 }
 
-function normalizeMessageTopicReply(
-  reply: MessageTopicReplyResponse
-): ClientMessageTopicReply {
+function normalizeMessageTopicReply(reply: MessageTopicReplyResponse): ClientMessageTopicReply {
   const senderType = normalizeMessageSenderType(reply?.sender?.type)
   const senderId = reply?.sender?.id ?? ""
   if (
@@ -217,7 +206,7 @@ function normalizeMessageTopicReply(
 }
 
 export function normalizeClientMessageBody(
-  body: MessageBodyResponse | undefined
+  body: MessageBodyResponse | undefined,
 ): ClientMessageBody {
   try {
     return normalizeMessageBody(body)
@@ -227,7 +216,7 @@ export function normalizeClientMessageBody(
 }
 
 function normalizeMessageDelegatedBy(
-  delegatedBy: MessageDelegatedByResponse | null | undefined
+  delegatedBy: MessageDelegatedByResponse | null | undefined,
 ): ClientMessageDelegatedBy | undefined {
   if (!delegatedBy) {
     return undefined
@@ -248,7 +237,7 @@ function normalizeMessageDelegatedBy(
 }
 
 function normalizeMessageReplyTo(
-  replyTo: MessageReplyToResponse | null | undefined
+  replyTo: MessageReplyToResponse | null | undefined,
 ): ClientMessageReplyTo | undefined {
   if (!replyTo) {
     return undefined
@@ -281,7 +270,7 @@ function normalizeMessageReplyTo(
 
 function normalizeMessageBody(
   body: MessageBodyResponse | undefined,
-  forwardBundleDepth = 0
+  forwardBundleDepth = 0,
 ): ClientMessageBody {
   if (body?.type === "text" && typeof body.content === "string") {
     return {
@@ -297,11 +286,7 @@ function normalizeMessageBody(
     }
   }
 
-  if (
-    body?.type === "link" &&
-    typeof body.url === "string" &&
-    typeof body.title === "string"
-  ) {
+  if (body?.type === "link" && typeof body.url === "string" && typeof body.title === "string") {
     return {
       title: body.title,
       type: "link",
@@ -374,8 +359,7 @@ function normalizeMessageBody(
       durationMS: body.duration_ms,
       fileId: body.file_id,
       sizeBytes: body.size_bytes,
-      transcript:
-        typeof body.transcript === "string" ? body.transcript.trim() : "",
+      transcript: typeof body.transcript === "string" ? body.transcript.trim() : "",
       type: "voice",
     }
 
@@ -404,10 +388,7 @@ function normalizeMessageBody(
           throw new ClientDataRequestError("消息响应格式不正确")
         }
 
-        const normalizedBody = normalizeMessageBody(
-          item.body,
-          forwardBundleDepth + 1
-        )
+        const normalizedBody = normalizeMessageBody(item.body, forwardBundleDepth + 1)
         if (!isForwardableMessageBody(normalizedBody)) {
           throw new ClientDataRequestError("消息响应格式不正确")
         }
@@ -423,9 +404,7 @@ function normalizeMessageBody(
       type: "forward_bundle",
     }
 
-    if (
-      countForwardBundleLeaves(normalizedBundle) > maxForwardBundleLeafCount
-    ) {
+    if (countForwardBundleLeaves(normalizedBundle) > maxForwardBundleLeafCount) {
       throw new ClientDataRequestError("消息响应格式不正确")
     }
 
@@ -439,9 +418,7 @@ function normalizeMessageBody(
   throw new ClientDataRequestError("消息响应格式不正确")
 }
 
-function isForwardableMessageBody(
-  body: ClientMessageBody
-): body is ClientForwardableMessageBody {
+function isForwardableMessageBody(body: ClientMessageBody): body is ClientForwardableMessageBody {
   return (
     body.type === "text" ||
     body.type === "markdown" ||
@@ -460,10 +437,7 @@ function countForwardBundleLeaves(body: ClientForwardableMessageBody): number {
     return 1
   }
 
-  return body.items.reduce(
-    (count, item) => count + countForwardBundleLeaves(item.body),
-    0
-  )
+  return body.items.reduce((count, item) => count + countForwardBundleLeaves(item.body), 0)
 }
 
 function isPositiveFiniteNumber(value: unknown): value is number {
@@ -480,7 +454,7 @@ function normalizeSystemEventMessageBody(
     | GroupMemberRemovedSystemEventBodyResponse
     | GroupNameUpdatedSystemEventBodyResponse
     | MessageRevokedSystemEventBodyResponse
-    | TopicClosedSystemEventBodyResponse
+    | TopicClosedSystemEventBodyResponse,
 ):
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
@@ -618,7 +592,7 @@ function normalizeSystemEventMessageBody(
 }
 
 function normalizeSystemEventUserRef(
-  userRef: SystemEventUserRefResponse
+  userRef: SystemEventUserRefResponse,
 ): ClientSystemEventUserRef {
   if (!isSystemEventUserRefResponse(userRef)) {
     throw new ClientDataRequestError("消息响应格式不正确")
@@ -631,7 +605,7 @@ function normalizeSystemEventUserRef(
 }
 
 export function normalizeTemporaryFileReadURL(
-  item: TemporaryFileReadURLResponse
+  item: TemporaryFileReadURLResponse,
 ): TemporaryFileReadURL {
   if (!item.file_id || !item.url || !item.expires_at) {
     throw new ClientDataRequestError("文件下载地址响应格式不正确")
@@ -644,20 +618,14 @@ export function normalizeTemporaryFileReadURL(
   }
 }
 
-export function isTemporaryFileReadURLFresh(
-  item: TemporaryFileReadURL,
-  now: number
-) {
+export function isTemporaryFileReadURLFresh(item: TemporaryFileReadURL, now: number) {
   const expiresAt = Date.parse(item.expiresAt)
 
-  return (
-    Number.isFinite(expiresAt) &&
-    expiresAt - temporaryFileReadURLCacheSafetyWindowMs > now
-  )
+  return Number.isFinite(expiresAt) && expiresAt - temporaryFileReadURLCacheSafetyWindowMs > now
 }
 
 function isSystemEventUserRefResponse(
-  userRef: SystemEventUserRefResponse | undefined
+  userRef: SystemEventUserRefResponse | undefined,
 ): userRef is Required<SystemEventUserRefResponse> {
   return Boolean(userRef?.id && userRef.display_name)
 }
@@ -670,9 +638,7 @@ function normalizeMessageSenderType(type: string | undefined) {
   return "user"
 }
 
-export function normalizeMessagePage(
-  page: MessagePageResponse | undefined
-): ClientMessagePage {
+export function normalizeMessagePage(page: MessagePageResponse | undefined): ClientMessagePage {
   if (
     !page ||
     typeof page.limit !== "number" ||

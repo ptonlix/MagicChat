@@ -54,10 +54,8 @@ export function SendImageMessageDialog({
     y: number
   } | null>(null)
   const imageKey = previewURL ?? ""
-  const [previewAreaElement, setPreviewAreaElement] =
-    React.useState<HTMLDivElement | null>(null)
-  const [previewAreaSize, setPreviewAreaSize] =
-    React.useState<PreviewSize | null>(null)
+  const [previewAreaElement, setPreviewAreaElement] = React.useState<HTMLDivElement | null>(null)
+  const [previewAreaSize, setPreviewAreaSize] = React.useState<PreviewSize | null>(null)
   const [zoomState, setZoomState] = React.useState({
     imageKey: "",
     value: 1,
@@ -73,15 +71,11 @@ export function SendImageMessageDialog({
   })
   const [previewDragging, setPreviewDragging] = React.useState(false)
   const zoom = zoomState.imageKey === imageKey ? zoomState.value : 1
-  const currentImageSize =
-    imageSize?.imageKey === imageKey ? imageSize : null
-  const previewSize = currentImageSize && previewAreaSize
-    ? getContainedSize(
-        currentImageSize,
-        previewAreaSize.width,
-        previewAreaSize.height
-      )
-    : null
+  const currentImageSize = imageSize?.imageKey === imageKey ? imageSize : null
+  const previewSize =
+    currentImageSize && previewAreaSize
+      ? getContainedSize(currentImageSize, previewAreaSize.width, previewAreaSize.height)
+      : null
   const clampedPreviewOffset =
     previewAreaSize && previewSize
       ? clampPreviewOffset(previewOffset, previewAreaSize, previewSize, zoom)
@@ -95,23 +89,17 @@ export function SendImageMessageDialog({
 
       event.preventDefault()
       const nextZoom = clampPreviewZoom(
-        zoom +
-          (event.deltaY < 0 ? imagePreviewZoomStep : -imagePreviewZoomStep)
+        zoom + (event.deltaY < 0 ? imagePreviewZoomStep : -imagePreviewZoomStep),
       )
 
       setZoomState({ imageKey, value: nextZoom })
       setPreviewOffset((currentOffset) => {
         return previewAreaSize && previewSize
-          ? clampPreviewOffset(
-              currentOffset,
-              previewAreaSize,
-              previewSize,
-              nextZoom
-            )
+          ? clampPreviewOffset(currentOffset, previewAreaSize, previewSize, nextZoom)
           : { x: 0, y: 0 }
       })
     },
-    [image, imageKey, previewAreaSize, previewSize, zoom]
+    [image, imageKey, previewAreaSize, previewSize, zoom],
   )
 
   React.useEffect(() => {
@@ -150,15 +138,8 @@ export function SendImageMessageDialog({
     }
   }, [handlePreviewWheel, image, open, previewAreaElement, previewURL])
 
-  function handlePreviewPointerDown(
-    event: React.PointerEvent<HTMLDivElement>
-  ) {
-    if (
-      event.button !== 0 ||
-      !previewAreaSize ||
-      !previewSize ||
-      zoom <= 1
-    ) {
+  function handlePreviewPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || !previewAreaSize || !previewSize || zoom <= 1) {
       return
     }
 
@@ -174,9 +155,7 @@ export function SendImageMessageDialog({
     setPreviewDragging(true)
   }
 
-  function handlePreviewPointerMove(
-    event: React.PointerEvent<HTMLDivElement>
-  ) {
+  function handlePreviewPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const previewDrag = previewDragRef.current
 
     if (
@@ -197,8 +176,8 @@ export function SendImageMessageDialog({
         },
         previewAreaSize,
         previewSize,
-        zoom
-      )
+        zoom,
+      ),
     )
   }
 
@@ -232,9 +211,7 @@ export function SendImageMessageDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-base">发送图片</DialogTitle>
-          <DialogDescription className="sr-only">
-            确认发送图片到当前会话
-          </DialogDescription>
+          <DialogDescription className="sr-only">确认发送图片到当前会话</DialogDescription>
         </DialogHeader>
         {image && previewURL && (
           <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
@@ -242,8 +219,7 @@ export function SendImageMessageDialog({
               ref={setPreviewAreaElement}
               className={cn(
                 "relative min-h-0 min-w-0 touch-none overflow-hidden rounded-md border bg-muted/20 select-none",
-                zoom > 1 &&
-                  (previewDragging ? "cursor-grabbing" : "cursor-grab")
+                zoom > 1 && (previewDragging ? "cursor-grabbing" : "cursor-grab"),
               )}
               onPointerCancel={handlePreviewPointerEnd}
               onPointerDown={handlePreviewPointerDown}
@@ -277,10 +253,7 @@ export function SendImageMessageDialog({
               </div>
             </div>
             <p className="min-w-0 text-sm text-muted-foreground">
-              将要发送到{" "}
-              <span className="font-medium text-foreground">
-                {conversationName}
-              </span>
+              将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
             </p>
           </div>
         )}
@@ -308,7 +281,7 @@ export function SendImageMessageDialog({
 function getContainedSize(
   size: { height: number; width: number },
   maxWidth: number,
-  maxHeight: number
+  maxHeight: number,
 ) {
   const scale = Math.min(1, maxWidth / size.width, maxHeight / size.height)
 
@@ -319,17 +292,14 @@ function getContainedSize(
 }
 
 function clampPreviewZoom(zoom: number) {
-  return Math.min(
-    maxImagePreviewZoom,
-    Math.max(minImagePreviewZoom, Number(zoom.toFixed(2)))
-  )
+  return Math.min(maxImagePreviewZoom, Math.max(minImagePreviewZoom, Number(zoom.toFixed(2))))
 }
 
 function clampPreviewOffset(
   offset: PreviewOffset,
   areaSize: PreviewSize,
   baseSize: PreviewSize,
-  zoom: number
+  zoom: number,
 ): PreviewOffset {
   const maxX = Math.max(0, (baseSize.width * zoom - areaSize.width) / 2)
   const maxY = Math.max(0, (baseSize.height * zoom - areaSize.height) / 2)

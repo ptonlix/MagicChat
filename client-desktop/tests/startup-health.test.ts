@@ -7,7 +7,9 @@ import { StartupHealth } from "@main/startup-health"
 const directories: string[] = []
 
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })))
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })),
+  )
 })
 
 describe("启动健康标记", () => {

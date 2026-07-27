@@ -51,7 +51,7 @@ export function useMessageSelection(conversationId: string) {
         selectedMessageIds: new Set([messageId]),
       })
     },
-    [conversationId]
+    [conversationId],
   )
 
   const toggle = React.useCallback(
@@ -74,7 +74,7 @@ export function useMessageSelection(conversationId: string) {
         }
       })
     },
-    [conversationId]
+    [conversationId],
   )
 
   return {

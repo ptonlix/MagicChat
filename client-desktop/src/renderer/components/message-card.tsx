@@ -53,9 +53,7 @@ export function MessageCard({
 function CardContent({ card }: { card: ClientCardMessageBody }) {
   return (
     <>
-      <div className="truncate text-sm leading-snug font-medium">
-        {card.title}
-      </div>
+      <div className="truncate text-sm leading-snug font-medium">{card.title}</div>
       {card.description.trim() && (
         <>
           <Separator className="bg-foreground/10" />
@@ -83,10 +81,7 @@ function getCardTarget(url: string) {
 
   try {
     const parsed = new URL(value)
-    if (
-      (parsed.protocol === "https:" || parsed.protocol === "http:") &&
-      parsed.hostname
-    ) {
+    if ((parsed.protocol === "https:" || parsed.protocol === "http:") && parsed.hostname) {
       return { href: parsed.href, type: "external" as const }
     }
   } catch {

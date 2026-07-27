@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  RealtimeClient,
-  type RealtimeWebSocketLike,
-} from "@/lib/realtime-client"
+import { RealtimeClient, type RealtimeWebSocketLike } from "@/lib/realtime-client"
 
 class FakeWebSocket implements RealtimeWebSocketLike {
   static instances: FakeWebSocket[] = []
@@ -43,7 +40,7 @@ class FakeWebSocket implements RealtimeWebSocketLike {
     this.onmessage?.(
       new MessageEvent("message", {
         data: JSON.stringify(payload),
-      })
+      }),
     )
   }
 

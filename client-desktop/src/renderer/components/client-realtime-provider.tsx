@@ -1,20 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { RealtimeClient, type RealtimeSnapshot } from "@/lib/realtime-client"
 import { createDesktopRealtimeClient } from "@/lib/desktop-host"
-import {
-  RealtimeContext,
-  type RealtimeContextValue,
-} from "@/lib/realtime-context"
+import { RealtimeContext, type RealtimeContextValue } from "@/lib/realtime-context"
 import { ClientLoadingPage } from "@/components/client-loading-page"
 import { useAppInfo } from "@/lib/app-info-context"
 
@@ -36,11 +26,9 @@ export function ClientRealtimeProvider({
           setAuthenticated(false)
           navigate("/login", { replace: true })
         },
-      })
+      }),
   )
-  const [snapshot, setSnapshot] = useState<RealtimeSnapshot>(() =>
-    client.getSnapshot()
-  )
+  const [snapshot, setSnapshot] = useState<RealtimeSnapshot>(() => client.getSnapshot())
   const [hasReadyOnce, setHasReadyOnce] = useState(snapshot.ready)
   const reconnectingToastShownRef = useRef(false)
 
@@ -71,9 +59,13 @@ export function ClientRealtimeProvider({
     }
   }, [client])
 
-  useEffect(() => client.subscribeEvent("system.ready", () => {
-    window.dispatchEvent(new Event("magicchat:realtime-ready"))
-  }), [client])
+  useEffect(
+    () =>
+      client.subscribeEvent("system.ready", () => {
+        window.dispatchEvent(new Event("magicchat:realtime-ready"))
+      }),
+    [client],
+  )
 
   useEffect(() => {
     if (snapshot.ready) {
@@ -84,11 +76,7 @@ export function ClientRealtimeProvider({
       return
     }
 
-    if (
-      snapshot.status === "reconnecting" &&
-      hasReadyOnce &&
-      !reconnectingToastShownRef.current
-    ) {
+    if (snapshot.status === "reconnecting" && hasReadyOnce && !reconnectingToastShownRef.current) {
       reconnectingToastShownRef.current = true
       toast.warning("网络断开，正在尝试重新连接")
     }
@@ -96,12 +84,12 @@ export function ClientRealtimeProvider({
 
   const sendRealtimeRequest = useCallback(
     (method: string, payload: unknown) => client.sendRequest(method, payload),
-    [client]
+    [client],
   )
   const subscribeRealtimeEvent = useCallback(
     (eventName: string, handler: (payload: unknown) => void) =>
       client.subscribeEvent(eventName, handler),
-    [client]
+    [client],
   )
 
   const value = useMemo<RealtimeContextValue>(
@@ -111,12 +99,7 @@ export function ClientRealtimeProvider({
       subscribeRealtimeEvent,
       status: snapshot.status,
     }),
-    [
-      sendRealtimeRequest,
-      snapshot.ready,
-      snapshot.status,
-      subscribeRealtimeEvent,
-    ]
+    [sendRealtimeRequest, snapshot.ready, snapshot.status, subscribeRealtimeEvent],
   )
 
   const ready = snapshot.ready || hasReadyOnce
@@ -124,11 +107,7 @@ export function ClientRealtimeProvider({
     return <ClientLoadingPage />
   }
 
-  return (
-    <RealtimeContext.Provider value={value}>
-      {children}
-    </RealtimeContext.Provider>
-  )
+  return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>
 }
 
 async function checkClientSession() {

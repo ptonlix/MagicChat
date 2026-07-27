@@ -6,22 +6,15 @@ import { formatContactPhone } from "@/lib/contact-format"
 import { useClientData } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 type DirectConversationInfoProps = {
   userId: string
 }
 
-export function DirectConversationInfo({
-  userId,
-}: DirectConversationInfoProps) {
+export function DirectConversationInfo({ userId }: DirectConversationInfoProps) {
   const { contacts, me } = useClientData()
-  const user =
-    me.id === userId ? me : contacts.find((contact) => contact.id === userId)
+  const user = me.id === userId ? me : contacts.find((contact) => contact.id === userId)
 
   if (!user) {
     return (
@@ -30,9 +23,7 @@ export function DirectConversationInfo({
           <SheetTitle>会话信息</SheetTitle>
           <SheetDescription>私聊</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          用户信息不可用
-        </div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">用户信息不可用</div>
       </>
     )
   }
@@ -49,11 +40,7 @@ export function DirectConversationInfo({
         <div className="flex justify-center">
           <Avatar className="size-20 rounded-sm bg-muted after:rounded-sm">
             {user.avatar && (
-              <AvatarImage
-                alt={displayName}
-                className="rounded-sm"
-                src={user.avatar}
-              />
+              <AvatarImage alt={displayName} className="rounded-sm" src={user.avatar} />
             )}
             <AvatarFallback className="rounded-sm text-xl">
               {getUserInitial(displayName)}
@@ -104,12 +91,7 @@ function DirectConversationInfoRow({
     <div className="flex min-w-0 items-center gap-3 border-b py-2 last:border-b-0">
       <span className="shrink-0">{icon}</span>
       <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
-      <span
-        className={cn(
-          "block min-w-0 flex-1 truncate",
-          !hasValue && "text-muted-foreground"
-        )}
-      >
+      <span className={cn("block min-w-0 flex-1 truncate", !hasValue && "text-muted-foreground")}>
         {displayValue}
       </span>
     </div>

@@ -27,10 +27,7 @@ export function ClientDocumentTitle({
       return 0
     }
 
-    return conversations.reduce(
-      (total, conversation) => total + conversation.unreadCount,
-      0
-    )
+    return conversations.reduce((total, conversation) => total + conversation.unreadCount, 0)
   }, [conversations, disableMessageAlert])
   const hasMessageAlert = unreadCount > 0
   const pageTitle = title ? `${title} - ${appName}` : appName

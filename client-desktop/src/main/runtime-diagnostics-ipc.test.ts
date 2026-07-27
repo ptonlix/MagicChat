@@ -12,7 +12,11 @@ const electronMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("electron", () => ({
-  app: { get isPackaged() { return electronMocks.isPackaged } },
+  app: {
+    get isPackaged() {
+      return electronMocks.isPackaged
+    },
+  },
   ipcMain: { on: electronMocks.on, removeListener: electronMocks.removeListener },
 }))
 
@@ -34,13 +38,21 @@ describe("registerRuntimeDiagnosticsIpc", () => {
 
   it("拒绝非受信来源并在注销时移除同一个监听器", () => {
     const updateRuntimeSnapshot = vi.fn()
-    const unregister = registerRuntimeDiagnosticsIpc({ updateRuntimeSnapshot } as unknown as Diagnostics)
-    const listener = electronMocks.on.mock.calls[0][1] as (event: IpcMainEvent, value: unknown) => void
+    const unregister = registerRuntimeDiagnosticsIpc({
+      updateRuntimeSnapshot,
+    } as unknown as Diagnostics)
+    const listener = electronMocks.on.mock.calls[0][1] as (
+      event: IpcMainEvent,
+      value: unknown,
+    ) => void
 
     listener({ senderFrame: { url: "https://evil.example/" } } as unknown as IpcMainEvent, snapshot)
     expect(updateRuntimeSnapshot).not.toHaveBeenCalled()
 
-    listener({ senderFrame: { url: "magicchat-app://app/index.html" } } as unknown as IpcMainEvent, snapshot)
+    listener(
+      { senderFrame: { url: "magicchat-app://app/index.html" } } as unknown as IpcMainEvent,
+      snapshot,
+    )
     expect(updateRuntimeSnapshot).toHaveBeenCalledOnce()
 
     unregister()
@@ -51,10 +63,19 @@ describe("registerRuntimeDiagnosticsIpc", () => {
     electronMocks.isPackaged = false
     const updateRuntimeSnapshot = vi.fn()
     registerRuntimeDiagnosticsIpc({ updateRuntimeSnapshot } as unknown as Diagnostics)
-    const listener = electronMocks.on.mock.calls[0][1] as (event: IpcMainEvent, value: unknown) => void
+    const listener = electronMocks.on.mock.calls[0][1] as (
+      event: IpcMainEvent,
+      value: unknown,
+    ) => void
 
-    listener({ senderFrame: { url: "http://localhost:20050/" } } as unknown as IpcMainEvent, snapshot)
-    listener({ senderFrame: { url: "http://192.168.1.2:20050/" } } as unknown as IpcMainEvent, snapshot)
+    listener(
+      { senderFrame: { url: "http://localhost:20050/" } } as unknown as IpcMainEvent,
+      snapshot,
+    )
+    listener(
+      { senderFrame: { url: "http://192.168.1.2:20050/" } } as unknown as IpcMainEvent,
+      snapshot,
+    )
 
     expect(updateRuntimeSnapshot).toHaveBeenCalledOnce()
   })

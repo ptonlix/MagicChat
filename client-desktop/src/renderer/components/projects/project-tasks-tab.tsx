@@ -44,10 +44,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
-import {
-  getClientProjectTask,
-  listClientProjectTasks,
-} from "@/lib/project-task-data-api"
+import { getClientProjectTask, listClientProjectTasks } from "@/lib/project-task-data-api"
 import { cn } from "@/lib/utils"
 
 const taskViews = [
@@ -101,9 +98,7 @@ function readStoredProjectTaskView(): TaskView {
 
   try {
     const value = window.localStorage.getItem(projectTaskViewStorageKey)
-    return taskViews.some((view) => view.value === value)
-      ? (value as TaskView)
-      : "list"
+    return taskViews.some((view) => view.value === value) ? (value as TaskView) : "list"
   } catch {
     return "list"
   }
@@ -125,18 +120,11 @@ export function ProjectTasksTab({
   projectId: string
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [activeView, setActiveView] = React.useState<TaskView>(
-    readStoredProjectTaskView
-  )
-  const [fallbackActiveTask, setFallbackActiveTask] =
-    React.useState<ProjectTask | null>(null)
-  const [appliedFilters, setAppliedFilters] = React.useState<TaskFilters>(
-    createEmptyTaskFilters
-  )
+  const [activeView, setActiveView] = React.useState<TaskView>(readStoredProjectTaskView)
+  const [fallbackActiveTask, setFallbackActiveTask] = React.useState<ProjectTask | null>(null)
+  const [appliedFilters, setAppliedFilters] = React.useState<TaskFilters>(createEmptyTaskFilters)
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
-  const [filters, setFilters] = React.useState<TaskFilters>(
-    createEmptyTaskFilters
-  )
+  const [filters, setFilters] = React.useState<TaskFilters>(createEmptyTaskFilters)
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
@@ -146,8 +134,7 @@ export function ProjectTasksTab({
   const activeTaskId = searchParams.get(projectTaskIdSearchParam)?.trim() ?? ""
   const activeTask =
     tasks.find((task) => task.id === activeTaskId) ??
-    (fallbackActiveTask?.id === activeTaskId &&
-    fallbackActiveTask.projectId === projectId
+    (fallbackActiveTask?.id === activeTaskId && fallbackActiveTask.projectId === projectId
       ? fallbackActiveTask
       : null)
 
@@ -161,9 +148,7 @@ export function ProjectTasksTab({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(
-            loadError instanceof Error ? loadError.message : "加载任务列表失败"
-          )
+          setError(loadError instanceof Error ? loadError.message : "加载任务列表失败")
         }
       })
       .finally(() => {
@@ -211,8 +196,7 @@ export function ProjectTasksTab({
     if (
       listedTask ||
       loading ||
-      (fallbackActiveTask?.id === activeTaskId &&
-        fallbackActiveTask.projectId === projectId)
+      (fallbackActiveTask?.id === activeTaskId && fallbackActiveTask.projectId === projectId)
     ) {
       return
     }
@@ -235,35 +219,22 @@ export function ProjectTasksTab({
             next.delete(projectTaskIdSearchParam)
             return next
           },
-          { replace: true }
+          { replace: true },
         )
-        toast.error(
-          loadError instanceof Error
-            ? loadError.message
-            : "加载任务详情失败"
-        )
+        toast.error(loadError instanceof Error ? loadError.message : "加载任务详情失败")
       })
 
     return () => {
       active = false
     }
-  }, [
-    activeTaskId,
-    fallbackActiveTask,
-    loading,
-    projectId,
-    setSearchParams,
-    tasks,
-  ])
+  }, [activeTaskId, fallbackActiveTask, loading, projectId, setSearchParams, tasks])
 
   async function refreshTasks() {
     try {
       setTasks(await listAllProjectTasks(projectId, appliedFilters))
       setError("")
     } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : "刷新任务列表失败"
-      )
+      setError(loadError instanceof Error ? loadError.message : "刷新任务列表失败")
     }
   }
 
@@ -276,9 +247,7 @@ export function ProjectTasksTab({
   }
 
   function handleTaskStatusChange(taskId: string, status: ProjectTaskStatus) {
-    setTasks((current) =>
-      current.map((task) => (task.id === taskId ? { ...task, status } : task))
-    )
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, status } : task)))
   }
 
   function handleViewChange(view: TaskView) {
@@ -303,7 +272,7 @@ export function ProjectTasksTab({
         next.delete(projectTaskIdSearchParam)
         return next
       },
-      { replace: true }
+      { replace: true },
     )
   }
 
@@ -362,9 +331,7 @@ export function ProjectTasksTab({
           ) : activeView === "board" || activeView === "gantt" ? (
             <TaskViewContent
               activeView={activeView}
-              emptyMessage={
-                hasTaskFilters(appliedFilters) ? "没有匹配的任务" : "暂无任务"
-              }
+              emptyMessage={hasTaskFilters(appliedFilters) ? "没有匹配的任务" : "暂无任务"}
               onOpenTask={handleOpenTask}
               onTaskStatusChange={handleTaskStatusChange}
               onTaskUpdated={handleTaskUpdated}
@@ -374,9 +341,7 @@ export function ProjectTasksTab({
             <ScrollArea className="min-h-0 flex-1">
               <TaskViewContent
                 activeView={activeView}
-                emptyMessage={
-                  hasTaskFilters(appliedFilters) ? "没有匹配的任务" : "暂无任务"
-                }
+                emptyMessage={hasTaskFilters(appliedFilters) ? "没有匹配的任务" : "暂无任务"}
                 onOpenTask={handleOpenTask}
                 onTaskStatusChange={handleTaskStatusChange}
                 onTaskUpdated={handleTaskUpdated}
@@ -432,9 +397,7 @@ function TaskToolbar({
   onSearch: () => void
   onViewChange: (view: TaskView) => void
 }) {
-  const selectedAssignees = members.filter((member) =>
-    filters.assigneeUserIds.includes(member.id)
-  )
+  const selectedAssignees = members.filter((member) => filters.assigneeUserIds.includes(member.id))
 
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -446,15 +409,11 @@ function TaskToolbar({
         }}
       >
         <StatusFilter
-          onValueChange={(statuses) =>
-            onFilterSelectionChange({ ...filters, statuses })
-          }
+          onValueChange={(statuses) => onFilterSelectionChange({ ...filters, statuses })}
           value={filters.statuses}
         />
         <PriorityFilter
-          onValueChange={(priorities) =>
-            onFilterSelectionChange({ ...filters, priorities })
-          }
+          onValueChange={(priorities) => onFilterSelectionChange({ ...filters, priorities })}
           value={filters.priorities}
         />
         <AssigneeFilter
@@ -472,9 +431,7 @@ function TaskToolbar({
           <Input
             aria-label="搜索任务内容"
             className="pl-8"
-            onChange={(event) =>
-              onFiltersChange({ ...filters, keyword: event.target.value })
-            }
+            onChange={(event) => onFiltersChange({ ...filters, keyword: event.target.value })}
             placeholder="搜索任务内容"
             type="search"
             value={filters.keyword}
@@ -539,9 +496,7 @@ function StatusFilter({
             checked={value.includes(option.value)}
             key={option.value}
             onCheckedChange={(checked) =>
-              onValueChange(
-                updateFilterSelection(value, option.value, checked === true)
-              )
+              onValueChange(updateFilterSelection(value, option.value, checked === true))
             }
             onSelect={(event) => event.preventDefault()}
           >
@@ -576,9 +531,7 @@ function PriorityFilter({
             checked={value.includes(option.value)}
             key={option.value}
             onCheckedChange={(checked) =>
-              onValueChange(
-                updateFilterSelection(value, option.value, checked === true)
-              )
+              onValueChange(updateFilterSelection(value, option.value, checked === true))
             }
             onSelect={(event) => event.preventDefault()}
           >
@@ -611,9 +564,9 @@ function AssigneeFilter({
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const filteredMembers = normalizedQuery
     ? members.filter((member) =>
-        [member.displayName, member.name, member.nickname, member.email].some(
-          (field) => field.toLocaleLowerCase().includes(normalizedQuery)
-        )
+        [member.displayName, member.name, member.nickname, member.email].some((field) =>
+          field.toLocaleLowerCase().includes(normalizedQuery),
+        ),
       )
     : members
 
@@ -663,9 +616,7 @@ function AssigneeFilter({
             checked={value.includes(member.id)}
             key={member.id}
             onCheckedChange={(checked) =>
-              onValueChange(
-                updateFilterSelection(value, member.id, checked === true)
-              )
+              onValueChange(updateFilterSelection(value, member.id, checked === true))
             }
             onSelect={(event) => event.preventDefault()}
           >
@@ -674,24 +625,17 @@ function AssigneeFilter({
               fallbackClassName="text-[10px]"
               member={member}
             />
-            <span className="min-w-0 flex-1 truncate">
-              {member.displayName}
-            </span>
+            <span className="min-w-0 flex-1 truncate">{member.displayName}</span>
           </DropdownMenuCheckboxItem>
         ))}
         {loading && <DropdownMenuItem disabled>正在加载成员</DropdownMenuItem>}
-        {!loading && membersError && (
-          <DropdownMenuItem disabled>成员加载失败</DropdownMenuItem>
-        )}
+        {!loading && membersError && <DropdownMenuItem disabled>成员加载失败</DropdownMenuItem>}
         {!loading && !membersError && members.length === 0 && (
           <DropdownMenuItem disabled>暂无项目成员</DropdownMenuItem>
         )}
-        {!loading &&
-          !membersError &&
-          members.length > 0 &&
-          filteredMembers.length === 0 && (
-            <DropdownMenuItem disabled>没有匹配的成员</DropdownMenuItem>
-          )}
+        {!loading && !membersError && members.length > 0 && filteredMembers.length === 0 && (
+          <DropdownMenuItem disabled>没有匹配的成员</DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -717,9 +661,7 @@ function TaskPriorityIcon({ priority }: { priority: ProjectTaskPriority }) {
     case 3:
       return <ChevronsUp aria-hidden="true" className="text-rose-600" />
     default:
-      return (
-        <ChevronsDown aria-hidden="true" className="text-muted-foreground" />
-      )
+      return <ChevronsDown aria-hidden="true" className="text-muted-foreground" />
   }
 }
 
@@ -753,15 +695,13 @@ function FilterButton({
 function getFilterLabel<T extends string | number>(
   fallback: string,
   value: T[],
-  options: Array<{ label: string; value: T }>
+  options: Array<{ label: string; value: T }>,
 ) {
   if (value.length === 0) {
     return fallback
   }
   if (value.length === 1) {
-    return (
-      options.find((option) => option.value === value[0])?.label ?? fallback
-    )
+    return options.find((option) => option.value === value[0])?.label ?? fallback
   }
   return `${value.length} 项`
 }
@@ -778,7 +718,7 @@ function hasTaskFilters(filters: TaskFilters) {
     filters.assigneeUserIds.length ||
     filters.keyword ||
     filters.priorities.length ||
-    filters.statuses.length
+    filters.statuses.length,
   )
 }
 
@@ -857,11 +797,7 @@ function TaskViewContent({
       )
     case "gantt":
       return (
-        <ProjectTaskGanttView
-          emptyMessage={emptyMessage}
-          onOpenTask={onOpenTask}
-          tasks={tasks}
-        />
+        <ProjectTaskGanttView emptyMessage={emptyMessage} onOpenTask={onOpenTask} tasks={tasks} />
       )
     default:
       return (

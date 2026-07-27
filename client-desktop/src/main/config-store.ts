@@ -6,7 +6,9 @@ import type { DesktopSettings, ServerProfile } from "@shared/bridge"
 const CURRENT_SCHEMA = 1
 
 export class UnsupportedConfigVersionError extends Error {
-  constructor() { super("桌面配置来自更高版本，请重新安装较新版本的 MagicChat") }
+  constructor() {
+    super("桌面配置来自更高版本，请重新安装较新版本的 MagicChat")
+  }
 }
 
 type StoredConfig = {
@@ -22,7 +24,11 @@ const defaultSettings: DesktopSettings = {
 }
 
 export class ConfigStore {
-  private config: StoredConfig = { schemaVersion: CURRENT_SCHEMA, settings: defaultSettings, servers: [] }
+  private config: StoredConfig = {
+    schemaVersion: CURRENT_SCHEMA,
+    settings: defaultSettings,
+    servers: [],
+  }
   private readonly filePath: string
 
   constructor(userDataPath: string) {
@@ -51,8 +57,10 @@ export class ConfigStore {
 
   async setSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings> {
     const next = { ...this.config.settings, ...patch }
-    if (!(["background", "quit"] as const).includes(next.closeBehavior)) throw new Error("关闭行为无效")
-    if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy)) throw new Error("通知隐私无效")
+    if (!(["background", "quit"] as const).includes(next.closeBehavior))
+      throw new Error("关闭行为无效")
+    if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
+      throw new Error("通知隐私无效")
     this.config.settings = next
     await this.persist()
     return this.getSettings()
@@ -71,13 +79,20 @@ export class ConfigStore {
     if (this.config.servers.some((item) => item.normalizedUrl === input.normalizedUrl)) {
       throw new Error("该服务器已经添加")
     }
-    const profile: ServerProfile = { ...input, id: randomUUID(), createdAt: new Date().toISOString() }
+    const profile: ServerProfile = {
+      ...input,
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+    }
     this.config.servers.push(profile)
     await this.persist()
     return structuredClone(profile)
   }
 
-  async updateServer(id: string, patch: Partial<Pick<ServerProfile, "displayName" | "lastUserId">>): Promise<ServerProfile> {
+  async updateServer(
+    id: string,
+    patch: Partial<Pick<ServerProfile, "displayName" | "lastUserId">>,
+  ): Promise<ServerProfile> {
     const index = this.config.servers.findIndex((item) => item.id === id)
     if (index < 0) throw new Error("服务器不存在")
     this.config.servers[index] = { ...this.config.servers[index], ...patch }
@@ -112,5 +127,7 @@ function migrate(raw: Partial<StoredConfig>): StoredConfig {
 function isServerProfile(value: unknown): value is ServerProfile {
   if (!value || typeof value !== "object") return false
   const item = value as Record<string, unknown>
-  return ["id", "normalizedUrl", "displayName", "createdAt"].every((key) => typeof item[key] === "string")
+  return ["id", "normalizedUrl", "displayName", "createdAt"].every(
+    (key) => typeof item[key] === "string",
+  )
 }

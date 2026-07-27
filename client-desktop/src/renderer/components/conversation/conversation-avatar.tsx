@@ -1,12 +1,7 @@
 import { Bot } from "lucide-react"
 
 import { GroupAvatar } from "@/components/group-avatar"
-import {
-  Avatar,
-  AvatarBadge,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { ClientConversation } from "@/lib/client-data-api"
 import {
   getConversationAvatarName,
@@ -43,7 +38,7 @@ export function ConversationAvatar({
             <Avatar
               className={cn(
                 "size-5 rounded-full bg-muted after:rounded-full",
-                sourceAvatarClassName
+                sourceAvatarClassName,
               )}
             >
               {sourceSender.avatar && (
@@ -53,10 +48,7 @@ export function ConversationAvatar({
                   src={sourceSender.avatar}
                 />
               )}
-              <AvatarFallback
-                aria-label={sourceSender.name}
-                className="rounded-full text-[9px]"
-              >
+              <AvatarFallback aria-label={sourceSender.name} className="rounded-full text-[9px]">
                 {sourceSender.type === "app" ? (
                   <Bot className="size-1/2" />
                 ) : (
@@ -108,25 +100,15 @@ function BaseConversationAvatar({
   return (
     <Avatar className={cn("rounded-sm bg-muted after:rounded-sm", className)}>
       {conversation.avatar && (
-        <AvatarImage
-          alt={avatarName}
-          className="rounded-sm"
-          src={conversation.avatar}
-        />
+        <AvatarImage alt={avatarName} className="rounded-sm" src={conversation.avatar} />
       )}
       <AvatarFallback className="rounded-sm">
-        {avatarType === "app" ? (
-          <Bot className="size-1/2" />
-        ) : (
-          getConversationInitial(avatarName)
-        )}
+        {avatarType === "app" ? <Bot className="size-1/2" /> : getConversationInitial(avatarName)}
       </AvatarFallback>
       {online !== undefined && (
         <AvatarBadge
           aria-label={online ? "在线" : "离线"}
-          className={
-            online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"
-          }
+          className={online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"}
         />
       )}
     </Avatar>

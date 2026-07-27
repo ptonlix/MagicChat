@@ -16,10 +16,7 @@ import {
   type ContactApp,
   type ContactUser,
 } from "@/lib/client-data-api"
-import {
-  formatMentionTemplateText,
-  type MentionLabelResolver,
-} from "@/lib/message-mentions"
+import { formatMentionTemplateText, type MentionLabelResolver } from "@/lib/message-mentions"
 
 export function toConversationPanelMessage(
   message: ClientMessage,
@@ -28,28 +25,14 @@ export function toConversationPanelMessage(
   contactsById: ReadonlyMap<string, ContactUser>,
   appsById: ReadonlyMap<string, ContactApp>,
   messagesById: ReadonlyMap<string, ClientMessage>,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ): ConversationPanelMessage {
-  const fromMe =
-    message.sender.type === "user" && message.sender.id === currentUser.id
-  const role =
-    message.sender.type === "system" ? "system" : fromMe ? "me" : "other"
+  const fromMe = message.sender.type === "user" && message.sender.id === currentUser.id
+  const role = message.sender.type === "system" ? "system" : fromMe ? "me" : "other"
 
   return {
-    author: getMessageAuthor(
-      message,
-      conversation,
-      currentUser,
-      contactsById,
-      appsById
-    ),
-    avatar: getMessageAvatar(
-      message,
-      conversation,
-      currentUser,
-      contactsById,
-      appsById
-    ),
+    author: getMessageAuthor(message, conversation, currentUser, contactsById, appsById),
+    avatar: getMessageAvatar(message, conversation, currentUser, contactsById, appsById),
     body: message.body,
     canRevoke: canRevokeMessage(message, conversation, currentUser.id),
     createdAt: message.createdAt,
@@ -65,7 +48,7 @@ export function toConversationPanelMessage(
       contactsById,
       appsById,
       messagesById,
-      mentionLabelResolver
+      mentionLabelResolver,
     ),
     role,
     senderAppId: message.sender.type === "app" ? message.sender.id : null,
@@ -78,7 +61,7 @@ export function toConversationPanelMessage(
       currentUser,
       contactsById,
       appsById,
-      mentionLabelResolver
+      mentionLabelResolver,
     ),
   }
 }
@@ -89,7 +72,7 @@ function getMessageTopic(
   currentUser: Pick<ClientUser, "avatar" | "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>,
   appsById: ReadonlyMap<string, ContactApp>,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ) {
   if (!message.topic) {
     return undefined
@@ -98,20 +81,8 @@ function getMessageTopic(
     archived: message.topic.archived,
     conversationId: message.topic.conversationId,
     recentReplies: message.topic.recentReplies.map((reply) => ({
-      author: getTopicReplyAuthor(
-        reply.sender,
-        conversation,
-        currentUser,
-        contactsById,
-        appsById
-      ),
-      avatar: getTopicReplyAvatar(
-        reply.sender,
-        conversation,
-        currentUser,
-        contactsById,
-        appsById
-      ),
+      author: getTopicReplyAuthor(reply.sender, conversation, currentUser, contactsById, appsById),
+      avatar: getTopicReplyAvatar(reply.sender, conversation, currentUser, contactsById, appsById),
       id: reply.id,
       summary: formatMentionTemplateText(reply.summary, mentionLabelResolver),
       time: formatTopicReplyTime(reply.createdAt),
@@ -128,13 +99,11 @@ function formatTopicReplyTime(createdAt: string) {
 }
 
 function getTopicReplyAuthor(
-  sender: NonNullable<
-    ClientMessage["topic"]
-  >["recentReplies"][number]["sender"],
+  sender: NonNullable<ClientMessage["topic"]>["recentReplies"][number]["sender"],
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>,
-  appsById: ReadonlyMap<string, ContactApp>
+  appsById: ReadonlyMap<string, ContactApp>,
 ) {
   if (sender.type === "app") {
     return getConversationAppDisplayName(conversation, sender.id, appsById)
@@ -150,13 +119,11 @@ function getTopicReplyAuthor(
 }
 
 function getTopicReplyAvatar(
-  sender: NonNullable<
-    ClientMessage["topic"]
-  >["recentReplies"][number]["sender"],
+  sender: NonNullable<ClientMessage["topic"]>["recentReplies"][number]["sender"],
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "avatar" | "id">,
   contactsById: ReadonlyMap<string, ContactUser>,
-  appsById: ReadonlyMap<string, ContactApp>
+  appsById: ReadonlyMap<string, ContactApp>,
 ) {
   if (sender.type === "app") {
     return getConversationAppAvatar(conversation, sender.id, appsById)
@@ -172,18 +139,12 @@ function getTopicReplyAvatar(
 
 export function formatConversationMessageSummary(
   body: ClientMessage["body"],
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ) {
-  return formatMentionTemplateText(
-    formatClientMessageBodySummary(body),
-    mentionLabelResolver
-  )
+  return formatMentionTemplateText(formatClientMessageBodySummary(body), mentionLabelResolver)
 }
 
-export function formatConversationMessageTime(
-  createdAt: string,
-  now = new Date()
-) {
+export function formatConversationMessageTime(createdAt: string, now = new Date()) {
   const date = new Date(createdAt)
 
   if (Number.isNaN(date.getTime())) {
@@ -218,7 +179,7 @@ function padMessageTimePart(value: number) {
 function canRevokeMessage(
   message: ClientMessage,
   conversation: ClientConversation,
-  currentUserId: string
+  currentUserId: string,
 ) {
   if (
     message.sender.type === "system" ||
@@ -231,23 +192,18 @@ function canRevokeMessage(
   if (message.sender.type === "user" && message.sender.id === currentUserId) {
     return true
   }
-  if (
-    conversation.type !== "group" &&
-    conversation.topic?.parentConversationType !== "group"
-  ) {
+  if (conversation.type !== "group" && conversation.topic?.parentConversationType !== "group") {
     return false
   }
 
-  const currentMember = conversation.members?.find(
-    (member) => member.id === currentUserId
-  )
+  const currentMember = conversation.members?.find((member) => member.id === currentUserId)
 
   return currentMember?.role === "owner" || currentMember?.role === "admin"
 }
 
 function getMessageMentionTarget(
   message: ClientMessage,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ): ConversationPanelMentionTarget | null {
   if (message.sender.type !== "user" && message.sender.type !== "app") {
     return null
@@ -275,7 +231,7 @@ function getMessageReplyTarget(
   contactsById: ReadonlyMap<string, ContactUser>,
   appsById: ReadonlyMap<string, ContactApp>,
   messagesById: ReadonlyMap<string, ClientMessage>,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ): ConversationPanelReplyTarget | undefined {
   if (message.replyTo) {
     return {
@@ -285,12 +241,9 @@ function getMessageReplyTarget(
         conversation,
         currentUser,
         contactsById,
-        appsById
+        appsById,
       ),
-      summary: formatMentionTemplateText(
-        message.replyTo.summary,
-        mentionLabelResolver
-      ),
+      summary: formatMentionTemplateText(message.replyTo.summary, mentionLabelResolver),
     }
   }
 
@@ -305,17 +258,8 @@ function getMessageReplyTarget(
 
   return {
     id: replyMessage.id,
-    author: getMessageAuthor(
-      replyMessage,
-      conversation,
-      currentUser,
-      contactsById,
-      appsById
-    ),
-    summary: formatConversationMessageSummary(
-      replyMessage.body,
-      mentionLabelResolver
-    ),
+    author: getMessageAuthor(replyMessage, conversation, currentUser, contactsById, appsById),
+    summary: formatConversationMessageSummary(replyMessage.body, mentionLabelResolver),
   }
 }
 
@@ -324,17 +268,14 @@ function getReplyToSenderAuthor(
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>,
-  appsById: ReadonlyMap<string, ContactApp>
+  appsById: ReadonlyMap<string, ContactApp>,
 ) {
   if (sender.type === "system") {
     return "系统"
   }
 
   if (sender.type === "app") {
-    return (
-      sender.name ||
-      getConversationAppDisplayName(conversation, sender.id, appsById)
-    )
+    return sender.name || getConversationAppDisplayName(conversation, sender.id, appsById)
   }
 
   if (sender.id === currentUser.id) {
@@ -346,9 +287,7 @@ function getReplyToSenderAuthor(
     return formatMessageUserName(contact)
   }
 
-  return (
-    sender.name || (conversation.type === "direct" ? conversation.name : "成员")
-  )
+  return sender.name || (conversation.type === "direct" ? conversation.name : "成员")
 }
 
 function getMessageAuthor(
@@ -356,18 +295,14 @@ function getMessageAuthor(
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "id" | "name" | "nickname">,
   contactsById: ReadonlyMap<string, ContactUser>,
-  appsById: ReadonlyMap<string, ContactApp>
+  appsById: ReadonlyMap<string, ContactApp>,
 ) {
   if (message.sender.type === "system") {
     return "系统"
   }
 
   if (message.sender.type === "app") {
-    return getConversationAppDisplayName(
-      conversation,
-      message.sender.id,
-      appsById
-    )
+    return getConversationAppDisplayName(conversation, message.sender.id, appsById)
   }
 
   if (message.sender.type === "user" && message.sender.id === currentUser.id) {
@@ -400,7 +335,7 @@ function getMessageAvatar(
   conversation: ClientConversation,
   currentUser: Pick<ClientUser, "avatar" | "id">,
   contactsById: ReadonlyMap<string, ContactUser>,
-  appsById: ReadonlyMap<string, ContactApp>
+  appsById: ReadonlyMap<string, ContactApp>,
 ) {
   if (message.sender.type === "user" && message.sender.id === currentUser.id) {
     return currentUser.avatar
@@ -423,7 +358,7 @@ function getMessageAvatar(
 function getMessageAppProfile(
   message: ClientMessage,
   conversation: ClientConversation,
-  appsById: ReadonlyMap<string, ContactApp>
+  appsById: ReadonlyMap<string, ContactApp>,
 ): ConversationPanelAppProfile | null {
   if (message.sender.type !== "app") {
     return null
@@ -435,11 +370,7 @@ function getMessageAppProfile(
     avatar: getConversationAppAvatar(conversation, message.sender.id, appsById),
     description: contactApp?.description ?? "",
     id: message.sender.id,
-    name: getConversationAppDisplayName(
-      conversation,
-      message.sender.id,
-      appsById
-    ),
+    name: getConversationAppDisplayName(conversation, message.sender.id, appsById),
     online: contactApp?.online ?? false,
   }
 }

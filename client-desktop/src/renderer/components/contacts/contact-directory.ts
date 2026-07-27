@@ -1,8 +1,4 @@
-import type {
-  ContactApp,
-  ContactGroup,
-  ContactUser,
-} from "@/lib/client-data-api"
+import type { ContactApp, ContactGroup, ContactUser } from "@/lib/client-data-api"
 
 export type DirectorySelection =
   | { id: string; type: "app" }
@@ -18,7 +14,7 @@ export type DirectoryTab = DirectorySelection["type"]
 
 export function createDirectorySelection(
   type: string | undefined,
-  id: string | undefined
+  id: string | undefined,
 ): DirectorySelection | null {
   if (!id || (type !== "app" && type !== "group" && type !== "user")) {
     return null
@@ -35,7 +31,7 @@ export function resolveActiveDirectoryItem(
   selection: DirectorySelection | null,
   apps: ContactApp[],
   contacts: ContactUser[],
-  groups: ContactGroup[]
+  groups: ContactGroup[],
 ): ActiveDirectoryItem | null {
   if (!selection) {
     return null
@@ -55,9 +51,6 @@ export function resolveActiveDirectoryItem(
   return contact ? { contact, type: "user" } : null
 }
 
-export function directoryItemKey(
-  type: DirectorySelection["type"],
-  id: string
-) {
+export function directoryItemKey(type: DirectorySelection["type"], id: string) {
   return `${type}:${id}`
 }

@@ -1,8 +1,12 @@
 import type { RendererRuntimeSnapshot } from "@shared/bridge"
 
 type RefreshName = NonNullable<RendererRuntimeSnapshot["lastRefresh"]>["name"]
-type RefreshMetric = Omit<NonNullable<RendererRuntimeSnapshot["lastRefresh"]>, "ageMs"> & { completedAt: number }
-type RequestMetric = Omit<NonNullable<RendererRuntimeSnapshot["lastRequest"]>, "ageMs"> & { completedAt: number }
+type RefreshMetric = Omit<NonNullable<RendererRuntimeSnapshot["lastRefresh"]>, "ageMs"> & {
+  completedAt: number
+}
+type RequestMetric = Omit<NonNullable<RendererRuntimeSnapshot["lastRequest"]>, "ageMs"> & {
+  completedAt: number
+}
 
 const data = { contacts: 0, conversations: 0, loadedConversations: 0, messages: 0, projects: 0 }
 let activeRefreshes = 0
@@ -62,7 +66,10 @@ export function beginDiagnosticRequest(method: string, path: string): (status?: 
   }
 }
 
-export async function trackDiagnosticRefresh<T>(name: RefreshName, task: () => Promise<T>): Promise<T> {
+export async function trackDiagnosticRefresh<T>(
+  name: RefreshName,
+  task: () => Promise<T>,
+): Promise<T> {
   const startedAt = performance.now()
   activeRefreshes += 1
   try {
@@ -83,8 +90,26 @@ function snapshot(): RendererRuntimeSnapshot {
     activeRequests,
     data: { ...data },
     eventLoopLagMs: rounded(maxEventLoopLagMs),
-    ...(lastRefresh ? { lastRefresh: { ageMs: elapsed(lastRefresh.completedAt), durationMs: lastRefresh.durationMs, name: lastRefresh.name } } : {}),
-    ...(lastRequest ? { lastRequest: { ageMs: elapsed(lastRequest.completedAt), durationMs: lastRequest.durationMs, group: lastRequest.group, method: lastRequest.method, ...(lastRequest.status === undefined ? {} : { status: lastRequest.status }) } } : {}),
+    ...(lastRefresh
+      ? {
+          lastRefresh: {
+            ageMs: elapsed(lastRefresh.completedAt),
+            durationMs: lastRefresh.durationMs,
+            name: lastRefresh.name,
+          },
+        }
+      : {}),
+    ...(lastRequest
+      ? {
+          lastRequest: {
+            ageMs: elapsed(lastRequest.completedAt),
+            durationMs: lastRequest.durationMs,
+            group: lastRequest.group,
+            method: lastRequest.method,
+            ...(lastRequest.status === undefined ? {} : { status: lastRequest.status }),
+          },
+        }
+      : {}),
     longTasks: { count: longTaskCount, maxDurationMs: rounded(maxLongTaskMs) },
     page: currentPage(),
   }
@@ -92,7 +117,11 @@ function snapshot(): RendererRuntimeSnapshot {
 
 function currentPage(): RendererRuntimeSnapshot["page"] {
   const segment = window.location.pathname.split("/").filter(Boolean)[0] ?? "setup"
-  return (["chat", "contacts", "init", "login", "projects", "setup"] as const).find((value) => value === segment) ?? "unknown"
+  return (
+    (["chat", "contacts", "init", "login", "projects", "setup"] as const).find(
+      (value) => value === segment,
+    ) ?? "unknown"
+  )
 }
 
 function requestGroup(path: string): string {

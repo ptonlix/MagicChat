@@ -16,11 +16,7 @@ import {
 } from "@/components/projects/project-task-view-utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 
 const taskColumnWidth = 240
@@ -51,18 +47,14 @@ export function ProjectTaskGanttView({
     .map((task) => ({ range: getProjectTaskDateRange(task), task }))
     .filter(
       (
-        item
+        item,
       ): item is {
         range: NonNullable<ReturnType<typeof getProjectTaskDateRange>>
         task: ProjectTask
-      } => item.range !== null
+      } => item.range !== null,
     )
-    .sort(
-      (left, right) => left.range.start.getTime() - right.range.start.getTime()
-    )
-  const unscheduledTasks = tasks.filter(
-    (task) => !getProjectTaskDateRange(task)
-  )
+    .sort((left, right) => left.range.start.getTime() - right.range.start.getTime())
+  const unscheduledTasks = tasks.filter((task) => !getProjectTaskDateRange(task))
   const timeline = scheduledTasks.length
     ? createTimeline(scheduledTasks.map(({ range }) => range))
     : null
@@ -113,7 +105,7 @@ export function ProjectTaskGanttView({
                               ? "text-sky-600"
                               : task.status === "done"
                                 ? "text-emerald-600"
-                                : "text-stone-500"
+                                : "text-stone-500",
                         )}
                         status={task.status}
                       />
@@ -189,12 +181,7 @@ function GanttTaskColumn({
         {formatShortDate(timeline.start)} - {formatShortDate(timeline.end)}
       </div>
       {tasks.map(({ range, task }) => (
-        <GanttTaskLabel
-          key={task.id}
-          onOpen={() => onOpenTask(task)}
-          range={range}
-          task={task}
-        />
+        <GanttTaskLabel key={task.id} onOpen={() => onOpenTask(task)} range={range} task={task} />
       ))}
     </div>
   )
@@ -222,7 +209,7 @@ function GanttTimelineHeader({ timeline }: { timeline: Timeline }) {
           <div
             className={cn(
               "flex shrink-0 items-center justify-center border-r text-[10px] text-muted-foreground tabular-nums",
-              isPastTimelineUnit(date, timeline, todayKey) && "bg-muted"
+              isPastTimelineUnit(date, timeline, todayKey) && "bg-muted",
             )}
             key={formatDateKey(date)}
             style={{ width: timeline.cellWidth }}
@@ -235,11 +222,7 @@ function GanttTimelineHeader({ timeline }: { timeline: Timeline }) {
   )
 }
 
-function TimelineBackground({
-  timeline,
-}: {
-  timeline: Timeline
-}) {
+function TimelineBackground({ timeline }: { timeline: Timeline }) {
   const today = new Date()
   const todayKey = formatDateKey(today)
   const todayOffset = differenceInCalendarDays(today, timeline.start)
@@ -256,7 +239,7 @@ function TimelineBackground({
           <div
             className={cn(
               "h-full shrink-0 border-r",
-              isPastTimelineUnit(date, timeline, todayKey) && "bg-muted"
+              isPastTimelineUnit(date, timeline, todayKey) && "bg-muted",
             )}
             key={formatDateKey(date)}
             style={{ width: timeline.cellWidth }}
@@ -301,7 +284,7 @@ function GanttTaskLabel({
               ? "text-sky-600"
               : task.status === "done"
                 ? "text-emerald-600"
-                : "text-stone-500"
+                : "text-stone-500",
         )}
         status={task.status}
       />
@@ -331,10 +314,7 @@ function GanttTimelineTaskRow({
   const startOffset = differenceInCalendarDays(range.start, timeline.start)
   const duration = differenceInCalendarDays(range.end, range.start) + 1
   const left = (startOffset / timeline.unitDays) * timeline.cellWidth + 4
-  const width = Math.max(
-    minimumTaskWidth,
-    (duration / timeline.unitDays) * timeline.cellWidth - 8
-  )
+  const width = Math.max(minimumTaskWidth, (duration / timeline.unitDays) * timeline.cellWidth - 8)
 
   return (
     <div className="relative h-13 border-b last:border-b-0">
@@ -343,7 +323,7 @@ function GanttTimelineTaskRow({
         className={cn(
           "absolute top-2.5 z-10 flex h-8 cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-2 text-left text-xs font-medium shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
           getProjectTaskBlockClassName(task.status),
-          getProjectTaskBlockHoverClassName(task.status)
+          getProjectTaskBlockHoverClassName(task.status),
         )}
         onClick={onOpen}
         style={{ left, width }}
@@ -351,10 +331,7 @@ function GanttTimelineTaskRow({
         type="button"
       >
         {task.assignee && (
-          <ProjectTaskAssigneeAvatar
-            assignee={task.assignee}
-            className="size-4 bg-muted"
-          />
+          <ProjectTaskAssigneeAvatar assignee={task.assignee} className="size-4 bg-muted" />
         )}
         <span className="min-w-0 truncate">{task.title}</span>
       </button>
@@ -368,9 +345,7 @@ function isPastTimelineUnit(date: Date, timeline: Timeline, todayKey: string) {
 }
 
 function createTimeline(ranges: Array<{ end: Date; start: Date }>): Timeline {
-  let start = new Date(
-    Math.min(...ranges.map((range) => range.start.getTime()))
-  )
+  let start = new Date(Math.min(...ranges.map((range) => range.start.getTime())))
   let end = new Date(Math.max(...ranges.map((range) => range.end.getTime())))
   start = addCalendarDays(start, -3)
   end = addCalendarDays(end, 3)
@@ -387,7 +362,7 @@ function createTimeline(ranges: Array<{ end: Date; start: Date }>): Timeline {
   const cellWidth = unitDays === 1 ? dailyCellWidth : weeklyCellWidth
   const unitCount = Math.ceil(totalDays / unitDays)
   const units = Array.from({ length: unitCount }, (_, index) =>
-    addCalendarDays(start, index * unitDays)
+    addCalendarDays(start, index * unitDays),
   )
 
   return { cellWidth, end, start, totalDays, unitDays, units }

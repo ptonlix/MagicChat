@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react"
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -40,8 +34,7 @@ type EmailCodeRequestResult = {
 type LoginMode = "password" | "email-code"
 
 const rememberedLoginStorageKey = "client-desktop:remembered-login"
-const rememberedEmailCodeLoginStorageKey =
-  "client-desktop:remembered-email-code-login"
+const rememberedEmailCodeLoginStorageKey = "client-desktop:remembered-email-code-login"
 
 type RememberedLoginCredentials = LoginCredentials
 
@@ -58,13 +51,9 @@ export function LoginForm({
 }: React.ComponentProps<"div"> & {
   children?: ReactNode
   emailCodeLoginEnabled?: boolean
-  onEmailCodeLogin?: (
-    credentials: EmailCodeLoginCredentials
-  ) => Promise<void> | void
+  onEmailCodeLogin?: (credentials: EmailCodeLoginCredentials) => Promise<void> | void
   onLogin?: (credentials: LoginCredentials) => Promise<void> | void
-  onRequestEmailCode?: (
-    email: string
-  ) => Promise<EmailCodeRequestResult> | EmailCodeRequestResult
+  onRequestEmailCode?: (email: string) => Promise<EmailCodeRequestResult> | EmailCodeRequestResult
   passwordLoginEnabled?: boolean
   submitVariant?: "default" | "outline"
 }) {
@@ -74,19 +63,14 @@ export function LoginForm({
   const [emailCode, setEmailCode] = useState("")
   const [emailCodeLoginPending, setEmailCodeLoginPending] = useState(false)
   const [loginMode, setLoginMode] = useState<LoginMode>("email-code")
-  const [password, setPassword] = useState(
-    rememberedCredentials?.password ?? ""
-  )
+  const [password, setPassword] = useState(rememberedCredentials?.password ?? "")
   const [passwordLoginPending, setPasswordLoginPending] = useState(false)
-  const [rememberCredentials, setRememberCredentials] = useState(
-    Boolean(rememberedCredentials)
-  )
+  const [rememberCredentials, setRememberCredentials] = useState(Boolean(rememberedCredentials))
   const [requestCodePending, setRequestCodePending] = useState(false)
   const [retryCodeAfter, setRetryCodeAfter] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
   const emailInputRef = useRef<HTMLInputElement>(null)
-  const pending =
-    passwordLoginPending || emailCodeLoginPending || requestCodePending
+  const pending = passwordLoginPending || emailCodeLoginPending || requestCodePending
   const activeLoginMode = emailCodeLoginEnabled
     ? passwordLoginEnabled
       ? loginMode
@@ -179,9 +163,7 @@ export function LoginForm({
               <TabsList
                 className={cn(
                   "grid w-full",
-                  emailCodeLoginEnabled && passwordLoginEnabled
-                    ? "grid-cols-2"
-                    : "grid-cols-1"
+                  emailCodeLoginEnabled && passwordLoginEnabled ? "grid-cols-2" : "grid-cols-1",
                 )}
               >
                 {emailCodeLoginEnabled && (
@@ -226,11 +208,7 @@ export function LoginForm({
                             maxLength={8}
                             name="code"
                             onChange={(event) =>
-                              setEmailCode(
-                                event.target.value
-                                  .replace(/\D/g, "")
-                                  .slice(0, 8)
-                              )
+                              setEmailCode(event.target.value.replace(/\D/g, "").slice(0, 8))
                             }
                             pattern="[0-9]{8}"
                             placeholder="请输入 8 位验证码"
@@ -244,10 +222,7 @@ export function LoginForm({
                               onClick={handleRequestEmailCode}
                             >
                               {requestCodePending && (
-                                <Loader2Icon
-                                  aria-hidden="true"
-                                  className="animate-spin"
-                                />
+                                <Loader2Icon aria-hidden="true" className="animate-spin" />
                               )}
                               {requestCodePending
                                 ? "发送中"
@@ -259,16 +234,9 @@ export function LoginForm({
                         </InputGroup>
                       </Field>
                       <Field>
-                        <Button
-                          disabled={pending}
-                          type="submit"
-                          variant={submitVariant}
-                        >
+                        <Button disabled={pending} type="submit" variant={submitVariant}>
                           {emailCodeLoginPending && (
-                            <Loader2Icon
-                              aria-hidden="true"
-                              className="animate-spin"
-                            />
+                            <Loader2Icon aria-hidden="true" className="animate-spin" />
                           )}
                           登录
                         </Button>
@@ -316,14 +284,10 @@ export function LoginForm({
                           />
                           <InputGroupAddon align="inline-end">
                             <InputGroupButton
-                              aria-label={
-                                showPassword ? "隐藏密码" : "显示密码"
-                              }
+                              aria-label={showPassword ? "隐藏密码" : "显示密码"}
                               aria-pressed={showPassword}
                               disabled={pending}
-                              onClick={() =>
-                                setShowPassword((visible) => !visible)
-                              }
+                              onClick={() => setShowPassword((visible) => !visible)}
                               size="icon-xs"
                             >
                               {showPassword ? <EyeOffIcon /> : <EyeIcon />}
@@ -336,25 +300,14 @@ export function LoginForm({
                           checked={rememberCredentials}
                           disabled={pending}
                           id="remember-credentials"
-                          onCheckedChange={(checked) =>
-                            setRememberCredentials(checked === true)
-                          }
+                          onCheckedChange={(checked) => setRememberCredentials(checked === true)}
                         />
-                        <Label htmlFor="remember-credentials">
-                          记住账号密码
-                        </Label>
+                        <Label htmlFor="remember-credentials">记住账号密码</Label>
                       </div>
                       <Field>
-                        <Button
-                          disabled={pending}
-                          type="submit"
-                          variant={submitVariant}
-                        >
+                        <Button disabled={pending} type="submit" variant={submitVariant}>
                           {passwordLoginPending && (
-                            <Loader2Icon
-                              aria-hidden="true"
-                              className="animate-spin"
-                            />
+                            <Loader2Icon aria-hidden="true" className="animate-spin" />
                           )}
                           登录
                         </Button>
@@ -417,7 +370,7 @@ function readRememberedLoginCredentials(): RememberedLoginCredentials | null {
 
 function updateRememberedLoginCredentials(
   remember: boolean,
-  credentials: RememberedLoginCredentials
+  credentials: RememberedLoginCredentials,
 ) {
   try {
     if (!remember) {
@@ -425,10 +378,7 @@ function updateRememberedLoginCredentials(
       return
     }
 
-    window.localStorage.setItem(
-      rememberedLoginStorageKey,
-      JSON.stringify(credentials)
-    )
+    window.localStorage.setItem(rememberedLoginStorageKey, JSON.stringify(credentials))
   } catch {
     // Login should not fail just because the browser rejected local storage.
   }

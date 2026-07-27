@@ -36,12 +36,10 @@ describe("AppCredentialsDialog", () => {
         onCredentialsChange={onCredentialsChange}
         onOpenChange={vi.fn()}
         open
-      />
+      />,
     )
 
-    expect(
-      screen.getByRole("dialog", { name: "应用接入信息" })
-    ).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "应用接入信息" })).toBeInTheDocument()
     expect(screen.getByLabelText("连接密钥")).toHaveValue("current-secret")
     expect(screen.getByLabelText("应用 ID")).toHaveValue("app-1")
 
@@ -51,9 +49,7 @@ describe("AppCredentialsDialog", () => {
     })
     await user.click(screen.getByRole("button", { name: "确认重置" }))
 
-    await waitFor(() =>
-      expect(onCredentialsChange).toHaveBeenCalledWith(nextCredentials)
-    )
+    await waitFor(() => expect(onCredentialsChange).toHaveBeenCalledWith(nextCredentials))
     expect(mocks.regenerateClientAppSecret).toHaveBeenCalledWith("app-1")
     expect(mocks.toastSuccess).toHaveBeenCalledWith("连接密钥已重置")
     expect(confirmation).not.toBeInTheDocument()

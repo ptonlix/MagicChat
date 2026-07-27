@@ -8,9 +8,7 @@ export function resolveNotificationPrivacy(
   userPrivacy: NotificationPrivacy,
   maximumPrivacy: NotificationPrivacy = "preview",
 ): NotificationPrivacy {
-  return privacyRank[userPrivacy] <= privacyRank[maximumPrivacy]
-    ? userPrivacy
-    : maximumPrivacy
+  return privacyRank[userPrivacy] <= privacyRank[maximumPrivacy] ? userPrivacy : maximumPrivacy
 }
 
 export function cleanNotificationPreview(value?: string, maximumLength = 160): string {

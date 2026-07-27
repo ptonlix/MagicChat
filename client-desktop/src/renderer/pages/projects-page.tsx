@@ -78,19 +78,19 @@ export function ProjectsPage() {
   const [keyword, setKeyword] = React.useState("")
   const groupConversations = React.useMemo(
     () => conversations.filter((conversation) => conversation.type === "group"),
-    [conversations]
+    [conversations],
   )
   const normalizedKeyword = keyword.trim().toLowerCase()
   const visiblePersonalWorkspace = normalizedKeyword
     ? [personalProject.name, personalProject.description].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword)
+        value.toLowerCase().includes(normalizedKeyword),
       )
     : true
   const visibleProjects = normalizedKeyword
     ? projects.filter((project) =>
         [project.name, project.description].some((value) =>
-          value.toLowerCase().includes(normalizedKeyword)
-        )
+          value.toLowerCase().includes(normalizedKeyword),
+        ),
       )
     : projects
 
@@ -155,11 +155,7 @@ export function ProjectsPage() {
             <ProjectListSection>
               <ProjectListButton
                 active={projectId === personalProject.id}
-                onSelect={() =>
-                  navigate(
-                    `/projects/${encodeURIComponent(personalProject.id)}`
-                  )
-                }
+                onSelect={() => navigate(`/projects/${encodeURIComponent(personalProject.id)}`)}
                 project={personalProject}
                 user={me}
               />
@@ -171,9 +167,7 @@ export function ProjectsPage() {
                 <ProjectListButton
                   active={projectId === project.id}
                   key={project.id}
-                  onSelect={() =>
-                    navigate(`/projects/${encodeURIComponent(project.id)}`)
-                  }
+                  onSelect={() => navigate(`/projects/${encodeURIComponent(project.id)}`)}
                   project={project}
                 />
               ))}
@@ -222,13 +216,7 @@ export function ProjectsPage() {
   )
 }
 
-function ProjectListSection({
-  children,
-  title,
-}: {
-  children: React.ReactNode
-  title?: string
-}) {
+function ProjectListSection({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <SidebarGroup className="py-1">
       {title && <SidebarGroupLabel>{title}</SidebarGroupLabel>}
@@ -265,9 +253,7 @@ function ProjectListButton({
         <ProjectAvatar className="size-9" project={project} user={user} />
         <span className="min-w-0 flex-1 overflow-hidden">
           <span className="flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-sm leading-snug font-medium">
-            <span className="block min-w-0 flex-1 truncate">
-              {project.name}
-            </span>
+            <span className="block min-w-0 flex-1 truncate">{project.name}</span>
             {updatedAt && (
               <span className="shrink-0 pr-2 text-xs font-normal text-muted-foreground">
                 {updatedAt}
@@ -340,9 +326,7 @@ function SelectedProjectPanel({
       })
       .catch((loadError: unknown) => {
         if (requestId === requestIdRef.current) {
-          setError(
-            loadError instanceof Error ? loadError.message : "加载项目详情失败"
-          )
+          setError(loadError instanceof Error ? loadError.message : "加载项目详情失败")
         }
       })
       .finally(() => {
@@ -360,11 +344,7 @@ function SelectedProjectPanel({
   }
 
   async function handleRelationsChanged() {
-    await Promise.allSettled([
-      loadProject(),
-      refreshConversations(),
-      refreshProjects(),
-    ])
+    await Promise.allSettled([loadProject(), refreshConversations(), refreshProjects()])
   }
 
   if (loading) {
@@ -396,13 +376,7 @@ async function loadSelectedProject(projectId: string) {
   return [project, memberPage.members] as const
 }
 
-function ProjectPanelState({
-  loading = false,
-  message,
-}: {
-  loading?: boolean
-  message: string
-}) {
+function ProjectPanelState({ loading = false, message }: { loading?: boolean; message: string }) {
   return (
     <SidebarInset className="min-w-0 overflow-hidden bg-muted">
       <div className="flex flex-1 items-center justify-center gap-2 self-stretch text-sm text-muted-foreground">
@@ -447,14 +421,11 @@ function ProjectPanel({
         <div className="flex shrink-0 items-center gap-2">
           <AvatarGroup className="hidden md:flex">
             {members.map((member) => {
-              const initial =
-                Array.from(member.displayName.trim())[0]?.toUpperCase() ?? "?"
+              const initial = Array.from(member.displayName.trim())[0]?.toUpperCase() ?? "?"
 
               return (
                 <Avatar className="size-6" key={member.id}>
-                  {member.avatar && (
-                    <AvatarImage alt={member.displayName} src={member.avatar} />
-                  )}
+                  {member.avatar && <AvatarImage alt={member.displayName} src={member.avatar} />}
                   <AvatarFallback>{initial}</AvatarFallback>
                 </Avatar>
               )
@@ -476,41 +447,23 @@ function ProjectPanel({
         </div>
       </header>
 
-      <Tabs
-        className="min-h-0 flex-1 gap-0 overflow-hidden"
-        defaultValue="tasks"
-      >
+      <Tabs className="min-h-0 flex-1 gap-0 overflow-hidden" defaultValue="tasks">
         <ProjectNavigation />
-        <TabsContent
-          className="flex min-h-0 flex-1 overflow-hidden"
-          value="tasks"
-        >
+        <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="tasks">
           <ProjectTasksTab
             key={project.id}
             onTasksChanged={onProjectUpdated}
             projectId={project.id}
           />
         </TabsContent>
-        <TabsContent
-          className="flex min-h-0 flex-1 overflow-hidden"
-          value="topics"
-        >
+        <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="topics">
           <ProjectTopicsTab />
         </TabsContent>
-        <TabsContent
-          className="flex min-h-0 flex-1 overflow-hidden"
-          value="documents"
-        >
+        <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="documents">
           <ProjectDocumentsTab />
         </TabsContent>
-        <TabsContent
-          className="flex min-h-0 flex-1 overflow-hidden"
-          value="members"
-        >
-          <ProjectMembersTab
-            key={`${project.id}-${project.updatedAt}`}
-            projectId={project.id}
-          />
+        <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="members">
+          <ProjectMembersTab key={`${project.id}-${project.updatedAt}`} projectId={project.id} />
         </TabsContent>
       </Tabs>
     </SidebarInset>
@@ -531,9 +484,7 @@ function CreateProjectDialog({
   const [creating, setCreating] = React.useState(false)
   const [groupKeyword, setGroupKeyword] = React.useState("")
   const [name, setName] = React.useState("")
-  const [selectedGroupIds, setSelectedGroupIds] = React.useState<Set<string>>(
-    () => new Set()
-  )
+  const [selectedGroupIds, setSelectedGroupIds] = React.useState<Set<string>>(() => new Set())
 
   function resetForm() {
     setCreating(false)
@@ -565,11 +516,7 @@ function CreateProjectDialog({
 
   function toggleGroup(groupId: string, checked: boolean | string) {
     setSelectedGroupIds((currentIds) => {
-      if (
-        checked === true &&
-        !currentIds.has(groupId) &&
-        currentIds.size >= maxProjectGroupCount
-      ) {
+      if (checked === true && !currentIds.has(groupId) && currentIds.size >= maxProjectGroupCount) {
         return currentIds
       }
 
@@ -610,9 +557,7 @@ function CreateProjectDialog({
       <DialogContent className="gap-5 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-base">新建项目</DialogTitle>
-          <DialogDescription className="sr-only">
-            输入项目名称并选择要关联的群聊
-          </DialogDescription>
+          <DialogDescription className="sr-only">输入项目名称并选择要关联的群聊</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-2">
@@ -659,15 +604,13 @@ function CreateProjectDialog({
               {filteredGroups.map((group) => {
                 const checkboxId = `create-project-group-${group.id}`
                 const selected = selectedGroupIds.has(group.id)
-                const selectionDisabled =
-                  !selected && selectedGroupIds.size >= maxProjectGroupCount
+                const selectionDisabled = !selected && selectedGroupIds.size >= maxProjectGroupCount
 
                 return (
                   <Label
                     className={cn(
                       "cursor-pointer rounded-md px-2 py-2 font-normal hover:bg-muted",
-                      selectionDisabled &&
-                        "cursor-not-allowed opacity-50 hover:bg-transparent"
+                      selectionDisabled && "cursor-not-allowed opacity-50 hover:bg-transparent",
                     )}
                     htmlFor={checkboxId}
                     key={group.id}
@@ -676,18 +619,10 @@ function CreateProjectDialog({
                       checked={selected}
                       disabled={creating || selectionDisabled}
                       id={checkboxId}
-                      onCheckedChange={(checked) =>
-                        toggleGroup(group.id, checked)
-                      }
+                      onCheckedChange={(checked) => toggleGroup(group.id, checked)}
                     />
-                    <GroupAvatar
-                      avatar={group.avatar}
-                      members={group.members}
-                      name={group.name}
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      {group.name}
-                    </span>
+                    <GroupAvatar avatar={group.avatar} members={group.members} name={group.name} />
+                    <span className="min-w-0 flex-1 truncate">{group.name}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {group.memberCount} 人
                     </span>

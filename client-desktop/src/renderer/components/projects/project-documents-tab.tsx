@@ -36,16 +36,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-type ProjectDocumentType =
-  "document" | "file" | "markdown" | "mindmap" | "spreadsheet"
+type ProjectDocumentType = "document" | "file" | "markdown" | "mindmap" | "spreadsheet"
 
 type ProjectDocumentCreator = {
   id: string
@@ -102,10 +97,7 @@ const documentTypeMetadata = {
     iconClassName: "text-emerald-600 dark:text-emerald-300",
     label: "表格",
   },
-} satisfies Record<
-  ProjectDocumentType,
-  { icon: LucideIcon; iconClassName: string; label: string }
->
+} satisfies Record<ProjectDocumentType, { icon: LucideIcon; iconClassName: string; label: string }>
 
 const initialDocumentTree: ProjectDocumentNode[] = [
   {
@@ -196,27 +188,22 @@ const initialDocumentTree: ProjectDocumentNode[] = [
 
 export function ProjectDocumentsTab() {
   const [activeId, setActiveId] = React.useState<string | null>(null)
-  const [documentTree, setDocumentTree] =
-    React.useState<ProjectDocumentNode[]>(initialDocumentTree)
+  const [documentTree, setDocumentTree] = React.useState<ProjectDocumentNode[]>(initialDocumentTree)
   const [expandedFolderIds, setExpandedFolderIds] = React.useState<Set<string>>(
-    () => new Set(["folder-product", "folder-development"])
+    () => new Set(["folder-product", "folder-development"]),
   )
   const [keyword, setKeyword] = React.useState("")
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, {
       activationConstraint: { delay: 250, tolerance: 8 },
-    })
+    }),
   )
   const normalizedKeyword = keyword.trim().toLocaleLowerCase()
   const searching = normalizedKeyword.length > 0
-  const visibleTree = searching
-    ? filterDocumentTree(documentTree, normalizedKeyword)
-    : documentTree
+  const visibleTree = searching ? filterDocumentTree(documentTree, normalizedKeyword) : documentTree
   const activeNode = activeId ? findDocumentNode(documentTree, activeId) : null
-  const blockedParentIds = activeNode
-    ? collectDocumentNodeIds(activeNode)
-    : new Set<string>()
+  const blockedParentIds = activeNode ? collectDocumentNodeIds(activeNode) : new Set<string>()
 
   function handleDragEnd(event: DragEndEvent) {
     const target = parseDocumentDropTarget(event.over?.data.current)
@@ -284,7 +271,7 @@ export function ProjectDocumentsTab() {
               <DragOverlay dropAnimation={null}>
                 {activeNode && <DocumentDragOverlay node={activeNode} />}
               </DragOverlay>,
-              document.body
+              document.body,
             )}
         </DndContext>
       </div>
@@ -407,8 +394,7 @@ function DocumentTreeItem({
   rowDropTarget: DocumentDropTarget
   searching: boolean
 }) {
-  const open =
-    node.kind === "folder" && (searching || expandedFolderIds.has(node.id))
+  const open = node.kind === "folder" && (searching || expandedFolderIds.has(node.id))
 
   if (node.kind === "document") {
     return (
@@ -474,43 +460,37 @@ function DocumentTreeRow({
   open: boolean
   rowDropTarget: DocumentDropTarget
 }) {
-  const [testDocumentAlertOpen, setTestDocumentAlertOpen] =
-    React.useState(false)
+  const [testDocumentAlertOpen, setTestDocumentAlertOpen] = React.useState(false)
   const {
     attributes,
     isDragging,
     listeners,
     setNodeRef: setDraggableNodeRef,
   } = useDraggable({ disabled: draggingDisabled, id: node.id })
-  const { isOver: isRowDropTarget, setNodeRef: setDroppableNodeRef } =
-    useDroppable({
-      data: rowDropTarget,
-      disabled:
-        activeId === null ||
-        activeId === node.id ||
-        (node.kind === "folder" && folderDropDisabled) ||
-        draggingDisabled,
-      id: `${node.kind === "folder" ? "folder" : "document"}:${node.id}`,
-    })
+  const { isOver: isRowDropTarget, setNodeRef: setDroppableNodeRef } = useDroppable({
+    data: rowDropTarget,
+    disabled:
+      activeId === null ||
+      activeId === node.id ||
+      (node.kind === "folder" && folderDropDisabled) ||
+      draggingDisabled,
+    id: `${node.kind === "folder" ? "folder" : "document"}:${node.id}`,
+  })
   const setRowRef = React.useCallback(
     (element: HTMLDivElement | null) => {
       setDraggableNodeRef(element)
       setDroppableNodeRef(element)
     },
-    [setDraggableNodeRef, setDroppableNodeRef]
+    [setDraggableNodeRef, setDroppableNodeRef],
   )
-  const metadata =
-    node.kind === "document" ? documentTypeMetadata[node.type] : null
-  const NodeIcon =
-    node.kind === "folder" ? (open ? FolderOpen : Folder) : metadata!.icon
+  const metadata = node.kind === "document" ? documentTypeMetadata[node.type] : null
+  const NodeIcon = node.kind === "folder" ? (open ? FolderOpen : Folder) : metadata!.icon
   const nameContent = (
     <>
       <span
         className={cn(
           "flex size-6 shrink-0 items-center justify-center",
-          node.kind === "folder"
-            ? "text-amber-600 dark:text-amber-300"
-            : metadata!.iconClassName
+          node.kind === "folder" ? "text-amber-600 dark:text-amber-300" : metadata!.iconClassName,
         )}
       >
         <NodeIcon className="size-5" />
@@ -531,11 +511,9 @@ function DocumentTreeRow({
         aria-level={depth + 1}
         className={cn(
           "group grid min-h-14 touch-pan-y grid-cols-[minmax(20rem,1fr)_20rem] items-center border-y border-transparent text-sm transition-colors select-none hover:bg-muted/50",
-          draggingDisabled
-            ? "cursor-default"
-            : "cursor-grab active:cursor-grabbing",
+          draggingDisabled ? "cursor-default" : "cursor-grab active:cursor-grabbing",
           isDragging && "opacity-30",
-          isRowDropTarget && "border-teal-500 bg-teal-50 dark:bg-teal-950/40"
+          isRowDropTarget && "border-teal-500 bg-teal-50 dark:bg-teal-950/40",
         )}
         role="treeitem"
       >
@@ -569,21 +547,15 @@ function DocumentTreeRow({
             </AvatarFallback>
           </Avatar>
           <div className="truncate">
-            {node.updatedBy.name} 修改于{" "}
-            <time dateTime={node.updatedAt}>{node.updatedAt}</time>
+            {node.updatedBy.name} 修改于 <time dateTime={node.updatedAt}>{node.updatedAt}</time>
           </div>
         </div>
       </div>
-      <AlertDialog
-        onOpenChange={setTestDocumentAlertOpen}
-        open={testDocumentAlertOpen}
-      >
+      <AlertDialog onOpenChange={setTestDocumentAlertOpen} open={testDocumentAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>暂不支持打开</AlertDialogTitle>
-            <AlertDialogDescription>
-              目前是测试文档，暂不支持打开。
-            </AlertDialogDescription>
+            <AlertDialogDescription>目前是测试文档，暂不支持打开。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction>知道了</AlertDialogAction>
@@ -617,14 +589,14 @@ function DocumentDropPosition({
         ref={setNodeRef}
         className={cn(
           "absolute top-0 right-3 h-3 -translate-y-1/2",
-          disabled && "pointer-events-none"
+          disabled && "pointer-events-none",
         )}
         style={{ left: depth * 24 + 12 }}
       >
         <div
           className={cn(
             "pointer-events-none absolute top-1/2 right-0 left-0 h-0.5 -translate-y-1/2 rounded-full bg-transparent",
-            isOver && "bg-teal-500"
+            isOver && "bg-teal-500",
           )}
         />
       </div>
@@ -633,8 +605,7 @@ function DocumentDropPosition({
 }
 
 function DocumentDragOverlay({ node }: { node: ProjectDocumentNode }) {
-  const metadata =
-    node.kind === "document" ? documentTypeMetadata[node.type] : null
+  const metadata = node.kind === "document" ? documentTypeMetadata[node.type] : null
   const NodeIcon = node.kind === "folder" ? Folder : metadata!.icon
 
   return (
@@ -642,9 +613,7 @@ function DocumentDragOverlay({ node }: { node: ProjectDocumentNode }) {
       <div
         className={cn(
           "flex size-6 shrink-0 items-center justify-center",
-          node.kind === "folder"
-            ? "text-amber-600 dark:text-amber-300"
-            : metadata!.iconClassName
+          node.kind === "folder" ? "text-amber-600 dark:text-amber-300" : metadata!.iconClassName,
         )}
       >
         <NodeIcon className="size-5" />
@@ -676,28 +645,20 @@ function parseDocumentDropTarget(value: unknown): DocumentDropTarget | null {
   return null
 }
 
-function moveDocumentNode(
-  tree: ProjectDocumentNode[],
-  nodeId: string,
-  target: DocumentDropTarget
-) {
+function moveDocumentNode(tree: ProjectDocumentNode[], nodeId: string, target: DocumentDropTarget) {
   const location = findDocumentNodeLocation(tree, nodeId)
   if (!location) return tree
 
-  const targetParentId =
-    target.kind === "folder" ? target.folderId : target.parentId
+  const targetParentId = target.kind === "folder" ? target.folderId : target.parentId
   if (
     targetParentId === nodeId ||
-    (targetParentId !== null &&
-      collectDocumentNodeIds(location.node).has(targetParentId))
+    (targetParentId !== null && collectDocumentNodeIds(location.node).has(targetParentId))
   ) {
     return tree
   }
 
   let targetIndex =
-    target.kind === "folder"
-      ? getFolderChildren(tree, target.folderId)?.length
-      : target.index
+    target.kind === "folder" ? getFolderChildren(tree, target.folderId)?.length : target.index
   if (targetIndex === undefined) return tree
   if (location.parentId === targetParentId && location.index < targetIndex) {
     targetIndex -= 1
@@ -708,19 +669,11 @@ function moveDocumentNode(
 
   const removal = removeDocumentNode(tree, nodeId)
   if (!removal.node) return tree
-  const insertion = insertDocumentNode(
-    removal.tree,
-    targetParentId,
-    targetIndex,
-    removal.node
-  )
+  const insertion = insertDocumentNode(removal.tree, targetParentId, targetIndex, removal.node)
   return insertion.inserted ? insertion.tree : tree
 }
 
-function findDocumentNode(
-  tree: ProjectDocumentNode[],
-  nodeId: string
-): ProjectDocumentNode | null {
+function findDocumentNode(tree: ProjectDocumentNode[], nodeId: string): ProjectDocumentNode | null {
   for (const node of tree) {
     if (node.id === nodeId) return node
     if (node.kind === "folder") {
@@ -734,7 +687,7 @@ function findDocumentNode(
 function findDocumentNodeLocation(
   tree: ProjectDocumentNode[],
   nodeId: string,
-  parentId: string | null = null
+  parentId: string | null = null,
 ): {
   index: number
   node: ProjectDocumentNode
@@ -767,7 +720,7 @@ function getFolderChildren(tree: ProjectDocumentNode[], folderId: string) {
 
 function removeDocumentNode(
   tree: ProjectDocumentNode[],
-  nodeId: string
+  nodeId: string,
 ): { node: ProjectDocumentNode | null; tree: ProjectDocumentNode[] } {
   const index = tree.findIndex((node) => node.id === nodeId)
   if (index >= 0) {
@@ -792,17 +745,13 @@ function insertDocumentNode(
   tree: ProjectDocumentNode[],
   parentId: string | null,
   index: number,
-  nodeToInsert: ProjectDocumentNode
+  nodeToInsert: ProjectDocumentNode,
 ): { inserted: boolean; tree: ProjectDocumentNode[] } {
   if (parentId === null) {
     const safeIndex = Math.max(0, Math.min(index, tree.length))
     return {
       inserted: true,
-      tree: [
-        ...tree.slice(0, safeIndex),
-        nodeToInsert,
-        ...tree.slice(safeIndex),
-      ],
+      tree: [...tree.slice(0, safeIndex), nodeToInsert, ...tree.slice(safeIndex)],
     }
   }
 
@@ -821,12 +770,7 @@ function insertDocumentNode(
       }
       return { inserted: true, tree: nextTree }
     }
-    const insertion = insertDocumentNode(
-      node.children,
-      parentId,
-      index,
-      nodeToInsert
-    )
+    const insertion = insertDocumentNode(node.children, parentId, index, nodeToInsert)
     if (!insertion.inserted) continue
     const nextTree = [...tree]
     nextTree[folderIndex] = { ...node, children: insertion.tree }
@@ -835,19 +779,12 @@ function insertDocumentNode(
   return { inserted: false, tree }
 }
 
-function filterDocumentTree(
-  tree: ProjectDocumentNode[],
-  keyword: string
-): ProjectDocumentNode[] {
+function filterDocumentTree(tree: ProjectDocumentNode[], keyword: string): ProjectDocumentNode[] {
   return tree.flatMap<ProjectDocumentNode>((node) => {
-    const metadataLabel =
-      node.kind === "folder" ? "文件夹" : documentTypeMetadata[node.type].label
-    const matches = [
-      node.name,
-      node.creator.name,
-      node.updatedBy.name,
-      metadataLabel,
-    ].some((value) => value.toLocaleLowerCase().includes(keyword))
+    const metadataLabel = node.kind === "folder" ? "文件夹" : documentTypeMetadata[node.type].label
+    const matches = [node.name, node.creator.name, node.updatedBy.name, metadataLabel].some(
+      (value) => value.toLocaleLowerCase().includes(keyword),
+    )
     if (node.kind === "document") return matches ? [node] : []
 
     const children = filterDocumentTree(node.children, keyword)

@@ -86,23 +86,13 @@ export function AppCredentialsDialog({
         >
           <DialogHeader>
             <DialogTitle>应用接入信息</DialogTitle>
-            <DialogDescription className="sr-only">
-              查看应用的信息和连接凭据
-            </DialogDescription>
+            <DialogDescription className="sr-only">查看应用的信息和连接凭据</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
             <CredentialField copyable label="应用 ID" value={app.id} />
-            <CredentialField
-              copyable
-              label="WebSocket 地址"
-              value={webSocketURL}
-            />
-            <CredentialField
-              copyable
-              label="连接密钥"
-              value={connectionSecret}
-            />
+            <CredentialField copyable label="WebSocket 地址" value={webSocketURL} />
+            <CredentialField copyable label="连接密钥" value={connectionSecret} />
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -115,11 +105,7 @@ export function AppCredentialsDialog({
               <RotateCcw />
               重置连接密钥
             </Button>
-            <Button
-              disabled={resetting}
-              onClick={() => onOpenChange(false)}
-              type="button"
-            >
+            <Button disabled={resetting} onClick={() => onOpenChange(false)} type="button">
               关闭
             </Button>
           </DialogFooter>
@@ -138,8 +124,7 @@ export function AppCredentialsDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>重置连接密钥</AlertDialogTitle>
             <AlertDialogDescription>
-              重置后旧密钥立即失效，应用现有的 WebSocket
-              连接也会被断开。确定继续吗？
+              重置后旧密钥立即失效，应用现有的 WebSocket 连接也会被断开。确定继续吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -186,12 +171,7 @@ function CredentialField({
     <div className="grid gap-2">
       <Label htmlFor={inputId}>{label}</Label>
       <div className="flex items-center gap-2">
-        <Input
-          className="min-w-0 flex-1 font-mono! text-xs"
-          id={inputId}
-          readOnly
-          value={value}
-        />
+        <Input className="min-w-0 flex-1 font-mono! text-xs" id={inputId} readOnly value={value} />
         {copyable && (
           <Button
             aria-label={`复制${label}`}

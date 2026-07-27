@@ -18,10 +18,7 @@ type ConversationInfoDrawerProps = {
   conversationId: string
 }
 
-export function ConversationInfoDrawer({
-  children,
-  conversationId,
-}: ConversationInfoDrawerProps) {
+export function ConversationInfoDrawer({ children, conversationId }: ConversationInfoDrawerProps) {
   return (
     <Sheet>
       <SheetTrigger asChild>{children}</SheetTrigger>
@@ -32,11 +29,7 @@ export function ConversationInfoDrawer({
   )
 }
 
-function ConversationInfoContent({
-  conversationId,
-}: {
-  conversationId: string
-}) {
+function ConversationInfoContent({ conversationId }: { conversationId: string }) {
   const { getConversation, me } = useClientData()
   const conversation = getConversation(conversationId)
 
@@ -47,16 +40,13 @@ function ConversationInfoContent({
           <SheetTitle>会话信息</SheetTitle>
           <SheetDescription>会话</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          会话信息不可用
-        </div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">会话信息不可用</div>
       </>
     )
   }
 
   if (conversation.type === "direct") {
-    const otherUserId =
-      conversation.members?.find((member) => member.id !== me.id)?.id ?? ""
+    const otherUserId = conversation.members?.find((member) => member.id !== me.id)?.id ?? ""
 
     if (otherUserId) {
       return <DirectConversationInfo userId={otherUserId} />
@@ -68,9 +58,7 @@ function ConversationInfoContent({
           <SheetTitle>会话信息</SheetTitle>
           <SheetDescription>私聊</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          用户信息不可用
-        </div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">用户信息不可用</div>
       </>
     )
   }

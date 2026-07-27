@@ -11,13 +11,11 @@ import {
 
 const conversationDraftPersistDelayMs = 1000
 
-type ConversationDraftUpdater = (
-  draft: ConversationDraftContent
-) => ConversationDraftContent
+type ConversationDraftUpdater = (draft: ConversationDraftContent) => ConversationDraftContent
 
 export function useConversationDrafts(userId: string) {
   const [drafts, setDrafts] = React.useState<ConversationDrafts>(() =>
-    readConversationDrafts(userId)
+    readConversationDrafts(userId),
   )
   const draftsRef = React.useRef(drafts)
   const dirtyRef = React.useRef(false)
@@ -57,8 +55,7 @@ export function useConversationDrafts(userId: string) {
         return
       }
 
-      const currentDraft =
-        draftsRef.current[conversationId] ?? emptyConversationDraft
+      const currentDraft = draftsRef.current[conversationId] ?? emptyConversationDraft
       const updatedContent = update({
         mentions: currentDraft.mentions,
         replyTarget: currentDraft.replyTarget,
@@ -83,7 +80,7 @@ export function useConversationDrafts(userId: string) {
       setDrafts(nextDrafts)
       scheduleDraftPersist()
     },
-    [scheduleDraftPersist]
+    [scheduleDraftPersist],
   )
 
   const clearConversationDraft = React.useCallback(
@@ -98,7 +95,7 @@ export function useConversationDrafts(userId: string) {
       setDrafts(nextDrafts)
       scheduleDraftPersist()
     },
-    [scheduleDraftPersist]
+    [scheduleDraftPersist],
   )
 
   React.useEffect(() => {

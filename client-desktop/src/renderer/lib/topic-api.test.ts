@@ -16,7 +16,7 @@ describe("topic client API", () => {
         data: {
           conversations: [topicConversationResponse()],
         },
-      })
+      }),
     )
 
     const conversations = await listClientConversations(fetcher)
@@ -49,7 +49,7 @@ describe("topic client API", () => {
         jsonResponse({
           success: true,
           data: { conversation: topicConversationResponse(), created: true },
-        })
+        }),
       )
       .mockResolvedValueOnce(
         jsonResponse({
@@ -78,14 +78,10 @@ describe("topic client API", () => {
               summary: "讨论发布计划",
             },
           },
-        })
+        }),
       )
 
-    const created = await createConversationTopic(
-      "parent-1",
-      "message-1",
-      fetcher
-    )
+    const created = await createConversationTopic("parent-1", "message-1", fetcher)
     const detail = await getConversationTopic("topic-1", fetcher)
 
     expect(created.created).toBe(true)
@@ -102,7 +98,7 @@ describe("topic client API", () => {
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       "/api/client/conversations/parent-1/messages/message-1/topic",
-      { credentials: "include", method: "POST" }
+      { credentials: "include", method: "POST" },
     )
   })
 
@@ -165,9 +161,7 @@ describe("topic client API", () => {
       event: "topic_closed",
       type: "system_event",
     })
-    expect(formatClientMessageBodySummary(message.body)).toBe(
-      "Alice 已将话题关闭"
-    )
+    expect(formatClientMessageBodySummary(message.body)).toBe("Alice 已将话题关闭")
   })
 })
 

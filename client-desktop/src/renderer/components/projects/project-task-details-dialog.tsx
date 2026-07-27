@@ -36,11 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -98,7 +94,7 @@ export function ProjectTaskDetailsDialog({
 }) {
   const initialForm = createTaskEditForm(task)
   const [baseline, setBaseline] = React.useState<NormalizedTaskEditForm>(() =>
-    normalizeTaskEditForm(initialForm)
+    normalizeTaskEditForm(initialForm),
   )
   const [details, setDetails] = React.useState(task)
   const [descriptionEditing, setDescriptionEditing] = React.useState(false)
@@ -134,9 +130,7 @@ export function ProjectTaskDetailsDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(
-            loadError instanceof Error ? loadError.message : "加载任务详情失败"
-          )
+          setError(loadError instanceof Error ? loadError.message : "加载任务详情失败")
         }
       })
       .finally(() => {
@@ -153,9 +147,7 @@ export function ProjectTaskDetailsDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setMembersError(
-            loadError instanceof Error ? loadError.message : "加载项目成员失败"
-          )
+          setMembersError(loadError instanceof Error ? loadError.message : "加载项目成员失败")
         }
       })
       .finally(() => {
@@ -172,9 +164,7 @@ export function ProjectTaskDetailsDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setLabelsError(
-            loadError instanceof Error ? loadError.message : "加载候选标签失败"
-          )
+          setLabelsError(loadError instanceof Error ? loadError.message : "加载候选标签失败")
         }
       })
       .finally(() => {
@@ -194,23 +184,17 @@ export function ProjectTaskDetailsDialog({
   const canSave = dirty && !loading && !saving && !validationError
   const fallbackAssignee = createFallbackProjectMember(details)
   const memberOptions =
-    fallbackAssignee &&
-    !members.some((member) => member.id === fallbackAssignee.id)
+    fallbackAssignee && !members.some((member) => member.id === fallbackAssignee.id)
       ? [fallbackAssignee, ...members]
       : members
-  const selectedAssignee = memberOptions.find(
-    (member) => member.id === form.assigneeUserId
-  )
+  const selectedAssignee = memberOptions.find((member) => member.id === form.assigneeUserId)
   const card = {
     entityId: details.id,
     entityType: "task",
     type: "entity_card",
   } as const
 
-  function updateForm<K extends keyof TaskEditForm>(
-    field: K,
-    value: TaskEditForm[K]
-  ) {
+  function updateForm<K extends keyof TaskEditForm>(field: K, value: TaskEditForm[K]) {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
@@ -247,7 +231,7 @@ export function ProjectTaskDetailsDialog({
       const updatedTask = await updateClientProjectTask(
         task.projectId,
         task.id,
-        createTaskEditPatch(normalizedForm, baseline)
+        createTaskEditPatch(normalizedForm, baseline),
       )
       const updatedForm = createTaskEditForm(updatedTask)
       setBaseline(normalizeTaskEditForm(updatedForm))
@@ -259,9 +243,7 @@ export function ProjectTaskDetailsDialog({
       onOpenChange(false)
       await onUpdated?.()
     } catch (saveError) {
-      toast.error(
-        saveError instanceof Error ? saveError.message : "保存任务失败"
-      )
+      toast.error(saveError instanceof Error ? saveError.message : "保存任务失败")
     } finally {
       setSaving(false)
     }
@@ -278,9 +260,7 @@ export function ProjectTaskDetailsDialog({
             任务详情
             {loading && <Spinner />}
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            查看并修改任务详情。
-          </DialogDescription>
+          <DialogDescription className="sr-only">查看并修改任务详情。</DialogDescription>
         </DialogHeader>
 
         <form className="grid gap-5" onSubmit={handleSubmit}>
@@ -306,9 +286,7 @@ export function ProjectTaskDetailsDialog({
                   portalContainer={assigneeComboboxPortal}
                   value={form.labels}
                 />
-                {labelsError && (
-                  <p className="text-xs text-destructive">{labelsError}</p>
-                )}
+                {labelsError && <p className="text-xs text-destructive">{labelsError}</p>}
               </TaskField>
 
               <TaskField
@@ -345,9 +323,7 @@ export function ProjectTaskDetailsDialog({
                     </ToggleGroupItem>
                   </ToggleGroup>
                 }
-                htmlFor={
-                  descriptionEditing ? "task-details-description" : undefined
-                }
+                htmlFor={descriptionEditing ? "task-details-description" : undefined}
                 label="详细内容"
               >
                 {descriptionEditing ? (
@@ -356,9 +332,7 @@ export function ProjectTaskDetailsDialog({
                     className="field-sizing-fixed h-100 max-h-100 min-h-100 resize-none font-mono!"
                     disabled={loading || saving}
                     id="task-details-description"
-                    onChange={(event) =>
-                      updateForm("description", event.target.value)
-                    }
+                    onChange={(event) => updateForm("description", event.target.value)}
                     placeholder="支持 Markdown"
                     value={form.description}
                   />
@@ -371,9 +345,7 @@ export function ProjectTaskDetailsDialog({
                       {form.description.trim() ? (
                         <MessageMarkdown content={form.description} />
                       ) : (
-                        <span className="text-muted-foreground">
-                          暂无详细内容
-                        </span>
+                        <span className="text-muted-foreground">暂无详细内容</span>
                       )}
                     </div>
                   </div>
@@ -386,9 +358,7 @@ export function ProjectTaskDetailsDialog({
                 <TaskField label="状态">
                   <Select
                     disabled={loading || saving}
-                    onValueChange={(value) =>
-                      updateForm("status", value as ProjectTaskStatus)
-                    }
+                    onValueChange={(value) => updateForm("status", value as ProjectTaskStatus)}
                     value={form.status}
                   >
                     <SelectTrigger aria-label="任务状态" className="w-full">
@@ -423,10 +393,7 @@ export function ProjectTaskDetailsDialog({
                   <Select
                     disabled={loading || saving}
                     onValueChange={(value) =>
-                      updateForm(
-                        "priority",
-                        Number(value) as ProjectTaskPriority
-                      )
+                      updateForm("priority", Number(value) as ProjectTaskPriority)
                     }
                     value={String(form.priority)}
                   >
@@ -461,9 +428,7 @@ export function ProjectTaskDetailsDialog({
                     showEmptyEmail={false}
                     value={selectedAssignee ?? null}
                   />
-                  {membersError && (
-                    <p className="text-xs text-destructive">{membersError}</p>
-                  )}
+                  {membersError && <p className="text-xs text-destructive">{membersError}</p>}
                 </TaskField>
               </div>
 
@@ -492,10 +457,7 @@ export function ProjectTaskDetailsDialog({
                     onValueChange={(value) => updateForm("reminder", value)}
                     state={
                       details.status === form.status &&
-                      reminderInputsEqual(
-                        form.reminder,
-                        toReminderInput(details.reminder)
-                      )
+                      reminderInputsEqual(form.reminder, toReminderInput(details.reminder))
                         ? details.reminder?.state
                         : undefined
                     }
@@ -506,9 +468,7 @@ export function ProjectTaskDetailsDialog({
               </div>
 
               {(validationError || error) && (
-                <p className="text-xs text-destructive">
-                  {validationError || error}
-                </p>
+                <p className="text-xs text-destructive">{validationError || error}</p>
               )}
             </div>
           </div>
@@ -518,11 +478,7 @@ export function ProjectTaskDetailsDialog({
               disabled={loading || saving || dirty || Boolean(error)}
               onClick={() => setSendDialogOpen(true)}
               title={
-                dirty
-                  ? "请先保存修改后再发送"
-                  : error
-                    ? "任务详情加载失败，暂不能发送"
-                    : undefined
+                dirty ? "请先保存修改后再发送" : error ? "任务详情加载失败，暂不能发送" : undefined
               }
               type="button"
               variant="outline"
@@ -546,16 +502,9 @@ export function ProjectTaskDetailsDialog({
             </div>
           </DialogFooter>
         </form>
-        <div
-          className="absolute top-0 left-0 size-0"
-          ref={assigneeComboboxPortal}
-        />
+        <div className="absolute top-0 left-0 size-0" ref={assigneeComboboxPortal} />
       </DialogContent>
-      <SendCardDialog
-        card={card}
-        onOpenChange={setSendDialogOpen}
-        open={sendDialogOpen}
-      />
+      <SendCardDialog card={card} onOpenChange={setSendDialogOpen} open={sendDialogOpen} />
     </Dialog>
   )
 }
@@ -595,15 +544,9 @@ function DisabledUserInput({ user }: { user: ProjectTask["creator"] }) {
       <InputGroupAddon align="inline-start">
         <Avatar className="size-5 rounded-sm after:rounded-sm">
           {user.avatar && (
-            <AvatarImage
-              alt={displayName}
-              className="rounded-sm"
-              src={user.avatar}
-            />
+            <AvatarImage alt={displayName} className="rounded-sm" src={user.avatar} />
           )}
-          <AvatarFallback className="rounded-sm text-[10px]">
-            {initial}
-          </AvatarFallback>
+          <AvatarFallback className="rounded-sm text-[10px]">{initial}</AvatarFallback>
         </Avatar>
       </InputGroupAddon>
       <InputGroupInput aria-label="创建人" disabled value={displayName} />
@@ -625,9 +568,7 @@ function createTaskEditForm(task: ProjectTask): TaskEditForm {
   }
 }
 
-function createFallbackProjectMember(
-  task: ProjectTask
-): ClientProjectMember | null {
+function createFallbackProjectMember(task: ProjectTask): ClientProjectMember | null {
   if (!task.assignee) {
     return null
   }
@@ -689,10 +630,7 @@ function getTaskEditValidationError(form: NormalizedTaskEditForm) {
   return ""
 }
 
-function taskEditFormsEqual(
-  left: NormalizedTaskEditForm,
-  right: NormalizedTaskEditForm
-) {
+function taskEditFormsEqual(left: NormalizedTaskEditForm, right: NormalizedTaskEditForm) {
   return (
     left.assigneeUserId === right.assigneeUserId &&
     left.description === right.description &&
@@ -709,7 +647,7 @@ function taskEditFormsEqual(
 
 function createTaskEditPatch(
   form: NormalizedTaskEditForm,
-  baseline: NormalizedTaskEditForm
+  baseline: NormalizedTaskEditForm,
 ): UpdateClientProjectTaskInput {
   const patch: UpdateClientProjectTaskInput = {}
   if (form.assigneeUserId !== baseline.assigneeUserId) {
@@ -746,7 +684,7 @@ function createTaskEditPatch(
 }
 
 function toReminderInput(
-  reminder: ProjectTask["reminder"] | undefined
+  reminder: ProjectTask["reminder"] | undefined,
 ): ProjectTaskReminderInput | null {
   if (!reminder) {
     return null
@@ -762,7 +700,7 @@ function toReminderInput(
 }
 
 function normalizeReminderInput(
-  reminder: ProjectTaskReminderInput | null
+  reminder: ProjectTaskReminderInput | null,
 ): ProjectTaskReminderInput | null {
   if (!reminder) {
     return null
@@ -798,18 +736,14 @@ function normalizeReminderInput(
 
 function reminderInputsEqual(
   left: ProjectTaskReminderInput | null,
-  right: ProjectTaskReminderInput | null
+  right: ProjectTaskReminderInput | null,
 ) {
   return (
-    JSON.stringify(normalizeReminderInput(left)) ===
-    JSON.stringify(normalizeReminderInput(right))
+    JSON.stringify(normalizeReminderInput(left)) === JSON.stringify(normalizeReminderInput(right))
   )
 }
 
-async function listAllProjectTaskLabels(
-  projectId: string,
-  excludedTaskId: string
-) {
+async function listAllProjectTaskLabels(projectId: string, excludedTaskId: string) {
   const labels = new Map<string, string>()
   const seenCursors = new Set<string>()
   let cursor: string | undefined
@@ -837,7 +771,5 @@ async function listAllProjectTaskLabels(
     cursor = page.nextCursor
   } while (cursor)
 
-  return Array.from(labels.values()).sort((left, right) =>
-    left.localeCompare(right, "zh-CN")
-  )
+  return Array.from(labels.values()).sort((left, right) => left.localeCompare(right, "zh-CN"))
 }

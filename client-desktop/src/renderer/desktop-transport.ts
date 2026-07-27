@@ -13,12 +13,18 @@ export function installDesktopFetch(target: AuthenticatedTarget): () => void {
     const finishDiagnostic = beginDiagnosticRequest(method, url.pathname)
     try {
       if (request.body && request.headers.get("content-type")?.includes("multipart/form-data")) {
-        const response = await streamMultipartRequest(target, request, `${url.pathname}${url.search}`, method)
+        const response = await streamMultipartRequest(
+          target,
+          request,
+          `${url.pathname}${url.search}`,
+          method,
+        )
         finishDiagnostic(response.status)
         return response
       }
       let body: { kind: "text"; value: string } | undefined
-      if (method !== "GET" && method !== "DELETE") body = { kind: "text", value: await request.text() }
+      if (method !== "GET" && method !== "DELETE")
+        body = { kind: "text", value: await request.text() }
       const response = await window.desktop.transport.request(target, {
         body,
         headers: Object.fromEntries(request.headers.entries()),
@@ -27,10 +33,22 @@ export function installDesktopFetch(target: AuthenticatedTarget): () => void {
         requestId: randomUUID(),
       })
       const headers = new Headers(response.headers)
-      const responseBody = response.body instanceof Uint8Array ? new Blob([Uint8Array.from(response.body)]) : typeof response.body === "string" ? response.body : JSON.stringify(response.body)
-      if (url.pathname.endsWith("/auth/login") || url.pathname.endsWith("/auth/email-code/login") || url.pathname.endsWith("/me")) {
+      const responseBody =
+        response.body instanceof Uint8Array
+          ? new Blob([Uint8Array.from(response.body)])
+          : typeof response.body === "string"
+            ? response.body
+            : JSON.stringify(response.body)
+      if (
+        url.pathname.endsWith("/auth/login") ||
+        url.pathname.endsWith("/auth/email-code/login") ||
+        url.pathname.endsWith("/me")
+      ) {
         const data = response.body as { data?: { user?: { id?: string } } }
-        if (data?.data?.user?.id) window.dispatchEvent(new CustomEvent("magicchat:authenticated", { detail: { userId: data.data.user.id } }))
+        if (data?.data?.user?.id)
+          window.dispatchEvent(
+            new CustomEvent("magicchat:authenticated", { detail: { userId: data.data.user.id } }),
+          )
       }
       finishDiagnostic(response.status)
       return new Response(responseBody, { headers, status: response.status })
@@ -39,14 +57,16 @@ export function installDesktopFetch(target: AuthenticatedTarget): () => void {
       throw error
     }
   }
-  return () => { window.fetch = original }
+  return () => {
+    window.fetch = original
+  }
 }
 
 async function streamMultipartRequest(
   target: AuthenticatedTarget,
   request: Request,
   path: string,
-  method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT"
+  method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT",
 ): Promise<Response> {
   if (!request.body) throw new Error("上传请求缺少内容")
   const streamId = await window.desktop.transport.streamStart(target, {
@@ -55,7 +75,9 @@ async function streamMultipartRequest(
     path,
     requestId: randomUUID(),
   })
-  const abort = () => { void window.desktop.transport.streamAbort(streamId) }
+  const abort = () => {
+    void window.desktop.transport.streamAbort(streamId)
+  }
   request.signal.addEventListener("abort", abort, { once: true })
   try {
     const reader = request.body.getReader()
@@ -63,15 +85,21 @@ async function streamMultipartRequest(
       const { done, value } = await reader.read()
       if (done) break
       for (let offset = 0; offset < value.byteLength; offset += 256 * 1024) {
-        await window.desktop.transport.streamChunk(streamId, value.slice(offset, offset + 256 * 1024))
+        await window.desktop.transport.streamChunk(
+          streamId,
+          value.slice(offset, offset + 256 * 1024),
+        )
       }
     }
     const response = await window.desktop.transport.streamFinish(streamId)
     const contentType = response.headers["content-type"] ?? "application/json"
-    return new Response(typeof response.body === "string" ? response.body : JSON.stringify(response.body), {
-      headers: { "content-type": contentType },
-      status: response.status,
-    })
+    return new Response(
+      typeof response.body === "string" ? response.body : JSON.stringify(response.body),
+      {
+        headers: { "content-type": contentType },
+        status: response.status,
+      },
+    )
   } catch (error) {
     await window.desktop.transport.streamAbort(streamId).catch(() => undefined)
     throw error
@@ -96,20 +124,27 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
   constructor(private readonly target: AuthenticatedTarget) {
     this.unsubscribe = window.desktop.realtime.subscribe((envelope) => this.receive(envelope))
     this.unsubscribeUnauthorized = window.desktop.realtime.subscribeUnauthorized((target) => {
-      if (targetKey(target) !== targetKey(this.target) || this.readyState === DesktopWebSocket.CLOSED) return
+      if (
+        targetKey(target) !== targetKey(this.target) ||
+        this.readyState === DesktopWebSocket.CLOSED
+      )
+        return
       this.readyState = DesktopWebSocket.CLOSED
       this.unsubscribe()
       this.unsubscribeUnauthorized()
       this.onclose?.(new CloseEvent("close", { code: 1008, reason: "unauthorized" }))
     })
-    void window.desktop.realtime.connect(target).then(() => {
-      this.readyState = DesktopWebSocket.OPEN
-      this.onopen?.(new Event("open"))
-    }).catch(() => {
-      this.readyState = DesktopWebSocket.CLOSED
-      this.onerror?.(new Event("error"))
-      this.onclose?.(new CloseEvent("close"))
-    })
+    void window.desktop.realtime
+      .connect(target)
+      .then(() => {
+        this.readyState = DesktopWebSocket.OPEN
+        this.onopen?.(new Event("open"))
+      })
+      .catch(() => {
+        this.readyState = DesktopWebSocket.CLOSED
+        this.onerror?.(new Event("error"))
+        this.onclose?.(new CloseEvent("close"))
+      })
   }
 
   close(): void {
@@ -124,19 +159,51 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
   }
 
   send(data: string): void {
-    if (this.readyState !== DesktopWebSocket.OPEN) throw new DOMException("连接尚未建立", "InvalidStateError")
+    if (this.readyState !== DesktopWebSocket.OPEN)
+      throw new DOMException("连接尚未建立", "InvalidStateError")
     let request: { id?: string; method?: string; payload?: unknown }
-    try { request = JSON.parse(data) as typeof request } catch { throw new Error("实时请求格式无效") }
+    try {
+      request = JSON.parse(data) as typeof request
+    } catch {
+      throw new Error("实时请求格式无效")
+    }
     if (!request.id || !request.method) throw new Error("实时请求字段无效")
-    void window.desktop.realtime.send(this.target, request.method, request.payload).then((payload) => {
-      this.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ v: 1, kind: "response", ok: true, reply_to: request.id, payload }) }))
-    }).catch((error: unknown) => {
-      this.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ v: 1, kind: "response", ok: false, reply_to: request.id, error: { message: error instanceof Error ? error.message : "实时请求失败" } }) }))
-    })
+    void window.desktop.realtime
+      .send(this.target, request.method, request.payload)
+      .then((payload) => {
+        this.onmessage?.(
+          new MessageEvent("message", {
+            data: JSON.stringify({
+              v: 1,
+              kind: "response",
+              ok: true,
+              reply_to: request.id,
+              payload,
+            }),
+          }),
+        )
+      })
+      .catch((error: unknown) => {
+        this.onmessage?.(
+          new MessageEvent("message", {
+            data: JSON.stringify({
+              v: 1,
+              kind: "response",
+              ok: false,
+              reply_to: request.id,
+              error: { message: error instanceof Error ? error.message : "实时请求失败" },
+            }),
+          }),
+        )
+      })
   }
 
   private receive(envelope: RealtimeEnvelope): void {
-    if (envelope.targetKey && !envelope.targetKey.endsWith(`:${encodeURIComponent(this.target.userId)}`)) return
+    if (
+      envelope.targetKey &&
+      !envelope.targetKey.endsWith(`:${encodeURIComponent(this.target.userId)}`)
+    )
+      return
     this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(envelope) }))
   }
 }

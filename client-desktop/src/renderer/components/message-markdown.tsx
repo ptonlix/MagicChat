@@ -4,10 +4,7 @@ import remarkFlexibleMarkers from "remark-flexible-markers"
 import remarkGfm from "remark-gfm"
 import remarkSupersub from "remark-supersub"
 
-import {
-  parseMentionTemplate,
-  type MentionLabelResolver,
-} from "@/lib/message-mentions"
+import { parseMentionTemplate, type MentionLabelResolver } from "@/lib/message-mentions"
 import { cn } from "@/lib/utils"
 import { resolveHostResourceUrl } from "@/lib/desktop-host"
 import { AppProfilePopover } from "@/components/app-profile-popover"
@@ -89,12 +86,9 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
       remarkFlexibleMarkers,
       createRemarkMentionPlugin(mentionLabelResolver),
     ],
-    [mentionLabelResolver]
+    [mentionLabelResolver],
   )
-  const components = React.useMemo(
-    () => createMarkdownComponents(currentUserId),
-    [currentUserId]
-  )
+  const components = React.useMemo(() => createMarkdownComponents(currentUserId), [currentUserId])
 
   return (
     <div className="max-w-full space-y-4 break-all">
@@ -112,7 +106,7 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
 })
 
 function createMarkdownComponents(
-  currentUserId: string | undefined
+  currentUserId: string | undefined,
 ): ReactMarkdownProps["components"] {
   return {
     a: ({ children, href }) =>
@@ -128,35 +122,18 @@ function createMarkdownComponents(
     ),
     code: ({ children, className }) => (
       <code
-        className={cn(
-          "rounded bg-foreground/8 px-1 py-0.5 font-mono! text-[0.92em]",
-          className
-        )}
+        className={cn("rounded bg-foreground/8 px-1 py-0.5 font-mono! text-[0.92em]", className)}
       >
         {children}
       </code>
     ),
-    del: ({ children }) => (
-      <del className="text-muted-foreground">{children}</del>
-    ),
-    h1: ({ children }) => (
-      <h1 className="text-lg leading-snug font-semibold">{children}</h1>
-    ),
-    h2: ({ children }) => (
-      <h2 className="text-base leading-snug font-semibold">{children}</h2>
-    ),
-    h3: ({ children }) => (
-      <h3 className="text-sm leading-snug font-semibold">{children}</h3>
-    ),
-    h4: ({ children }) => (
-      <h4 className="text-sm leading-snug text-foreground/80">{children}</h4>
-    ),
-    h5: ({ children }) => (
-      <h5 className="text-sm leading-snug text-foreground/70">{children}</h5>
-    ),
-    h6: ({ children }) => (
-      <h6 className="text-sm leading-snug text-foreground/60">{children}</h6>
-    ),
+    del: ({ children }) => <del className="text-muted-foreground">{children}</del>,
+    h1: ({ children }) => <h1 className="text-lg leading-snug font-semibold">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-base leading-snug font-semibold">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-sm leading-snug font-semibold">{children}</h3>,
+    h4: ({ children }) => <h4 className="text-sm leading-snug text-foreground/80">{children}</h4>,
+    h5: ({ children }) => <h5 className="text-sm leading-snug text-foreground/70">{children}</h5>,
+    h6: ({ children }) => <h6 className="text-sm leading-snug text-foreground/60">{children}</h6>,
     hr: () => <hr className="h-px border-0 bg-foreground/20" />,
     img: ({ alt, src }) => {
       const imageSource = getMarkdownImageSource(src)
@@ -186,12 +163,7 @@ function createMarkdownComponents(
       const taskItem = className?.includes("task-list-item")
 
       return (
-        <li
-          className={cn(
-            taskItem ? "flex items-start gap-2 pl-0" : "pl-1",
-            className
-          )}
-        >
+        <li className={cn(taskItem ? "flex items-start gap-2 pl-0" : "pl-1", className)}>
           {children}
         </li>
       )
@@ -206,16 +178,14 @@ function createMarkdownComponents(
         {children}
       </MarkdownMention>
     ),
-    ol: ({ children }) => (
-      <ol className="list-decimal space-y-1 pl-5">{children}</ol>
-    ),
+    ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5">{children}</ol>,
     p: ({ children }) => <p>{children}</p>,
     pre: ({ children }) => {
       const codeElement = React.Children.toArray(children).find(
         React.isValidElement<{
           children?: React.ReactNode
           className?: string
-        }>
+        }>,
       )
       const code = getMarkdownCodeText(codeElement?.props.children)
       const language = getMarkdownCodeLanguage(codeElement?.props.className)
@@ -224,16 +194,11 @@ function createMarkdownComponents(
     },
     table: ({ children }) => (
       <div className="max-w-full overflow-x-auto">
-        <table className="w-max min-w-full border-collapse text-xs">
-          {children}
-        </table>
+        <table className="w-max min-w-full border-collapse text-xs">{children}</table>
       </div>
     ),
     td: ({ children, style }) => (
-      <td
-        className="border border-foreground/[0.08] px-2 py-2 align-top"
-        style={style}
-      >
+      <td className="border border-foreground/[0.08] px-2 py-2 align-top" style={style}>
         {children}
       </td>
     ),
@@ -252,13 +217,7 @@ function createMarkdownComponents(
       const taskList = className?.includes("contains-task-list")
 
       return (
-        <ul
-          className={cn(
-            "space-y-1",
-            taskList ? "list-none pl-0" : "list-disc pl-5",
-            className
-          )}
-        >
+        <ul className={cn("space-y-1", taskList ? "list-none pl-0" : "list-disc pl-5", className)}>
           {children}
         </ul>
       )
@@ -290,10 +249,7 @@ function getMarkdownImageSource(src: string | Blob | undefined) {
   try {
     const url = new URL(value)
 
-    return (url.protocol === "https:" || url.protocol === "http:") &&
-      url.hostname
-      ? url.href
-      : ""
+    return (url.protocol === "https:" || url.protocol === "http:") && url.hostname ? url.href : ""
   } catch {
     return ""
   }
@@ -309,8 +265,7 @@ function MarkdownMention({
   const mentionId = getMarkdownNodeProperty(node, "data-mention-id")
   const mentionType = getMarkdownNodeProperty(node, "data-mention-type")
   const isCurrentUserMention =
-    mentionType === "all" ||
-    (mentionType === "user" && isSameUserId(mentionId, currentUserId))
+    mentionType === "all" || (mentionType === "user" && isSameUserId(mentionId, currentUserId))
   const content = (
     <span
       className={getMentionTextClassName(isCurrentUserMention)}
@@ -380,7 +335,7 @@ function createRemarkMentionPlugin(mentionLabelResolver: MentionLabelResolver) {
 
 function replaceMentionTextNodes(
   node: MarkdownAstNode,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ) {
   if (!node.children) {
     return
@@ -399,10 +354,7 @@ function replaceMentionTextNodes(
   })
 }
 
-function createMentionNodes(
-  value: string,
-  mentionLabelResolver: MentionLabelResolver
-) {
+function createMentionNodes(value: string, mentionLabelResolver: MentionLabelResolver) {
   const parts = parseMentionTemplate(value, mentionLabelResolver)
 
   if (!parts.some((part) => part.type === "mention")) {
@@ -437,10 +389,7 @@ function createMentionNodes(
   })
 }
 
-function getMarkdownNodeProperty(
-  node: MarkdownElementNode | undefined,
-  name: string
-) {
+function getMarkdownNodeProperty(node: MarkdownElementNode | undefined, name: string) {
   const value = node?.properties?.[name]
   return typeof value === "string" ? value : undefined
 }

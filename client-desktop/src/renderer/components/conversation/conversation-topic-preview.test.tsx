@@ -5,10 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { MessageBubble } from "@/components/conversation/conversation-message"
 import type { ClientConversation } from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 import type { ConversationPanelMessage } from "@/lib/conversation-panel-types"
 
 describe("conversation topic preview", () => {
@@ -27,7 +24,7 @@ describe("conversation topic preview", () => {
             onRevoke={vi.fn()}
           />
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     expect(screen.getAllByText("Alice")).toHaveLength(2)
@@ -38,16 +35,13 @@ describe("conversation topic preview", () => {
     expect(screen.getByText("：第三条回复")).toBeVisible()
     expect(screen.getByText("10:03")).toBeVisible()
 
-    await userEvent.click(
-      screen.getByRole("button", { name: "查看话题最近回复" })
-    )
+    await userEvent.click(screen.getByRole("button", { name: "查看话题最近回复" }))
     expect(onOpenTopic).toHaveBeenCalledWith("topic-1")
     onOpenTopic.mockClear()
 
     await userEvent.click(screen.getByRole("button", { name: "查看话题" }))
     expect(onOpenTopic).toHaveBeenCalledWith("topic-1")
   })
-
 })
 
 function createMessage(): ConversationPanelMessage {

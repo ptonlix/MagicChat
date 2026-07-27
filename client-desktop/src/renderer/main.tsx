@@ -4,4 +4,8 @@ import "@/styles/index.css"
 import "./styles.css"
 import { DesktopRoot } from "./desktop-root"
 
-createRoot(document.getElementById("root")!).render(<StrictMode><DesktopRoot /></StrictMode>)
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <DesktopRoot />
+  </StrictMode>,
+)

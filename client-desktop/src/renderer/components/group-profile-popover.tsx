@@ -5,11 +5,7 @@ import type { ClientConversation } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
 import { AvatarPreviewDialog } from "@/components/avatar-preview-dialog"
 import { GroupAvatar } from "@/components/group-avatar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type GroupProfilePopoverProps = {
   children: React.ReactNode
@@ -24,8 +20,7 @@ export function GroupProfilePopover({
 }: GroupProfilePopoverProps) {
   const [open, setOpen] = React.useState(false)
   const [avatarPreviewOpen, setAvatarPreviewOpen] = React.useState(false)
-  const memberCount =
-    conversation.memberCount || conversation.members?.length || 0
+  const memberCount = conversation.memberCount || conversation.members?.length || 0
 
   function handleAvatarPreview() {
     setOpen(false)
@@ -39,18 +34,13 @@ export function GroupProfilePopover({
           aria-label={`${conversation.name}资料`}
           className={cn(
             "inline-flex cursor-pointer appearance-none rounded-sm border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-            triggerClassName
+            triggerClassName,
           )}
           type="button"
         >
           {children}
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-72"
-          side="right"
-          sideOffset={8}
-        >
+        <PopoverContent align="start" className="w-72" side="right" sideOffset={8}>
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <button
@@ -68,12 +58,8 @@ export function GroupProfilePopover({
                 />
               </button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
-                  {conversation.name}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  群聊资料
-                </div>
+                <div className="truncate text-sm font-medium">{conversation.name}</div>
+                <div className="truncate text-xs text-muted-foreground">群聊资料</div>
               </div>
             </div>
 

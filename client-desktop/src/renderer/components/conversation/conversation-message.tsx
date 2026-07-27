@@ -5,10 +5,7 @@ import { getAvatarInitial } from "@/lib/avatar"
 import { copyTemporaryImageToClipboard } from "@/lib/image-clipboard"
 import { writeHostClipboardText } from "@/lib/desktop-host"
 import { cn } from "@/lib/utils"
-import {
-  formatClientMessageBodySummary,
-  type ClientConversation,
-} from "@/lib/client-data-api"
+import { formatClientMessageBodySummary, type ClientConversation } from "@/lib/client-data-api"
 import {
   formatMentionTemplateText,
   parseMentionTemplate,
@@ -60,10 +57,7 @@ export const SystemMessageBadge = React.memo(function SystemMessageBadge({
   message: ConversationPanelMessage
 }) {
   return (
-    <div
-      className="flex justify-center"
-      data-conversation-message-id={message.id}
-    >
+    <div className="flex justify-center" data-conversation-message-id={message.id}>
       <Badge
         className="h-auto max-w-[min(80%,36rem)] text-center leading-relaxed whitespace-normal"
         variant="secondary"
@@ -93,7 +87,7 @@ type MessageBubbleProps = {
   onSetReaction?: (
     message: ConversationPanelMessage,
     text: string,
-    reacted: boolean
+    reacted: boolean,
   ) => Promise<void>
   onToggleSelected?: (message: ConversationPanelMessage) => void
   selectable?: boolean
@@ -131,31 +125,22 @@ export const MessageBubble = React.memo(function MessageBubble({
   )
   const canInsertAuthorMention =
     canReply &&
-    (conversation.type === "group" ||
-      conversation.topic?.parentConversationType === "group") &&
+    (conversation.type === "group" || conversation.topic?.parentConversationType === "group") &&
     message.mentionTarget !== null
-  const unavailable =
-    message.body.type === "revoked" || message.body.type === "unsupported"
+  const unavailable = message.body.type === "revoked" || message.body.type === "unsupported"
   const canAddReaction = canReply && message.body.type !== "revoked"
   const copyText = getMessageCopyText(message, mentionLabelResolver)
   const bubbleRef = React.useRef<HTMLDivElement | null>(null)
   const selectedCopyTextRef = React.useRef("")
   function handleMessageContextMenu() {
-    selectedCopyTextRef.current = getSelectedTextWithinElement(
-      bubbleRef.current
-    )
+    selectedCopyTextRef.current = getSelectedTextWithinElement(bubbleRef.current)
   }
 
   function handleCopyMessage() {
     const selectedText = selectedCopyTextRef.current
     selectedCopyTextRef.current = ""
 
-    void copyMessageToClipboard(
-      message,
-      selectedText,
-      bubbleRef.current,
-      mentionLabelResolver
-    )
+    void copyMessageToClipboard(message, selectedText, bubbleRef.current, mentionLabelResolver)
   }
 
   function handleAuthorMentionClick() {
@@ -170,10 +155,7 @@ export const MessageBubble = React.memo(function MessageBubble({
     if (!selectionMode || !selectable || !onToggleSelected) {
       return
     }
-    if (
-      event.target instanceof Element &&
-      event.target.closest("[data-slot=checkbox]")
-    ) {
+    if (event.target instanceof Element && event.target.closest("[data-slot=checkbox]")) {
       return
     }
     event.preventDefault()
@@ -181,16 +163,13 @@ export const MessageBubble = React.memo(function MessageBubble({
     onToggleSelected(message)
   }
 
-  const flushImageBubble =
-    message.body.type === "image" && !message.replyTo && !message.topic
+  const flushImageBubble = message.body.type === "image" && !message.replyTo && !message.topic
 
   const messageBody = (
     <div
       className={cn(
         "group/message-bubble min-w-0 rounded-md text-sm leading-relaxed shadow-sm",
-        message.body.type === "text" && !message.topic
-          ? "max-w-120"
-          : "max-w-full",
+        message.body.type === "text" && !message.topic ? "max-w-120" : "max-w-full",
         flushImageBubble ? "overflow-hidden p-0" : "p-3",
         fromMe
           ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
@@ -198,14 +177,10 @@ export const MessageBubble = React.memo(function MessageBubble({
         !selectionMode &&
           (fromMe
             ? "hover:bg-teal-100/80 data-[state=open]:bg-teal-100/80 hover:dark:bg-teal-950 dark:data-[state=open]:bg-teal-950"
-            : "hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700")
+            : "hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700"),
       )}
-      data-message-action-trigger={
-        !selectionMode && !unavailable ? "" : undefined
-      }
-      onContextMenu={
-        !selectionMode && !unavailable ? handleMessageContextMenu : undefined
-      }
+      data-message-action-trigger={!selectionMode && !unavailable ? "" : undefined}
+      onContextMenu={!selectionMode && !unavailable ? handleMessageContextMenu : undefined}
       ref={bubbleRef}
     >
       {message.replyTo && <MessageReplyReference replyTo={message.replyTo} />}
@@ -223,9 +198,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             enabled={message.body.type !== "revoked"}
             messageId={message.id}
             onSetReaction={
-              onSetReaction
-                ? (text, reacted) => onSetReaction(message, text, reacted)
-                : undefined
+              onSetReaction ? (text, reacted) => onSetReaction(message, text, reacted) : undefined
             }
             reactions={message.reactions}
           />
@@ -233,11 +206,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       )}
       {message.topic && onOpenTopic && (
         <TopicReplyPreview
-          onOpen={
-            selectionMode
-              ? undefined
-              : () => onOpenTopic(message.topic!.conversationId)
-          }
+          onOpen={selectionMode ? undefined : () => onOpenTopic(message.topic!.conversationId)}
           topic={message.topic}
         />
       )}
@@ -250,11 +219,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       <MessageActionMenu
         canRevoke={Boolean(onRevoke) && message.canRevoke}
         copyDisabled={message.body.type !== "image" && !copyText}
-        onCreateTopic={
-          onCreateTopic && !message.topic
-            ? () => onCreateTopic(message)
-            : undefined
-        }
+        onCreateTopic={onCreateTopic && !message.topic ? () => onCreateTopic(message) : undefined}
         onCopy={handleCopyMessage}
         onForward={onForward ? () => onForward(message) : undefined}
         onMultiSelect={onMultiSelect ? () => onMultiSelect(message) : undefined}
@@ -270,7 +235,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       className={cn(
         "group/message-row relative rounded-md transition-colors",
         selectionMode && "px-3 py-2 pl-11",
-        selected && "bg-primary/5"
+        selected && "bg-primary/5",
       )}
       data-conversation-message-id={message.id}
       data-message-selection-row
@@ -285,14 +250,12 @@ export const MessageBubble = React.memo(function MessageBubble({
           onCheckedChange={() => onToggleSelected?.(message)}
         />
       )}
-      <div
-        className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}
-      >
+      <div className={cn("flex gap-3", fromMe ? "justify-end" : "justify-start")}>
         {!fromMe && <MessageAvatar fallback={fallback} message={message} />}
         <div
           className={cn(
             "flex max-w-[min(70%,64rem)] flex-col gap-1",
-            fromMe ? "items-end" : "items-start"
+            fromMe ? "items-end" : "items-start",
           )}
         >
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -311,26 +274,19 @@ export const MessageBubble = React.memo(function MessageBubble({
             <span>{message.time}</span>
           </div>
           <div
-            className={cn(
-              "flex max-w-full items-end gap-1.5",
-              fromMe && "flex-row-reverse"
-            )}
+            className={cn("flex max-w-full items-end gap-1.5", fromMe && "flex-row-reverse")}
             data-slot="message-bubble-line"
           >
             {renderedMessageBody}
             {!selectionMode && onSetReaction && canAddReaction && (
               <MessageReactionAddButton
                 align={fromMe ? "end" : "start"}
-                onSetReaction={(text, reacted) =>
-                  onSetReaction(message, text, reacted)
-                }
+                onSetReaction={(text, reacted) => onSetReaction(message, text, reacted)}
               />
             )}
           </div>
           {message.delegatedByName && (
-            <div className="text-xs text-muted-foreground">
-              由 {message.delegatedByName} 代发
-            </div>
+            <div className="text-xs text-muted-foreground">由 {message.delegatedByName} 代发</div>
           )}
         </div>
         {fromMe && (
@@ -355,7 +311,7 @@ function areSystemMessageBadgePropsEqual(
     currentUserId: string
     mentionLabelResolver: MentionLabelResolver
     message: ConversationPanelMessage
-  }
+  },
 ) {
   return (
     previous.currentUserId === next.currentUserId &&
@@ -365,10 +321,7 @@ function areSystemMessageBadgePropsEqual(
   )
 }
 
-function areMessageBubblePropsEqual(
-  previous: MessageBubbleProps,
-  next: MessageBubbleProps
-) {
+function areMessageBubblePropsEqual(previous: MessageBubbleProps, next: MessageBubbleProps) {
   return (
     previous.conversation.name === next.conversation.name &&
     previous.conversation.type === next.conversation.type &&
@@ -392,10 +345,7 @@ function areMessageBubblePropsEqual(
   )
 }
 
-function arePanelMessagesEqual(
-  previous: ConversationPanelMessage,
-  next: ConversationPanelMessage
-) {
+function arePanelMessagesEqual(previous: ConversationPanelMessage, next: ConversationPanelMessage) {
   return (
     previous.id === next.id &&
     previous.author === next.author &&
@@ -417,7 +367,7 @@ function arePanelMessagesEqual(
 
 function areMessageTopicsEqual(
   previous: ConversationPanelMessage["topic"],
-  next: ConversationPanelMessage["topic"]
+  next: ConversationPanelMessage["topic"],
 ) {
   if (previous === next) {
     return true
@@ -445,7 +395,7 @@ function areMessageTopicsEqual(
 
 function areMentionTargetsEqual(
   previous: ConversationPanelMessage["mentionTarget"],
-  next: ConversationPanelMessage["mentionTarget"]
+  next: ConversationPanelMessage["mentionTarget"],
 ) {
   return (
     previous === next ||
@@ -459,7 +409,7 @@ function areMentionTargetsEqual(
 
 function areReplyTargetsEqual(
   previous: ConversationPanelMessage["replyTo"],
-  next: ConversationPanelMessage["replyTo"]
+  next: ConversationPanelMessage["replyTo"],
 ) {
   return (
     previous === next ||
@@ -473,7 +423,7 @@ function areReplyTargetsEqual(
 
 function areAppProfilesEqual(
   previous: ConversationPanelMessage["senderAppProfile"],
-  next: ConversationPanelMessage["senderAppProfile"]
+  next: ConversationPanelMessage["senderAppProfile"],
 ) {
   return (
     previous === next ||
@@ -491,7 +441,7 @@ async function copyMessageToClipboard(
   message: ConversationPanelMessage,
   selectedText: string,
   messageElement: HTMLElement | null,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ) {
   if (message.body.type === "image") {
     try {
@@ -504,9 +454,7 @@ async function copyMessageToClipboard(
   }
 
   const text =
-    (selectedText.trim()
-      ? selectedText
-      : getSelectedTextWithinElement(messageElement)) ||
+    (selectedText.trim() ? selectedText : getSelectedTextWithinElement(messageElement)) ||
     getMessageCopyText(message, mentionLabelResolver)
   if (!text) {
     toast.error("没有可复制内容")
@@ -551,7 +499,7 @@ function rangeIntersectsElement(range: Range, element: HTMLElement) {
 
 function getMessageCopyText(
   message: ConversationPanelMessage,
-  mentionLabelResolver: MentionLabelResolver
+  mentionLabelResolver: MentionLabelResolver,
 ) {
   switch (message.body.type) {
     case "file":
@@ -572,10 +520,7 @@ function getMessageCopyText(
       return `${message.body.title}\n${message.body.description}`
     case "markdown":
     case "text":
-      return formatMentionTemplateText(
-        message.body.content,
-        mentionLabelResolver
-      )
+      return formatMentionTemplateText(message.body.content, mentionLabelResolver)
     case "forward_bundle":
       return formatClientMessageBodySummary(message.body)
     case "system_event":
@@ -587,19 +532,11 @@ async function writeClipboardText(text: string) {
   await writeHostClipboardText(text)
 }
 
-function MessageReplyReference({
-  replyTo,
-}: {
-  replyTo: ConversationPanelReplyTarget
-}) {
+function MessageReplyReference({ replyTo }: { replyTo: ConversationPanelReplyTarget }) {
   return (
     <div className="mb-2 border-l-2 border-foreground/20 pl-2 text-xs">
-      <div className="truncate font-medium text-foreground/80">
-        {replyTo.author}
-      </div>
-      <div className="line-clamp-2 text-muted-foreground">
-        {replyTo.summary}
-      </div>
+      <div className="truncate font-medium text-foreground/80">{replyTo.author}</div>
+      <div className="line-clamp-2 text-muted-foreground">{replyTo.summary}</div>
     </div>
   )
 }
@@ -631,23 +568,15 @@ function TopicReplyPreview({
               <div className="flex min-w-0 items-center gap-2" key={reply.id}>
                 <Avatar className="size-5 shrink-0 rounded-sm bg-background after:rounded-sm">
                   {reply.avatar && (
-                    <AvatarImage
-                      alt={reply.author}
-                      className="rounded-sm"
-                      src={reply.avatar}
-                    />
+                    <AvatarImage alt={reply.author} className="rounded-sm" src={reply.avatar} />
                   )}
                   <AvatarFallback className="rounded-sm text-[9px]">
                     {getAvatarInitial(reply.author)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 truncate text-xs">
-                  <span className="font-medium text-foreground/90">
-                    {reply.author}
-                  </span>
-                  <span className="text-muted-foreground">
-                    ：{reply.summary}
-                  </span>
+                  <span className="font-medium text-foreground/90">{reply.author}</span>
+                  <span className="text-muted-foreground">：{reply.summary}</span>
                 </div>
               </div>
             ))}
@@ -666,9 +595,7 @@ function TopicReplyPreview({
           查看话题
         </button>
         {latestReplyTime && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {latestReplyTime}
-          </span>
+          <span className="shrink-0 text-xs text-muted-foreground">{latestReplyTime}</span>
         )}
       </div>
     </div>
@@ -687,15 +614,9 @@ function MessageAvatar({
   const avatar = (
     <Avatar className="mt-1 size-8 rounded-sm bg-muted after:rounded-sm">
       {message.avatar && (
-        <AvatarImage
-          alt={message.author}
-          className="rounded-sm"
-          src={message.avatar}
-        />
+        <AvatarImage alt={message.author} className="rounded-sm" src={message.avatar} />
       )}
-      <AvatarFallback className={cn("rounded-sm", fallbackClassName)}>
-        {fallback}
-      </AvatarFallback>
+      <AvatarFallback className={cn("rounded-sm", fallbackClassName)}>{fallback}</AvatarFallback>
     </Avatar>
   )
 
@@ -721,11 +642,7 @@ function MessageAvatarProfile({
     )
   }
 
-  return (
-    <UserProfilePopover userId={message.senderUserId}>
-      {children}
-    </UserProfilePopover>
-  )
+  return <UserProfilePopover userId={message.senderUserId}>{children}</UserProfilePopover>
 }
 
 type MessageBodyRendererProps = {
@@ -753,9 +670,7 @@ export const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
     case "chart":
       return (
         <MessageRenderErrorBoundary
-          fallback={
-            <span className="text-muted-foreground">暂不支持查看该消息</span>
-          }
+          fallback={<span className="text-muted-foreground">暂不支持查看该消息</span>}
           resetKey={body}
         >
           <React.Suspense
@@ -802,7 +717,7 @@ export const MessageBodyRenderer = React.memo(function MessageBodyRenderer({
 
 function areMessageBodyRendererPropsEqual(
   previous: MessageBodyRendererProps,
-  next: MessageBodyRendererProps
+  next: MessageBodyRendererProps,
 ) {
   return (
     previous.body === next.body &&
@@ -812,9 +727,7 @@ function areMessageBodyRendererPropsEqual(
   )
 }
 
-function messageBodyUsesMentionLabels(
-  body: ConversationPanelMessage["body"]
-): boolean {
+function messageBodyUsesMentionLabels(body: ConversationPanelMessage["body"]): boolean {
   if (body.type === "text" || body.type === "markdown") {
     return body.content.includes("{(@")
   }
@@ -849,9 +762,7 @@ function ForwardBundleMessage({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-medium">聊天记录</span>
-            <span className="block max-w-80 truncate text-xs text-muted-foreground">
-              {summary}
-            </span>
+            <span className="block max-w-80 truncate text-xs text-muted-foreground">{summary}</span>
           </span>
         </button>
       </DialogTrigger>
@@ -864,17 +775,10 @@ function ForwardBundleMessage({
         </DialogHeader>
         <div className="min-h-0 overflow-y-auto overscroll-contain rounded-md border px-4">
           {body.items.map((item, index) => (
-            <div
-              className="border-b py-4 last:border-b-0"
-              key={`${item.sentAt}-${index}`}
-            >
+            <div className="border-b py-4 last:border-b-0" key={`${item.sentAt}-${index}`}>
               <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span className="truncate font-medium text-foreground/80">
-                  {item.senderName}
-                </span>
-                <span className="shrink-0">
-                  {formatForwardBundleItemTime(item.sentAt)}
-                </span>
+                <span className="truncate font-medium text-foreground/80">{item.senderName}</span>
+                <span className="shrink-0">{formatForwardBundleItemTime(item.sentAt)}</span>
               </div>
               <ForwardBundleItemBody
                 body={item.body}
@@ -949,7 +853,7 @@ function TextMessageBody({
             currentUserId={currentUserId}
             part={part}
           />
-        )
+        ),
       )}
     </span>
   )
@@ -960,18 +864,13 @@ function MentionTextPart({
   part,
 }: {
   currentUserId: string
-  part: Extract<
-    ReturnType<typeof parseMentionTemplate>[number],
-    { type: "mention" }
-  >
+  part: Extract<ReturnType<typeof parseMentionTemplate>[number], { type: "mention" }>
 }) {
   const isCurrentUserMention =
     part.targetType === "all" ||
     (part.targetType === "user" && isSameUserId(part.id, currentUserId))
   const content = (
-    <span className={getMentionTextClassName(isCurrentUserMention)}>
-      {part.label}
-    </span>
+    <span className={getMentionTextClassName(isCurrentUserMention)}>{part.label}</span>
   )
 
   if (part.targetType !== "user") {

@@ -19,10 +19,7 @@ let conversations: ClientConversation[] = []
 
 vi.mock("@/lib/realtime-context", () => ({
   useRealtime: () => ({
-    subscribeRealtimeEvent: (
-      event: string,
-      callback: (payload: unknown) => void
-    ) => {
+    subscribeRealtimeEvent: (event: string, callback: (payload: unknown) => void) => {
       callbacks.set(event, callback)
       return () => callbacks.delete(event)
     },
@@ -112,7 +109,7 @@ function renderNotificationSync() {
   render(
     <MemoryRouter initialEntries={["/chat"]}>
       <ClientMessageNotificationSync />
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 
@@ -131,9 +128,7 @@ function createMessageEvent(notificationMuted: boolean) {
   }
 }
 
-function createConversation(
-  overrides: Partial<ClientConversation> = {}
-): ClientConversation {
+function createConversation(overrides: Partial<ClientConversation> = {}): ClientConversation {
   return {
     avatar: "",
     createdAt: "2026-07-27T00:00:00Z",

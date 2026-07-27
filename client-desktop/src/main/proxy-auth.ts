@@ -6,12 +6,15 @@ type LoginCallback = (username?: string, password?: string) => void
 
 export class ProxyAuthPrompt {
   private window?: BrowserWindow
-  private readonly credentials = new Map<string, { expiresAt: number; password: string; username: string }>()
+  private readonly credentials = new Map<
+    string,
+    { expiresAt: number; password: string; username: string }
+  >()
 
   constructor(
     private readonly windows: WindowController,
     private readonly iconPath: string,
-    private readonly preloadPath = path.resolve(__dirname, "../preload/index.cjs")
+    private readonly preloadPath = path.resolve(__dirname, "../preload/index.cjs"),
   ) {}
 
   show(callback: LoginCallback, proxyHost = ""): void {
@@ -29,7 +32,14 @@ export class ProxyAuthPrompt {
       resizable: false,
       show: false,
       title: "代理认证",
-      webPreferences: { additionalArguments: ["--magicchat-proxy-auth"], contextIsolation: true, nodeIntegration: false, preload: this.preloadPath, sandbox: true, webSecurity: true },
+      webPreferences: {
+        additionalArguments: ["--magicchat-proxy-auth"],
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: this.preloadPath,
+        sandbox: true,
+        webSecurity: true,
+      },
       width: 430,
     })
     this.window = prompt
@@ -42,17 +52,29 @@ export class ProxyAuthPrompt {
       ipcMain.removeListener("desktop:internal:proxy-auth-cancel", cancel)
       callback(username, password)
       if (proxyHost && username !== undefined && password !== undefined) {
-        this.credentials.set(proxyHost.toLowerCase(), { expiresAt: Date.now() + 10 * 60_000, password, username })
+        this.credentials.set(proxyHost.toLowerCase(), {
+          expiresAt: Date.now() + 10 * 60_000,
+          password,
+          username,
+        })
       }
       if (!prompt.isDestroyed()) prompt.destroy()
     }
     const submit = (event: Electron.IpcMainEvent, value: unknown) => {
       if (event.sender.id !== prompt.webContents.id || !value || typeof value !== "object") return
       const input = value as { password?: unknown; username?: unknown }
-      if (typeof input.username !== "string" || typeof input.password !== "string" || input.username.length > 256 || input.password.length > 1024) return
+      if (
+        typeof input.username !== "string" ||
+        typeof input.password !== "string" ||
+        input.username.length > 256 ||
+        input.password.length > 1024
+      )
+        return
       settle(input.username, input.password)
     }
-    const cancel = (event: Electron.IpcMainEvent) => { if (event.sender.id === prompt.webContents.id) settle() }
+    const cancel = (event: Electron.IpcMainEvent) => {
+      if (event.sender.id === prompt.webContents.id) settle()
+    }
     ipcMain.on("desktop:internal:proxy-auth-submit", submit)
     ipcMain.on("desktop:internal:proxy-auth-cancel", cancel)
     const timeout = setTimeout(() => settle(), 2 * 60_000)

@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import {
-  getClientProjectTask,
-  updateClientProjectTask,
-} from "@/lib/project-task-data-api"
+import { getClientProjectTask, updateClientProjectTask } from "@/lib/project-task-data-api"
 
 describe("project task reminder data API", () => {
   it("normalizes a weekly reminder", async () => {
@@ -20,7 +17,7 @@ describe("project task reminder data API", () => {
           last_processed_at: null,
           state: "scheduled",
         }),
-      })
+      }),
     )
 
     const task = await getClientProjectTask("project-1", "task-1", fetcher)
@@ -50,7 +47,7 @@ describe("project task reminder data API", () => {
           last_processed_at: null,
           state: "scheduled",
         }),
-      })
+      }),
     )
 
     await updateClientProjectTask(
@@ -65,7 +62,7 @@ describe("project task reminder data API", () => {
           timezone: "Asia/Singapore",
         },
       },
-      fetcher
+      fetcher,
     )
 
     const request = fetcher.mock.calls[0]?.[1] as RequestInit

@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  classifyDesktopLink,
-  installDesktopLinkNavigation,
-} from "@/lib/desktop-link-navigation"
+import { classifyDesktopLink, installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
 
 describe("Desktop 链接导航", () => {
   beforeEach(() => {
@@ -14,9 +11,9 @@ describe("Desktop 链接导航", () => {
     const anchor = document.createElement("a")
     anchor.href = "/contacts"
 
-    expect(
-      classifyDesktopLink(anchor, "http://localhost:20050/chat")
-    ).toEqual({ action: "internal" })
+    expect(classifyDesktopLink(anchor, "http://localhost:20050/chat")).toEqual({
+      action: "internal",
+    })
   })
 
   it("不会取消站内菜单的点击事件", () => {

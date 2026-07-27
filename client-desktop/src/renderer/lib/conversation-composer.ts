@@ -5,10 +5,7 @@ import { getConversationMemberMentionLabel } from "@/lib/conversation-mention-la
 import type { ClientConversationMember } from "@/lib/client-data-api"
 import type { ConversationPanelMentionTarget } from "@/lib/conversation-panel-types"
 import { createMentionToken } from "@/lib/message-mentions"
-import {
-  createPinyinSearchText,
-  normalizePinyinSearchQuery,
-} from "@/lib/pinyin-search"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 
 const maxMentionCandidateResults = 50
 
@@ -42,14 +39,12 @@ export function getClipboardImageFile(clipboardData: DataTransfer) {
 export function insertTextareaText(
   textarea: HTMLTextAreaElement,
   text: string,
-  onChange: (value: string, cursor: number) => void
+  onChange: (value: string, cursor: number) => void,
 ) {
   const selectionStart = textarea.selectionStart
   const selectionEnd = textarea.selectionEnd
   const nextValue =
-    textarea.value.slice(0, selectionStart) +
-    text +
-    textarea.value.slice(selectionEnd)
+    textarea.value.slice(0, selectionStart) + text + textarea.value.slice(selectionEnd)
   const nextCursor = selectionStart + text.length
 
   textarea.value = nextValue
@@ -57,15 +52,11 @@ export function insertTextareaText(
   onChange(nextValue, nextCursor)
 }
 
-export function isImeCompositionKeyEvent(
-  event: KeyboardEvent<HTMLTextAreaElement>
-) {
+export function isImeCompositionKeyEvent(event: KeyboardEvent<HTMLTextAreaElement>) {
   return event.nativeEvent.isComposing || event.keyCode === 229
 }
 
-export function createMentionCandidates(
-  members: ClientConversationMember[]
-): MentionCandidate[] {
+export function createMentionCandidates(members: ClientConversationMember[]): MentionCandidate[] {
   const memberCandidates = members
     .map((member): MentionCandidate | null => {
       const label = getConversationMemberMentionLabel(member)
@@ -73,8 +64,7 @@ export function createMentionCandidates(
         return null
       }
 
-      const description =
-        member.type === "app" ? "应用" : member.email || member.phone || "成员"
+      const description = member.type === "app" ? "应用" : member.email || member.phone || "成员"
       const searchText = createPinyinSearchText([
         label,
         member.name,
@@ -108,15 +98,10 @@ export function createMentionCandidates(
   ]
 }
 
-export function filterMentionCandidates(
-  candidates: MentionCandidate[],
-  query: string
-) {
+export function filterMentionCandidates(candidates: MentionCandidate[], query: string) {
   const normalizedQuery = normalizePinyinSearchQuery(query)
   const filteredCandidates = normalizedQuery
-    ? candidates.filter((candidate) =>
-        candidate.searchText.includes(normalizedQuery)
-      )
+    ? candidates.filter((candidate) => candidate.searchText.includes(normalizedQuery))
     : candidates
 
   return filteredCandidates.slice(0, maxMentionCandidateResults)
@@ -130,10 +115,7 @@ export function getVisibleMentionIndex(index: number, length: number) {
   return Math.min(index, length - 1)
 }
 
-export function getMentionTrigger(
-  value: string,
-  cursor: number
-): MentionTrigger | null {
+export function getMentionTrigger(value: string, cursor: number): MentionTrigger | null {
   const beforeCursor = value.slice(0, cursor)
   const start = beforeCursor.lastIndexOf("@")
   if (start < 0) {
@@ -154,7 +136,7 @@ export function getMentionTrigger(
 export function syncDraftMentions(
   mentions: ConversationDraftMention[],
   previousValue: string,
-  value: string
+  value: string,
 ): ConversationDraftMention[] {
   if (!value) {
     return []
@@ -221,10 +203,7 @@ function getTextChange(previousValue: string, value: string): TextChange {
   }
 }
 
-function shiftDraftMention(
-  mention: ConversationDraftMention,
-  textChange: TextChange
-) {
+function shiftDraftMention(mention: ConversationDraftMention, textChange: TextChange) {
   if (mention.end <= textChange.start) {
     return mention
   }
@@ -240,16 +219,10 @@ function shiftDraftMention(
   return null
 }
 
-export function createDraftMentionTemplate(
-  value: string,
-  mentions: ConversationDraftMention[]
-) {
+export function createDraftMentionTemplate(value: string, mentions: ConversationDraftMention[]) {
   let content = value
   const validMentions = mentions
-    .filter(
-      (mention) =>
-        value.slice(mention.start, mention.end) === getDraftMentionText(mention)
-    )
+    .filter((mention) => value.slice(mention.start, mention.end) === getDraftMentionText(mention))
     .sort((mentionA, mentionB) => mentionB.start - mentionA.start)
 
   for (const mention of validMentions) {

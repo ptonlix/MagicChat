@@ -1,13 +1,6 @@
 import * as React from "react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
-import {
-  Copy,
-  Forward,
-  ListChecks,
-  MessageSquareText,
-  Reply,
-  Undo2,
-} from "lucide-react"
+import { Copy, Forward, ListChecks, MessageSquareText, Reply, Undo2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -43,9 +36,7 @@ export function MessageActionMenu({
 }: MessageActionMenuProps) {
   return (
     <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>
-        {children}
-      </ContextMenuPrimitive.Trigger>
+      <ContextMenuPrimitive.Trigger asChild>{children}</ContextMenuPrimitive.Trigger>
       <ContextMenuPrimitive.Portal>
         <ContextMenuPrimitive.Content
           className={cn(
@@ -53,7 +44,7 @@ export function MessageActionMenu({
             "origin-(--radix-context-menu-content-transform-origin) duration-100",
             "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-            "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+            "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           )}
           data-slot="message-action-menu"
         >
@@ -94,11 +85,7 @@ export function MessageActionMenu({
           {canRevoke && (
             <>
               <ContextMenuPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
-              <MessageActionMenuItem
-                disabled={!onRevoke}
-                onSelect={onRevoke}
-                variant="destructive"
-              >
+              <MessageActionMenuItem disabled={!onRevoke} onSelect={onRevoke} variant="destructive">
                 <Undo2 aria-hidden="true" className="size-4" />
                 <span>撤回</span>
               </MessageActionMenuItem>
@@ -131,7 +118,7 @@ function MessageActionMenuItem({
         "data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         variant === "destructive" &&
           "text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20",
-        className
+        className,
       )}
       data-slot="message-action-menu-item"
       data-variant={variant}

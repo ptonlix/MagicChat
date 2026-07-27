@@ -63,12 +63,9 @@ export function CustomAvatarPicker({
   const [dragging, setDragging] = React.useState(false)
   const [offset, setOffset] = React.useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoom] = React.useState(1)
-  const imageLayout = imageSize
-    ? getImageLayout(imageSize, zoom, cropFrameSize)
-    : null
+  const imageLayout = imageSize ? getImageLayout(imageSize, zoom, cropFrameSize) : null
   const interactionsDisabled = disabled || saving
-  const cropControlsDisabled =
-    interactionsDisabled || !sourceUrl || !imageLayout
+  const cropControlsDisabled = interactionsDisabled || !sourceUrl || !imageLayout
 
   React.useEffect(() => {
     if (!sourceUrl) {
@@ -129,8 +126,8 @@ export function CustomAvatarPicker({
           y: currentOffset.y * ratio,
         },
         nextLayout,
-        cropFrameSize
-      )
+        cropFrameSize,
+      ),
     )
   }, [cropFrameSize, imageSize, zoom])
 
@@ -177,19 +174,13 @@ export function CustomAvatarPicker({
       width: event.currentTarget.naturalWidth,
     }
 
-    if (
-      nextImageSize.width < avatarMinSourceSize ||
-      nextImageSize.height < avatarMinSourceSize
-    ) {
+    if (nextImageSize.width < avatarMinSourceSize || nextImageSize.height < avatarMinSourceSize) {
       resetImage()
       setError("图片尺寸不能小于 64x64")
       return
     }
 
-    if (
-      nextImageSize.width > avatarMaxSourceSize ||
-      nextImageSize.height > avatarMaxSourceSize
-    ) {
+    if (nextImageSize.width > avatarMaxSourceSize || nextImageSize.height > avatarMaxSourceSize) {
       resetImage()
       setError("图片尺寸不能超过 4096x4096")
       return
@@ -243,8 +234,8 @@ export function CustomAvatarPicker({
           y: dragStartRef.current.offset.y + delta.y,
         },
         imageLayout,
-        cropFrameSize
-      )
+        cropFrameSize,
+      ),
     )
   }
 
@@ -280,7 +271,7 @@ export function CustomAvatarPicker({
           y: cropCenter - imageFocus.y * nextLayout.displayHeight,
         },
         nextLayout,
-        cropFrameSize
+        cropFrameSize,
       )
     })
     setZoom(nextZoom)
@@ -332,14 +323,9 @@ export function CustomAvatarPicker({
           aria-label={sourceUrl ? "头像裁切区域" : undefined}
           className={cn(
             "relative aspect-square w-full overflow-hidden rounded-md bg-muted",
-            sourceUrl
-              ? "touch-none"
-              : "bg-muted transition-colors hover:bg-muted/20",
-            sourceUrl &&
-              (interactionsDisabled
-                ? "cursor-default opacity-60"
-                : "cursor-grab"),
-            dragging && "cursor-grabbing"
+            sourceUrl ? "touch-none" : "bg-muted transition-colors hover:bg-muted/20",
+            sourceUrl && (interactionsDisabled ? "cursor-default opacity-60" : "cursor-grab"),
+            dragging && "cursor-grabbing",
           )}
           onPointerCancel={sourceUrl ? handlePointerEnd : undefined}
           onPointerDown={sourceUrl ? handlePointerDown : undefined}
@@ -371,7 +357,7 @@ export function CustomAvatarPicker({
             <button
               className={cn(
                 "absolute inset-0 flex flex-col items-center justify-center gap-3 px-4 text-center text-sm text-muted-foreground",
-                interactionsDisabled && "pointer-events-none opacity-50"
+                interactionsDisabled && "pointer-events-none opacity-50",
               )}
               disabled={interactionsDisabled}
               onClick={openFilePicker}
@@ -434,9 +420,7 @@ export function CustomAvatarPicker({
           onClick={() => void handleSave()}
           type="button"
         >
-          {saving && (
-            <Loader2Icon aria-hidden="true" className="animate-spin" />
-          )}
+          {saving && <Loader2Icon aria-hidden="true" className="animate-spin" />}
           保存
         </Button>
       </div>
@@ -476,13 +460,12 @@ async function createCroppedAvatar({
     offset.x * outputScale,
     offset.y * outputScale,
     layout.displayWidth * outputScale,
-    layout.displayHeight * outputScale
+    layout.displayHeight * outputScale,
   )
 
   const previewUrl = canvas.toDataURL(avatarOutputType, avatarOutputQuality)
   const blob =
-    (await canvasToBlob(canvas, avatarOutputType, avatarOutputQuality)) ??
-    dataUrlToBlob(previewUrl)
+    (await canvasToBlob(canvas, avatarOutputType, avatarOutputQuality)) ?? dataUrlToBlob(previewUrl)
   const file = new File([blob], createAvatarFileName(sourceFile.name), {
     type: blob.type || avatarOutputType,
   })
@@ -493,11 +476,7 @@ async function createCroppedAvatar({
   }
 }
 
-function canvasToBlob(
-  canvas: HTMLCanvasElement,
-  type: string,
-  quality: number
-) {
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, type, quality)
   })
@@ -522,13 +501,8 @@ function createAvatarFileName(fileName: string) {
   return `${baseName}.webp`
 }
 
-function getImageLayout(
-  imageSize: ImageSize,
-  zoom: number,
-  viewportSize: number
-): ImageLayout {
-  const scale =
-    (viewportSize / Math.min(imageSize.width, imageSize.height)) * zoom
+function getImageLayout(imageSize: ImageSize, zoom: number, viewportSize: number): ImageLayout {
+  const scale = (viewportSize / Math.min(imageSize.width, imageSize.height)) * zoom
 
   return {
     displayHeight: imageSize.height * scale,
@@ -536,11 +510,7 @@ function getImageLayout(
   }
 }
 
-function clampOffset(
-  offset: Point,
-  layout: ImageLayout,
-  viewportSize: number
-): Point {
+function clampOffset(offset: Point, layout: ImageLayout, viewportSize: number): Point {
   return {
     x: clamp(offset.x, viewportSize - layout.displayWidth, 0),
     y: clamp(offset.y, viewportSize - layout.displayHeight, 0),

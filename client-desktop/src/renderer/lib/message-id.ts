@@ -4,7 +4,7 @@ type ClientMessageIdCrypto = {
 }
 
 export function createClientMessageId(
-  randomSource: ClientMessageIdCrypto | undefined = getGlobalCrypto()
+  randomSource: ClientMessageIdCrypto | undefined = getGlobalCrypto(),
 ) {
   if (typeof randomSource?.randomUUID === "function") {
     return randomSource.randomUUID()
@@ -37,10 +37,7 @@ function getGlobalCrypto(): ClientMessageIdCrypto | undefined {
             crypto.getRandomValues(array)
           }
         : undefined,
-    randomUUID:
-      typeof crypto.randomUUID === "function"
-        ? () => crypto.randomUUID()
-        : undefined,
+    randomUUID: typeof crypto.randomUUID === "function" ? () => crypto.randomUUID() : undefined,
   }
 }
 

@@ -15,7 +15,8 @@ describe("桌面客户端契约", () => {
   })
 
   it("认证目标键不会因分隔符产生碰撞", () => {
-    expect(targetKey({ id: "a:b", normalizedUrl: "https://one.test", userId: "c" }))
-      .not.toBe(targetKey({ id: "a", normalizedUrl: "https://one.test", userId: "b:c" }))
+    expect(targetKey({ id: "a:b", normalizedUrl: "https://one.test", userId: "c" })).not.toBe(
+      targetKey({ id: "a", normalizedUrl: "https://one.test", userId: "b:c" }),
+    )
   })
 })

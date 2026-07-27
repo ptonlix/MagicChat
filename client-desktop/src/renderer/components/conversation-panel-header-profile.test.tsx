@@ -4,14 +4,8 @@ import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
 import { ConversationPanel } from "@/components/conversation-panel"
-import type {
-  ClientConversation,
-  ClientConversationMember,
-} from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import type { ClientConversation, ClientConversationMember } from "@/lib/client-data-api"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 describe("ConversationPanel header profile", () => {
   it("opens the direct conversation user profile and previews its avatar", async () => {
@@ -48,9 +42,7 @@ describe("ConversationPanel header profile", () => {
 
     await user.click(screen.getByRole("button", { name: "预览李四头像" }))
 
-    expect(
-      await screen.findByRole("dialog", { name: "李四头像预览" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "李四头像预览" })).toBeInTheDocument()
   })
 
   it("opens the application profile from an app conversation header", async () => {
@@ -139,22 +131,17 @@ describe("ConversationPanel header profile", () => {
 
     await user.click(screen.getByRole("button", { name: "预览项目群头像" }))
 
-    expect(
-      await screen.findByRole("dialog", { name: "项目群头像预览" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "项目群头像预览" })).toBeInTheDocument()
   })
-
 })
 
 function renderConversationHeader(
   conversation: ClientConversation,
-  clientDataOverrides: Partial<ClientDataContextValue> = {}
+  clientDataOverrides: Partial<ClientDataContextValue> = {},
 ) {
   render(
     <MemoryRouter>
-      <ClientDataContext.Provider
-        value={createClientDataValue(clientDataOverrides)}
-      >
+      <ClientDataContext.Provider value={createClientDataValue(clientDataOverrides)}>
         <ConversationPanel
           conversation={conversation}
           currentUserId="user-1"
@@ -178,13 +165,11 @@ function renderConversationHeader(
           sending={false}
         />
       </ClientDataContext.Provider>
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 
-function createConversation(
-  overrides: Partial<ClientConversation> = {}
-): ClientConversation {
+function createConversation(overrides: Partial<ClientConversation> = {}): ClientConversation {
   return {
     avatar: "",
     createdAt: "2026-07-10T00:00:00Z",
@@ -205,9 +190,7 @@ function createConversation(
   }
 }
 
-function createMember(
-  overrides: Partial<ClientConversationMember> = {}
-): ClientConversationMember {
+function createMember(overrides: Partial<ClientConversationMember> = {}): ClientConversationMember {
   return {
     avatar: "",
     email: "me@example.com",
@@ -222,7 +205,7 @@ function createMember(
 }
 
 function createClientDataValue(
-  overrides: Partial<ClientDataContextValue> = {}
+  overrides: Partial<ClientDataContextValue> = {},
 ): ClientDataContextValue {
   return {
     contactApps: [],

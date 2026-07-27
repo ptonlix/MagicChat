@@ -33,7 +33,7 @@ describe("MessageImage", () => {
     render(
       <div onContextMenu={onContextMenu}>
         <MessageImage image={{ fileId: "file-1", type: "image" }} />
-      </div>
+      </div>,
     )
 
     fireEvent.click(await screen.findByRole("button", { name: "预览图片" }))

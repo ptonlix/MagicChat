@@ -10,11 +10,7 @@ import {
   type ClientMessageReactionUser,
 } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type MessageReactionChipsProps = {
   align?: "start" | "end"
@@ -35,9 +31,7 @@ export function MessageReactionChips({
   onSetReaction,
   reactions,
 }: MessageReactionChipsProps) {
-  const [pendingTexts, setPendingTexts] = React.useState<ReadonlySet<string>>(
-    new Set()
-  )
+  const [pendingTexts, setPendingTexts] = React.useState<ReadonlySet<string>>(new Set())
 
   if (reactions.length === 0) {
     return null
@@ -63,13 +57,12 @@ export function MessageReactionChips({
     <div
       className={cn(
         "flex max-w-full flex-wrap items-center gap-1",
-        align === "end" ? "justify-end" : "justify-start"
+        align === "end" ? "justify-end" : "justify-start",
       )}
       data-slot="message-reactions"
     >
       {reactions.map((reaction) => {
-        const canToggle =
-          enabled && Boolean(onSetReaction) && (canAdd || reaction.reactedByMe)
+        const canToggle = enabled && Boolean(onSetReaction) && (canAdd || reaction.reactedByMe)
         return (
           <div
             className={cn(
@@ -77,7 +70,7 @@ export function MessageReactionChips({
               align === "end"
                 ? "bg-background/60 text-foreground dark:bg-teal-900"
                 : "bg-zinc-200 text-foreground dark:bg-zinc-700",
-              !canToggle && "opacity-80"
+              !canToggle && "opacity-80",
             )}
             data-slot="message-reaction-chip"
             key={reaction.text}
@@ -86,12 +79,10 @@ export function MessageReactionChips({
               aria-label={`${reaction.reactedByMe ? "移除" : "添加"}表情 ${reaction.text}`}
               className={cn(
                 "shrink-0 cursor-pointer rounded-sm transition-opacity outline-none hover:opacity-70 focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                !canToggle && "cursor-default"
+                !canToggle && "cursor-default",
               )}
               disabled={!canToggle || pendingTexts.has(reaction.text)}
-              onClick={() =>
-                void setReaction(reaction.text, !reaction.reactedByMe)
-              }
+              onClick={() => void setReaction(reaction.text, !reaction.reactedByMe)}
               type="button"
             >
               {reaction.text}
@@ -184,11 +175,7 @@ function MessageReactionUsersPopover({
     if (!nextOpen) return
     setLoading(true)
     setError("")
-    void listConversationMessageReactionUsers(
-      conversationId,
-      messageId,
-      reaction.text
-    )
+    void listConversationMessageReactionUsers(conversationId, messageId, reaction.text)
       .then((nextUsers) => {
         if (requestVersionRef.current === requestVersion) setUsers(nextUsers)
       })
@@ -224,13 +211,9 @@ function MessageReactionUsersPopover({
               正在加载
             </div>
           ) : error ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              {error}
-            </div>
+            <div className="py-8 text-center text-sm text-muted-foreground">{error}</div>
           ) : users.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              暂无参与者
-            </div>
+            <div className="py-8 text-center text-sm text-muted-foreground">暂无参与者</div>
           ) : (
             <div className="grid gap-0.5">
               {users.map((user) => (

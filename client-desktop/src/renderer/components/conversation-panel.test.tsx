@@ -3,15 +3,9 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
-import {
-  ConversationPanel,
-  type ConversationPanelMessage,
-} from "@/components/conversation-panel"
+import { ConversationPanel, type ConversationPanelMessage } from "@/components/conversation-panel"
 import type { ClientConversation } from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 describe("ConversationPanel", () => {
   it("treats a history header as the first message instead of showing an empty state", () => {
@@ -38,7 +32,7 @@ describe("ConversationPanel", () => {
         replyTarget={null}
         richTextMode={false}
         sending={false}
-      />
+      />,
     )
 
     expect(screen.getByText("话题来源消息")).toBeInTheDocument()
@@ -92,14 +86,12 @@ describe("ConversationPanel", () => {
         replyTarget={null}
         richTextMode={false}
         sending={false}
-      />
+      />,
     )
 
     expect(screen.getByText("Alice 已将话题关闭")).toBeInTheDocument()
     expect(screen.queryByPlaceholderText("输入消息")).not.toBeInTheDocument()
-    expect(
-      screen.queryByText("话题已归档，无法继续发言")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText("话题已归档，无法继续发言")).not.toBeInTheDocument()
   })
 
   it("keeps retained history visible but disables message mutations when access is revoked", async () => {
@@ -162,7 +154,7 @@ describe("ConversationPanel", () => {
             sending={false}
           />
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     expect(screen.getByText("保留的历史消息")).toBeVisible()
@@ -178,9 +170,7 @@ describe("ConversationPanel", () => {
     expect(messageActionTrigger).not.toBeNull()
     fireEvent.contextMenu(messageActionTrigger!)
     await waitFor(() =>
-      expect(
-        screen.queryByRole("menuitem", { name: "撤回" })
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole("menuitem", { name: "撤回" })).not.toBeInTheDocument(),
     )
     expect(onRevokeMessage).not.toHaveBeenCalled()
   })
@@ -208,7 +198,7 @@ describe("ConversationPanel", () => {
         replyTarget={null}
         richTextMode={false}
         sending={false}
-      />
+      />,
     )
 
     const composer = screen.getByPlaceholderText("输入消息")
@@ -244,7 +234,7 @@ describe("ConversationPanel", () => {
         }}
         richTextMode={false}
         sending={false}
-      />
+      />,
     )
 
     await waitFor(() => expect(composer).toHaveFocus())
@@ -275,7 +265,7 @@ describe("ConversationPanel", () => {
         replyTarget={null}
         richTextMode={false}
         sending={false}
-      />
+      />,
     )
 
     const composer = screen.getByPlaceholderText("输入消息")
@@ -346,7 +336,7 @@ describe("ConversationPanel", () => {
             sending={false}
           />
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     const appProfileTrigger = screen.getByRole("button", {
@@ -422,7 +412,7 @@ function createAppPanelMessage({
 }
 
 function createClientDataValue(
-  overrides: Partial<ClientDataContextValue> = {}
+  overrides: Partial<ClientDataContextValue> = {},
 ): ClientDataContextValue {
   const value: Partial<ClientDataContextValue> = {
     contactApps: [],

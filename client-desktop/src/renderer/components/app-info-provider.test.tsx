@@ -20,14 +20,14 @@ describe("AppInfoProvider", () => {
         () =>
           new Promise<Response>((resolve) => {
             resolveInfo = resolve
-          })
-      )
+          }),
+      ),
     )
 
     render(
       <AppInfoProvider>
         <AuthenticationProbe />
-      </AppInfoProvider>
+      </AppInfoProvider>,
     )
 
     await user.click(screen.getByRole("button", { name: "标记为已退出" }))
@@ -47,8 +47,8 @@ describe("AppInfoProvider", () => {
           {
             headers: { "content-type": "application/json" },
             status: 200,
-          }
-        )
+          },
+        ),
       )
     })
 

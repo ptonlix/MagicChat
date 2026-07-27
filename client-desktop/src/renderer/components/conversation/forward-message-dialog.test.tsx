@@ -3,10 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { ForwardMessageDialog } from "@/components/conversation/forward-message-dialog"
-import type {
-  ClientConversation,
-  ForwardConversationMessagesResult,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ForwardConversationMessagesResult } from "@/lib/client-data-api"
 
 describe("ForwardMessageDialog", () => {
   it("selects multiple conversations including the current one", async () => {
@@ -41,7 +38,7 @@ describe("ForwardMessageDialog", () => {
         onForward={onForward}
         onOpenChange={onOpenChange}
         open
-      />
+      />,
     )
 
     expect(screen.queryByText("当前会话")).not.toBeInTheDocument()
@@ -58,11 +55,7 @@ describe("ForwardMessageDialog", () => {
     const user = userEvent.setup()
     const onComplete = vi.fn()
     const onForward = vi
-      .fn<
-        (
-          targetConversationIds: string[]
-        ) => Promise<ForwardConversationMessagesResult>
-      >()
+      .fn<(targetConversationIds: string[]) => Promise<ForwardConversationMessagesResult>>()
       .mockResolvedValueOnce({
         failedCount: 1,
         results: [
@@ -104,7 +97,7 @@ describe("ForwardMessageDialog", () => {
         onForward={onForward}
         onOpenChange={onOpenChange}
         open
-      />
+      />,
     )
 
     await user.click(screen.getByRole("checkbox", { name: "会话一" }))
@@ -112,10 +105,7 @@ describe("ForwardMessageDialog", () => {
     await user.click(screen.getByRole("button", { name: "转发（2）" }))
 
     await waitFor(() => expect(onForward).toHaveBeenCalledTimes(1))
-    expect(onForward).toHaveBeenNthCalledWith(1, [
-      "conversation-1",
-      "conversation-2",
-    ])
+    expect(onForward).toHaveBeenNthCalledWith(1, ["conversation-1", "conversation-2"])
     expect(screen.getByRole("checkbox", { name: "会话一" })).toBeDisabled()
 
     await user.click(screen.getByRole("button", { name: "转发（1）" }))
@@ -134,23 +124,19 @@ describe("ForwardMessageDialog", () => {
 
     render(
       <ForwardMessageDialog
-        conversations={[
-          createConversation("conversation-1", "当前群聊", "group"),
-        ]}
+        conversations={[createConversation("conversation-1", "当前群聊", "group")]}
         messageCount={1}
         onComplete={vi.fn()}
         onForward={onForward}
         onOpenChange={onOpenChange}
         open
-      />
+      />,
     )
 
     await user.click(screen.getByRole("checkbox", { name: "当前群聊" }))
     await user.click(screen.getByRole("button", { name: "转发（1）" }))
 
-    expect(
-      screen.queryByRole("button", { name: "Close" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument()
     await user.keyboard("{Escape}")
     expect(onOpenChange).not.toHaveBeenCalled()
 
@@ -170,9 +156,7 @@ describe("ForwardMessageDialog", () => {
       await deferred.promise
     })
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument())
   })
 })
 
@@ -187,7 +171,7 @@ function createDeferred<T>() {
 function createConversation(
   id: string,
   name: string,
-  type: ClientConversation["type"]
+  type: ClientConversation["type"],
 ): ClientConversation {
   return {
     avatar: "",

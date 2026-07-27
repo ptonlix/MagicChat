@@ -22,7 +22,12 @@ describe("startStaggeredRefresh", () => {
 
   it("上一次同类刷新未结束时不重复执行", async () => {
     let finishFirst!: () => void
-    const first = vi.fn(() => new Promise<void>((resolve) => { finishFirst = resolve }))
+    const first = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirst = resolve
+        }),
+    )
     const second = vi.fn()
     const controller = startStaggeredRefresh([first, second], 2_000)
 

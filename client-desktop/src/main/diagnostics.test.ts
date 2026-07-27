@@ -10,7 +10,9 @@ const electronMocks = vi.hoisted(() => ({ crashReporterStart: vi.fn(), showSaveD
 
 vi.mock("electron", () => ({
   app: {
-    getAppMetrics: () => [{ cpu: { percentCPUUsage: 12 }, memory: { workingSetSize: 2048 }, type: "Renderer" }],
+    getAppMetrics: () => [
+      { cpu: { percentCPUUsage: 12 }, memory: { workingSetSize: 2048 }, type: "Renderer" },
+    ],
     getVersion: () => "0.0.1-test",
   },
   crashReporter: { start: electronMocks.crashReporterStart },
@@ -31,7 +33,11 @@ describe("Diagnostics", () => {
 
   afterEach(async () => {
     vi.useRealTimers()
-    await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })))
+    await Promise.all(
+      temporaryDirectories
+        .splice(0)
+        .map((directory) => rm(directory, { force: true, recursive: true })),
+    )
   })
 
   it("串行写入并保持调用顺序", async () => {
@@ -43,7 +49,11 @@ describe("Diagnostics", () => {
       diagnostics.record("main", "third"),
     ])
 
-    expect((await records(logPath)).map((record) => record.code)).toEqual(["first", "second", "third"])
+    expect((await records(logPath)).map((record) => record.code)).toEqual([
+      "first",
+      "second",
+      "third",
+    ])
   })
 
   it("超过大小限制后只保留当前文件和一个轮转文件", async () => {
@@ -70,7 +80,9 @@ describe("Diagnostics", () => {
     await vi.advanceTimersByTimeAsync(30_000)
     await diagnostics.record("main", "flush-second")
 
-    const stalls = (await records(logPath)).filter((record) => record.code === "renderer-runtime-stall")
+    const stalls = (await records(logPath)).filter(
+      (record) => record.code === "renderer-runtime-stall",
+    )
     expect(stalls.map((record) => record.durationMs)).toEqual([1_200, 1_500])
   })
 
@@ -80,29 +92,36 @@ describe("Diagnostics", () => {
     electronMocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: exportPath })
 
     await diagnostics.record("main", "before-corruption")
-    await appendFile(logPath, "{\"code\":\"truncated\"")
+    await appendFile(logPath, '{"code":"truncated"')
 
     const restartedDiagnostics = new Diagnostics(directory)
     await restartedDiagnostics.initialize()
     await restartedDiagnostics.record("main", "after-corruption")
     await restartedDiagnostics.export()
 
-    const exported = JSON.parse(await readFile(exportPath, "utf8")) as { events: Array<{ code: string }> }
-    expect(exported.events.map((record) => record.code)).toEqual(["before-corruption", "after-corruption"])
+    const exported = JSON.parse(await readFile(exportPath, "utf8")) as {
+      events: Array<{ code: string }>
+    }
+    expect(exported.events.map((record) => record.code)).toEqual([
+      "before-corruption",
+      "after-corruption",
+    ])
   })
 
   it("日志中没有完整记录时清空截断内容", async () => {
     const { directory, logPath } = await createDiagnostics()
     const exportPath = path.join(path.dirname(logPath), "export-empty-tail.json")
     electronMocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: exportPath })
-    await appendFile(logPath, "{\"code\":\"truncated\"")
+    await appendFile(logPath, '{"code":"truncated"')
 
     const restartedDiagnostics = new Diagnostics(directory)
     await restartedDiagnostics.initialize()
     await restartedDiagnostics.record("main", "first-complete-record")
     await restartedDiagnostics.export()
 
-    const exported = JSON.parse(await readFile(exportPath, "utf8")) as { events: Array<{ code: string }> }
+    const exported = JSON.parse(await readFile(exportPath, "utf8")) as {
+      events: Array<{ code: string }>
+    }
     expect(exported.events.map((record) => record.code)).toEqual(["first-complete-record"])
   })
 
@@ -111,7 +130,9 @@ describe("Diagnostics", () => {
     temporaryDirectories.push(directory)
     const logPath = path.join(directory, "diagnostics", "crashes.jsonl")
     await mkdir(logPath, { recursive: true })
-    electronMocks.crashReporterStart.mockImplementationOnce(() => { throw new Error("crash reporter unavailable") })
+    electronMocks.crashReporterStart.mockImplementationOnce(() => {
+      throw new Error("crash reporter unavailable")
+    })
     const diagnostics = new Diagnostics(directory)
 
     await expect(diagnostics.initialize()).resolves.toBeUndefined()
@@ -132,7 +153,11 @@ async function createDiagnostics(options: { maxLogBytes?: number; stallCooldownM
 
 async function records(logPath: string): Promise<Array<{ code: string; durationMs?: number }>> {
   const content = await readFile(logPath, "utf8")
-  return content.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { code: string; durationMs?: number })
+  return content
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { code: string; durationMs?: number })
 }
 
 function runtimeSnapshot(durationMs: number): RendererRuntimeSnapshot {

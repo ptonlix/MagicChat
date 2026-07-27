@@ -11,10 +11,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  readTemporaryFileURLs,
-  type ClientFileMessageBody,
-} from "@/lib/client-data-api"
+import { readTemporaryFileURLs, type ClientFileMessageBody } from "@/lib/client-data-api"
 import { formatFileSize } from "@/lib/file-format"
 import { downloadHostTemporaryFile } from "@/lib/desktop-host"
 import { Button } from "@/components/ui/button"
@@ -39,8 +36,7 @@ export function MessageAttachment({ file }: MessageAttachmentProps) {
     try {
       if (await downloadHostTemporaryFile(file.fileId, file.name)) return
       const urls = await readTemporaryFileURLs([file.fileId])
-      const readURL =
-        urls.find((item) => item.fileId === file.fileId) ?? urls[0]
+      const readURL = urls.find((item) => item.fileId === file.fileId) ?? urls[0]
 
       if (!readURL) {
         throw new Error("missing read url")
@@ -60,9 +56,7 @@ export function MessageAttachment({ file }: MessageAttachmentProps) {
         <AttachmentFileIcon fileName={file.name} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm leading-snug font-medium">
-          {file.name}
-        </div>
+        <div className="truncate text-sm leading-snug font-medium">{file.name}</div>
         <div className="text-xs leading-snug text-muted-foreground">
           {formatFileSize(file.sizeBytes)}
         </div>
@@ -131,16 +125,7 @@ function triggerBrowserDownload(url: string, fileName: string) {
   link.remove()
 }
 
-const imageExtensions = new Set([
-  "apng",
-  "avif",
-  "gif",
-  "jpeg",
-  "jpg",
-  "png",
-  "svg",
-  "webp",
-])
+const imageExtensions = new Set(["apng", "avif", "gif", "jpeg", "jpg", "png", "svg", "webp"])
 const spreadsheetExtensions = new Set(["csv", "numbers", "ods", "xls", "xlsx"])
 const archiveExtensions = new Set(["7z", "gz", "rar", "tar", "tgz", "zip"])
 const codeExtensions = new Set([

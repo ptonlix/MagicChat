@@ -5,19 +5,13 @@ import { Bot, Circle } from "lucide-react"
 import { useClientData } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 type AppConversationInfoProps = {
   conversationId: string
 }
 
-export function AppConversationInfo({
-  conversationId,
-}: AppConversationInfoProps) {
+export function AppConversationInfo({ conversationId }: AppConversationInfoProps) {
   const { contactApps, getConversation } = useClientData()
   const conversation = getConversation(conversationId)
 
@@ -28,16 +22,13 @@ export function AppConversationInfo({
           <SheetTitle>会话信息</SheetTitle>
           <SheetDescription>应用</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          应用信息不可用
-        </div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">应用信息不可用</div>
       </>
     )
   }
 
   const app = contactApps.find(
-    (candidate) =>
-      candidate.id === conversation.id || candidate.name === conversation.name
+    (candidate) => candidate.id === conversation.id || candidate.name === conversation.name,
   )
   const appName = app?.name ?? conversation.name
   const appAvatar = app?.avatar || conversation.avatar
@@ -53,9 +44,7 @@ export function AppConversationInfo({
       <div className="flex min-w-0 flex-col gap-5 p-4">
         <div className="flex flex-col items-center gap-3 text-center">
           <Avatar className="size-20 rounded-sm bg-muted after:rounded-sm">
-            {appAvatar && (
-              <AvatarImage alt={appName} className="rounded-sm" src={appAvatar} />
-            )}
+            {appAvatar && <AvatarImage alt={appName} className="rounded-sm" src={appAvatar} />}
             <AvatarFallback className="rounded-sm text-xl">
               <Bot className="size-7" />
             </AvatarFallback>
@@ -81,9 +70,7 @@ export function AppConversationInfo({
               <Circle
                 className={cn(
                   "size-3 fill-current",
-                  appOnline
-                    ? "text-emerald-500"
-                    : "text-neutral-400 dark:text-neutral-500"
+                  appOnline ? "text-emerald-500" : "text-neutral-400 dark:text-neutral-500",
                 )}
               />
             }

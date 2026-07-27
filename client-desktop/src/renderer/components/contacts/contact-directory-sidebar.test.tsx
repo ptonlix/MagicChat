@@ -5,10 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ContactDirectorySidebar } from "@/components/contacts/contact-directory-sidebar"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import type {
-  ContactApp,
-  ContactUser,
-} from "@/lib/client-data-api"
+import type { ContactApp, ContactUser } from "@/lib/client-data-api"
 import type { ClientAppCredentials } from "@/lib/client-api/apps"
 
 const appApiMocks = vi.hoisted(() => ({
@@ -87,7 +84,7 @@ describe("ContactDirectorySidebar", () => {
           onStartGroupConversation={vi.fn()}
           openingDirectoryItemKey=""
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     const organizationTrigger = screen.getByRole("button", {
@@ -95,18 +92,12 @@ describe("ContactDirectorySidebar", () => {
     })
     expect(organizationTrigger).toHaveTextContent("测试组织2")
     expect(screen.getByRole("option", { name: "Alice" })).toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { name: "与 Alice 对话" })
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "与 Me 对话" })
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "与 Alice 对话" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "与 Me 对话" })).not.toBeInTheDocument()
     expect(organizationTrigger).toHaveAttribute("aria-expanded", "true")
 
     await user.click(organizationTrigger)
-    expect(
-      screen.queryByRole("option", { name: "Alice" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "Alice" })).not.toBeInTheDocument()
     expect(organizationTrigger).toBeInTheDocument()
   })
 
@@ -117,7 +108,7 @@ describe("ContactDirectorySidebar", () => {
     appApiMocks.createClientApp.mockReturnValueOnce(
       new Promise<ClientAppCredentials>((resolve) => {
         resolveCreate = resolve
-      })
+      }),
     )
     const grantableUser: ContactUser = {
       avatar: "",
@@ -141,7 +132,7 @@ describe("ContactDirectorySidebar", () => {
             onRefresh,
           })}
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     await user.click(screen.getByRole("button", { name: "创建应用" }))
@@ -152,16 +143,10 @@ describe("ContactDirectorySidebar", () => {
       name: "创建应用",
     })
 
-    expect(
-      within(dialog).getByRole("button", { name: "上传应用头像" })
-    ).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "上传应用头像" })).toBeInTheDocument()
     expect(submitButton).toBeDisabled()
-    expect(
-      within(dialog).getByRole("radio", { name: "仅我自己" })
-    ).toBeChecked()
-    expect(
-      within(dialog).queryByLabelText("选择可访问用户")
-    ).not.toBeInTheDocument()
+    expect(within(dialog).getByRole("radio", { name: "仅我自己" })).toBeChecked()
+    expect(within(dialog).queryByLabelText("选择可访问用户")).not.toBeInTheDocument()
 
     await user.type(nameInput, "知识库助手")
     await user.type(descriptionInput, "帮助团队查询内部知识")
@@ -195,33 +180,21 @@ describe("ContactDirectorySidebar", () => {
     const credentialsDialog = await screen.findByRole("dialog", {
       name: "应用接入信息",
     })
-    expect(within(credentialsDialog).getByLabelText("连接密钥")).toHaveValue(
-      "app-secret"
-    )
+    expect(within(credentialsDialog).getByLabelText("连接密钥")).toHaveValue("app-secret")
     expect(
-      (
-        within(credentialsDialog).getByLabelText(
-          "WebSocket 地址"
-        ) as HTMLInputElement
-      ).value
+      (within(credentialsDialog).getByLabelText("WebSocket 地址") as HTMLInputElement).value,
     ).toMatch(/\/api\/app\/ws$/)
-    expect(
-      screen.queryByRole("dialog", { name: "创建应用" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "创建应用" })).not.toBeInTheDocument()
     expect(toastMocks.success).toHaveBeenCalledWith("应用创建成功")
     expect(onRefresh).toHaveBeenCalledOnce()
 
-    await user.click(
-      within(credentialsDialog).getByRole("button", { name: "关闭" })
-    )
+    await user.click(within(credentialsDialog).getByRole("button", { name: "关闭" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
   it("keeps the create application dialog open when creation fails", async () => {
     const user = userEvent.setup()
-    appApiMocks.createClientApp.mockRejectedValueOnce(
-      new Error("每个用户最多创建 20 个应用")
-    )
+    appApiMocks.createClientApp.mockRejectedValueOnce(new Error("每个用户最多创建 20 个应用"))
 
     render(
       <SidebarProvider>
@@ -231,7 +204,7 @@ describe("ContactDirectorySidebar", () => {
             apps: [createApp("owned-app", "我的助手", "current-user")],
           })}
         />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
 
     await user.click(screen.getByRole("button", { name: "创建应用" }))
@@ -243,16 +216,10 @@ describe("ContactDirectorySidebar", () => {
 
     await user.click(submitButton)
 
-    await waitFor(() =>
-      expect(toastMocks.error).toHaveBeenCalledWith(
-        "每个用户最多创建 20 个应用"
-      )
-    )
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith("每个用户最多创建 20 个应用"))
     expect(dialog).toBeInTheDocument()
     expect(submitButton).toBeEnabled()
-    expect(
-      screen.queryByRole("dialog", { name: "应用接入信息" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "应用接入信息" })).not.toBeInTheDocument()
   })
 
   it("preserves the section state while search forces matching contacts open", async () => {
@@ -275,7 +242,7 @@ describe("ContactDirectorySidebar", () => {
     const view = render(
       <SidebarProvider>
         <ContactDirectorySidebar {...props} />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
     const organizationTrigger = screen.getByRole("button", {
       name: "测试组织",
@@ -284,7 +251,7 @@ describe("ContactDirectorySidebar", () => {
     view.rerender(
       <SidebarProvider>
         <ContactDirectorySidebar {...props} activeKeyword="alice" />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
     await user.click(organizationTrigger)
     expect(organizationTrigger).toHaveAttribute("aria-expanded", "true")
@@ -292,7 +259,7 @@ describe("ContactDirectorySidebar", () => {
     view.rerender(
       <SidebarProvider>
         <ContactDirectorySidebar {...props} activeKeyword="" />
-      </SidebarProvider>
+      </SidebarProvider>,
     )
     expect(organizationTrigger).toHaveAttribute("aria-expanded", "true")
     expect(screen.getByRole("option", { name: "Alice" })).toBeInTheDocument()
@@ -300,7 +267,7 @@ describe("ContactDirectorySidebar", () => {
 })
 
 function createSidebarProps(
-  overrides: Partial<ComponentProps<typeof ContactDirectorySidebar>> = {}
+  overrides: Partial<ComponentProps<typeof ContactDirectorySidebar>> = {},
 ): ComponentProps<typeof ContactDirectorySidebar> {
   return {
     activeKeyword: "",
@@ -325,11 +292,7 @@ function createSidebarProps(
   }
 }
 
-function createApp(
-  id: string,
-  name: string,
-  creatorUserId: string | null
-): ContactApp {
+function createApp(id: string, name: string, creatorUserId: string | null): ContactApp {
   return {
     avatar: "",
     creatorUserId,

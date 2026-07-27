@@ -40,11 +40,7 @@ export function CreateGroupConversationDialog({
   apps: ContactApp[]
   contacts: ContactUser[]
   currentUserId: string
-  onCreate: (
-    name: string,
-    memberIds: string[],
-    appIds: string[]
-  ) => Promise<void>
+  onCreate: (name: string, memberIds: string[], appIds: string[]) => Promise<void>
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
@@ -79,20 +75,16 @@ function CreateGroupConversationForm({
   apps: ContactApp[]
   contacts: ContactUser[]
   currentUserId: string
-  onCreate: (
-    name: string,
-    memberIds: string[],
-    appIds: string[]
-  ) => Promise<void>
+  onCreate: (name: string, memberIds: string[], appIds: string[]) => Promise<void>
   onOpenChange: (open: boolean) => void
 }) {
   const [creating, setCreating] = React.useState(false)
   const [keyword, setKeyword] = React.useState("")
   const [name, setName] = React.useState("新建群聊")
   const [tab, setTab] = React.useState<"users" | "apps">("users")
-  const [selectedCandidateKeys, setSelectedCandidateKeys] = React.useState<
-    Set<string>
-  >(() => new Set())
+  const [selectedCandidateKeys, setSelectedCandidateKeys] = React.useState<Set<string>>(
+    () => new Set(),
+  )
   const trimmedName = name.trim()
   const canCreate = Boolean(trimmedName) && !creating
   const filteredContacts = React.useMemo(() => {
@@ -107,13 +99,10 @@ function CreateGroupConversationForm({
           return true
         }
 
-        return [
-          contact.email,
-          contact.name,
-          contact.nickname,
-          contact.phone,
-        ].some((value) => value.toLowerCase().includes(normalizedKeyword))
-      })
+        return [contact.email, contact.name, contact.nickname, contact.phone].some((value) =>
+          value.toLowerCase().includes(normalizedKeyword),
+        )
+      }),
     )
   }, [contacts, currentUserId, keyword])
   const filteredApps = React.useMemo(() => {
@@ -124,18 +113,12 @@ function CreateGroupConversationForm({
     }
 
     return apps.filter((app) =>
-      [app.name, app.description].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword)
-      )
+      [app.name, app.description].some((value) => value.toLowerCase().includes(normalizedKeyword)),
     )
   }, [apps, keyword])
-  const visibleCandidates: CreateGroupCandidate[] =
-    tab === "apps" ? filteredApps : filteredContacts
+  const visibleCandidates: CreateGroupCandidate[] = tab === "apps" ? filteredApps : filteredContacts
 
-  function toggleCandidate(
-    candidate: CreateGroupCandidate,
-    checked: boolean | string
-  ) {
+  function toggleCandidate(candidate: CreateGroupCandidate, checked: boolean | string) {
     const key = createGroupCandidateKey(candidate)
     setSelectedCandidateKeys((currentKeys) => {
       const nextChecked = Boolean(checked)
@@ -168,14 +151,10 @@ function CreateGroupConversationForm({
 
     try {
       const memberIds = contacts
-        .filter((contact) =>
-          selectedCandidateKeys.has(createGroupCandidateKey(contact))
-        )
+        .filter((contact) => selectedCandidateKeys.has(createGroupCandidateKey(contact)))
         .map((contact) => contact.id)
       const appIds = apps
-        .filter((app) =>
-          selectedCandidateKeys.has(createGroupCandidateKey(app))
-        )
+        .filter((app) => selectedCandidateKeys.has(createGroupCandidateKey(app)))
         .map((app) => app.id)
 
       await onCreate(trimmedName, memberIds, appIds)
@@ -244,9 +223,7 @@ function CreateGroupConversationForm({
                 candidate={candidate}
                 checked={selectedCandidateKeys.has(key)}
                 key={key}
-                onCheckedChange={(checked) =>
-                  toggleCandidate(candidate, checked)
-                }
+                onCheckedChange={(checked) => toggleCandidate(candidate, checked)}
               />
             )
           })}
@@ -264,9 +241,7 @@ function CreateGroupConversationForm({
           </Button>
         </DialogClose>
         <Button disabled={!canCreate} type="submit">
-          {creating && (
-            <Loader2Icon aria-hidden="true" className="animate-spin" />
-          )}
+          {creating && <Loader2Icon aria-hidden="true" className="animate-spin" />}
           创建
         </Button>
       </DialogFooter>
@@ -289,10 +264,7 @@ function CreateGroupMemberItem({
   return (
     <Item
       asChild
-      className={cn(
-        "cursor-pointer px-2 py-1.5",
-        checked ? "bg-primary/10" : "hover:bg-muted"
-      )}
+      className={cn("cursor-pointer px-2 py-1.5", checked ? "bg-primary/10" : "hover:bg-muted")}
       size="sm"
     >
       <Label htmlFor={checkboxId}>
@@ -322,9 +294,7 @@ function createGroupCandidateKey(candidate: CreateGroupCandidate) {
 }
 
 function getCreateGroupCandidateDisplayName(candidate: CreateGroupCandidate) {
-  return candidate.type === "user"
-    ? getContactDisplayName(candidate)
-    : candidate.name.trim()
+  return candidate.type === "user" ? getContactDisplayName(candidate) : candidate.name.trim()
 }
 
 function getContactDisplayName(contact: { name: string; nickname: string }) {

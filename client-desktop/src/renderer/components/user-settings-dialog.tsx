@@ -1,12 +1,5 @@
 import { useState } from "react"
-import {
-  Bell,
-  BellRing,
-  CheckCircle2,
-  Loader2Icon,
-  Palette,
-  Sparkles,
-} from "lucide-react"
+import { Bell, BellRing, CheckCircle2, Loader2Icon, Palette, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,10 +21,7 @@ type UserSettingsDialogProps = {
   open: boolean
 }
 
-export function UserSettingsDialog({
-  onOpenChange,
-  open,
-}: UserSettingsDialogProps) {
+export function UserSettingsDialog({ onOpenChange, open }: UserSettingsDialogProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {open && <UserSettingsDialogContent />}
@@ -41,9 +31,7 @@ export function UserSettingsDialog({
 
 function UserSettingsDialogContent() {
   const [notificationPermission, setNotificationPermission] =
-    useState<BrowserNotificationPermission>(() =>
-      getBrowserNotificationPermission()
-    )
+    useState<BrowserNotificationPermission>(() => getBrowserNotificationPermission())
   const [notificationRequesting, setNotificationRequesting] = useState(false)
 
   async function handleNotificationPermissionRequest() {
@@ -63,12 +51,16 @@ function UserSettingsDialogContent() {
   return (
     <SheetContent
       aria-label="设置"
-      className="w-[min(460px,100vw)] gap-0 border-emerald-200/70 bg-white/95 p-0 shadow-2xl shadow-emerald-950/15 backdrop-blur-xl dark:border-emerald-900/60 dark:bg-slate-950/95 sm:max-w-none"
+      className="w-[min(460px,100vw)] gap-0 border-emerald-200/70 bg-white/95 p-0 shadow-2xl shadow-emerald-950/15 backdrop-blur-xl sm:max-w-none dark:border-emerald-900/60 dark:bg-slate-950/95"
       side="right"
     >
       <SheetHeader className="border-b border-emerald-100 bg-gradient-to-br from-emerald-50 via-teal-50 to-white p-6 text-left dark:border-emerald-900/60 dark:from-emerald-950/70 dark:via-teal-950/50 dark:to-slate-950">
         <div className="flex items-center gap-3">
-          <img alt="即应" className="size-11 rounded-xl shadow-lg shadow-emerald-700/20" src="/logo.png" />
+          <img
+            alt="即应"
+            className="size-11 rounded-xl shadow-lg shadow-emerald-700/20"
+            src="/logo.png"
+          />
           <div className="grid gap-1">
             <SheetTitle className="text-lg font-semibold tracking-tight">设置</SheetTitle>
             <SheetDescription>调整通知与界面显示方式</SheetDescription>
@@ -141,9 +133,7 @@ function UserSettingsDialogContent() {
   )
 }
 
-function getNotificationPermissionText(
-  permission: BrowserNotificationPermission
-) {
+function getNotificationPermissionText(permission: BrowserNotificationPermission) {
   switch (permission) {
     case "granted":
       return "桌面通知已开启"

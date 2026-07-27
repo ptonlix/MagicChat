@@ -13,9 +13,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "check": "pnpm lint && pnpm typecheck && pnpm verify:boundaries",
-    "format": "prettier --write",
-    "format:check": "prettier --check",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:boundaries",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",

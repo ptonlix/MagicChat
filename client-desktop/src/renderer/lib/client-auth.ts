@@ -1,7 +1,4 @@
-type ClientAuthFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>
+type ClientAuthFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 export type ClientLoginInput = {
   account: string
@@ -83,10 +80,7 @@ export class ClientEmailCodeRequestError extends Error {
   }
 }
 
-export async function clientLogin(
-  input: ClientLoginInput,
-  fetcher: ClientAuthFetch = fetch
-) {
+export async function clientLogin(input: ClientLoginInput, fetcher: ClientAuthFetch = fetch) {
   const response = await fetcher("/api/client/auth/login", {
     body: JSON.stringify({
       email: input.account.trim(),
@@ -98,18 +92,13 @@ export async function clientLogin(
     },
     method: "POST",
   })
-  const payload = await readJson<
-    ClientLoginErrorEnvelope | ClientLoginSuccessEnvelope
-  >(response)
+  const payload = await readJson<ClientLoginErrorEnvelope | ClientLoginSuccessEnvelope>(response)
 
   if (!response.ok || payload?.success === false) {
     const error = (payload as ClientLoginErrorEnvelope | undefined)?.error
-    throw new ClientLoginRequestError(
-      error?.message ?? `登录失败（HTTP ${response.status}）`,
-      {
-        code: error?.code,
-      }
-    )
+    throw new ClientLoginRequestError(error?.message ?? `登录失败（HTTP ${response.status}）`, {
+      code: error?.code,
+    })
   }
 
   const user = (payload as ClientLoginSuccessEnvelope | undefined)?.data?.user
@@ -127,7 +116,7 @@ export async function clientLogin(
 
 export async function requestClientEmailCode(
   email: string,
-  fetcher: ClientAuthFetch = fetch
+  fetcher: ClientAuthFetch = fetch,
 ): Promise<ClientEmailCodeRequestResult> {
   const response = await fetcher("/api/client/auth/email-code/request", {
     body: JSON.stringify({ email: email.trim() }),
@@ -137,20 +126,19 @@ export async function requestClientEmailCode(
     },
     method: "POST",
   })
-  const payload = await readJson<
-    ClientEmailCodeRequestSuccessEnvelope | ClientLoginErrorEnvelope
-  >(response)
+  const payload = await readJson<ClientEmailCodeRequestSuccessEnvelope | ClientLoginErrorEnvelope>(
+    response,
+  )
 
   if (!response.ok || payload?.success === false) {
     const error = (payload as ClientLoginErrorEnvelope | undefined)?.error
     throw new ClientEmailCodeRequestError(
       error?.message ?? `验证码发送失败（HTTP ${response.status}）`,
-      { code: error?.code }
+      { code: error?.code },
     )
   }
 
-  const data = (payload as ClientEmailCodeRequestSuccessEnvelope | undefined)
-    ?.data
+  const data = (payload as ClientEmailCodeRequestSuccessEnvelope | undefined)?.data
   if (
     typeof data?.expires_in_seconds !== "number" ||
     typeof data.retry_after_seconds !== "number"
@@ -165,7 +153,7 @@ export async function requestClientEmailCode(
 
 export async function clientEmailCodeLogin(
   input: ClientEmailCodeLoginInput,
-  fetcher: ClientAuthFetch = fetch
+  fetcher: ClientAuthFetch = fetch,
 ) {
   const response = await fetcher("/api/client/auth/email-code/login", {
     body: JSON.stringify({
@@ -178,21 +166,16 @@ export async function clientEmailCodeLogin(
     },
     method: "POST",
   })
-  const payload = await readJson<
-    ClientLoginErrorEnvelope | ClientLoginSuccessEnvelope
-  >(response)
+  const payload = await readJson<ClientLoginErrorEnvelope | ClientLoginSuccessEnvelope>(response)
 
   if (!response.ok || payload?.success === false) {
     const error = (payload as ClientLoginErrorEnvelope | undefined)?.error
-    throw new ClientLoginRequestError(
-      error?.message ?? `登录失败（HTTP ${response.status}）`,
-      { code: error?.code }
-    )
+    throw new ClientLoginRequestError(error?.message ?? `登录失败（HTTP ${response.status}）`, {
+      code: error?.code,
+    })
   }
 
-  return normalizeClientUser(
-    (payload as ClientLoginSuccessEnvelope | undefined)?.data?.user
-  )
+  return normalizeClientUser((payload as ClientLoginSuccessEnvelope | undefined)?.data?.user)
 }
 
 export async function clientLogout(fetcher: ClientAuthFetch = fetch) {
@@ -208,7 +191,7 @@ export async function clientLogout(fetcher: ClientAuthFetch = fetch) {
       error?.message ?? `退出登录失败（HTTP ${response.status}）`,
       {
         code: error?.code,
-      }
+      },
     )
   }
 }

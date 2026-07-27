@@ -29,8 +29,7 @@ export function createConversationMentionLabelResolver({
 
     if (target.type === "app") {
       const member = members?.find(
-        (currentMember) =>
-          currentMember.type === "app" && currentMember.id === target.id
+        (currentMember) => currentMember.type === "app" && currentMember.id === target.id,
       )
       if (member) {
         return getConversationMemberMentionLabel(member)
@@ -44,8 +43,7 @@ export function createConversationMentionLabelResolver({
     }
 
     const member = members?.find(
-      (currentMember) =>
-        currentMember.type === "user" && currentMember.id === target.id
+      (currentMember) => currentMember.type === "user" && currentMember.id === target.id,
     )
     if (member) {
       return getConversationMemberMentionLabel(member)
@@ -60,9 +58,7 @@ export function createConversationMentionLabelResolver({
   }
 }
 
-export function getConversationMemberMentionLabel(
-  member: ClientConversationMember
-) {
+export function getConversationMemberMentionLabel(member: ClientConversationMember) {
   if (member.type === "app") {
     return member.name.trim()
   }

@@ -61,9 +61,7 @@ export function SendVoiceMessageDialog({
       <DialogContent className="gap-5 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base">发送语音消息</DialogTitle>
-          <DialogDescription className="sr-only">
-            录制并发送语音消息到当前会话
-          </DialogDescription>
+          <DialogDescription className="sr-only">录制并发送语音消息到当前会话</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <VoiceRecordingPanel
@@ -71,14 +69,9 @@ export function SendVoiceMessageDialog({
             level={recording.level}
             status={recording.status}
           />
-          {recording.error && (
-            <p className="text-sm text-destructive">{recording.error}</p>
-          )}
+          {recording.error && <p className="text-sm text-destructive">{recording.error}</p>}
           <p className="min-w-0 text-sm text-muted-foreground">
-            将要发送到{" "}
-            <span className="font-medium text-foreground">
-              {conversationName}
-            </span>
+            将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
           </p>
         </div>
         <DialogFooter>
@@ -88,10 +81,7 @@ export function SendVoiceMessageDialog({
             </Button>
           </DialogClose>
           {recording.status === "idle" && (
-            <Button
-              onClick={() => void recording.startRecording()}
-              type="button"
-            >
+            <Button onClick={() => void recording.startRecording()} type="button">
               <Mic />
               开始录音
             </Button>
@@ -103,11 +93,7 @@ export function SendVoiceMessageDialog({
             </Button>
           )}
           {recording.status === "recording" && (
-            <Button
-              onClick={recording.stopRecording}
-              type="button"
-              variant="destructive"
-            >
+            <Button onClick={recording.stopRecording} type="button" variant="destructive">
               <Square />
               结束录音
             </Button>

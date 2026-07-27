@@ -10,10 +10,7 @@ import {
   type ConversationPanelMessage,
 } from "@/components/conversation-panel"
 import type { ClientConversation } from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 describe("conversation message selection", () => {
   it("enters multi-select from the context menu and chooses a forward mode", async () => {
@@ -25,7 +22,7 @@ describe("conversation message selection", () => {
         <ClientDataContext.Provider value={createClientDataValue()}>
           <SelectionHarness onForwardSelected={onForwardSelected} />
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     await user.pointer({
@@ -108,7 +105,7 @@ describe("conversation message selection", () => {
             sending={false}
           />
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     const card = screen.getByRole("button", {
@@ -124,9 +121,7 @@ describe("conversation message selection", () => {
     const nestedCard = screen.getByRole("button", {
       name: /\[聊天记录\] 1 条 - 内层消息/,
     })
-    expect(nestedCard.parentElement).toHaveAttribute(
-      "data-forward-bundle-item-body"
-    )
+    expect(nestedCard.parentElement).toHaveAttribute("data-forward-bundle-item-body")
 
     await user.click(nestedCard)
     expect(screen.getByRole("dialog")).toHaveTextContent("Carol")
@@ -151,10 +146,7 @@ describe("conversation message selection", () => {
             historyError={null}
             historyLoading={false}
             historyLoadingBefore={false}
-            messages={[
-              unsupportedMessage,
-              createMessage("message-supported", "后续正常消息"),
-            ]}
+            messages={[unsupportedMessage, createMessage("message-supported", "后续正常消息")]}
             onCancelReply={vi.fn()}
             onDraftChange={vi.fn()}
             onLoadBeforeMessages={vi.fn()}
@@ -170,16 +162,14 @@ describe("conversation message selection", () => {
             sending={false}
           />
         </ClientDataContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     const unsupported = screen.getByText("暂不支持查看该消息")
     expect(screen.getByText("后续正常消息")).toBeInTheDocument()
 
     await user.pointer({ keys: "[MouseRight]", target: unsupported })
-    expect(
-      screen.queryByRole("menuitem", { name: "回复" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "回复" })).not.toBeInTheDocument()
     expect(onReply).not.toHaveBeenCalled()
   })
 })
@@ -190,9 +180,7 @@ function SelectionHarness({
   onForwardSelected: (mode: ConversationPanelForwardMode) => void
 }) {
   const [active, setActive] = React.useState(false)
-  const [selectedMessageIds, setSelectedMessageIds] = React.useState<
-    Set<string>
-  >(() => new Set())
+  const [selectedMessageIds, setSelectedMessageIds] = React.useState<Set<string>>(() => new Set())
 
   function toggle(message: ConversationPanelMessage) {
     setSelectedMessageIds((current) => {
@@ -215,10 +203,7 @@ function SelectionHarness({
       historyLoading={false}
       historyLoadingBefore={false}
       messageSelection={{ active, selectedMessageIds }}
-      messages={[
-        createMessage("message-1", "第一条"),
-        createMessage("message-2", "第二条"),
-      ]}
+      messages={[createMessage("message-1", "第一条"), createMessage("message-2", "第二条")]}
       onCancelMessageSelection={() => {
         setActive(false)
         setSelectedMessageIds(new Set())

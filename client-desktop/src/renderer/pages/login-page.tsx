@@ -7,11 +7,7 @@ import { Button } from "@/components/ui/button"
 import { LoginForm } from "@/components/login-form"
 import { Separator } from "@/components/ui/separator"
 import { useAppInfo } from "@/lib/app-info-context"
-import {
-  clientEmailCodeLogin,
-  clientLogin,
-  requestClientEmailCode,
-} from "@/lib/client-auth"
+import { clientEmailCodeLogin, clientLogin, requestClientEmailCode } from "@/lib/client-auth"
 import {
   cancelThirdPartyLogin,
   openThirdPartyLogin,
@@ -30,7 +26,10 @@ export function LoginPage() {
   } = useAppInfo()
   const navigate = useNavigate()
   const hasThirdPartyProviders = thirdPartyProviders.length > 0
-  const [pendingThirdParty, setPendingThirdParty] = useState<{ providerName: string; transactionId: string }>()
+  const [pendingThirdParty, setPendingThirdParty] = useState<{
+    providerName: string
+    transactionId: string
+  }>()
   const [thirdPartyStarting, setThirdPartyStarting] = useState(false)
   const thirdPartyTransactionRef = useRef<string | undefined>(undefined)
 
@@ -60,19 +59,13 @@ export function LoginPage() {
     }
   }, [authenticated, navigate])
 
-  async function handleLogin(credentials: {
-    account: string
-    password: string
-  }) {
+  async function handleLogin(credentials: { account: string; password: string }) {
     await clientLogin(credentials)
     setAuthenticated(true)
     navigate("/init", { replace: true })
   }
 
-  async function handleEmailCodeLogin(credentials: {
-    code: string
-    email: string
-  }) {
+  async function handleEmailCodeLogin(credentials: { code: string; email: string }) {
     await clientEmailCodeLogin(credentials)
     setAuthenticated(true)
     navigate("/init", { replace: true })
@@ -82,7 +75,11 @@ export function LoginPage() {
     return requestClientEmailCode(email)
   }
 
-  async function handleThirdPartyLogin(event: MouseEvent<HTMLAnchorElement>, providerKey: string, providerName: string) {
+  async function handleThirdPartyLogin(
+    event: MouseEvent<HTMLAnchorElement>,
+    providerKey: string,
+    providerName: string,
+  ) {
     event.preventDefault()
     if (thirdPartyStarting) return
     setThirdPartyStarting(true)
@@ -112,7 +109,11 @@ export function LoginPage() {
       <main className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="brand-login-panel flex w-full max-w-sm flex-col gap-6 rounded-3xl border border-white/70 bg-white/80 p-7 shadow-2xl shadow-teal-950/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/75">
           <div className="flex flex-col gap-3">
-            <img alt="即应" className="size-14 rounded-2xl shadow-lg shadow-teal-700/20" src="/logo.png" />
+            <img
+              alt="即应"
+              className="size-14 rounded-2xl shadow-lg shadow-teal-700/20"
+              src="/logo.png"
+            />
             <h1 className="text-left text-2xl font-semibold tracking-tight">
               {appName} 智能协作平台
             </h1>
@@ -139,27 +140,35 @@ export function LoginPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   {pendingThirdParty ? (
-                    <Button onClick={() => void handleThirdPartyCancel()} type="button" variant="outline">
+                    <Button
+                      onClick={() => void handleThirdPartyCancel()}
+                      type="button"
+                      variant="outline"
+                    >
                       取消 {pendingThirdParty.providerName} 登录
                     </Button>
-                  ) : thirdPartyProviders.map((provider, index) => (
-                    <Button
-                      asChild
-                      key={provider.key}
-                      variant={index === 0 ? "default" : "outline"}
-                    >
-                      <a
-                        aria-disabled={thirdPartyStarting}
-                        href={`/api/client/auth/third-party/${encodeURIComponent(
-                          provider.key
-                        )}/start?redirect=/init`}
-                        onClick={(event) => void handleThirdPartyLogin(event, provider.key, provider.name)}
+                  ) : (
+                    thirdPartyProviders.map((provider, index) => (
+                      <Button
+                        asChild
+                        key={provider.key}
+                        variant={index === 0 ? "default" : "outline"}
                       >
-                        <LogInIcon data-icon="inline-start" />
-                        使用 {provider.name} 登录
-                      </a>
-                    </Button>
-                  ))}
+                        <a
+                          aria-disabled={thirdPartyStarting}
+                          href={`/api/client/auth/third-party/${encodeURIComponent(
+                            provider.key,
+                          )}/start?redirect=/init`}
+                          onClick={(event) =>
+                            void handleThirdPartyLogin(event, provider.key, provider.name)
+                          }
+                        >
+                          <LogInIcon data-icon="inline-start" />
+                          使用 {provider.name} 登录
+                        </a>
+                      </Button>
+                    ))
+                  )}
                 </div>
               </div>
             )}

@@ -1,7 +1,6 @@
 import { createClientMessageId } from "@/lib/message-id"
 
-export type RealtimeConnectionStatus =
-  "connecting" | "connected" | "reconnecting" | "disconnected"
+export type RealtimeConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected"
 
 export type RealtimeSnapshot = {
   ready: boolean
@@ -70,11 +69,9 @@ export class RealtimeClient {
   constructor(options: RealtimeClientOptions = {}) {
     this.authCheck = options.authCheck
     this.url = options.url ?? buildRealtimeWebSocketURL(window.location)
-    this.createWebSocket =
-      options.createWebSocket ?? ((url) => new WebSocket(url))
+    this.createWebSocket = options.createWebSocket ?? ((url) => new WebSocket(url))
     this.onUnauthorized = options.onUnauthorized
-    this.reconnectDelaysMs =
-      options.reconnectDelaysMs ?? defaultReconnectDelaysMs
+    this.reconnectDelaysMs = options.reconnectDelaysMs ?? defaultReconnectDelaysMs
   }
 
   connect() {
@@ -199,11 +196,7 @@ export class RealtimeClient {
     }
 
     const authorized = await this.checkReconnectAuthorization()
-    if (
-      reconnectSequence !== this.reconnectSequence ||
-      !this.shouldReconnect ||
-      this.socket
-    ) {
+    if (reconnectSequence !== this.reconnectSequence || !this.shouldReconnect || this.socket) {
       return
     }
     if (!authorized) {
@@ -228,9 +221,8 @@ export class RealtimeClient {
 
   private scheduleReconnect() {
     const delay =
-      this.reconnectDelaysMs[
-        Math.min(this.reconnectAttempt, this.reconnectDelaysMs.length - 1)
-      ] ?? defaultReconnectDelaysMs[defaultReconnectDelaysMs.length - 1]
+      this.reconnectDelaysMs[Math.min(this.reconnectAttempt, this.reconnectDelaysMs.length - 1)] ??
+      defaultReconnectDelaysMs[defaultReconnectDelaysMs.length - 1]
     this.reconnectAttempt += 1
     this.reconnectTimer = window.setTimeout(() => {
       if (!this.shouldReconnect) {
@@ -330,9 +322,7 @@ export class RealtimeClient {
   }
 }
 
-export function buildRealtimeWebSocketURL(
-  location: Pick<Location | URL, "host" | "protocol">
-) {
+export function buildRealtimeWebSocketURL(location: Pick<Location | URL, "host" | "protocol">) {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:"
 
   return `${protocol}//${location.host}/api/client/ws`

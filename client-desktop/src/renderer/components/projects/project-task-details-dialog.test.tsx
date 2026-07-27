@@ -21,8 +21,7 @@ vi.mock("@/lib/project-task-data-api", () => ({
 }))
 
 vi.mock("@/lib/project-members", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("@/lib/project-members")>()
+  const original = await importOriginal<typeof import("@/lib/project-members")>()
   return {
     ...original,
     listAllClientProjectMembers: mocks.listAllClientProjectMembers,
@@ -68,12 +67,8 @@ describe("ProjectTaskDetailsDialog card message", () => {
     const onOpenChange = vi.fn()
     render(
       <MemoryRouter>
-        <ProjectTaskDetailsDialog
-          onOpenChange={onOpenChange}
-          open
-          task={createTask()}
-        />
-      </MemoryRouter>
+        <ProjectTaskDetailsDialog onOpenChange={onOpenChange} open task={createTask()} />
+      </MemoryRouter>,
     )
 
     const sendButton = await screen.findByRole("button", {
@@ -85,18 +80,13 @@ describe("ProjectTaskDetailsDialog card message", () => {
     await user.click(screen.getByRole("button", { name: "发送" }))
 
     await waitFor(() => {
-      expect(mocks.sendConversationCard).toHaveBeenCalledWith(
-        "conversation-1",
-        {
-          entityId: "task-1",
-          entityType: "task",
-          type: "entity_card",
-        }
-      )
+      expect(mocks.sendConversationCard).toHaveBeenCalledWith("conversation-1", {
+        entityId: "task-1",
+        entityType: "task",
+        type: "entity_card",
+      })
     })
-    expect(
-      screen.queryByRole("dialog", { name: "发送到对话" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "发送到对话" })).not.toBeInTheDocument()
     expect(screen.getByRole("dialog", { name: "任务详情" })).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
@@ -113,7 +103,7 @@ describe("ProjectTaskDetailsDialog card message", () => {
           open
           task={createTask()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     const reminderButton = await screen.findByRole("button", {
@@ -127,21 +117,17 @@ describe("ProjectTaskDetailsDialog card message", () => {
     await user.click(screen.getByRole("button", { name: "保存" }))
 
     await waitFor(() => {
-      expect(mocks.updateClientProjectTask).toHaveBeenCalledWith(
-        "project-1",
-        "task-1",
-        {
-          reminder: expect.objectContaining({
-            frequency: "daily",
-            mode: "recurring",
-            timezone: "Asia/Shanghai",
-          }),
-        }
-      )
+      expect(mocks.updateClientProjectTask).toHaveBeenCalledWith("project-1", "task-1", {
+        reminder: expect.objectContaining({
+          frequency: "daily",
+          mode: "recurring",
+          timezone: "Asia/Shanghai",
+        }),
+      })
       expect(onOpenChange).toHaveBeenCalledWith(false)
       expect(onUpdated).toHaveBeenCalledOnce()
       expect(onOpenChange.mock.invocationCallOrder[0]).toBeLessThan(
-        onUpdated.mock.invocationCallOrder[0]
+        onUpdated.mock.invocationCallOrder[0],
       )
     })
   })

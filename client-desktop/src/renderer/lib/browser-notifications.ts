@@ -1,5 +1,4 @@
-export type BrowserNotificationPermission =
-  "default" | "denied" | "granted" | "unsupported"
+export type BrowserNotificationPermission = "default" | "denied" | "granted" | "unsupported"
 
 export type BrowserMessageNotificationInput = {
   body: string
@@ -17,9 +16,7 @@ export function getBrowserNotificationPermission(): BrowserNotificationPermissio
     return "unsupported"
   }
 
-  const permission = normalizeBrowserNotificationPermission(
-    Notification.permission
-  )
+  const permission = normalizeBrowserNotificationPermission(Notification.permission)
   if (permission !== "default") {
     lastKnownPermission = permission
   }
@@ -35,7 +32,7 @@ export async function requestBrowserNotificationPermission(): Promise<BrowserNot
   }
 
   lastKnownPermission = normalizeBrowserNotificationPermission(
-    await Notification.requestPermission()
+    await Notification.requestPermission(),
   )
 
   return lastKnownPermission
@@ -69,16 +66,15 @@ export function showBrowserMessageNotification({
 }
 
 function normalizeBrowserNotificationPermission(
-  permission: NotificationPermission
+  permission: NotificationPermission,
 ): BrowserNotificationPermission {
-  if (
-    permission === "default" ||
-    permission === "denied" ||
-    permission === "granted"
-  ) {
+  if (permission === "default" || permission === "denied" || permission === "granted") {
     return permission
   }
 
   return "default"
 }
-import { getHostNotificationPermission, requestHostNotificationPermission } from "@/lib/desktop-host"
+import {
+  getHostNotificationPermission,
+  requestHostNotificationPermission,
+} from "@/lib/desktop-host"

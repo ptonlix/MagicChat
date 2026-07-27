@@ -12,11 +12,11 @@ export function ClientBrandMetadata() {
     setMetaContent('meta[name="twitter:title"]', `${appName} AI 企业 IM`)
     setMetaContent(
       'meta[name="description"]',
-      `${appName}是面向企业团队的 AI 原生即时通讯与协作平台，提供企业聊天、AI 助手、通讯录、项目管理和任务协作能力。`
+      `${appName}是面向企业团队的 AI 原生即时通讯与协作平台，提供企业聊天、AI 助手、通讯录、项目管理和任务协作能力。`,
     )
     setMetaContent(
       'meta[name="keywords"]',
-      `${appName},AI 企业 IM,企业即时通讯,AI 助手,团队协作,企业聊天,项目管理,任务管理`
+      `${appName},AI 企业 IM,企业即时通讯,AI 助手,团队协作,企业聊天,项目管理,任务管理`,
     )
   }, [appName])
 
@@ -24,7 +24,5 @@ export function ClientBrandMetadata() {
 }
 
 function setMetaContent(selector: string, content: string) {
-  document
-    .querySelector<HTMLMetaElement>(selector)
-    ?.setAttribute("content", content)
+  document.querySelector<HTMLMetaElement>(selector)?.setAttribute("content", content)
 }

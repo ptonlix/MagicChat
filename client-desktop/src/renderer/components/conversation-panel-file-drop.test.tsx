@@ -19,9 +19,7 @@ vi.mock("@/lib/image-message", async (importOriginal) => {
 
 describe("ConversationPanel file drop", () => {
   beforeEach(() => {
-    compressImageForMessageMock
-      .mockReset()
-      .mockImplementation(async (file: File) => file)
+    compressImageForMessageMock.mockReset().mockImplementation(async (file: File) => file)
     Object.defineProperties(URL, {
       createObjectURL: {
         configurable: true,
@@ -50,14 +48,10 @@ describe("ConversationPanel file drop", () => {
 
     fireEvent.dragEnter(header, { dataTransfer })
     fireEvent.dragLeave(header, { dataTransfer })
-    expect(
-      screen.getByTestId("conversation-file-drop-overlay")
-    ).toBeInTheDocument()
+    expect(screen.getByTestId("conversation-file-drop-overlay")).toBeInTheDocument()
 
     fireEvent.dragLeave(panel, { dataTransfer })
-    expect(
-      screen.queryByTestId("conversation-file-drop-overlay")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId("conversation-file-drop-overlay")).not.toBeInTheDocument()
   })
 
   it("opens the image dialog for the first supported image only", async () => {
@@ -74,14 +68,10 @@ describe("ConversationPanel file drop", () => {
     fireEvent.dragEnter(panel, { dataTransfer })
     expect(fireEvent.drop(panel, { dataTransfer })).toBe(false)
 
-    expect(
-      await screen.findByRole("dialog", { name: "发送图片" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "发送图片" })).toBeInTheDocument()
     expect(compressImageForMessageMock).toHaveBeenCalledTimes(1)
     expect(compressImageForMessageMock).toHaveBeenCalledWith(image)
-    expect(
-      screen.queryByTestId("conversation-file-drop-overlay")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId("conversation-file-drop-overlay")).not.toBeInTheDocument()
   })
 
   it("opens the attachment dialog for the first non-image file only", async () => {
@@ -97,9 +87,7 @@ describe("ConversationPanel file drop", () => {
 
     expect(fireEvent.drop(panel, { dataTransfer })).toBe(false)
 
-    expect(
-      await screen.findByRole("dialog", { name: "发送文件" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "发送文件" })).toBeInTheDocument()
     expect(screen.getByText("requirements.pdf")).toBeInTheDocument()
     expect(compressImageForMessageMock).not.toHaveBeenCalled()
   })
@@ -115,9 +103,7 @@ describe("ConversationPanel file drop", () => {
 
     expect(fireEvent.dragEnter(panel, { dataTransfer })).toBe(true)
     expect(fireEvent.dragOver(panel, { dataTransfer })).toBe(true)
-    expect(
-      screen.queryByTestId("conversation-file-drop-overlay")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId("conversation-file-drop-overlay")).not.toBeInTheDocument()
   })
 
   it("rejects file drops when the conversation cannot accept files", () => {
@@ -134,9 +120,7 @@ describe("ConversationPanel file drop", () => {
       const panel = screen.getByTestId("chat-detail-shell")
 
       expect(fireEvent.dragEnter(panel, { dataTransfer })).toBe(false)
-      expect(
-        screen.queryByTestId("conversation-file-drop-overlay")
-      ).not.toBeInTheDocument()
+      expect(screen.queryByTestId("conversation-file-drop-overlay")).not.toBeInTheDocument()
       expect(fireEvent.drop(panel, { dataTransfer })).toBe(false)
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 
@@ -145,10 +129,7 @@ describe("ConversationPanel file drop", () => {
   })
 })
 
-function renderConversationPanel(
-  conversation: ClientConversation | null,
-  sending = false
-) {
+function renderConversationPanel(conversation: ClientConversation | null, sending = false) {
   return render(
     <ConversationPanel
       conversation={conversation}
@@ -171,7 +152,7 @@ function renderConversationPanel(
       replyTarget={null}
       richTextMode={false}
       sending={sending}
-    />
+    />,
   )
 }
 

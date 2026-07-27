@@ -25,16 +25,14 @@ const chartColors = [
 ] as const
 
 function getBarChartLayout(
-  direction: ClientBarChartMessageBody["data"]["direction"]
+  direction: ClientBarChartMessageBody["data"]["direction"],
 ): "horizontal" | "vertical" {
   // Recharts names layout by axis orientation, which is the inverse of the
   // human-facing direction in the message protocol.
   return direction === "horizontal" ? "vertical" : "horizontal"
 }
 
-function getBarStackID(
-  mode: ClientBarChartMessageBody["data"]["mode"]
-): "total" | undefined {
+function getBarStackID(mode: ClientBarChartMessageBody["data"]["mode"]): "total" | undefined {
   return mode === "stacked" ? "total" : undefined
 }
 
@@ -42,7 +40,7 @@ function getBarRadius(
   direction: ClientBarChartMessageBody["data"]["direction"],
   mode: ClientBarChartMessageBody["data"]["mode"],
   seriesIndex: number,
-  visibleSeriesIndexes: readonly number[]
+  visibleSeriesIndexes: readonly number[],
 ): number | [number, number, number, number] {
   if (mode === "grouped") {
     return 4
@@ -63,14 +61,12 @@ function getBarRadius(
   return seriesIndex === firstIndex ? [0, 0, 4, 4] : [4, 4, 0, 0]
 }
 
-function createChartSeriesConfig(
-  series: ReadonlyArray<{ name: string }>
-): ChartConfig {
+function createChartSeriesConfig(series: ReadonlyArray<{ name: string }>): ChartConfig {
   return Object.fromEntries(
     series.map((item, index) => [
       `series${index + 1}`,
       { label: item.name, theme: chartColors[index] },
-    ])
+    ]),
   )
 }
 

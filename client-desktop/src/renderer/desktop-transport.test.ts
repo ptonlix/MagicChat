@@ -16,7 +16,11 @@ describe("installDesktopFetch", () => {
     reportRuntime.mockReset()
     streamStart.mockReset().mockResolvedValue("stream-1")
     streamChunk.mockReset().mockResolvedValue(undefined)
-    streamFinish.mockReset().mockResolvedValue({ body: { ok: true }, headers: { "content-type": "application/json" }, status: 201 })
+    streamFinish.mockReset().mockResolvedValue({
+      body: { ok: true },
+      headers: { "content-type": "application/json" },
+      status: 201,
+    })
     streamAbort.mockReset().mockResolvedValue(undefined)
     Object.defineProperty(window, "desktop", {
       configurable: true,
@@ -37,20 +41,33 @@ describe("installDesktopFetch", () => {
   })
 
   it("将 Multipart 上传计入请求并在完成后归零", async () => {
-    const restoreFetch = installDesktopFetch({ id: "server", normalizedUrl: "https://chat.example.com", userId: "user" })
+    const restoreFetch = installDesktopFetch({
+      id: "server",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user",
+    })
     const stopDiagnostics = startRuntimeDiagnostics(1_000)
     const body = new FormData()
     body.append("file", new Blob(["content"]), "test.txt")
 
-    const response = await window.fetch("http://localhost/api/client/temporary-files", { body, method: "POST" })
+    const response = await window.fetch("http://localhost/api/client/temporary-files", {
+      body,
+      method: "POST",
+    })
     await vi.advanceTimersByTimeAsync(1_000)
 
     expect(response.status).toBe(201)
     expect(streamStart).toHaveBeenCalledOnce()
-    expect(reportRuntime).toHaveBeenCalledWith(expect.objectContaining({
-      activeRequests: 0,
-      lastRequest: expect.objectContaining({ group: "api/client/temporary-files", method: "POST", status: 201 }),
-    }))
+    expect(reportRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeRequests: 0,
+        lastRequest: expect.objectContaining({
+          group: "api/client/temporary-files",
+          method: "POST",
+          status: 201,
+        }),
+      }),
+    )
 
     stopDiagnostics()
     restoreFetch()
@@ -58,18 +75,29 @@ describe("installDesktopFetch", () => {
 
   it("Multipart 上传失败时也会结束请求统计", async () => {
     streamStart.mockRejectedValueOnce(new Error("upload failed"))
-    const restoreFetch = installDesktopFetch({ id: "server", normalizedUrl: "https://chat.example.com", userId: "user" })
+    const restoreFetch = installDesktopFetch({
+      id: "server",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user",
+    })
     const stopDiagnostics = startRuntimeDiagnostics(1_000)
     const body = new FormData()
     body.append("file", new Blob(["content"]), "test.txt")
 
-    await expect(window.fetch("http://localhost/api/client/temporary-files", { body, method: "POST" })).rejects.toThrow("upload failed")
+    await expect(
+      window.fetch("http://localhost/api/client/temporary-files", { body, method: "POST" }),
+    ).rejects.toThrow("upload failed")
     await vi.advanceTimersByTimeAsync(1_000)
 
-    expect(reportRuntime).toHaveBeenCalledWith(expect.objectContaining({
-      activeRequests: 0,
-      lastRequest: expect.objectContaining({ group: "api/client/temporary-files", method: "POST" }),
-    }))
+    expect(reportRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeRequests: 0,
+        lastRequest: expect.objectContaining({
+          group: "api/client/temporary-files",
+          method: "POST",
+        }),
+      }),
+    )
 
     stopDiagnostics()
     restoreFetch()
@@ -81,16 +109,22 @@ describe("installDesktopFetch", () => {
       controller.abort()
       throw new DOMException("aborted", "AbortError")
     })
-    const restoreFetch = installDesktopFetch({ id: "server", normalizedUrl: "https://chat.example.com", userId: "user" })
+    const restoreFetch = installDesktopFetch({
+      id: "server",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user",
+    })
     const stopDiagnostics = startRuntimeDiagnostics(1_000)
     const body = new FormData()
     body.append("file", new Blob(["content"]), "test.txt")
 
-    await expect(window.fetch("http://localhost/api/client/temporary-files", {
-      body,
-      method: "POST",
-      signal: controller.signal,
-    })).rejects.toMatchObject({ name: "AbortError" })
+    await expect(
+      window.fetch("http://localhost/api/client/temporary-files", {
+        body,
+        method: "POST",
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" })
     await vi.advanceTimersByTimeAsync(1_000)
 
     expect(streamAbort).toHaveBeenCalled()

@@ -29,7 +29,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
       audio?.pause()
       if (objectURLRef.current) URL.revokeObjectURL(objectURLRef.current)
     },
-    []
+    [],
   )
 
   async function handlePlayToggle() {
@@ -48,7 +48,9 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
 
     try {
       if (!audio.src) {
-        const response = await fetch(`/api/client/temporary-files/${encodeURIComponent(voice.fileId)}/content`)
+        const response = await fetch(
+          `/api/client/temporary-files/${encodeURIComponent(voice.fileId)}/content`,
+        )
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         objectURLRef.current = URL.createObjectURL(await response.blob())
         audio.src = objectURLRef.current
@@ -86,9 +88,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
         }}
         onPause={() => setPlaying(false)}
         onPlay={() => setPlaying(true)}
-        onTimeUpdate={(event) =>
-          setCurrentTime(event.currentTarget.currentTime)
-        }
+        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
         preload="none"
       />
       <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background/50 text-muted-foreground">

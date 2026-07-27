@@ -1,24 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react"
 
-import {
-  Camera,
-  Check,
-  Globe2,
-  Lock,
-  LogOut,
-  MinusSquare,
-  Pencil,
-  Trash2,
-  X,
-} from "lucide-react"
+import { Camera, Check, Globe2, Lock, LogOut, MinusSquare, Pencil, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import type { ClientConversationMember } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
-import {
-  CustomAvatarPicker,
-  type CroppedAvatar,
-} from "@/components/custom-avatar-picker"
+import { CustomAvatarPicker, type CroppedAvatar } from "@/components/custom-avatar-picker"
 import { GroupAvatar } from "@/components/group-avatar"
 import { GroupConversationProjects } from "@/components/group-conversation-projects"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -42,21 +29,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { UserProfilePopover } from "@/components/user-profile-popover"
-import {
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 
 type GroupConversationInfoProps = {
   conversationId: string
 }
 
-export function GroupConversationInfo({
-  conversationId,
-}: GroupConversationInfoProps) {
+export function GroupConversationInfo({ conversationId }: GroupConversationInfoProps) {
   const {
     dissolveGroupConversation,
     getConversation,
@@ -79,13 +59,12 @@ export function GroupConversationInfo({
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [leaveSaving, setLeaveSaving] = useState(false)
   const [memberRemovalSaving, setMemberRemovalSaving] = useState(false)
-  const [memberRemovalTarget, setMemberRemovalTarget] =
-    useState<ClientConversationMember | null>(null)
+  const [memberRemovalTarget, setMemberRemovalTarget] = useState<ClientConversationMember | null>(
+    null,
+  )
   const [nameSaving, setNameSaving] = useState(false)
   const [visibilitySaving, setVisibilitySaving] = useState(false)
-  const [visibilityTarget, setVisibilityTarget] = useState<
-    "private" | "public" | null
-  >(null)
+  const [visibilityTarget, setVisibilityTarget] = useState<"private" | "public" | null>(null)
   const [draftAvatarOverride, setDraftAvatarOverride] = useState<{
     avatar: string
     baseAvatar: string
@@ -99,17 +78,13 @@ export function GroupConversationInfo({
           <SheetTitle>群聊信息</SheetTitle>
           <SheetDescription>群聊</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          会话信息不可用
-        </div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">会话信息不可用</div>
       </>
     )
   }
 
   const activeConversation = conversation
-  const members = [...(activeConversation.members ?? [])].sort(
-    compareConversationMembers
-  )
+  const members = [...(activeConversation.members ?? [])].sort(compareConversationMembers)
   const currentMember = members.find((member) => member.id === me.id)
   const canChangeAvatar = canManageGroupAvatar(currentMember?.role)
   const canManageMembers = canManageGroupMembers(currentMember?.role)
@@ -136,7 +111,7 @@ export function GroupConversationInfo({
     try {
       const updatedConversation = await updateGroupConversationAvatar(
         activeConversation.id,
-        avatar.file
+        avatar.file,
       )
       setDraftAvatarOverride({
         avatar: updatedConversation.avatar,
@@ -208,8 +183,7 @@ export function GroupConversationInfo({
       !canManageMembers ||
       !memberRemovalTarget ||
       memberRemovalSaving ||
-      (memberRemovalTarget.type === "user" &&
-        memberRemovalTarget.id === me.id) ||
+      (memberRemovalTarget.type === "user" && memberRemovalTarget.id === me.id) ||
       memberRemovalTarget.role === "owner"
     ) {
       return
@@ -218,11 +192,7 @@ export function GroupConversationInfo({
     const target = memberRemovalTarget
     setMemberRemovalSaving(true)
     try {
-      await removeGroupConversationMember(
-        activeConversation.id,
-        target.id,
-        target.type
-      )
+      await removeGroupConversationMember(activeConversation.id, target.id, target.type)
       setMemberRemovalTarget(null)
       toast.success("已移出群聊成员")
     } catch (error) {
@@ -326,9 +296,7 @@ export function GroupConversationInfo({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <DialogTitle className="text-base font-medium">
-                修改群头像
-              </DialogTitle>
+              <DialogTitle className="text-base font-medium">修改群头像</DialogTitle>
               <DialogDescription className="sr-only">
                 上传并裁切一张图片作为群聊头像
               </DialogDescription>
@@ -352,9 +320,7 @@ export function GroupConversationInfo({
         {canChangeVisibility && (
           <Button
             disabled={visibilitySaving}
-            onClick={() =>
-              setVisibilityTarget(isPublicGroup ? "private" : "public")
-            }
+            onClick={() => setVisibilityTarget(isPublicGroup ? "private" : "public")}
             type="button"
             variant="outline"
           >
@@ -400,9 +366,7 @@ export function GroupConversationInfo({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认退出群聊</AlertDialogTitle>
-            <AlertDialogDescription>
-              退出后将无法继续查看和发送该群聊消息。
-            </AlertDialogDescription>
+            <AlertDialogDescription>退出后将无法继续查看和发送该群聊消息。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={leaveSaving}>取消</AlertDialogCancel>
@@ -440,9 +404,7 @@ export function GroupConversationInfo({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={dissolveSaving}>
-              取消
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={dissolveSaving}>取消</AlertDialogCancel>
             <AlertDialogAction
               disabled={dissolveSaving || !canDissolveGroup}
               onClick={(event) => {
@@ -481,9 +443,7 @@ export function GroupConversationInfo({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={visibilitySaving}>
-              取消
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={visibilitySaving}>取消</AlertDialogCancel>
             <AlertDialogAction
               disabled={visibilitySaving}
               onClick={(event) => {
@@ -515,17 +475,12 @@ export function GroupConversationInfo({
           <AlertDialogHeader>
             <AlertDialogTitle>移出群聊</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要将{" "}
-              {memberRemovalTarget
-                ? getMemberDisplayName(memberRemovalTarget)
-                : "该成员"}{" "}
+              确定要将 {memberRemovalTarget ? getMemberDisplayName(memberRemovalTarget) : "该成员"}{" "}
               移出群聊吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={memberRemovalSaving}>
-              取消
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={memberRemovalSaving}>取消</AlertDialogCancel>
             <AlertDialogAction
               disabled={memberRemovalSaving}
               onClick={(event) => {
@@ -564,8 +519,7 @@ function GroupConversationNameControl({
   const [editing, setEditing] = useState(false)
   const [draftName, setDraftName] = useState(name)
   const trimmedDraftName = draftName.trim()
-  const saveDisabled =
-    trimmedDraftName === "" || trimmedDraftName === name.trim()
+  const saveDisabled = trimmedDraftName === "" || trimmedDraftName === name.trim()
 
   useEffect(() => {
     if (editing) {
@@ -680,12 +634,7 @@ function GroupConversationAvatarControl({
   onClick: () => void
 }) {
   const avatarNode = (
-    <GroupAvatar
-      avatar={avatar}
-      className="size-20"
-      members={members}
-      name={name}
-    />
+    <GroupAvatar avatar={avatar} className="size-20" members={members} name={name} />
   )
 
   if (!canChangeAvatar) {
@@ -735,9 +684,7 @@ function GroupMemberItem({
           {content}
         </UserProfilePopover>
       ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5 text-sm">
-          {content}
-        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5 text-sm">{content}</div>
       )}
       {canRemove && (
         <Button
@@ -760,40 +707,26 @@ function GroupMemberItem({
   )
 }
 
-function GroupMemberItemContent({
-  member,
-}: {
-  member: ClientConversationMember
-}) {
+function GroupMemberItemContent({ member }: { member: ClientConversationMember }) {
   const displayName = getMemberDisplayName(member)
 
   return (
     <>
       <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
         {member.avatar && (
-          <AvatarImage
-            alt={displayName}
-            className="rounded-sm"
-            src={member.avatar}
-          />
+          <AvatarImage alt={displayName} className="rounded-sm" src={member.avatar} />
         )}
-        <AvatarFallback className="rounded-sm">
-          {getInitial(displayName)}
-        </AvatarFallback>
+        <AvatarFallback className="rounded-sm">{getInitial(displayName)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="truncate">{displayName}</div>
-        <div className="truncate text-xs text-muted-foreground">
-          {getMemberRoleLabel(member)}
-        </div>
+        <div className="truncate text-xs text-muted-foreground">{getMemberRoleLabel(member)}</div>
       </div>
     </>
   )
 }
 
-function getMemberDisplayName(
-  member: Pick<ClientConversationMember, "name" | "nickname">
-) {
+function getMemberDisplayName(member: Pick<ClientConversationMember, "name" | "nickname">) {
   return member.nickname.trim() || member.name.trim()
 }
 
@@ -819,32 +752,24 @@ const memberRoleOrder: Record<ClientConversationMember["role"], number> = {
 
 function compareConversationMembers(
   left: ClientConversationMember,
-  right: ClientConversationMember
+  right: ClientConversationMember,
 ) {
   return memberRoleOrder[left.role] - memberRoleOrder[right.role]
 }
 
-function canManageGroupAvatar(
-  role: ClientConversationMember["role"] | undefined
-) {
+function canManageGroupAvatar(role: ClientConversationMember["role"] | undefined) {
   return role === "owner" || role === "admin"
 }
 
-function canManageGroupName(
-  role: ClientConversationMember["role"] | undefined
-) {
+function canManageGroupName(role: ClientConversationMember["role"] | undefined) {
   return role === "owner" || role === "admin"
 }
 
-function canManageGroupMembers(
-  role: ClientConversationMember["role"] | undefined
-) {
+function canManageGroupMembers(role: ClientConversationMember["role"] | undefined) {
   return role === "owner" || role === "admin"
 }
 
-function canManageGroupProjects(
-  role: ClientConversationMember["role"] | undefined
-) {
+function canManageGroupProjects(role: ClientConversationMember["role"] | undefined) {
   return role === "owner" || role === "admin"
 }
 

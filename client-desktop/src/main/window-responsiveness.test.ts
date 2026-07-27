@@ -38,7 +38,7 @@ describe("monitorWindowResponsiveness", () => {
     monitorWindowResponsiveness(
       window as unknown as BrowserWindow,
       { recordRendererLifecycle } as unknown as Diagnostics,
-      8_000
+      8_000,
     )
 
     window.emit("unresponsive")
@@ -46,7 +46,12 @@ describe("monitorWindowResponsiveness", () => {
     window.emit("responsive")
 
     expect(recordRendererLifecycle).toHaveBeenNthCalledWith(1, "unresponsive", expect.any(String))
-    expect(recordRendererLifecycle).toHaveBeenNthCalledWith(2, "responsive", expect.any(String), 2_500)
+    expect(recordRendererLifecycle).toHaveBeenNthCalledWith(
+      2,
+      "responsive",
+      expect.any(String),
+      2_500,
+    )
     expect(recordRendererLifecycle.mock.calls[0][1]).toBe(recordRendererLifecycle.mock.calls[1][1])
     expect(electronMocks.showMessageBox).not.toHaveBeenCalled()
   })
@@ -58,7 +63,7 @@ describe("monitorWindowResponsiveness", () => {
     monitorWindowResponsiveness(
       window as unknown as BrowserWindow,
       { recordRendererLifecycle } as unknown as Diagnostics,
-      8_000
+      8_000,
     )
 
     window.emit("unresponsive")
@@ -79,7 +84,7 @@ describe("monitorWindowResponsiveness", () => {
     monitorWindowResponsiveness(
       window as unknown as BrowserWindow,
       { recordRendererLifecycle: vi.fn().mockResolvedValue(undefined) } as unknown as Diagnostics,
-      8_000
+      8_000,
     )
 
     window.emit("unresponsive")
@@ -96,12 +101,16 @@ describe("monitorWindowResponsiveness", () => {
     const recordRendererLifecycle = vi.fn().mockResolvedValue(undefined)
     let resolveFirst!: (result: { response: number }) => void
     electronMocks.showMessageBox
-      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+      )
       .mockReturnValueOnce(new Promise(() => undefined))
     monitorWindowResponsiveness(
       window as unknown as BrowserWindow,
       { recordRendererLifecycle } as unknown as Diagnostics,
-      8_000
+      8_000,
     )
 
     window.emit("unresponsive")
@@ -120,7 +129,7 @@ describe("monitorWindowResponsiveness", () => {
     expect(recordRendererLifecycle).not.toHaveBeenCalledWith(
       "unresponsive-reload",
       firstEpisodeId,
-      expect.any(Number)
+      expect.any(Number),
     )
   })
 })

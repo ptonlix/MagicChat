@@ -20,11 +20,7 @@ import {
   GroupDetailPanel,
 } from "@/components/contacts/contact-detail-panels"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import type {
-  ContactApp,
-  ContactGroup,
-  ContactUser,
-} from "@/lib/client-data-api"
+import type { ContactApp, ContactGroup, ContactUser } from "@/lib/client-data-api"
 import {
   getClientAppCredentials,
   type ClientAppCredentials,
@@ -58,22 +54,17 @@ export function ContactsPage() {
   }>()
   const activeSelection = React.useMemo(
     () => createDirectorySelection(directoryType, directoryId),
-    [directoryId, directoryType]
+    [directoryId, directoryType],
   )
-  const [openingDirectoryItemKey, setOpeningDirectoryItemKey] =
-    React.useState("")
-  const [appCredentials, setAppCredentials] =
-    React.useState<ClientAppCredentials | null>(null)
-  const [appProfile, setAppProfile] = React.useState<ClientOwnedApp | null>(
-    null
-  )
+  const [openingDirectoryItemKey, setOpeningDirectoryItemKey] = React.useState("")
+  const [appCredentials, setAppCredentials] = React.useState<ClientAppCredentials | null>(null)
+  const [appProfile, setAppProfile] = React.useState<ClientOwnedApp | null>(null)
   const [loadingAccessInfoAppId, setLoadingAccessInfoAppId] = React.useState("")
   const [loadingProfileAppId, setLoadingProfileAppId] = React.useState("")
   const [activeTabsByLocation, setActiveTabsByLocation] = React.useState<
     Record<string, DirectoryTab>
   >({})
-  const activeTab =
-    activeTabsByLocation[location.key] ?? activeSelection?.type ?? "user"
+  const activeTab = activeTabsByLocation[location.key] ?? activeSelection?.type ?? "user"
   const [keywords, setKeywords] = React.useState<Record<DirectoryTab, string>>({
     app: "",
     group: "",
@@ -83,10 +74,7 @@ export function ContactsPage() {
   const normalizedAppKeyword = keywords.app.trim().toLowerCase()
   const normalizedContactKeyword = keywords.user.trim().toLowerCase()
   const normalizedGroupKeyword = keywords.group.trim().toLowerCase()
-  const appGrantUsers = React.useMemo(
-    () => sortContactsByDisplayName(contacts),
-    [contacts]
-  )
+  const appGrantUsers = React.useMemo(() => sortContactsByDisplayName(contacts), [contacts])
   const filteredApps = React.useMemo(() => {
     if (!normalizedAppKeyword) {
       return contactApps
@@ -94,8 +82,8 @@ export function ContactsPage() {
 
     return contactApps.filter((app) =>
       [app.name, app.description].some((value) =>
-        value.toLowerCase().includes(normalizedAppKeyword)
-      )
+        value.toLowerCase().includes(normalizedAppKeyword),
+      ),
     )
   }, [contactApps, normalizedAppKeyword])
   const filteredContacts = React.useMemo(() => {
@@ -111,10 +99,8 @@ export function ContactsPage() {
           contact.nickname,
           contact.phone,
           formatContactPhone(contact.phone),
-        ].some((value) =>
-          value.toLowerCase().includes(normalizedContactKeyword)
-        )
-      )
+        ].some((value) => value.toLowerCase().includes(normalizedContactKeyword)),
+      ),
     )
   }, [contacts, normalizedContactKeyword])
   const filteredGroups = React.useMemo(() => {
@@ -123,14 +109,14 @@ export function ContactsPage() {
     }
 
     return contactGroups.filter((group) =>
-      group.name.toLowerCase().includes(normalizedGroupKeyword)
+      group.name.toLowerCase().includes(normalizedGroupKeyword),
     )
   }, [contactGroups, normalizedGroupKeyword])
   const activeItem = resolveActiveDirectoryItem(
     activeSelection,
     contactApps,
     contacts,
-    contactGroups
+    contactGroups,
   )
 
   async function startDirectConversation(contact: ContactUser) {
@@ -148,7 +134,7 @@ export function ContactsPage() {
       toast.error("无法发起私聊")
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
-        currentItemKey === itemKey ? "" : currentItemKey
+        currentItemKey === itemKey ? "" : currentItemKey,
       )
     }
   }
@@ -164,16 +150,13 @@ export function ContactsPage() {
       toast.error("无法发起应用会话")
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
-        currentItemKey === itemKey ? "" : currentItemKey
+        currentItemKey === itemKey ? "" : currentItemKey,
       )
     }
   }
 
   async function openAppAccessInfo(app: ContactApp) {
-    if (
-      app.creatorUserId?.toLowerCase() !== me.id.toLowerCase() ||
-      loadingAccessInfoAppId
-    ) {
+    if (app.creatorUserId?.toLowerCase() !== me.id.toLowerCase() || loadingAccessInfoAppId) {
       return
     }
 
@@ -181,19 +164,14 @@ export function ContactsPage() {
     try {
       setAppCredentials(await getClientAppCredentials(app.id))
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "加载应用接入信息失败"
-      )
+      toast.error(error instanceof Error ? error.message : "加载应用接入信息失败")
     } finally {
       setLoadingAccessInfoAppId("")
     }
   }
 
   async function openAppProfile(app: ContactApp) {
-    if (
-      app.creatorUserId?.toLowerCase() !== me.id.toLowerCase() ||
-      loadingProfileAppId
-    ) {
+    if (app.creatorUserId?.toLowerCase() !== me.id.toLowerCase() || loadingProfileAppId) {
       return
     }
 
@@ -225,7 +203,7 @@ export function ContactsPage() {
       toast.error("无法加入群聊")
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
-        currentItemKey === itemKey ? "" : currentItemKey
+        currentItemKey === itemKey ? "" : currentItemKey,
       )
     }
   }
@@ -273,12 +251,8 @@ export function ContactsPage() {
         onRefresh={() => void refreshContacts().catch(() => undefined)}
         onSelect={selectDirectoryItem}
         onStartAppConversation={(app) => void startAppConversation(app)}
-        onStartContactConversation={(contact) =>
-          void startDirectConversation(contact)
-        }
-        onStartGroupConversation={(group) =>
-          void openOrJoinGroupConversation(group)
-        }
+        onStartContactConversation={(contact) => void startDirectConversation(contact)}
+        onStartGroupConversation={(group) => void openOrJoinGroupConversation(group)}
         openingDirectoryItemKey={openingDirectoryItemKey}
       />
 
@@ -286,7 +260,7 @@ export function ContactsPage() {
         <div
           className={cn(
             "flex min-h-0 flex-1 items-start justify-center px-6",
-            activeItem ? "bg-background" : "bg-muted"
+            activeItem ? "bg-background" : "bg-muted",
           )}
           data-testid="contact-detail-shell"
         >
@@ -296,47 +270,36 @@ export function ContactsPage() {
               developer={getAppDeveloper(activeItem.app, contacts, me)}
               editingProfile={loadingProfileAppId === activeItem.app.id}
               onEditProfile={
-                activeItem.app.creatorUserId?.toLowerCase() ===
-                me.id.toLowerCase()
+                activeItem.app.creatorUserId?.toLowerCase() === me.id.toLowerCase()
                   ? () => void openAppProfile(activeItem.app)
                   : undefined
               }
-              onStartConversation={() =>
-                void startAppConversation(activeItem.app)
-              }
+              onStartConversation={() => void startAppConversation(activeItem.app)}
               onViewAccessInfo={
-                activeItem.app.creatorUserId?.toLowerCase() ===
-                me.id.toLowerCase()
+                activeItem.app.creatorUserId?.toLowerCase() === me.id.toLowerCase()
                   ? () => void openAppAccessInfo(activeItem.app)
                   : undefined
               }
               startingConversation={
-                openingDirectoryItemKey ===
-                directoryItemKey("app", activeItem.app.id)
+                openingDirectoryItemKey === directoryItemKey("app", activeItem.app.id)
               }
               viewingAccessInfo={loadingAccessInfoAppId === activeItem.app.id}
             />
           ) : activeItem?.type === "group" ? (
             <GroupDetailPanel
               group={activeItem.group}
-              onStartConversation={() =>
-                void openOrJoinGroupConversation(activeItem.group)
-              }
+              onStartConversation={() => void openOrJoinGroupConversation(activeItem.group)}
               startingConversation={
-                openingDirectoryItemKey ===
-                directoryItemKey("group", activeItem.group.id)
+                openingDirectoryItemKey === directoryItemKey("group", activeItem.group.id)
               }
             />
           ) : activeItem?.type === "user" ? (
             <ContactDetailPanel
               contact={activeItem.contact}
               canStartConversation={activeItem.contact.id !== me.id}
-              onStartConversation={() =>
-                void startDirectConversation(activeItem.contact)
-              }
+              onStartConversation={() => void startDirectConversation(activeItem.contact)}
               startingConversation={
-                openingDirectoryItemKey ===
-                directoryItemKey("user", activeItem.contact.id)
+                openingDirectoryItemKey === directoryItemKey("user", activeItem.contact.id)
               }
             />
           ) : (
@@ -380,10 +343,7 @@ export function ContactsPage() {
 function getAppDeveloper(
   app: ContactApp,
   contacts: ContactUser[],
-  currentUser: Pick<
-    ContactUser,
-    "avatar" | "email" | "id" | "name" | "nickname" | "phone"
-  >
+  currentUser: Pick<ContactUser, "avatar" | "email" | "id" | "name" | "nickname" | "phone">,
 ) {
   if (!app.creatorUserId) {
     return undefined
@@ -393,9 +353,7 @@ function getAppDeveloper(
   const developer =
     currentUser.id.toLowerCase() === normalizedCreatorId
       ? currentUser
-      : contacts.find(
-          (contact) => contact.id.toLowerCase() === normalizedCreatorId
-        )
+      : contacts.find((contact) => contact.id.toLowerCase() === normalizedCreatorId)
 
   return developer
 }

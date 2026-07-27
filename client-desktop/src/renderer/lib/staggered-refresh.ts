@@ -5,7 +5,7 @@ export type StaggeredRefreshController = {
 
 export function startStaggeredRefresh(
   tasks: ReadonlyArray<() => Promise<unknown> | unknown>,
-  cycleMs: number
+  cycleMs: number,
 ): StaggeredRefreshController {
   if (tasks.length === 0) {
     return { refreshNext: () => undefined, stop: () => undefined }

@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ExpressionPickerPopover } from "@/components/expression-picker-popover"
@@ -19,7 +13,7 @@ describe("ExpressionPicker", () => {
     render(
       <ExpressionPickerPopover onSelect={onSelect}>
         <button type="button">打开表情</button>
-      </ExpressionPickerPopover>
+      </ExpressionPickerPopover>,
     )
 
     fireEvent.click(screen.getByRole("button", { name: "打开表情" }))
@@ -32,9 +26,7 @@ describe("ExpressionPicker", () => {
       value: "🤝",
     })
     await waitFor(() =>
-      expect(
-        screen.queryByRole("region", { name: "所有表情" })
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "所有表情" })).not.toBeInTheDocument(),
     )
   })
 })

@@ -1,14 +1,7 @@
 import * as React from "react"
 
-import {
-  ExpressionPicker,
-  type ExpressionItem,
-} from "@/components/expression-picker"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ExpressionPicker, type ExpressionItem } from "@/components/expression-picker"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type ExpressionPickerPopoverProps = {
   align?: "start" | "center" | "end"

@@ -64,14 +64,12 @@ describe("AppLayout", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>
         <AppLayout />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     await user.click(screen.getByRole("button", { name: "用户菜单" }))
 
-    expect(
-      screen.getByRole("menuitem", { name: /个人资料/ })
-    ).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: /个人资料/ })).toBeInTheDocument()
     expect(screen.getByRole("menuitem", { name: /^设置$/ })).toBeInTheDocument()
 
     await user.click(screen.getByRole("menuitem", { name: /个人资料/ }))
@@ -80,21 +78,15 @@ describe("AppLayout", () => {
       name: "个人资料",
     })
     expect(within(profileDialog).getByLabelText("昵称")).toBeInTheDocument()
-    expect(
-      within(profileDialog).queryByText("桌面通知")
-    ).not.toBeInTheDocument()
+    expect(within(profileDialog).queryByText("桌面通知")).not.toBeInTheDocument()
 
-    await user.click(
-      within(profileDialog).getByRole("button", { name: "关闭" })
-    )
+    await user.click(within(profileDialog).getByRole("button", { name: "关闭" }))
     await user.click(screen.getByRole("button", { name: "用户菜单" }))
     await user.click(screen.getByRole("menuitem", { name: /^设置$/ }))
 
     const settingsDialog = await screen.findByRole("dialog", { name: "设置" })
     expect(within(settingsDialog).getByText("桌面通知")).toBeInTheDocument()
-    expect(
-      within(settingsDialog).queryByLabelText("昵称")
-    ).not.toBeInTheDocument()
+    expect(within(settingsDialog).queryByLabelText("昵称")).not.toBeInTheDocument()
   })
 
   it("lets the desktop host handle the shared settings entry", async () => {
@@ -106,7 +98,7 @@ describe("AppLayout", () => {
       render(
         <MemoryRouter initialEntries={["/chat"]}>
           <AppLayout />
-        </MemoryRouter>
+        </MemoryRouter>,
       )
 
       await user.click(screen.getByRole("button", { name: "用户菜单" }))
@@ -125,7 +117,7 @@ describe("AppLayout", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>
         <AppLayout />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     const downloadButton = screen.getByRole("button", { name: "下载客户端" })
@@ -140,26 +132,22 @@ describe("AppLayout", () => {
     expect(
       within(dialog).getByRole("link", {
         name: "下载 Android 客户端",
-      })
+      }),
     ).toMatchObject({
       href: "https://chat-public-1450770193.cos.ap-guangzhou.myqcloud.com/releases/magic-chat.apk.1",
       target: "_blank",
     })
-    expect(
-      within(dialog).getAllByRole("button", { name: "敬请期待" })
-    ).toHaveLength(3)
+    expect(within(dialog).getAllByRole("button", { name: "敬请期待" })).toHaveLength(3)
   })
 
   it("opens the MagicChat repository in a new tab", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>
         <AppLayout />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
-    expect(
-      screen.getByRole("link", { name: "在 GitHub 查看 MagicChat" })
-    ).toMatchObject({
+    expect(screen.getByRole("link", { name: "在 GitHub 查看 MagicChat" })).toMatchObject({
       href: "https://github.com/chaitin/MagicChat",
       rel: "noopener noreferrer",
       target: "_blank",
@@ -180,9 +168,7 @@ describe("AppLayout", () => {
     })
     await user.click(within(dialog).getByRole("button", { name: "退出登录" }))
 
-    expect(
-      await screen.findByRole("heading", { name: "即应 智能协作平台" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "即应 智能协作平台" })).toBeInTheDocument()
     expect(screen.queryByTestId("init-page")).not.toBeInTheDocument()
     expect(mocks.clientLogout).toHaveBeenCalledTimes(1)
   })

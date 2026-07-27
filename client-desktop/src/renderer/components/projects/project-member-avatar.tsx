@@ -15,11 +15,7 @@ export function ProjectMemberAvatar({
   return (
     <Avatar className={cn(className, "shrink-0 rounded-sm after:rounded-sm")}>
       {member.avatar && (
-        <AvatarImage
-          alt={member.displayName}
-          className="rounded-sm"
-          src={member.avatar}
-        />
+        <AvatarImage alt={member.displayName} className="rounded-sm" src={member.avatar} />
       )}
       <AvatarFallback className={cn("rounded-sm", fallbackClassName)}>
         {getAvatarInitial(member.displayName)}

@@ -32,7 +32,7 @@ describe("SendImageMessageDialog", () => {
         onOpenChange={vi.fn()}
         open
         sending={false}
-      />
+      />,
     )
 
     const previewImage = await screen.findByRole("img", {
@@ -46,7 +46,7 @@ describe("SendImageMessageDialog", () => {
         addEventListener.mock.instances[index] === previewArea &&
         eventName === "wheel" &&
         typeof options === "object" &&
-        options?.passive === false
+        options?.passive === false,
     )
 
     expect(hasNonPassiveWheelListener).toBe(true)

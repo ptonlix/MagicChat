@@ -10,11 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -66,25 +62,21 @@ export function ProjectTaskReminderField({
           aria-label="提醒时间"
           className={cn(
             "w-full min-w-0 justify-start px-2.5 font-normal",
-            !value && "text-muted-foreground"
+            !value && "text-muted-foreground",
           )}
           disabled={disabled}
           type="button"
           variant="outline"
         >
           <Bell />
-          <span className="min-w-0 truncate">
-            {formatReminderSummary(value, paused, state)}
-          </span>
+          <span className="min-w-0 truncate">{formatReminderSummary(value, paused, state)}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-medium">提醒时间</p>
-            <p className="text-xs text-muted-foreground">
-              到时向当前负责人发送任务卡片
-            </p>
+            <p className="text-xs text-muted-foreground">到时向当前负责人发送任务卡片</p>
           </div>
           {draft && (
             <Button
@@ -103,7 +95,7 @@ export function ProjectTaskReminderField({
         {!draft ? (
           <div className="grid grid-cols-2 gap-2">
             <Button
-              className="h-auto gap-1.5 whitespace-nowrap py-3"
+              className="h-auto gap-1.5 py-3 whitespace-nowrap"
               onClick={() => setDraft(createDefaultOnceReminder())}
               type="button"
               variant="outline"
@@ -112,7 +104,7 @@ export function ProjectTaskReminderField({
               一次性
             </Button>
             <Button
-              className="h-auto gap-1.5 whitespace-nowrap py-3"
+              className="h-auto gap-1.5 py-3 whitespace-nowrap"
               onClick={() => setDraft(createDefaultRecurringReminder())}
               type="button"
               variant="outline"
@@ -162,10 +154,7 @@ export function ProjectTaskReminderField({
                 />
               </div>
             ) : (
-              <RecurringReminderFields
-                onValueChange={setDraft}
-                value={draft}
-              />
+              <RecurringReminderFields onValueChange={setDraft} value={draft} />
             )}
 
             <div className="text-xs text-muted-foreground">
@@ -206,9 +195,7 @@ function RecurringReminderFields({
       <div className="grid gap-2">
         <Label>重复周期</Label>
         <Select
-          onValueChange={(frequency) =>
-            onValueChange(changeFrequency(value, frequency))
-          }
+          onValueChange={(frequency) => onValueChange(changeFrequency(value, frequency))}
           value={value.frequency}
         >
           <SelectTrigger className="w-full">
@@ -258,22 +245,18 @@ function RecurringReminderFields({
         <div className="grid gap-2">
           <Label>每月日期</Label>
           <Select
-            onValueChange={(day) =>
-              onValueChange({ ...value, dayOfMonth: Number(day) })
-            }
+            onValueChange={(day) => onValueChange({ ...value, dayOfMonth: Number(day) })}
             value={String(value.dayOfMonth ?? 1)}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-64">
-              {Array.from({ length: 31 }, (_, index) => index + 1).map(
-                (day) => (
-                  <SelectItem key={day} value={String(day)}>
-                    {day} 日
-                  </SelectItem>
-                )
-              )}
+              {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                <SelectItem key={day} value={String(day)}>
+                  {day} 日
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -299,7 +282,7 @@ function RecurringReminderFields({
 
 function changeFrequency(
   value: Extract<ProjectTaskReminderInput, { mode: "recurring" }>,
-  frequency: string
+  frequency: string,
 ): Extract<ProjectTaskReminderInput, { mode: "recurring" }> {
   const base = {
     mode: "recurring" as const,
@@ -347,7 +330,7 @@ function currentISOWeekday() {
 function formatReminderSummary(
   reminder: ProjectTaskReminderInput | null,
   paused: boolean,
-  state?: ProjectTaskReminderState
+  state?: ProjectTaskReminderState,
 ) {
   if (!reminder) {
     return "不提醒"
@@ -370,9 +353,7 @@ function formatReminderSummary(
     summary = `每天 ${reminder.time}`
   } else if (reminder.frequency === "weekly") {
     const labels = (reminder.weekdays ?? [])
-      .map(
-        (value) => weekdays.find((weekday) => weekday.value === value)?.label
-      )
+      .map((value) => weekdays.find((weekday) => weekday.value === value)?.label)
       .filter(Boolean)
       .join("、")
     summary = `每周${labels} ${reminder.time}`
@@ -418,7 +399,7 @@ function shanghaiDate(date: Date) {
 }
 
 function cloneReminderInput(
-  value: ProjectTaskReminderInput | null
+  value: ProjectTaskReminderInput | null,
 ): ProjectTaskReminderInput | null {
   if (!value) {
     return null

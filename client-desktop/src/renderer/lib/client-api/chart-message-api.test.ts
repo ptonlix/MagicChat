@@ -56,19 +56,19 @@ describe("sendConversationChartMessage", () => {
             },
           },
         }),
-        { headers: { "Content-Type": "application/json" }, status: 201 }
+        { headers: { "Content-Type": "application/json" }, status: 201 },
       )
     }) as ClientDataFetch
 
     const message = await sendConversationChartMessage(
       "conversation-1",
       { chart, clientMessageId: "client-chart-1" },
-      fetcher
+      fetcher,
     )
 
     expect(fetcher).toHaveBeenCalledWith(
       "/api/client/conversations/conversation-1/messages",
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({ method: "POST" }),
     )
     expect(message.body).toEqual(chart)
   })

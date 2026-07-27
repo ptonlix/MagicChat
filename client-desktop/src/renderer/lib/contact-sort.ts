@@ -11,16 +11,11 @@ const contactNameCollator = new Intl.Collator("zh-CN-u-co-pinyin", {
   usage: "sort",
 })
 
-export function sortContactsByDisplayName<T extends SortableContact>(
-  contacts: readonly T[]
-) {
+export function sortContactsByDisplayName<T extends SortableContact>(contacts: readonly T[]) {
   return [...contacts].sort(compareContactsByDisplayName)
 }
 
-function compareContactsByDisplayName<T extends SortableContact>(
-  left: T,
-  right: T
-) {
+function compareContactsByDisplayName<T extends SortableContact>(left: T, right: T) {
   return (
     compareContactText(getContactSortName(left), getContactSortName(right)) ||
     compareContactText(left.email, right.email) ||

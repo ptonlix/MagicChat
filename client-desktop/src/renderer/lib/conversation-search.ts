@@ -1,12 +1,6 @@
-import type {
-  ClientConversation,
-  ClientConversationMember,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ClientConversationMember } from "@/lib/client-data-api"
 import { getConversationDisplayName } from "@/lib/conversation-avatar-presentation"
-import {
-  createPinyinSearchTokens,
-  normalizePinyinSearchQuery,
-} from "@/lib/pinyin-search"
+import { createPinyinSearchTokens, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 
 export type ConversationSearchFieldKind =
   | "conversation_name"
@@ -46,19 +40,13 @@ const searchResultLimit = 20
 export function createConversationSearchIndex(
   conversations: ClientConversation[],
   currentUserId: string,
-  previousIndex: ConversationSearchEntry[] = []
+  previousIndex: ConversationSearchEntry[] = [],
 ): ConversationSearchEntry[] {
-  const previousEntriesById = new Map(
-    previousIndex.map((entry) => [entry.conversation.id, entry])
-  )
+  const previousEntriesById = new Map(previousIndex.map((entry) => [entry.conversation.id, entry]))
 
   return conversations.map((conversation, originalIndex) => {
     const previousEntry = previousEntriesById.get(conversation.id)
-    const fields = canReuseSearchFields(
-      previousEntry,
-      conversation,
-      currentUserId
-    )
+    const fields = canReuseSearchFields(previousEntry, conversation, currentUserId)
       ? previousEntry.fields
       : createConversationSearchFields(conversation, currentUserId)
 
@@ -74,7 +62,7 @@ export function createConversationSearchIndex(
 
 export function searchConversationIndex(
   index: ConversationSearchEntry[],
-  keyword: string
+  keyword: string,
 ): ConversationSearchResult[] {
   const query = normalizePinyinSearchQuery(keyword)
 
@@ -88,9 +76,7 @@ export function searchConversationIndex(
 
   return index
     .map((entry) => findBestConversationMatch(entry, query))
-    .filter((result): result is RankedConversationSearchResult =>
-      Boolean(result)
-    )
+    .filter((result): result is RankedConversationSearchResult => Boolean(result))
     .sort(compareRankedSearchResults)
     .slice(0, searchResultLimit)
     .map(({ conversation, matchedField, matchQuality }) => ({
@@ -103,7 +89,7 @@ export function searchConversationIndex(
 function canReuseSearchFields(
   previousEntry: ConversationSearchEntry | undefined,
   conversation: ClientConversation,
-  currentUserId: string
+  currentUserId: string,
 ): previousEntry is ConversationSearchEntry {
   return Boolean(
     previousEntry &&
@@ -112,21 +98,14 @@ function canReuseSearchFields(
     previousEntry.conversation.type === conversation.type &&
     previousEntry.conversation.topic?.parentConversationName ===
       conversation.topic?.parentConversationName &&
-    previousEntry.conversation.members === conversation.members
+    previousEntry.conversation.members === conversation.members,
   )
 }
 
-function createConversationSearchFields(
-  conversation: ClientConversation,
-  currentUserId: string
-) {
+function createConversationSearchFields(conversation: ClientConversation, currentUserId: string) {
   const fields: ConversationSearchField[] = []
 
-  addField(
-    fields,
-    "conversation_name",
-    getConversationDisplayName(conversation)
-  )
+  addField(fields, "conversation_name", getConversationDisplayName(conversation))
 
   if (conversation.type === "app") {
     return fields
@@ -154,20 +133,14 @@ function createConversationSearchFields(
   return fields
 }
 
-function addUserMemberFields(
-  fields: ConversationSearchField[],
-  member: ClientConversationMember
-) {
+function addUserMemberFields(fields: ConversationSearchField[], member: ClientConversationMember) {
   addMemberField(fields, "member_name", member, member.name)
   addMemberField(fields, "member_nickname", member, member.nickname)
   addMemberField(fields, "member_email", member, member.email)
   addMemberField(fields, "member_phone", member, member.phone)
 }
 
-function addAppMemberFields(
-  fields: ConversationSearchField[],
-  member: ClientConversationMember
-) {
+function addAppMemberFields(fields: ConversationSearchField[], member: ClientConversationMember) {
   addMemberField(fields, "app_name", member, member.name)
   addMemberField(fields, "app_name", member, member.nickname)
 }
@@ -176,11 +149,10 @@ function addMemberField(
   fields: ConversationSearchField[],
   kind: ConversationSearchFieldKind,
   member: ClientConversationMember,
-  rawValue: string
+  rawValue: string,
 ) {
   addField(fields, kind, rawValue, {
-    memberDisplayName:
-      member.nickname || member.name || member.email || member.phone,
+    memberDisplayName: member.nickname || member.name || member.email || member.phone,
     memberId: member.id,
   })
 }
@@ -189,7 +161,7 @@ function addField(
   fields: ConversationSearchField[],
   kind: ConversationSearchFieldKind,
   rawValue: string,
-  member?: Pick<ConversationSearchField, "memberDisplayName" | "memberId">
+  member?: Pick<ConversationSearchField, "memberDisplayName" | "memberId">,
 ) {
   const value = rawValue.trim()
   if (!value) {
@@ -215,7 +187,7 @@ type RankedConversationSearchResult = {
 
 function findBestConversationMatch(
   entry: ConversationSearchEntry,
-  query: string
+  query: string,
 ): RankedConversationSearchResult | null {
   let bestMatch:
     | {
@@ -258,7 +230,7 @@ function findBestConversationMatch(
 
 function getFieldMatchQuality(
   field: ConversationSearchField,
-  query: string
+  query: string,
 ): ConversationSearchMatchQuality | null {
   let bestQuality: ConversationSearchMatchQuality | null = null
 
@@ -275,10 +247,7 @@ function getFieldMatchQuality(
           ? "prefix"
           : "contains"
 
-    if (
-      !bestQuality ||
-      matchQualityPriority[quality] < matchQualityPriority[bestQuality]
-    ) {
+    if (!bestQuality || matchQualityPriority[quality] < matchQualityPriority[bestQuality]) {
       bestQuality = quality
     }
   }
@@ -286,10 +255,7 @@ function getFieldMatchQuality(
   return bestQuality
 }
 
-function getFieldPriority(
-  conversation: ClientConversation,
-  field: ConversationSearchField
-) {
+function getFieldPriority(conversation: ClientConversation, field: ConversationSearchField) {
   if (field.kind === "conversation_name") {
     return 0
   }
@@ -319,7 +285,7 @@ function compareFieldMatches(
   right: {
     fieldPriority: number
     quality: ConversationSearchMatchQuality
-  }
+  },
 ) {
   return (
     matchQualityPriority[left.quality] - matchQualityPriority[right.quality] ||
@@ -329,11 +295,10 @@ function compareFieldMatches(
 
 function compareRankedSearchResults(
   left: RankedConversationSearchResult,
-  right: RankedConversationSearchResult
+  right: RankedConversationSearchResult,
 ) {
   return (
-    matchQualityPriority[left.matchQuality] -
-      matchQualityPriority[right.matchQuality] ||
+    matchQualityPriority[left.matchQuality] - matchQualityPriority[right.matchQuality] ||
     left.fieldPriority - right.fieldPriority ||
     right.recentActivityAt - left.recentActivityAt ||
     left.originalIndex - right.originalIndex
@@ -341,8 +306,6 @@ function compareRankedSearchResults(
 }
 
 function getRecentActivityAt(conversation: ClientConversation) {
-  const timestamp = Date.parse(
-    conversation.lastMessageAt ?? conversation.createdAt
-  )
+  const timestamp = Date.parse(conversation.lastMessageAt ?? conversation.createdAt)
   return Number.isNaN(timestamp) ? 0 : timestamp
 }

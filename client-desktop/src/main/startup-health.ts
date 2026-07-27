@@ -13,13 +13,21 @@ export class StartupHealth {
   private readonly filePath: string
   private current?: HealthState
 
-  constructor(userDataPath: string, private readonly version: string) {
+  constructor(
+    userDataPath: string,
+    private readonly version: string,
+  ) {
     this.filePath = path.join(userDataPath, "startup-health.json")
   }
 
   async begin(): Promise<{ previousStartupIncomplete: boolean }> {
     const previous = await this.read()
-    this.current = { schemaVersion: 1, startedAt: new Date().toISOString(), status: "starting", version: this.version }
+    this.current = {
+      schemaVersion: 1,
+      startedAt: new Date().toISOString(),
+      status: "starting",
+      version: this.version,
+    }
     await this.persist(this.current)
     return { previousStartupIncomplete: previous?.status === "starting" }
   }
@@ -33,10 +41,17 @@ export class StartupHealth {
   private async read(): Promise<HealthState | undefined> {
     try {
       const value = JSON.parse(await readFile(this.filePath, "utf8")) as Partial<HealthState>
-      if (value.schemaVersion === 1 && (value.status === "healthy" || value.status === "starting") && typeof value.startedAt === "string" && typeof value.version === "string") {
+      if (
+        value.schemaVersion === 1 &&
+        (value.status === "healthy" || value.status === "starting") &&
+        typeof value.startedAt === "string" &&
+        typeof value.version === "string"
+      ) {
         return value as HealthState
       }
-    } catch { /* 缺失或损坏的健康文件不阻止应用启动。 */ }
+    } catch {
+      /* 缺失或损坏的健康文件不阻止应用启动。 */
+    }
     return undefined
   }
 

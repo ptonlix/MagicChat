@@ -2,7 +2,10 @@ import { RealtimeClient } from "@/lib/realtime-client"
 import type { DesktopAuthResult } from "@shared/bridge"
 
 export type DesktopRendererHost = {
-  createRealtimeClient?: (options: { authCheck: () => Promise<boolean>; onUnauthorized: () => void }) => RealtimeClient
+  createRealtimeClient?: (options: {
+    authCheck: () => Promise<boolean>
+    onUnauthorized: () => void
+  }) => RealtimeClient
   cancelThirdPartyLogin?: (transactionId: string) => Promise<void>
   downloadTemporaryFile?: (fileId: string, fileName: string) => Promise<void>
   openSettings?: () => void
@@ -14,7 +17,12 @@ export type DesktopRendererHost = {
   resolveResourceUrl?: (url: string) => string
   setBadge?: (count: number) => void
   setTrayMessages?: (messages: ReadonlyArray<TrayMessageInput>) => void
-  showMessageNotification?: (input: { conversationId: string; messageId: string; preview: string; sender: string }) => boolean
+  showMessageNotification?: (input: {
+    conversationId: string
+    messageId: string
+    preview: string
+    sender: string
+  }) => boolean
   subscribeThirdPartyLoginFinished?: (listener: (result: DesktopAuthResult) => void) => () => void
   writeClipboardPng?: (bytes: Uint8Array) => Promise<void>
   writeClipboardText?: (value: string) => Promise<void>
@@ -27,23 +35,43 @@ export type TrayMessageInput = {
   unreadCount: number
 }
 
-export function getHostNotificationPermission() { return desktopRendererHost.notificationPermission?.() }
-export function requestHostNotificationPermission() { return desktopRendererHost.requestNotificationPermission?.() }
-export function requestHostMicrophonePermission() { return desktopRendererHost.requestMicrophonePermission?.() }
-export function setHostBadge(count: number) { desktopRendererHost.setBadge?.(count) }
-export function setHostTrayMessages(messages: ReadonlyArray<TrayMessageInput>) { desktopRendererHost.setTrayMessages?.(messages) }
-export function resolveHostResourceUrl(url: string) { return desktopRendererHost.resolveResourceUrl?.(url) ?? url }
+export function getHostNotificationPermission() {
+  return desktopRendererHost.notificationPermission?.()
+}
+export function requestHostNotificationPermission() {
+  return desktopRendererHost.requestNotificationPermission?.()
+}
+export function requestHostMicrophonePermission() {
+  return desktopRendererHost.requestMicrophonePermission?.()
+}
+export function setHostBadge(count: number) {
+  desktopRendererHost.setBadge?.(count)
+}
+export function setHostTrayMessages(messages: ReadonlyArray<TrayMessageInput>) {
+  desktopRendererHost.setTrayMessages?.(messages)
+}
+export function resolveHostResourceUrl(url: string) {
+  return desktopRendererHost.resolveResourceUrl?.(url) ?? url
+}
 export function openHostSettings(): boolean {
   if (!desktopRendererHost.openSettings) return false
   desktopRendererHost.openSettings()
   return true
 }
-export async function downloadHostTemporaryFile(fileId: string, fileName: string): Promise<boolean> {
+export async function downloadHostTemporaryFile(
+  fileId: string,
+  fileName: string,
+): Promise<boolean> {
   if (!desktopRendererHost.downloadTemporaryFile) return false
   await desktopRendererHost.downloadTemporaryFile(fileId, fileName)
   return true
 }
-export function showHostMessageNotification(input: { conversationId: string; messageId: string; preview: string; sender: string }) {
+export function showHostMessageNotification(input: {
+  conversationId: string
+  messageId: string
+  preview: string
+  sender: string
+}) {
   return desktopRendererHost.showMessageNotification?.(input) ?? false
 }
 export function openHostExternal(url: string) {
@@ -64,10 +92,15 @@ let desktopRendererHost: DesktopRendererHost = {}
 export function configureDesktopHost(host: DesktopRendererHost): () => void {
   const previous = desktopRendererHost
   desktopRendererHost = Object.freeze({ ...host })
-  return () => { desktopRendererHost = previous }
+  return () => {
+    desktopRendererHost = previous
+  }
 }
 
-export function createDesktopRealtimeClient(options: { authCheck: () => Promise<boolean>; onUnauthorized: () => void }): RealtimeClient {
+export function createDesktopRealtimeClient(options: {
+  authCheck: () => Promise<boolean>
+  onUnauthorized: () => void
+}): RealtimeClient {
   return desktopRendererHost.createRealtimeClient?.(options) ?? new RealtimeClient(options)
 }
 
@@ -82,7 +115,7 @@ export async function cancelThirdPartyLogin(transactionId: string): Promise<void
 }
 
 export function subscribeThirdPartyLoginFinished(
-  listener: (result: DesktopAuthResult) => void
+  listener: (result: DesktopAuthResult) => void,
 ): () => void {
   return desktopRendererHost.subscribeThirdPartyLoginFinished?.(listener) ?? (() => undefined)
 }

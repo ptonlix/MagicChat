@@ -13,9 +13,7 @@ export type PreparedAppAvatar = {
   previewUrl: string
 }
 
-export async function prepareAppAvatar(
-  sourceFile: File
-): Promise<PreparedAppAvatar> {
+export async function prepareAppAvatar(sourceFile: File): Promise<PreparedAppAvatar> {
   if (!acceptedImageTypes.has(sourceFile.type)) {
     throw new Error("请选择 PNG、JPG 或 WebP 图片")
   }
@@ -37,10 +35,7 @@ export async function prepareAppAvatar(
       throw new Error("无法处理头像图片")
     }
 
-    const crop = calculateCenterSquareCrop(
-      image.naturalWidth,
-      image.naturalHeight
-    )
+    const crop = calculateCenterSquareCrop(image.naturalWidth, image.naturalHeight)
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = "high"
     context.drawImage(
@@ -52,7 +47,7 @@ export async function prepareAppAvatar(
       0,
       0,
       avatarOutputSize,
-      avatarOutputSize
+      avatarOutputSize,
     )
 
     const previewUrl = canvas.toDataURL(avatarOutputType, avatarOutputQuality)
@@ -104,11 +99,7 @@ function validateImageSize(width: number, height: number) {
   }
 }
 
-function canvasToBlob(
-  canvas: HTMLCanvasElement,
-  type: string,
-  quality: number
-) {
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, type, quality)
   })

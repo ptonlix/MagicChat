@@ -31,9 +31,7 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
       })
       .catch((loadError) => {
         if (active) {
-          setError(
-            loadError instanceof Error ? loadError.message : "加载项目成员失败"
-          )
+          setError(loadError instanceof Error ? loadError.message : "加载项目成员失败")
         }
       })
       .finally(() => {
@@ -84,21 +82,14 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
               variant="outline"
             >
               <ItemMedia>
-                <ProjectMemberAvatar
-                  className="size-9 bg-muted"
-                  member={member}
-                />
+                <ProjectMemberAvatar className="size-9 bg-muted" member={member} />
               </ItemMedia>
               <ItemContent className="min-w-0">
                 <ItemTitle className="truncate">{member.displayName}</ItemTitle>
-                <ItemDescription className="truncate text-xs">
-                  {member.email}
-                </ItemDescription>
+                <ItemDescription className="truncate text-xs">{member.email}</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <Badge variant="secondary">
-                  {member.role === "owner" ? "所有者" : "成员"}
-                </Badge>
+                <Badge variant="secondary">{member.role === "owner" ? "所有者" : "成员"}</Badge>
               </ItemActions>
             </Item>
           )

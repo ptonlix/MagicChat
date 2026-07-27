@@ -1,7 +1,4 @@
-import {
-  listClientProjectMembers,
-  type ClientProjectMember,
-} from "@/lib/project-data-api"
+import { listClientProjectMembers, type ClientProjectMember } from "@/lib/project-data-api"
 
 export async function listAllClientProjectMembers(projectId: string) {
   const members: ClientProjectMember[] = []
@@ -24,12 +21,9 @@ export async function listAllClientProjectMembers(projectId: string) {
   return members
 }
 
-export function projectMemberMatchesQuery(
-  member: ClientProjectMember,
-  query: string
-) {
+export function projectMemberMatchesQuery(member: ClientProjectMember, query: string) {
   const normalizedQuery = query.trim().toLocaleLowerCase()
   return [member.displayName, member.name, member.email].some((value) =>
-    value.toLocaleLowerCase().includes(normalizedQuery)
+    value.toLocaleLowerCase().includes(normalizedQuery),
   )
 }

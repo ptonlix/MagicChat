@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 
@@ -17,9 +11,8 @@ const reactionMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/client-data-api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/client-data-api")>(
-    "@/lib/client-data-api"
-  )
+  const actual =
+    await vi.importActual<typeof import("@/lib/client-data-api")>("@/lib/client-data-api")
   return {
     ...actual,
     listConversationMessageReactionUsers: reactionMocks.listUsers,
@@ -51,14 +44,12 @@ describe("MessageBubble reactions", () => {
       name: "移除表情 自定义文本",
     })
     const reactionChip = reactionToggle.closest<HTMLDivElement>(
-      '[data-slot="message-reaction-chip"]'
+      '[data-slot="message-reaction-chip"]',
     )
     expect(reactionChip).toHaveTextContent(
-      "自定义文本李昌志, 朱文磊, 王彪, 赵一, 钱二, 孙三, 周四, 吴五, 郑六, 王七等 16 人"
+      "自定义文本李昌志, 朱文磊, 王彪, 赵一, 钱二, 孙三, 周四, 吴五, 郑六, 王七等 16 人",
     )
-    expect(
-      screen.getByRole("button", { name: "李昌志资料" })
-    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "李昌志资料" })).toBeInTheDocument()
     const participantCount = screen.getByRole("button", {
       name: "查看表情 自定义文本 的 16 位参与者",
     })
@@ -69,12 +60,10 @@ describe("MessageBubble reactions", () => {
       expect(reactionMocks.listUsers).toHaveBeenCalledWith(
         "conversation-1",
         "message-1",
-        "自定义文本"
-      )
+        "自定义文本",
+      ),
     )
-    expect(
-      await screen.findByRole("button", { name: "完整用户甲资料" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "完整用户甲资料" })).toBeInTheDocument()
 
     const addButton = screen.getByRole("button", { name: "添加表情" })
     const bubbleLine = addButton.closest('[data-slot="message-bubble-line"]')
@@ -91,8 +80,8 @@ describe("MessageBubble reactions", () => {
       expect(onSetReaction).toHaveBeenCalledWith(
         expect.objectContaining({ id: "message-1" }),
         "自定义文本",
-        false
-      )
+        false,
+      ),
     )
 
     fireEvent.click(addButton)
@@ -100,15 +89,13 @@ describe("MessageBubble reactions", () => {
     const allSection = screen.getByRole("region", { name: "所有表情" })
     expect(within(frequentSection).getAllByRole("button")).toHaveLength(8)
     expect(within(allSection).getAllByRole("button")).toHaveLength(64)
-    fireEvent.click(
-      within(allSection).getByRole("button", { name: "庆祝礼花" })
-    )
+    fireEvent.click(within(allSection).getByRole("button", { name: "庆祝礼花" }))
     await waitFor(() =>
       expect(onSetReaction).toHaveBeenCalledWith(
         expect.objectContaining({ id: "message-1" }),
         "🎉",
-        true
-      )
+        true,
+      ),
     )
   })
 
@@ -116,9 +103,7 @@ describe("MessageBubble reactions", () => {
     const onSetReaction = vi.fn().mockResolvedValue(undefined)
     renderBubble({ canReply: false, onSetReaction })
 
-    expect(
-      screen.queryByRole("button", { name: "添加表情" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "添加表情" })).not.toBeInTheDocument()
     const ownReaction = screen.getByRole("button", {
       name: "移除表情 自定义文本",
     })
@@ -127,7 +112,7 @@ describe("MessageBubble reactions", () => {
     expect(onSetReaction).toHaveBeenCalledWith(
       expect.objectContaining({ id: "message-1" }),
       "自定义文本",
-      false
+      false,
     )
   })
 
@@ -138,9 +123,7 @@ describe("MessageBubble reactions", () => {
       onSetReaction,
     })
 
-    expect(
-      screen.queryByRole("button", { name: "添加表情" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "添加表情" })).not.toBeInTheDocument()
   })
 })
 
@@ -154,7 +137,7 @@ function renderBubble({
   onSetReaction: (
     message: ConversationPanelMessage,
     text: string,
-    reacted: boolean
+    reacted: boolean,
   ) => Promise<void>
 }) {
   const message: ConversationPanelMessage = {
@@ -208,6 +191,6 @@ function renderBubble({
       onInsertMention={() => undefined}
       onRevoke={() => undefined}
       onSetReaction={onSetReaction}
-    />
+    />,
   )
 }

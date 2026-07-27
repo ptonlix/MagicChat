@@ -6,17 +6,10 @@ import { toast } from "sonner"
 import { useClientData } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
 import { AvatarPreviewDialog } from "@/components/avatar-preview-dialog"
-import {
-  UserProfilePopoverLink,
-  type UserProfile,
-} from "@/components/user-profile-popover"
+import { UserProfilePopoverLink, type UserProfile } from "@/components/user-profile-popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type AppProfilePopoverProps = {
   appId: string | null
@@ -49,7 +42,7 @@ export function AppProfilePopover({
   const [openingConversation, setOpeningConversation] = React.useState(false)
   const app = React.useMemo(
     () => resolveAppProfile(appId, contactApps, fallbackProfile),
-    [appId, contactApps, fallbackProfile]
+    [appId, contactApps, fallbackProfile],
   )
 
   if (!app) {
@@ -89,18 +82,13 @@ export function AppProfilePopover({
           aria-label={triggerAriaLabel}
           className={cn(
             "inline-flex cursor-pointer appearance-none rounded-sm border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-            triggerClassName
+            triggerClassName,
           )}
           type="button"
         >
           {children}
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-72"
-          side="right"
-          sideOffset={8}
-        >
+        <PopoverContent align="start" className="w-72" side="right" sideOffset={8}>
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <button
@@ -112,11 +100,7 @@ export function AppProfilePopover({
               >
                 <Avatar className="size-14 rounded-sm bg-muted after:rounded-sm">
                   {profile.avatar && (
-                    <AvatarImage
-                      alt={profile.name}
-                      className="rounded-sm"
-                      src={profile.avatar}
-                    />
+                    <AvatarImage alt={profile.name} className="rounded-sm" src={profile.avatar} />
                   )}
                   <AvatarFallback className="rounded-sm">
                     <Bot className="size-5" />
@@ -124,9 +108,7 @@ export function AppProfilePopover({
                 </Avatar>
               </button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
-                  {profile.name}
-                </div>
+                <div className="truncate text-sm font-medium">{profile.name}</div>
                 <div className="truncate text-xs text-muted-foreground">
                   {profile.description || "应用资料"}
                 </div>
@@ -159,9 +141,7 @@ export function AppProfilePopover({
               onClick={() => void handleStartConversation()}
               type="button"
             >
-              {openingConversation && (
-                <Loader2Icon aria-hidden="true" className="animate-spin" />
-              )}
+              {openingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
               发消息
             </Button>
           </div>
@@ -174,11 +154,7 @@ export function AppProfilePopover({
       >
         <Avatar className="size-full rounded-sm bg-muted after:rounded-sm">
           {profile.avatar && (
-            <AvatarImage
-              alt={profile.name}
-              className="rounded-sm"
-              src={profile.avatar}
-            />
+            <AvatarImage alt={profile.name} className="rounded-sm" src={profile.avatar} />
           )}
           <AvatarFallback className="rounded-sm">
             <Bot className="size-20" />
@@ -192,7 +168,7 @@ export function AppProfilePopover({
 function resolveDeveloper(
   creatorUserId: string | null | undefined,
   me: UserProfile,
-  contacts: UserProfile[]
+  contacts: UserProfile[],
 ) {
   if (!creatorUserId) {
     return null
@@ -203,25 +179,20 @@ function resolveDeveloper(
     return me
   }
 
-  return (
-    contacts.find(
-      (contact) => contact.id.toLowerCase() === normalizedCreatorId
-    ) ?? null
-  )
+  return contacts.find((contact) => contact.id.toLowerCase() === normalizedCreatorId) ?? null
 }
 
 function resolveAppProfile(
   appId: string | null,
   apps: AppProfile[],
-  fallbackProfile: AppProfile | null
+  fallbackProfile: AppProfile | null,
 ) {
   if (!appId) {
     return null
   }
 
   return (
-    apps.find((app) => app.id === appId) ??
-    (fallbackProfile?.id === appId ? fallbackProfile : null)
+    apps.find((app) => app.id === appId) ?? (fallbackProfile?.id === appId ? fallbackProfile : null)
   )
 }
 

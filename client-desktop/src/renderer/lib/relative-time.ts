@@ -32,10 +32,7 @@ export function formatRelativeTime(value: string, now = new Date()) {
     if (amount < definition.limit) {
       const roundedAmount = Math.max(1, Math.floor(amount))
       return relativeTimeFormatter
-        .format(
-          difference < 0 ? -roundedAmount : roundedAmount,
-          definition.unit
-        )
+        .format(difference < 0 ? -roundedAmount : roundedAmount, definition.unit)
         .replace(/(\d)(?=\p{L})/u, "$1 ")
     }
   }

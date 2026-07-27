@@ -5,20 +5,9 @@ import { linkifyMessageText } from "@/lib/message-links"
 const messageInlineLinkClassName =
   "mx-0.5 break-all font-medium text-sky-500 underline-offset-4 hover:text-sky-600"
 
-export function MessageInlineLink({
-  children,
-  href,
-}: {
-  children: React.ReactNode
-  href: string
-}) {
+export function MessageInlineLink({ children, href }: { children: React.ReactNode; href: string }) {
   return (
-    <a
-      className={messageInlineLinkClassName}
-      href={href}
-      rel="noreferrer"
-      target="_blank"
-    >
+    <a className={messageInlineLinkClassName} href={href} rel="noreferrer" target="_blank">
       {children}
     </a>
   )
@@ -32,6 +21,6 @@ export function MessageTextWithLinks({ text }: { text: string }) {
       </MessageInlineLink>
     ) : (
       <React.Fragment key={`text-${index}`}>{part.value}</React.Fragment>
-    )
+    ),
   )
 }

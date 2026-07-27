@@ -3,8 +3,7 @@ import type { MentionTargetType } from "@/lib/message-mentions"
 export const conversationDraftMaxAgeMs = 7 * 24 * 60 * 60 * 1000
 
 const conversationDraftStorageVersion = 1
-const conversationDraftStorageKeyPrefix =
-  "dianbao:client:conversation-drafts:v1:"
+const conversationDraftStorageKeyPrefix = "dianbao:client:conversation-drafts:v1:"
 
 export type ConversationDraftMention = {
   end: number
@@ -44,17 +43,10 @@ export const emptyConversationDraft: ConversationDraftContent = {
 }
 
 export function isConversationDraftEmpty(draft: ConversationDraftContent) {
-  return (
-    draft.text.length === 0 &&
-    draft.mentions.length === 0 &&
-    draft.replyTarget === null
-  )
+  return draft.text.length === 0 && draft.mentions.length === 0 && draft.replyTarget === null
 }
 
-export function readConversationDrafts(
-  userId: string,
-  now = Date.now()
-): ConversationDrafts {
+export function readConversationDrafts(userId: string, now = Date.now()): ConversationDrafts {
   if (typeof window === "undefined" || !userId) {
     return {}
   }
@@ -76,16 +68,12 @@ export function readConversationDrafts(
     const drafts = Object.fromEntries(
       Object.entries(parsed.drafts).flatMap(([conversationId, value]) => {
         const draft = normalizeConversationDraft(value)
-        if (
-          !conversationId ||
-          !draft ||
-          now - draft.updatedAt > conversationDraftMaxAgeMs
-        ) {
+        if (!conversationId || !draft || now - draft.updatedAt > conversationDraftMaxAgeMs) {
           return []
         }
 
         return [[conversationId, draft]]
-      })
+      }),
     )
     const normalized: StoredConversationDrafts = {
       drafts,
@@ -108,10 +96,7 @@ export function readConversationDrafts(
   }
 }
 
-export function writeConversationDrafts(
-  userId: string,
-  drafts: ConversationDrafts
-) {
+export function writeConversationDrafts(userId: string, drafts: ConversationDrafts) {
   if (typeof window === "undefined" || !userId) {
     return false
   }
@@ -140,12 +125,10 @@ function getConversationDraftStorageKey(userId: string) {
 }
 
 function isStoredConversationDrafts(
-  value: unknown
+  value: unknown,
 ): value is { drafts: Record<string, unknown>; version: number } {
   return (
-    isRecord(value) &&
-    value.version === conversationDraftStorageVersion &&
-    isRecord(value.drafts)
+    isRecord(value) && value.version === conversationDraftStorageVersion && isRecord(value.drafts)
   )
 }
 
@@ -157,20 +140,13 @@ function normalizeConversationDraft(value: unknown): ConversationDraft | null {
   const text = value.text
   const updatedAt = value.updatedAt
 
-  if (
-    typeof text !== "string" ||
-    typeof updatedAt !== "number" ||
-    !Number.isFinite(updatedAt)
-  ) {
+  if (typeof text !== "string" || typeof updatedAt !== "number" || !Number.isFinite(updatedAt)) {
     return null
   }
 
   const mentions = Array.isArray(value.mentions)
     ? value.mentions.flatMap((mention) => {
-        const normalizedMention = normalizeConversationDraftMention(
-          mention,
-          text
-        )
+        const normalizedMention = normalizeConversationDraftMention(mention, text)
         return normalizedMention ? [normalizedMention] : []
       })
     : []
@@ -185,7 +161,7 @@ function normalizeConversationDraft(value: unknown): ConversationDraft | null {
 
 function normalizeConversationDraftMention(
   value: unknown,
-  text: string
+  text: string,
 ): ConversationDraftMention | null {
   if (!isRecord(value)) {
     return null
@@ -222,7 +198,7 @@ function normalizeConversationDraftMention(
 }
 
 function normalizeConversationDraftReplyTarget(
-  value: unknown
+  value: unknown,
 ): ConversationDraftReplyTarget | null {
   if (value === null || value === undefined) {
     return null

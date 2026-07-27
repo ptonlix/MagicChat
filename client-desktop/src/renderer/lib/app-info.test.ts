@@ -27,8 +27,8 @@ describe("client app info", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     const info = await getClientInfo(fetcher)

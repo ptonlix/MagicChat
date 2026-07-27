@@ -27,10 +27,7 @@ describe("last conversation storage", () => {
   })
 
   it("rejects an invalid stored conversation id", () => {
-    window.localStorage.setItem(
-      "dianbao.chat.last-conversation.v1.user-1",
-      "x".repeat(513)
-    )
+    window.localStorage.setItem("dianbao.chat.last-conversation.v1.user-1", "x".repeat(513))
 
     expect(readLastConversationId("user-1")).toBe("")
     expect(window.localStorage.length).toBe(0)

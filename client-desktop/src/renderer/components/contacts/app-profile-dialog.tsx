@@ -25,10 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  prepareAppAvatar,
-  type PreparedAppAvatar,
-} from "@/lib/app-avatar-processing"
+import { prepareAppAvatar, type PreparedAppAvatar } from "@/lib/app-avatar-processing"
 import type { ContactUser } from "@/lib/client-data-api"
 import {
   updateClientApp,
@@ -92,24 +89,17 @@ function AppProfileDialogContent({
   const descriptionId = React.useId()
   const visibilityLabelId = React.useId()
   const grantableUsers = React.useMemo(
-    () =>
-      users.filter(
-        (user) => user.id.toLowerCase() !== currentUserId.toLowerCase()
-      ),
-    [currentUserId, users]
+    () => users.filter((user) => user.id.toLowerCase() !== currentUserId.toLowerCase()),
+    [currentUserId, users],
   )
   const [savedApp, setSavedApp] = React.useState(app)
   const [draftName, setDraftName] = React.useState(app.name)
-  const [draftDescription, setDraftDescription] = React.useState(
-    app.description
-  )
-  const [draftVisibility, setDraftVisibility] =
-    React.useState<ClientAppVisibility>(app.visibility)
+  const [draftDescription, setDraftDescription] = React.useState(app.description)
+  const [draftVisibility, setDraftVisibility] = React.useState<ClientAppVisibility>(app.visibility)
   const [selectedUsers, setSelectedUsers] = React.useState<ContactUser[]>(() =>
-    findUsersById(grantableUsers, app.userIds)
+    findUsersById(grantableUsers, app.userIds),
   )
-  const [pendingAvatar, setPendingAvatar] =
-    React.useState<PreparedAppAvatar | null>(null)
+  const [pendingAvatar, setPendingAvatar] = React.useState<PreparedAppAvatar | null>(null)
   const [preparingAvatar, setPreparingAvatar] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const trimmedName = draftName.trim()
@@ -117,13 +107,10 @@ function AppProfileDialogContent({
   const nameChanged = trimmedName !== savedApp.name
   const descriptionChanged = trimmedDescription !== savedApp.description
   const selectedUserIds = selectedUsers.map((user) => user.id)
-  const draftAccessUserIds =
-    draftVisibility === "restricted" ? selectedUserIds : []
-  const savedAccessUserIds =
-    savedApp.visibility === "restricted" ? savedApp.userIds : []
+  const draftAccessUserIds = draftVisibility === "restricted" ? selectedUserIds : []
+  const savedAccessUserIds = savedApp.visibility === "restricted" ? savedApp.userIds : []
   const accessChanged =
-    draftVisibility !== savedApp.visibility ||
-    !haveSameIds(draftAccessUserIds, savedAccessUserIds)
+    draftVisibility !== savedApp.visibility || !haveSameIds(draftAccessUserIds, savedAccessUserIds)
   const profileChanged = nameChanged || descriptionChanged || accessChanged
   const hasChanges = profileChanged || pendingAvatar !== null
   const busy = preparingAvatar || saving
@@ -147,9 +134,7 @@ function AppProfileDialogContent({
     setSelectedUsers(findUsersById(grantableUsers, updatedApp.userIds))
   }
 
-  async function handleAvatarChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
     const sourceFile = event.target.files?.[0]
 
     event.target.value = ""
@@ -186,10 +171,7 @@ function AppProfileDialogContent({
       }
 
       if (pendingAvatar) {
-        const updatedApp = await uploadClientAppAvatar(
-          savedApp.id,
-          pendingAvatar.file
-        )
+        const updatedApp = await uploadClientAppAvatar(savedApp.id, pendingAvatar.file)
         setPendingAvatar(null)
         applyUpdatedApp(updatedApp)
         syncDraftWithApp(updatedApp)
@@ -266,7 +248,7 @@ function AppProfileDialogContent({
             aria-hidden="true"
             className={cn(
               "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-foreground/40 text-background opacity-0 transition-opacity group-hover/avatar-change:opacity-100 group-focus-visible/avatar-change:opacity-100",
-              preparingAvatar && "opacity-100"
+              preparingAvatar && "opacity-100",
             )}
           >
             {preparingAvatar ? <Spinner /> : <Camera className="size-5" />}
@@ -302,15 +284,10 @@ function AppProfileDialogContent({
           <Label id={visibilityLabelId}>访问范围</Label>
           <Select
             disabled={busy}
-            onValueChange={(value) =>
-              setDraftVisibility(value as ClientAppVisibility)
-            }
+            onValueChange={(value) => setDraftVisibility(value as ClientAppVisibility)}
             value={draftVisibility}
           >
-            <SelectTrigger
-              aria-labelledby={visibilityLabelId}
-              className="w-full"
-            >
+            <SelectTrigger aria-labelledby={visibilityLabelId} className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -333,9 +310,7 @@ function AppProfileDialogContent({
               users={grantableUsers}
               value={selectedUsers}
             />
-            <p className="text-xs text-muted-foreground">
-              已选择 {selectedUsers.length} 名用户
-            </p>
+            <p className="text-xs text-muted-foreground">已选择 {selectedUsers.length} 名用户</p>
           </div>
         )}
       </div>
@@ -349,11 +324,7 @@ function AppProfileDialogContent({
         >
           关闭
         </Button>
-        <Button
-          disabled={!canSave}
-          onClick={() => void handleSave()}
-          type="button"
-        >
+        <Button disabled={!canSave} onClick={() => void handleSave()} type="button">
           {saving && <Spinner />}
           保存
         </Button>

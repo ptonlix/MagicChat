@@ -31,13 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
+import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -64,13 +58,12 @@ export function GroupConversationProjects({
   const [binding, setBinding] = useState(false)
   const [keyword, setKeyword] = useState("")
   const [selectedProjectId, setSelectedProjectId] = useState("")
-  const [unbindTarget, setUnbindTarget] =
-    useState<ClientConversationProject | null>(null)
+  const [unbindTarget, setUnbindTarget] = useState<ClientConversationProject | null>(null)
   const [unbinding, setUnbinding] = useState(false)
 
   const linkedProjectIds = useMemo(
     () => new Set(linkedProjects.map((project) => project.id)),
-    [linkedProjects]
+    [linkedProjects],
   )
   const candidates = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLocaleLowerCase()
@@ -79,8 +72,7 @@ export function GroupConversationProjects({
       (project) =>
         !project.isPersonal &&
         !linkedProjectIds.has(project.id) &&
-        (!normalizedKeyword ||
-          project.name.toLocaleLowerCase().includes(normalizedKeyword))
+        (!normalizedKeyword || project.name.toLocaleLowerCase().includes(normalizedKeyword)),
     )
   }, [availableProjects, keyword, linkedProjectIds])
 
@@ -171,9 +163,7 @@ export function GroupConversationProjects({
         <DialogContent className="gap-4 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>关联项目</DialogTitle>
-            <DialogDescription>
-              选择一个当前可访问的协作项目。
-            </DialogDescription>
+            <DialogDescription>选择一个当前可访问的协作项目。</DialogDescription>
           </DialogHeader>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -278,7 +268,7 @@ function ProjectSelectionItem({
       asChild
       className={cn(
         "cursor-pointer px-2 py-1.5 hover:bg-muted",
-        selected && "bg-foreground/10 hover:bg-foreground/10"
+        selected && "bg-foreground/10 hover:bg-foreground/10",
       )}
       size="sm"
     >
@@ -290,11 +280,7 @@ function ProjectSelectionItem({
           <ItemTitle className="truncate">{project.name}</ItemTitle>
         </ItemContent>
         <ItemActions>
-          <RadioGroupItem
-            aria-label={project.name}
-            id={radioId}
-            value={project.id}
-          />
+          <RadioGroupItem aria-label={project.name} id={radioId} value={project.id} />
         </ItemActions>
       </Label>
     </Item>
@@ -341,11 +327,7 @@ function ProjectItem({
   )
 }
 
-function ProjectAvatar({
-  project,
-}: {
-  project: Pick<ClientProjectSummary, "avatar" | "name">
-}) {
+function ProjectAvatar({ project }: { project: Pick<ClientProjectSummary, "avatar" | "name"> }) {
   if (!project.avatar) {
     return (
       <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-amber-600 text-background dark:bg-amber-600">
@@ -356,11 +338,7 @@ function ProjectAvatar({
 
   return (
     <Avatar className="size-8 shrink-0 rounded-md after:rounded-md">
-      <AvatarImage
-        alt={project.name}
-        className="rounded-md"
-        src={project.avatar}
-      />
+      <AvatarImage alt={project.name} className="rounded-md" src={project.avatar} />
       <AvatarFallback className="rounded-md bg-amber-600 text-background dark:bg-amber-600">
         <BriefcaseBusiness aria-hidden="true" className="size-4" />
       </AvatarFallback>

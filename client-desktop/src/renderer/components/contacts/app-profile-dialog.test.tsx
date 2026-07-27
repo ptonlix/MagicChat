@@ -95,9 +95,7 @@ describe("AppProfileDialog", () => {
     await user.type(descriptionInput, "生成团队分析报告")
 
     expect(mocks.updateClientApp).not.toHaveBeenCalled()
-    expect(
-      within(dialog).queryByRole("button", { name: "保存应用名称" })
-    ).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "保存应用名称" })).not.toBeInTheDocument()
     expect(saveButton).toBeEnabled()
     await user.click(saveButton)
 
@@ -107,7 +105,7 @@ describe("AppProfileDialog", () => {
         name: "新版分析助手",
         userIds: [],
         visibility: "creator",
-      })
+      }),
     )
     expect(onAppChange).toHaveBeenLastCalledWith(updatedApp)
     expect(mocks.toastSuccess).toHaveBeenCalledWith("应用资料已保存")
@@ -142,7 +140,7 @@ describe("AppProfileDialog", () => {
         name: "分析助手",
         userIds: ["user-2"],
         visibility: "restricted",
-      })
+      }),
     )
     expect(mocks.toastSuccess).toHaveBeenCalledWith("应用资料已保存")
   })
@@ -168,24 +166,18 @@ describe("AppProfileDialog", () => {
     renderProfileDialog({ app })
 
     const dialog = screen.getByRole("dialog", { name: "修改应用资料" })
-    const fileInput =
-      dialog.querySelector<HTMLInputElement>('input[type="file"]')
+    const fileInput = dialog.querySelector<HTMLInputElement>('input[type="file"]')
     expect(fileInput).not.toBeNull()
     await user.upload(fileInput!, sourceFile)
 
-    await waitFor(() =>
-      expect(mocks.prepareAppAvatar).toHaveBeenCalledWith(sourceFile)
-    )
+    await waitFor(() => expect(mocks.prepareAppAvatar).toHaveBeenCalledWith(sourceFile))
     expect(mocks.uploadClientAppAvatar).not.toHaveBeenCalled()
     expect(mocks.updateClientApp).not.toHaveBeenCalled()
 
     await user.click(within(dialog).getByRole("button", { name: "保存" }))
 
     await waitFor(() =>
-      expect(mocks.uploadClientAppAvatar).toHaveBeenCalledWith(
-        "app-1",
-        preparedFile
-      )
+      expect(mocks.uploadClientAppAvatar).toHaveBeenCalledWith("app-1", preparedFile),
     )
     expect(mocks.updateClientApp).not.toHaveBeenCalled()
   })
@@ -210,7 +202,7 @@ function renderProfileDialog({
       onOpenChange={onOpenChange}
       open
       users={users}
-    />
+    />,
   )
 }
 

@@ -27,18 +27,12 @@ export function ProjectTaskLabelsCombobox({
   portalContainer: React.RefObject<HTMLDivElement | null>
   value: string[]
 }) {
-  const [highlightedLabel, setHighlightedLabel] = React.useState<
-    string | undefined
-  >()
+  const [highlightedLabel, setHighlightedLabel] = React.useState<string | undefined>()
   const [query, setQuery] = React.useState("")
   const anchor = useComboboxAnchor()
 
   function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (
-      event.key !== "Enter" ||
-      event.nativeEvent.isComposing ||
-      highlightedLabel
-    ) {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing || highlightedLabel) {
       return
     }
 
@@ -49,7 +43,7 @@ export function ProjectTaskLabelsCombobox({
       return
     }
     const existing = value.some(
-      (label) => label.toLocaleLowerCase() === nextLabel.toLocaleLowerCase()
+      (label) => label.toLocaleLowerCase() === nextLabel.toLocaleLowerCase(),
     )
     if (!existing) {
       onValueChange([...value, nextLabel])
@@ -61,9 +55,7 @@ export function ProjectTaskLabelsCombobox({
     <Combobox<string, true>
       disabled={disabled}
       filter={(label, inputValue) =>
-        label
-          .toLocaleLowerCase()
-          .includes(inputValue.trim().toLocaleLowerCase())
+        label.toLocaleLowerCase().includes(inputValue.trim().toLocaleLowerCase())
       }
       inputValue={query}
       items={options}
@@ -87,9 +79,7 @@ export function ProjectTaskLabelsCombobox({
         </ComboboxChips>
       </div>
       <ComboboxContent anchor={anchor} container={portalContainer}>
-        <ComboboxEmpty>
-          {loading ? "正在加载标签" : "暂无候选标签"}
-        </ComboboxEmpty>
+        <ComboboxEmpty>{loading ? "正在加载标签" : "暂无候选标签"}</ComboboxEmpty>
         <ComboboxList>
           {(label: string) => (
             <ComboboxItem key={label} value={label}>

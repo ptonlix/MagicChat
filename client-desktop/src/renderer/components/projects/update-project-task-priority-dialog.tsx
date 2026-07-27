@@ -58,8 +58,7 @@ export function UpdateProjectTaskPriorityDialog({
   projectId: string
   taskId: string
 }) {
-  const [priority, setPriority] =
-    React.useState<ProjectTaskPriority>(currentPriority)
+  const [priority, setPriority] = React.useState<ProjectTaskPriority>(currentPriority)
   const [saving, setSaving] = React.useState(false)
 
   function handleOpenChange(nextOpen: boolean) {
@@ -96,16 +95,12 @@ export function UpdateProjectTaskPriorityDialog({
       <DialogContent className="gap-5">
         <DialogHeader>
           <DialogTitle>修改优先级</DialogTitle>
-          <DialogDescription className="sr-only">
-            选择任务的新优先级。
-          </DialogDescription>
+          <DialogDescription className="sr-only">选择任务的新优先级。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <RadioGroup
             disabled={saving}
-            onValueChange={(value) =>
-              setPriority(Number(value) as ProjectTaskPriority)
-            }
+            onValueChange={(value) => setPriority(Number(value) as ProjectTaskPriority)}
             value={String(priority)}
           >
             {priorityOptions.map((option) => {
@@ -116,7 +111,7 @@ export function UpdateProjectTaskPriorityDialog({
                 <label
                   className={cn(
                     "flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:bg-muted",
-                    priority === option.value && "border-foreground/30 bg-muted"
+                    priority === option.value && "border-foreground/30 bg-muted",
                   )}
                   htmlFor={id}
                   key={option.value}
@@ -137,10 +132,7 @@ export function UpdateProjectTaskPriorityDialog({
             >
               取消
             </Button>
-            <Button
-              disabled={saving || priority === currentPriority}
-              type="submit"
-            >
+            <Button disabled={saving || priority === currentPriority} type="submit">
               {saving && <Spinner />}
               保存
             </Button>

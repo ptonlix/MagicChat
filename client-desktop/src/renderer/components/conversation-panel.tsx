@@ -1,10 +1,7 @@
 import * as React from "react"
 import { Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
-import {
-  type ClientConversation,
-  type ClientMessage,
-} from "@/lib/client-data-api"
+import { type ClientConversation, type ClientMessage } from "@/lib/client-data-api"
 import type { MentionLabelResolver } from "@/lib/message-mentions"
 import type { ConversationDraftMention } from "@/lib/conversation-drafts"
 import type {
@@ -63,7 +60,7 @@ type ConversationPanelProps = {
   onSetMessageReaction?: (
     message: ConversationPanelMessage,
     text: string,
-    reacted: boolean
+    reacted: boolean,
   ) => Promise<void>
   onSendFile: (file: File) => Promise<ClientMessage | null>
   onSendImage: (image: File) => Promise<ClientMessage | null>
@@ -124,11 +121,8 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   const composerRef = React.useRef<ConversationPanelComposerHandle | null>(null)
   const fileDragDepthRef = React.useRef(0)
-  const [draggedFileKind, setDraggedFileKind] =
-    React.useState<DraggedFileKind | null>(null)
-  const conversationReadOnly = Boolean(
-    readOnly || readOnlyReason || readOnlyFooter
-  )
+  const [draggedFileKind, setDraggedFileKind] = React.useState<DraggedFileKind | null>(null)
+  const conversationReadOnly = Boolean(readOnly || readOnlyReason || readOnlyFooter)
   const readOnlyContent =
     readOnlyFooter ??
     (readOnlyReason ? (
@@ -149,7 +143,7 @@ export function ConversationPanel({
 
       composerRef.current?.insertMention(target)
     },
-    [conversation?.topic?.parentConversationType, conversation?.type]
+    [conversation?.topic?.parentConversationType, conversation?.type],
   )
 
   const handleReplyToMessage = React.useCallback(
@@ -167,11 +161,7 @@ export function ConversationPanel({
 
       composerRef.current?.focus()
     },
-    [
-      conversation?.topic?.parentConversationType,
-      conversation?.type,
-      onReplyToMessage,
-    ]
+    [conversation?.topic?.parentConversationType, conversation?.type, onReplyToMessage],
   )
 
   function resetFileDrag() {
@@ -186,19 +176,11 @@ export function ConversationPanel({
 
     event.preventDefault()
     event.dataTransfer.dropEffect =
-      conversation &&
-      !sending &&
-      !messageSelection?.active &&
-      !conversationReadOnly
+      conversation && !sending && !messageSelection?.active && !conversationReadOnly
         ? "copy"
         : "none"
 
-    if (
-      !conversation ||
-      sending ||
-      messageSelection?.active ||
-      conversationReadOnly
-    ) {
+    if (!conversation || sending || messageSelection?.active || conversationReadOnly) {
       return
     }
 
@@ -213,10 +195,7 @@ export function ConversationPanel({
 
     event.preventDefault()
     event.dataTransfer.dropEffect =
-      conversation &&
-      !sending &&
-      !messageSelection?.active &&
-      !conversationReadOnly
+      conversation && !sending && !messageSelection?.active && !conversationReadOnly
         ? "copy"
         : "none"
   }
@@ -244,13 +223,7 @@ export function ConversationPanel({
 
     resetFileDrag()
 
-    if (
-      !conversation ||
-      sending ||
-      messageSelection?.active ||
-      conversationReadOnly ||
-      !file
-    ) {
+    if (!conversation || sending || messageSelection?.active || conversationReadOnly || !file) {
       return
     }
 
@@ -261,7 +234,7 @@ export function ConversationPanel({
     <main
       className={cn(
         "relative flex min-h-0 min-w-0 flex-1 flex-col",
-        conversation ? "bg-background" : "bg-muted"
+        conversation ? "bg-background" : "bg-muted",
       )}
       data-testid="chat-detail-shell"
       onDragEnter={handlePanelDragEnter}
@@ -296,9 +269,7 @@ export function ConversationPanel({
             onOpenTopic={onOpenTopic}
             onReplyToMessage={handleReplyToMessage}
             onRevokeMessage={readOnlyReason ? undefined : onRevokeMessage}
-            onSetMessageReaction={
-              readOnlyReason ? undefined : onSetMessageReaction
-            }
+            onSetMessageReaction={readOnlyReason ? undefined : onSetMessageReaction}
             onToggleMessageSelection={onToggleMessageSelection}
           />
           {conversationReadOnly ? (
@@ -353,9 +324,7 @@ function ConversationFileDropOverlay({ kind }: { kind: DraggedFileKind }) {
         <span className="flex size-11 items-center justify-center rounded-full bg-teal-500/15">
           <Upload aria-hidden="true" className="size-5" />
         </span>
-        <span className="text-sm font-medium">
-          {isImage ? "松开发送图片" : "松开发送文件"}
-        </span>
+        <span className="text-sm font-medium">{isImage ? "松开发送图片" : "松开发送文件"}</span>
         <span className="text-xs text-muted-foreground">
           {isImage ? "支持 PNG、JPG 和 WebP" : "将作为附件发送"}
         </span>
@@ -380,11 +349,7 @@ function hasDraggedFiles(dataTransfer: DataTransfer) {
 }
 
 function getDraggedFileKind(dataTransfer: DataTransfer): DraggedFileKind {
-  const firstFileItem = Array.from(dataTransfer.items).find(
-    (item) => item.kind === "file"
-  )
+  const firstFileItem = Array.from(dataTransfer.items).find((item) => item.kind === "file")
 
-  return firstFileItem && isAcceptedImageMessageMimeType(firstFileItem.type)
-    ? "image"
-    : "file"
+  return firstFileItem && isAcceptedImageMessageMimeType(firstFileItem.type) ? "image" : "file"
 }

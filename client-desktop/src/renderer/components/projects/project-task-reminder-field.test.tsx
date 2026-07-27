@@ -8,13 +8,7 @@ describe("ProjectTaskReminderField", () => {
   it("keeps reminder edits in a draft until confirmed", async () => {
     const user = userEvent.setup()
     const onValueChange = vi.fn()
-    render(
-      <ProjectTaskReminderField
-        onValueChange={onValueChange}
-        status="todo"
-        value={null}
-      />
-    )
+    render(<ProjectTaskReminderField onValueChange={onValueChange} status="todo" value={null} />)
 
     await user.click(screen.getByRole("button", { name: "提醒时间" }))
     await user.click(screen.getByRole("button", { name: "重复" }))
@@ -22,9 +16,7 @@ describe("ProjectTaskReminderField", () => {
 
     await user.click(screen.getByRole("button", { name: "取消" }))
     expect(onValueChange).not.toHaveBeenCalled()
-    expect(screen.getByRole("button", { name: "提醒时间" })).toHaveTextContent(
-      "不提醒"
-    )
+    expect(screen.getByRole("button", { name: "提醒时间" })).toHaveTextContent("不提醒")
   })
 
   it("edits one-time reminders as Asia/Shanghai wall time", async () => {
@@ -39,7 +31,7 @@ describe("ProjectTaskReminderField", () => {
           mode: "once",
           timezone: "Asia/Shanghai",
         }}
-      />
+      />,
     )
 
     await user.click(screen.getByRole("button", { name: "提醒时间" }))

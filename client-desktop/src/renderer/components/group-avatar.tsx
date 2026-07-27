@@ -4,10 +4,7 @@ import type { ClientConversationMember } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-type GroupAvatarMember = Pick<
-  ClientConversationMember,
-  "avatar" | "name" | "nickname" | "role"
->
+type GroupAvatarMember = Pick<ClientConversationMember, "avatar" | "name" | "nickname" | "role">
 
 type GroupAvatarProps = {
   avatar?: string
@@ -22,23 +19,13 @@ const memberRoleOrder: Record<GroupAvatarMember["role"], number> = {
   member: 2,
 }
 
-export function GroupAvatar({
-  avatar = "",
-  className,
-  members = [],
-  name,
-}: GroupAvatarProps) {
+export function GroupAvatar({ avatar = "", className, members = [], name }: GroupAvatarProps) {
   const entries = buildGroupAvatarEntries(members)
 
   return (
-    <Avatar
-      className={cn("size-8 rounded-sm bg-muted after:rounded-sm", className)}
-    >
+    <Avatar className={cn("size-8 rounded-sm bg-muted after:rounded-sm", className)}>
       {avatar && <AvatarImage alt={name} className="rounded-sm" src={avatar} />}
-      <AvatarFallback
-        aria-label={name}
-        className="overflow-hidden rounded-sm bg-muted p-0"
-      >
+      <AvatarFallback aria-label={name} className="overflow-hidden rounded-sm bg-muted p-0">
         {entries.length > 0 ? (
           <div className="relative size-full p-0.5">
             {entries.map((entry, index) => (
@@ -73,16 +60,11 @@ function GroupAvatarTile({
     <div
       className={cn(
         "absolute flex size-1/2 items-center justify-center overflow-hidden bg-muted text-[10px] leading-none font-medium text-muted-foreground",
-        placement
+        placement,
       )}
     >
       {avatar ? (
-        <img
-          alt=""
-          className="size-full object-cover"
-          draggable={false}
-          src={avatar}
-        />
+        <img alt="" className="size-full object-cover" draggable={false} src={avatar} />
       ) : (
         <span aria-hidden="true">{getInitial(displayName)}</span>
       )}
@@ -94,8 +76,7 @@ function buildGroupAvatarEntries(members: GroupAvatarMember[]) {
   const entries = members
     .map((member, index) => ({ index, member }))
     .sort((left, right) => {
-      const roleDiff =
-        memberRoleOrder[left.member.role] - memberRoleOrder[right.member.role]
+      const roleDiff = memberRoleOrder[left.member.role] - memberRoleOrder[right.member.role]
 
       if (roleDiff !== 0) {
         return roleDiff
@@ -142,9 +123,7 @@ function getTilePlacement(index: number, count: number) {
   return "top-1/2 left-1/2"
 }
 
-function getMemberDisplayName(
-  member: Pick<GroupAvatarMember, "name" | "nickname">
-) {
+function getMemberDisplayName(member: Pick<GroupAvatarMember, "name" | "nickname">) {
   return member.nickname.trim() || member.name.trim()
 }
 

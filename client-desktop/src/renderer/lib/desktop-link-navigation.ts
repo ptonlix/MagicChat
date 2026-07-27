@@ -2,7 +2,7 @@ export type DesktopLinkAction = "blocked" | "external" | "internal" | "unhandled
 
 export function classifyDesktopLink(
   anchor: HTMLAnchorElement,
-  currentLocation = window.location.href
+  currentLocation = window.location.href,
 ): { action: DesktopLinkAction; url?: string } {
   const href = anchor.getAttribute("href")
   if (!href) return { action: "unhandled" }
@@ -29,12 +29,9 @@ export function classifyDesktopLink(
   return { action: "unhandled" }
 }
 
-export function installDesktopLinkNavigation(
-  openExternal: (url: string) => void
-) {
+export function installDesktopLinkNavigation(openExternal: (url: string) => void) {
   const handleClick = (event: MouseEvent) => {
-    const anchor =
-      event.target instanceof Element ? event.target.closest("a[href]") : null
+    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null
     if (!(anchor instanceof HTMLAnchorElement)) return
 
     const result = classifyDesktopLink(anchor)

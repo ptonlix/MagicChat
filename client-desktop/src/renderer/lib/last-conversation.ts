@@ -21,10 +21,7 @@ export function readLastConversationId(userId: string) {
   }
 }
 
-export function writeLastConversationId(
-  userId: string,
-  conversationId: string
-) {
+export function writeLastConversationId(userId: string, conversationId: string) {
   if (typeof window === "undefined" || !userId) {
     return false
   }
@@ -35,10 +32,7 @@ export function writeLastConversationId(
   }
 
   try {
-    window.localStorage.setItem(
-      getLastConversationStorageKey(userId),
-      normalizedConversationId
-    )
+    window.localStorage.setItem(getLastConversationStorageKey(userId), normalizedConversationId)
     return true
   } catch {
     return false
@@ -64,10 +58,7 @@ function getLastConversationStorageKey(userId: string) {
 
 function normalizeConversationId(value: string | null) {
   const conversationId = value?.trim() ?? ""
-  if (
-    !conversationId ||
-    conversationId.length > maxStoredConversationIdLength
-  ) {
+  if (!conversationId || conversationId.length > maxStoredConversationIdLength) {
     return ""
   }
 

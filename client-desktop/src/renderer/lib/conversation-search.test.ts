@@ -1,19 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import type {
-  ClientConversation,
-  ClientConversationMember,
-} from "@/lib/client-data-api"
-import {
-  createConversationSearchIndex,
-  searchConversationIndex,
-} from "@/lib/conversation-search"
+import type { ClientConversation, ClientConversationMember } from "@/lib/client-data-api"
+import { createConversationSearchIndex, searchConversationIndex } from "@/lib/conversation-search"
 import { createPinyinSearchTokens } from "@/lib/pinyin-search"
 
 describe("conversation search", () => {
   it("creates original, full, spaced, and initial pinyin tokens", () => {
     expect(createPinyinSearchTokens(["张三"])).toEqual(
-      expect.arrayContaining(["张三", "zhangsan", "zhang san", "zs"])
+      expect.arrayContaining(["张三", "zhangsan", "zhang san", "zs"]),
     )
   })
 
@@ -23,11 +17,9 @@ describe("conversation search", () => {
       const conversation = createConversation({ name: "张三" })
       const results = search([conversation], keyword)
 
-      expect(results.map((result) => result.conversation.id)).toEqual([
-        conversation.id,
-      ])
+      expect(results.map((result) => result.conversation.id)).toEqual([conversation.id])
       expect(results[0]?.matchedField?.kind).toBe("conversation_name")
-    }
+    },
   )
 
   it("searches the other user in a direct chat and excludes the current user", () => {
@@ -49,15 +41,9 @@ describe("conversation search", () => {
       type: "direct",
     })
 
-    expect(search([conversation], "xiaozhang")[0]?.matchedField?.kind).toBe(
-      "member_nickname"
-    )
-    expect(
-      search([conversation], "zhang.san@EXAMPLE")[0]?.matchedField?.kind
-    ).toBe("member_email")
-    expect(search([conversation], "1380013")[0]?.matchedField?.kind).toBe(
-      "member_phone"
-    )
+    expect(search([conversation], "xiaozhang")[0]?.matchedField?.kind).toBe("member_nickname")
+    expect(search([conversation], "zhang.san@EXAMPLE")[0]?.matchedField?.kind).toBe("member_email")
+    expect(search([conversation], "1380013")[0]?.matchedField?.kind).toBe("member_phone")
     expect(search([conversation], "当前用户独有姓名")).toHaveLength(0)
     expect(search([conversation], "owner-only")).toHaveLength(0)
   })
@@ -77,12 +63,8 @@ describe("conversation search", () => {
       type: "group",
     })
 
-    expect(search([conversation], "ls")[0]?.matchedField?.kind).toBe(
-      "member_name"
-    )
-    expect(search([conversation], "jiyaojiqiren")[0]?.matchedField?.kind).toBe(
-      "app_name"
-    )
+    expect(search([conversation], "ls")[0]?.matchedField?.kind).toBe("member_name")
+    expect(search([conversation], "jiyaojiqiren")[0]?.matchedField?.kind).toBe("app_name")
   })
 
   it("does not index app members as direct-chat people", () => {
@@ -137,9 +119,7 @@ describe("conversation search", () => {
       }),
     ]
 
-    expect(
-      search(conversations, "alpha").map((result) => result.conversation.id)
-    ).toEqual([
+    expect(search(conversations, "alpha").map((result) => result.conversation.id)).toEqual([
       "exact-member-new",
       "exact-member-old",
       "prefix-conversation",
@@ -152,7 +132,7 @@ describe("conversation search", () => {
       createConversation({
         id: `conversation-${index}`,
         lastMessageAt: new Date(Date.UTC(2026, 6, 1, index)).toISOString(),
-      })
+      }),
     )
 
     const results = search(conversations, "  ")
@@ -176,11 +156,7 @@ describe("conversation search", () => {
       lastMessageSummary: "新消息",
     }
 
-    const updatedIndex = createConversationSearchIndex(
-      [updatedConversation],
-      "current-user",
-      index
-    )
+    const updatedIndex = createConversationSearchIndex([updatedConversation], "current-user", index)
 
     expect(updatedIndex[0]?.fields).toBe(index[0]?.fields)
     expect(updatedIndex[0]?.conversation).toBe(updatedConversation)
@@ -198,11 +174,7 @@ describe("conversation search", () => {
       members: [createMember({ name: "李四" })],
     }
 
-    const updatedIndex = createConversationSearchIndex(
-      [updatedConversation],
-      "current-user",
-      index
-    )
+    const updatedIndex = createConversationSearchIndex([updatedConversation], "current-user", index)
 
     expect(updatedIndex[0]?.fields).not.toBe(index[0]?.fields)
     expect(searchConversationIndex(updatedIndex, "zs")).toHaveLength(0)
@@ -211,7 +183,7 @@ describe("conversation search", () => {
 
   it("limits non-empty results to 20", () => {
     const conversations = Array.from({ length: 25 }, (_, index) =>
-      createConversation({ id: `conversation-${index}`, name: `项目 ${index}` })
+      createConversation({ id: `conversation-${index}`, name: `项目 ${index}` }),
     )
 
     expect(search(conversations, "项目")).toHaveLength(20)
@@ -221,13 +193,11 @@ describe("conversation search", () => {
 function search(conversations: ClientConversation[], keyword: string) {
   return searchConversationIndex(
     createConversationSearchIndex(conversations, "current-user"),
-    keyword
+    keyword,
   )
 }
 
-function createConversation(
-  overrides: Partial<ClientConversation> = {}
-): ClientConversation {
+function createConversation(overrides: Partial<ClientConversation> = {}): ClientConversation {
   return {
     avatar: "",
     createdAt: "2026-07-01T00:00:00Z",
@@ -248,9 +218,7 @@ function createConversation(
   }
 }
 
-function createMember(
-  overrides: Partial<ClientConversationMember> = {}
-): ClientConversationMember {
+function createMember(overrides: Partial<ClientConversationMember> = {}): ClientConversationMember {
   return {
     avatar: "",
     email: "member@example.com",

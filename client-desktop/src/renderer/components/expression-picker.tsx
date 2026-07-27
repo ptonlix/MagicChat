@@ -104,31 +104,17 @@ const allExpressionItems: ExpressionItem[] = [
   expression("❌", "错误"),
 ]
 
-const allExpressionsByValue = new Map(
-  allExpressionItems.map((item) => [item.value, item])
+const allExpressionsByValue = new Map(allExpressionItems.map((item) => [item.value, item]))
+const defaultFrequentExpressionItems = ["😂", "😊", "😭", "👍", "❤️", "👏", "🙏", "🎉"].flatMap(
+  (value) => {
+    const item = allExpressionsByValue.get(value)
+    return item ? [item] : []
+  },
 )
-const defaultFrequentExpressionItems = [
-  "😂",
-  "😊",
-  "😭",
-  "👍",
-  "❤️",
-  "👏",
-  "🙏",
-  "🎉",
-].flatMap((value) => {
-  const item = allExpressionsByValue.get(value)
-  return item ? [item] : []
-})
 
 export function ExpressionPicker({ onSelect }: ExpressionPickerProps) {
-  const [usage, setUsage] = React.useState<StoredExpressionUsage[]>(() =>
-    readExpressionUsage()
-  )
-  const frequentExpressionItems = React.useMemo(
-    () => getFrequentExpressionItems(usage),
-    [usage]
-  )
+  const [usage, setUsage] = React.useState<StoredExpressionUsage[]>(() => readExpressionUsage())
+  const frequentExpressionItems = React.useMemo(() => getFrequentExpressionItems(usage), [usage])
 
   React.useEffect(() => {
     writeExpressionUsage(usage)
@@ -145,16 +131,8 @@ export function ExpressionPicker({ onSelect }: ExpressionPickerProps) {
   return (
     <div className="w-80" data-testid="expression-picker">
       <div className="space-y-4">
-        <ExpressionSection
-          items={frequentExpressionItems}
-          label="常用"
-          onSelect={handleSelect}
-        />
-        <ExpressionSection
-          items={allExpressionItems}
-          label="所有表情"
-          onSelect={handleSelect}
-        />
+        <ExpressionSection items={frequentExpressionItems} label="常用" onSelect={handleSelect} />
+        <ExpressionSection items={allExpressionItems} label="所有表情" onSelect={handleSelect} />
       </div>
     </div>
   )
@@ -171,13 +149,8 @@ function ExpressionSection({
 }) {
   return (
     <section aria-label={label}>
-      <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-        {label}
-      </h3>
-      <div
-        className="grid gap-1"
-        style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
-      >
+      <h3 className="mb-2 text-xs font-medium text-muted-foreground">{label}</h3>
+      <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}>
         {items.map((item) => (
           <Button
             key={`${label}-${item.value}-${item.label}`}
@@ -216,11 +189,8 @@ function getFrequentExpressionItems(usage: StoredExpressionUsage[]) {
   const usedValues = new Set(usedItems.map((item) => item.value))
   const fallbackItems = Array.from(
     new Map(
-      [...defaultFrequentExpressionItems, ...allExpressionItems].map((item) => [
-        item.value,
-        item,
-      ])
-    ).values()
+      [...defaultFrequentExpressionItems, ...allExpressionItems].map((item) => [item.value, item]),
+    ).values(),
   ).filter((item) => !usedValues.has(item.value))
 
   return [...usedItems, ...fallbackItems].slice(0, frequentExpressionLimit)
@@ -249,19 +219,13 @@ function writeExpressionUsage(usage: StoredExpressionUsage[]) {
   }
 
   try {
-    window.localStorage.setItem(
-      expressionUsageStorageKey,
-      JSON.stringify(usage)
-    )
+    window.localStorage.setItem(expressionUsageStorageKey, JSON.stringify(usage))
   } catch {
     // Ignore storage errors. Selecting an expression should still work.
   }
 }
 
-function normalizeExpressionUsage(
-  value: unknown,
-  now: number
-): StoredExpressionUsage[] {
+function normalizeExpressionUsage(value: unknown, now: number): StoredExpressionUsage[] {
   if (!Array.isArray(value)) {
     return []
   }
@@ -281,13 +245,9 @@ function normalizeExpressionUsage(
   })
 }
 
-function updateExpressionUsage(
-  usage: StoredExpressionUsage[],
-  value: string,
-  now: number
-) {
+function updateExpressionUsage(usage: StoredExpressionUsage[], value: string, now: number) {
   const nextUsageByValue = new Map(
-    normalizeExpressionUsage(usage, now).map((item) => [item.value, item])
+    normalizeExpressionUsage(usage, now).map((item) => [item.value, item]),
   )
   const previousUsage = nextUsageByValue.get(value)
 
@@ -300,9 +260,7 @@ function updateExpressionUsage(
   return Array.from(nextUsageByValue.values())
 }
 
-function isStoredExpressionUsage(
-  value: unknown
-): value is StoredExpressionUsage {
+function isStoredExpressionUsage(value: unknown): value is StoredExpressionUsage {
   if (!value || typeof value !== "object") {
     return false
   }

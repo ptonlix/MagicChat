@@ -71,9 +71,7 @@ export function SmartVoiceInputDialog({
             level={recording.level}
             status={recording.status}
           />
-          {recording.error && (
-            <p className="text-sm text-destructive">{recording.error}</p>
-          )}
+          {recording.error && <p className="text-sm text-destructive">{recording.error}</p>}
           <div className="flex justify-center">
             {recording.status === "idle" && (
               <Button onClick={handleStartRecording} type="button">
@@ -94,21 +92,13 @@ export function SmartVoiceInputDialog({
               </Button>
             )}
             {recording.status === "recording" && (
-              <Button
-                onClick={recording.stopRecording}
-                type="button"
-                variant="destructive"
-              >
+              <Button onClick={recording.stopRecording} type="button" variant="destructive">
                 <Square />
                 结束录音
               </Button>
             )}
             {recording.status === "recorded" && (
-              <Button
-                onClick={handleStartRecording}
-                type="button"
-                variant="outline"
-              >
+              <Button onClick={handleStartRecording} type="button" variant="outline">
                 <RotateCcw />
                 重新录制
               </Button>
@@ -136,11 +126,7 @@ export function SmartVoiceInputDialog({
               取消
             </Button>
           </DialogClose>
-          <Button
-            disabled={!transcript.trim()}
-            onClick={handleAccept}
-            type="button"
-          >
+          <Button disabled={!transcript.trim()} onClick={handleAccept} type="button">
             采纳
           </Button>
         </DialogFooter>

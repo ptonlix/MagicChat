@@ -4,8 +4,7 @@ export type ProjectTaskPriority = 1 | 2 | 3
 
 export const PROJECT_TASK_REMINDER_TIMEZONE = "Asia/Shanghai"
 
-export type ProjectTaskReminderState =
-  "scheduled" | "paused" | "fired" | "expired"
+export type ProjectTaskReminderState = "scheduled" | "paused" | "fired" | "expired"
 
 export type ProjectTaskOnceReminderInput = {
   at: string
@@ -23,7 +22,8 @@ export type ProjectTaskRecurringReminderInput = {
 }
 
 export type ProjectTaskReminderInput =
-  ProjectTaskOnceReminderInput | ProjectTaskRecurringReminderInput
+  | ProjectTaskOnceReminderInput
+  | ProjectTaskRecurringReminderInput
 
 export type ProjectTaskReminder = ProjectTaskReminderInput & {
   lastProcessedAt: string | null

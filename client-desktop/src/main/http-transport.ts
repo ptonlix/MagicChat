@@ -10,40 +10,62 @@ import {
 import { ServerProfiles } from "@main/server-profiles"
 import { SessionController } from "@main/session-controller"
 
-const ALLOWED_HEADERS = new Set(["accept", "content-type", "if-match", "if-none-match", "x-client-message-id"])
+const ALLOWED_HEADERS = new Set([
+  "accept",
+  "content-type",
+  "if-match",
+  "if-none-match",
+  "x-client-message-id",
+])
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024
 
 export class HttpTransport {
   private readonly pending = new Map<string, { controller: AbortController; ownerId: number }>()
 
-  constructor(private readonly profiles: ServerProfiles, private readonly sessions: SessionController) {}
+  constructor(
+    private readonly profiles: ServerProfiles,
+    private readonly sessions: SessionController,
+  ) {}
 
   cancel(requestId: string, ownerId?: number): void {
     const pending = this.pending.get(requestId)
-    if (pending && (ownerId === undefined || pending.ownerId === ownerId)) pending.controller.abort()
+    if (pending && (ownerId === undefined || pending.ownerId === ownerId))
+      pending.controller.abort()
   }
 
   cancelOwner(ownerId: number): void {
-    for (const [id, pending] of this.pending) if (pending.ownerId === ownerId) this.cancel(id, ownerId)
+    for (const [id, pending] of this.pending)
+      if (pending.ownerId === ownerId) this.cancel(id, ownerId)
   }
 
-  async request<T>(ownerId: number, target: AuthenticatedTarget, request: ClientRequest): Promise<ClientResponse<T>> {
+  async request<T>(
+    ownerId: number,
+    target: AuthenticatedTarget,
+    request: ClientRequest,
+  ): Promise<ClientResponse<T>> {
     validateRequest(request)
     const profile = this.profiles.require(target.id)
-    if (profile.normalizedUrl !== target.normalizedUrl) throw new ClientTransportError("invalid_request", "认证目标已失效")
-    if (this.pending.has(request.requestId)) throw new ClientTransportError("invalid_request", "请求标识重复")
+    if (profile.normalizedUrl !== target.normalizedUrl)
+      throw new ClientTransportError("invalid_request", "认证目标已失效")
+    if (this.pending.has(request.requestId))
+      throw new ClientTransportError("invalid_request", "请求标识重复")
     const controller = new AbortController()
     this.pending.set(request.requestId, { controller, ownerId })
-    const timeout = setTimeout(() => controller.abort(new Error("timeout")), clampTimeout(request.timeoutMs))
+    const timeout = setTimeout(
+      () => controller.abort(new Error("timeout")),
+      clampTimeout(request.timeoutMs),
+    )
     try {
-      const response = await this.sessions.for(profile).fetch(`${profile.normalizedUrl}${assertClientPath(request.path)}`, {
-        body: encodeBody(request),
-        credentials: "include",
-        headers: filterHeaders(request.headers),
-        method: request.method,
-        redirect: "manual",
-        signal: controller.signal,
-      })
+      const response = await this.sessions
+        .for(profile)
+        .fetch(`${profile.normalizedUrl}${assertClientPath(request.path)}`, {
+          body: encodeBody(request),
+          credentials: "include",
+          headers: filterHeaders(request.headers),
+          method: request.method,
+          redirect: "manual",
+          signal: controller.signal,
+        })
       const bytes = await readLimited(response, MAX_RESPONSE_BYTES)
       const contentType = response.headers.get("content-type") ?? ""
       const body = contentType.includes("application/json")
@@ -54,14 +76,24 @@ export class HttpTransport {
       if (response.ok && isAuthenticationResponse(request.path, body)) {
         await this.profiles.recordUser(profile.id, body.data.user.id)
       }
-      return { body: body as T, headers: responseHeaders(response.headers), status: response.status }
+      return {
+        body: body as T,
+        headers: responseHeaders(response.headers),
+        status: response.status,
+      }
     } catch (error) {
       if (controller.signal.aborted) {
-        const timeoutError = controller.signal.reason instanceof Error && controller.signal.reason.message === "timeout"
-        throw new ClientTransportError(timeoutError ? "timeout" : "aborted", timeoutError ? "请求超时" : "请求已取消")
+        const timeoutError =
+          controller.signal.reason instanceof Error &&
+          controller.signal.reason.message === "timeout"
+        throw new ClientTransportError(
+          timeoutError ? "timeout" : "aborted",
+          timeoutError ? "请求超时" : "请求已取消",
+        )
       }
       const message = error instanceof Error ? error.message : ""
-      if (/certificate|tls|ssl/i.test(message)) throw new ClientTransportError("tls", "服务器证书验证失败")
+      if (/certificate|tls|ssl/i.test(message))
+        throw new ClientTransportError("tls", "服务器证书验证失败")
       throw normalizeTransportError(error)
     } finally {
       clearTimeout(timeout)
@@ -70,17 +102,30 @@ export class HttpTransport {
   }
 }
 
-function isAuthenticationResponse(path: string, body: unknown): body is { data: { user: { id: string } } } {
-  if (!(path.includes("/auth/login") || path.includes("/auth/email-code/login") || path.startsWith("/api/client/me"))) return false
+function isAuthenticationResponse(
+  path: string,
+  body: unknown,
+): body is { data: { user: { id: string } } } {
+  if (
+    !(
+      path.includes("/auth/login") ||
+      path.includes("/auth/email-code/login") ||
+      path.startsWith("/api/client/me")
+    )
+  )
+    return false
   const value = body as { data?: { user?: { id?: unknown } } }
   return typeof value?.data?.user?.id === "string"
 }
 
 function validateRequest(request: ClientRequest): void {
   assertClientPath(request.path)
-  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(request.requestId)) throw new ClientTransportError("invalid_request", "请求标识无效")
-  if (!(["DELETE", "GET", "PATCH", "POST", "PUT"] as const).includes(request.method)) throw new ClientTransportError("invalid_request", "请求方法无效")
-  if (app.isPackaged && request.path.startsWith("//")) throw new ClientTransportError("invalid_request", "请求路径无效")
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(request.requestId))
+    throw new ClientTransportError("invalid_request", "请求标识无效")
+  if (!(["DELETE", "GET", "PATCH", "POST", "PUT"] as const).includes(request.method))
+    throw new ClientTransportError("invalid_request", "请求方法无效")
+  if (app.isPackaged && request.path.startsWith("//"))
+    throw new ClientTransportError("invalid_request", "请求路径无效")
 }
 
 function filterHeaders(input?: Readonly<Record<string, string>>): Record<string, string> {
@@ -119,7 +164,10 @@ async function readLimited(response: Response, limit: number): Promise<Uint8Arra
   }
   const result = new Uint8Array(size)
   let offset = 0
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength }
+  for (const chunk of chunks) {
+    result.set(chunk, offset)
+    offset += chunk.byteLength
+  }
   return result
 }
 

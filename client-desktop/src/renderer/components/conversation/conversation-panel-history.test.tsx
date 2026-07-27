@@ -61,11 +61,7 @@ vi.mock("@/components/ui/scroll-area", () => {
 
       return (
         <div>
-          <div
-            {...viewportProps}
-            data-slot="scroll-area-viewport"
-            ref={setViewportRef}
-          >
+          <div {...viewportProps} data-slot="scroll-area-viewport" ref={setViewportRef}>
             {children}
           </div>
         </div>
@@ -83,8 +79,7 @@ vi.mock("@/components/conversation/conversation-message", () => ({
         data-testid={`message-${message.id}`}
         ref={(node) => {
           if (node) {
-            node.getBoundingClientRect = () =>
-              ({ top: testState.anchorTop }) as DOMRect
+            node.getBoundingClientRect = () => ({ top: testState.anchorTop }) as DOMRect
           }
         }}
       >
@@ -94,10 +89,7 @@ vi.mock("@/components/conversation/conversation-message", () => ({
   },
   SystemMessageBadge({ message }: { message: ConversationPanelMessage }) {
     return (
-      <div
-        data-conversation-message-id={message.id}
-        data-testid={`message-${message.id}`}
-      >
+      <div data-conversation-message-id={message.id} data-testid={`message-${message.id}`}>
         {message.author}
       </div>
     )
@@ -134,7 +126,7 @@ describe("ConversationPanelHistory", () => {
       <ConversationPanelHistory
         {...props}
         messages={[...props.messages, createMessage("message-2", "other")]}
-      />
+      />,
     )
 
     expect(viewport.scrollTop).toBe(1_100)
@@ -177,7 +169,7 @@ describe("ConversationPanelHistory", () => {
       <ConversationPanelHistory
         {...props}
         messages={[...props.messages, createMessage("message-2", "other")]}
-      />
+      />,
     )
 
     expect(viewport.scrollTop).toBe(100)
@@ -201,7 +193,7 @@ describe("ConversationPanelHistory", () => {
       <ConversationPanelHistory
         {...props}
         messages={[...props.messages, createMessage("message-2", "me")]}
-      />
+      />,
     )
 
     expect(viewport.scrollTop).toBe(1_100)
@@ -210,10 +202,7 @@ describe("ConversationPanelHistory", () => {
 
   it("preserves the visible position when older messages are prepended", () => {
     const onLoadBeforeMessages = vi.fn()
-    const props = createProps(
-      [createMessage("message-2", "other")],
-      onLoadBeforeMessages
-    )
+    const props = createProps([createMessage("message-2", "other")], onLoadBeforeMessages)
     const { rerender } = render(<ConversationPanelHistory {...props} />)
     const viewport = getViewport()
     viewport.scrollTop = 20
@@ -227,7 +216,7 @@ describe("ConversationPanelHistory", () => {
       <ConversationPanelHistory
         {...props}
         messages={[createMessage("message-1", "other"), ...props.messages]}
-      />
+      />,
     )
 
     expect(viewport.scrollTop).toBe(220)
@@ -250,7 +239,7 @@ describe("ConversationPanelHistory", () => {
           ...props.messages,
           createMessage("message-3", "other"),
         ]}
-      />
+      />,
     )
 
     expect(viewport.scrollTop).toBe(220)
@@ -269,54 +258,33 @@ describe("ConversationPanelHistory", () => {
   })
 
   it("marks the newer message when adjacent messages are more than one hour apart", () => {
-    const firstMessage = createMessage(
-      "message-1",
-      "other",
-      "2026-07-21T10:00:00Z"
-    )
-    const exactlyOneHourLater = createMessage(
-      "message-2",
-      "other",
-      "2026-07-21T11:00:00Z"
-    )
-    const moreThanOneHourLater = createMessage(
-      "message-3",
-      "other",
-      "2026-07-21T12:00:01Z"
-    )
+    const firstMessage = createMessage("message-1", "other", "2026-07-21T10:00:00Z")
+    const exactlyOneHourLater = createMessage("message-2", "other", "2026-07-21T11:00:00Z")
+    const moreThanOneHourLater = createMessage("message-3", "other", "2026-07-21T12:00:01Z")
 
     render(
       <ConversationPanelHistory
-        {...createProps([
-          firstMessage,
-          exactlyOneHourLater,
-          moreThanOneHourLater,
-        ])}
-      />
+        {...createProps([firstMessage, exactlyOneHourLater, moreThanOneHourLater])}
+      />,
     )
 
     const markers = document.querySelectorAll("[data-message-time-marker]")
     expect(markers).toHaveLength(1)
     expect(markers[0]).toHaveTextContent(
-      formatConversationMessageTime(moreThanOneHourLater.createdAt)
+      formatConversationMessageTime(moreThanOneHourLater.createdAt),
     )
   })
 })
 
 function getViewport() {
-  const viewport = document.querySelector<HTMLDivElement>(
-    '[data-slot="scroll-area-viewport"]'
-  )
+  const viewport = document.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]')
   if (!viewport) {
     throw new Error("消息历史滚动容器不存在")
   }
   return viewport
 }
 
-function createProps(
-  messages: ConversationPanelMessage[],
-  onLoadBeforeMessages = vi.fn()
-) {
+function createProps(messages: ConversationPanelMessage[], onLoadBeforeMessages = vi.fn()) {
   return {
     conversation: createConversation(),
     currentUserId: "user-me",
@@ -354,7 +322,7 @@ function createConversation(): ClientConversation {
 function createMessage(
   id: string,
   role: ConversationPanelMessage["role"],
-  createdAt = "2026-07-14T10:00:00Z"
+  createdAt = "2026-07-14T10:00:00Z",
 ): ConversationPanelMessage {
   return {
     author: role === "me" ? "我" : "Alice",

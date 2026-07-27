@@ -62,15 +62,12 @@ export function ProjectGroupAssociationsDialog({
   const [addOpen, setAddOpen] = React.useState(false)
   const [adding, setAdding] = React.useState(false)
   const [keyword, setKeyword] = React.useState("")
-  const [linkedGroups, setLinkedGroups] = React.useState<ClientProjectGroup[]>(
-    []
-  )
+  const [linkedGroups, setLinkedGroups] = React.useState<ClientProjectGroup[]>([])
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState("")
   const [selectedGroupId, setSelectedGroupId] = React.useState("")
   const [unlinking, setUnlinking] = React.useState(false)
-  const [unlinkTarget, setUnlinkTarget] =
-    React.useState<ClientProjectGroup | null>(null)
+  const [unlinkTarget, setUnlinkTarget] = React.useState<ClientProjectGroup | null>(null)
 
   React.useEffect(() => {
     if (!open) {
@@ -102,11 +99,11 @@ export function ProjectGroupAssociationsDialog({
 
   const linkedGroupIds = React.useMemo(
     () => new Set(linkedGroups.map((group) => group.id)),
-    [linkedGroups]
+    [linkedGroups],
   )
   const conversationsById = React.useMemo(
     () => new Map(groups.map((group) => [group.id, group])),
-    [groups]
+    [groups],
   )
   const candidates = React.useMemo(() => {
     const normalizedKeyword = keyword.trim().toLocaleLowerCase()
@@ -114,8 +111,7 @@ export function ProjectGroupAssociationsDialog({
       .filter(
         (group) =>
           !linkedGroupIds.has(group.id) &&
-          (!normalizedKeyword ||
-            group.name.toLocaleLowerCase().includes(normalizedKeyword))
+          (!normalizedKeyword || group.name.toLocaleLowerCase().includes(normalizedKeyword)),
       )
       .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))
   }, [groups, keyword, linkedGroupIds])
@@ -167,9 +163,7 @@ export function ProjectGroupAssociationsDialog({
     setUnlinking(true)
     try {
       await unbindClientProjectGroup(project.id, unlinkTarget.id)
-      setLinkedGroups((current) =>
-        current.filter((group) => group.id !== unlinkTarget.id)
-      )
+      setLinkedGroups((current) => current.filter((group) => group.id !== unlinkTarget.id))
       setUnlinkTarget(null)
       toast.success("已取消群组授权")
       await onRelationsChanged()
@@ -185,9 +179,7 @@ export function ProjectGroupAssociationsDialog({
       <DialogContent className="gap-4 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>授权群组</DialogTitle>
-          <DialogDescription>
-            已授权群组的成员可以访问这个项目。
-          </DialogDescription>
+          <DialogDescription>已授权群组的成员可以访问这个项目。</DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-between gap-2">
           <Label>已授权群组（{linkedGroups.length}）</Label>
@@ -212,14 +204,10 @@ export function ProjectGroupAssociationsDialog({
               </div>
             )}
             {!loading && loadError && (
-              <div className="py-12 text-center text-sm text-destructive">
-                {loadError}
-              </div>
+              <div className="py-12 text-center text-sm text-destructive">{loadError}</div>
             )}
             {!loading && !loadError && linkedGroups.length === 0 && (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                暂无授权群组
-              </div>
+              <div className="py-12 text-center text-sm text-muted-foreground">暂无授权群组</div>
             )}
             {!loading &&
               !loadError &&
@@ -227,11 +215,7 @@ export function ProjectGroupAssociationsDialog({
                 const conversation = conversationsById.get(group.id)
 
                 return (
-                  <Item
-                    className="px-2 py-1.5 hover:bg-muted"
-                    key={group.id}
-                    size="sm"
-                  >
+                  <Item className="px-2 py-1.5 hover:bg-muted" key={group.id} size="sm">
                     <ItemMedia>
                       <GroupAvatar
                         avatar={group.avatar}
@@ -272,9 +256,7 @@ export function ProjectGroupAssociationsDialog({
           <DialogContent className="gap-4 sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>添加授权群组</DialogTitle>
-              <DialogDescription>
-                选择群组，点击确定后才会完成授权。
-              </DialogDescription>
+              <DialogDescription>选择群组，点击确定后才会完成授权。</DialogDescription>
             </DialogHeader>
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -311,8 +293,7 @@ export function ProjectGroupAssociationsDialog({
                           asChild
                           className={cn(
                             "cursor-pointer px-2 py-1.5 hover:bg-muted",
-                            selected &&
-                              "bg-foreground/10 hover:bg-foreground/10"
+                            selected && "bg-foreground/10 hover:bg-foreground/10",
                           )}
                           key={group.id}
                           size="sm"
@@ -326,9 +307,7 @@ export function ProjectGroupAssociationsDialog({
                               />
                             </ItemMedia>
                             <ItemContent className="min-w-0">
-                              <ItemTitle className="truncate">
-                                {group.name}
-                              </ItemTitle>
+                              <ItemTitle className="truncate">{group.name}</ItemTitle>
                               <ItemDescription className="truncate text-xs">
                                 {group.memberCount} 人
                               </ItemDescription>

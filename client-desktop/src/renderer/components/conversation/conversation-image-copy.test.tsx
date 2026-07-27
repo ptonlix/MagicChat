@@ -3,15 +3,9 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  ConversationPanel,
-  type ConversationPanelMessage,
-} from "@/components/conversation-panel"
+import { ConversationPanel, type ConversationPanelMessage } from "@/components/conversation-panel"
 import type { ClientConversation } from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 const mocks = vi.hoisted(() => ({
   copyTemporaryImageToClipboard: vi.fn(),
@@ -72,9 +66,7 @@ describe("conversation image copy", () => {
 
   it("reports an error when copying the image fails", async () => {
     const user = userEvent.setup()
-    mocks.copyTemporaryImageToClipboard.mockRejectedValue(
-      new Error("clipboard unavailable")
-    )
+    mocks.copyTemporaryImageToClipboard.mockRejectedValue(new Error("clipboard unavailable"))
     renderImageConversation()
 
     await openImageMessageActionMenu()
@@ -114,7 +106,7 @@ function renderImageConversation() {
           sending={false}
         />
       </ClientDataContext.Provider>
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 

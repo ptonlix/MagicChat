@@ -38,14 +38,12 @@ describe("compressImageForMessage", () => {
         set src(_value: string) {
           queueMicrotask(() => this.onload?.())
         }
-      }
+      },
     )
-    vi.spyOn(document, "createElement").mockImplementation((
-      (tagName: string) =>
-        tagName === "canvas"
-          ? (canvas as unknown as HTMLCanvasElement)
-          : originalCreateElement(tagName)
-    ) as typeof document.createElement)
+    vi.spyOn(document, "createElement").mockImplementation(((tagName: string) =>
+      tagName === "canvas"
+        ? (canvas as unknown as HTMLCanvasElement)
+        : originalCreateElement(tagName)) as typeof document.createElement)
   })
 
   afterEach(() => {
@@ -58,12 +56,10 @@ describe("compressImageForMessage", () => {
     const webP = new Blob(["RIFF", "0000", "WEBP", "content"], {
       type: "image/webp",
     })
-    canvas.toBlob.mockImplementationOnce((callback: BlobCallback) =>
-      callback(webP)
-    )
+    canvas.toBlob.mockImplementationOnce((callback: BlobCallback) => callback(webP))
 
     const result = await compressImageForMessage(
-      new File(["source"], "photo.jpg", { type: "image/jpeg" })
+      new File(["source"], "photo.jpg", { type: "image/jpeg" }),
     )
 
     expect(result.name).toBe("photo.webp")
@@ -72,12 +68,10 @@ describe("compressImageForMessage", () => {
 
   it("uses PNG when Safari falls back from WebP encoding", async () => {
     const png = new Blob(["png"], { type: "image/png" })
-    canvas.toBlob.mockImplementationOnce((callback: BlobCallback) =>
-      callback(png)
-    )
+    canvas.toBlob.mockImplementationOnce((callback: BlobCallback) => callback(png))
 
     const result = await compressImageForMessage(
-      new File(["source"], "photo.jpg", { type: "image/jpeg" })
+      new File(["source"], "photo.jpg", { type: "image/jpeg" }),
     )
 
     expect(result.name).toBe("photo.png")

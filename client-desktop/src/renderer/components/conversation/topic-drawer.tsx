@@ -31,10 +31,7 @@ import {
 } from "@/lib/conversation-message-presenter"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
 import { cn } from "@/lib/utils"
-import {
-  ConversationPanel,
-  type ConversationPanelMessage,
-} from "@/components/conversation-panel"
+import { ConversationPanel, type ConversationPanelMessage } from "@/components/conversation-panel"
 import { MessageBodyRenderer } from "@/components/conversation/conversation-message"
 import {
   MessageReactionAddButton,
@@ -84,11 +81,7 @@ export function TopicDrawer(props: TopicDrawerProps) {
   )
 }
 
-function TopicDrawerContent({
-  conversationId,
-  onOpenChange,
-  open,
-}: TopicDrawerProps) {
+function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerProps) {
   const {
     contactApps,
     contacts,
@@ -115,11 +108,8 @@ function TopicDrawerContent({
   const [mutating, setMutating] = React.useState(false)
   const [archiveConfirmOpen, setArchiveConfirmOpen] = React.useState(false)
   const [draft, setDraft] = React.useState("")
-  const [draftMentions, setDraftMentions] = React.useState<
-    ConversationDraftMention[]
-  >([])
-  const [replyTarget, setReplyTarget] =
-    React.useState<ConversationDraftReplyTarget | null>(null)
+  const [draftMentions, setDraftMentions] = React.useState<ConversationDraftMention[]>([])
+  const [replyTarget, setReplyTarget] = React.useState<ConversationDraftReplyTarget | null>(null)
   const [sourceReactionSnapshot, setSourceReactionSnapshot] =
     React.useState<MessageReactionSnapshot | null>(null)
   const [richTextMode, setRichTextMode] = React.useState(false)
@@ -151,30 +141,23 @@ function TopicDrawerContent({
   const sourceMessageId = detail?.sourceMessage.id ?? ""
   const refreshSourceReactions = React.useCallback(async () => {
     if (!sourceConversationId || !sourceMessageId) return
-    const [snapshot] = await listConversationMessageReactionSnapshots(
-      sourceConversationId,
-      [sourceMessageId]
-    )
+    const [snapshot] = await listConversationMessageReactionSnapshots(sourceConversationId, [
+      sourceMessageId,
+    ])
     if (!snapshot) return
     setSourceReactionSnapshot((current) =>
-      current && current.reactionVersion > snapshot.reactionVersion
-        ? current
-        : snapshot
+      current && current.reactionVersion > snapshot.reactionVersion ? current : snapshot,
     )
   }, [sourceConversationId, sourceMessageId])
 
   React.useEffect(() => {
     if (!open || !sourceConversationId || !sourceMessageId) return
     let active = true
-    void listConversationMessageReactionSnapshots(sourceConversationId, [
-      sourceMessageId,
-    ])
+    void listConversationMessageReactionSnapshots(sourceConversationId, [sourceMessageId])
       .then(([snapshot]) => {
         if (!active || !snapshot) return
         setSourceReactionSnapshot((current) =>
-          current && current.reactionVersion > snapshot.reactionVersion
-            ? current
-            : snapshot
+          current && current.reactionVersion > snapshot.reactionVersion ? current : snapshot,
         )
       })
       .catch(() => undefined)
@@ -184,14 +167,12 @@ function TopicDrawerContent({
   }, [open, sourceConversationId, sourceMessageId])
 
   const detailConversation = detail?.conversation ?? null
-  const listedConversation = detailConversation
-    ? getConversation(detailConversation.id)
-    : null
+  const listedConversation = detailConversation ? getConversation(detailConversation.id) : null
   const parentMessageState = detail
     ? getConversationMessageState(detail.parentConversation.id)
     : undefined
   const parentSourceTopic = parentMessageState?.messages.find(
-    (message) => message.id === detail?.sourceMessage.id
+    (message) => message.id === detail?.sourceMessage.id,
   )?.topic
   const baseConversation = listedConversation ?? detailConversation
   const synchronizedArchived =
@@ -200,10 +181,7 @@ function TopicDrawerContent({
     detailConversation?.topic?.archived ??
     false
   const conversation = React.useMemo(() => {
-    if (
-      baseConversation?.topic &&
-      baseConversation.topic.archived !== synchronizedArchived
-    ) {
+    if (baseConversation?.topic && baseConversation.topic.archived !== synchronizedArchived) {
       return {
         ...baseConversation,
         topic: { ...baseConversation.topic, archived: synchronizedArchived },
@@ -211,17 +189,15 @@ function TopicDrawerContent({
     }
     return baseConversation
   }, [baseConversation, synchronizedArchived])
-  const messageState = conversation
-    ? getConversationMessageState(conversation.id)
-    : undefined
+  const messageState = conversation ? getConversationMessageState(conversation.id) : undefined
   const clientMessages = messageState?.messages ?? emptyMessages
   const messagesById = React.useMemo(
     () => new Map(clientMessages.map((message) => [message.id, message])),
-    [clientMessages]
+    [clientMessages],
   )
   const contactsById = React.useMemo(
     () => new Map(contacts.map((contact) => [contact.id, contact])),
-    [contacts]
+    [contacts],
   )
   const appsById = React.useMemo(() => {
     const result = new Map<string, (typeof contactApps)[number]>()
@@ -239,7 +215,7 @@ function TopicDrawerContent({
         conversationMembers: conversation?.members,
         currentUser: me,
       }),
-    [appsById, contactsById, conversation?.members, me]
+    [appsById, contactsById, conversation?.members, me],
   )
   const messages = React.useMemo(
     () =>
@@ -252,19 +228,11 @@ function TopicDrawerContent({
               contactsById,
               appsById,
               messagesById,
-              mentionLabelResolver
-            )
+              mentionLabelResolver,
+            ),
           )
         : [],
-    [
-      appsById,
-      clientMessages,
-      contactsById,
-      conversation,
-      me,
-      mentionLabelResolver,
-      messagesById,
-    ]
+    [appsById, clientMessages, contactsById, conversation, me, mentionLabelResolver, messagesById],
   )
 
   React.useEffect(() => {
@@ -289,10 +257,7 @@ function TopicDrawerContent({
     setReplyTarget({
       author: message.author,
       id: message.id,
-      summary: formatConversationMessageSummary(
-        message.body,
-        mentionLabelResolver
-      ),
+      summary: formatConversationMessageSummary(message.body, mentionLabelResolver),
     })
   }
 
@@ -349,8 +314,7 @@ function TopicDrawerContent({
     const targetConversationId = detail.conversation.id
     setMutating(true)
     try {
-      const nextConversation =
-        await participateConversationTopic(targetConversationId)
+      const nextConversation = await participateConversationTopic(targetConversationId)
       setDetail({
         ...detail,
         canParticipate: false,
@@ -370,19 +334,17 @@ function TopicDrawerContent({
     const targetConversationId = detail.conversation.id
     setMutating(true)
     try {
-      const nextConversation =
-        await archiveConversationTopic(targetConversationId)
+      const nextConversation = await archiveConversationTopic(targetConversationId)
       setDetail({
         ...detail,
         canArchive: false,
         canParticipate: false,
         conversation: nextConversation,
       })
-      updateMessageTopic?.(
-        detail.parentConversation.id,
-        detail.sourceMessage.id,
-        { archived: true, conversationId: targetConversationId }
-      )
+      updateMessageTopic?.(detail.parentConversation.id, detail.sourceMessage.id, {
+        archived: true,
+        conversationId: targetConversationId,
+      })
       setArchiveConfirmOpen(false)
       toast.success("话题已关闭")
       void refreshConversations().catch(() => undefined)
@@ -399,12 +361,10 @@ function TopicDrawerContent({
       detail.parentConversation.id,
       detail.sourceMessage.id,
       text,
-      reacted
+      reacted,
     )
     setSourceReactionSnapshot((current) =>
-      current && current.reactionVersion > snapshot.reactionVersion
-        ? current
-        : snapshot
+      current && current.reactionVersion > snapshot.reactionVersion ? current : snapshot,
     )
   }
 
@@ -431,9 +391,7 @@ function TopicDrawerContent({
         showCloseButton={false}
       >
         <SheetTitle className="sr-only">话题</SheetTitle>
-        <SheetDescription className="sr-only">
-          查看并参与当前消息创建的话题
-        </SheetDescription>
+        <SheetDescription className="sr-only">查看并参与当前消息创建的话题</SheetDescription>
         {loading ? (
           <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
             <LoaderCircle className="size-4 animate-spin" />
@@ -470,18 +428,14 @@ function TopicDrawerContent({
               </>
             }
             historyError={messageState?.error ?? null}
-            historyLoading={Boolean(
-              messageState && !messageState.loaded && !messageState.error
-            )}
+            historyLoading={Boolean(messageState && !messageState.loaded && !messageState.error)}
             historyLoadingBefore={Boolean(messageState?.loadingBefore)}
             historyHeader={
               <TopicSourceBanner
                 reactionConversationId={sourceConversationId}
                 currentUserId={me.id}
                 mentionLabelResolver={mentionLabelResolver}
-                onSetReaction={
-                  conversation.canSend === false ? undefined : setSourceReaction
-                }
+                onSetReaction={conversation.canSend === false ? undefined : setSourceReaction}
                 reactions={sourceReactionSnapshot?.reactions}
                 sourceMessage={detail?.sourceMessage}
               />
@@ -490,25 +444,15 @@ function TopicDrawerContent({
             messages={messages}
             onCancelReply={() => setReplyTarget(null)}
             onDraftChange={updateDraft}
-            onLoadBeforeMessages={() =>
-              loadBeforeConversationMessages(conversation.id)
-            }
+            onLoadBeforeMessages={() => loadBeforeConversationMessages(conversation.id)}
             onReplyToMessage={replyToMessage}
             onRevokeMessage={(message) =>
-              void revokeConversationMessage(conversation.id, message.id).catch(
-                (requestError) =>
-                  toast.error(
-                    getClientDataErrorMessage(requestError, "撤回消息失败")
-                  )
+              void revokeConversationMessage(conversation.id, message.id).catch((requestError) =>
+                toast.error(getClientDataErrorMessage(requestError, "撤回消息失败")),
               )
             }
             onSetMessageReaction={async (message, text, reacted) => {
-              await setMessageReaction(
-                conversation.id,
-                message.id,
-                text,
-                reacted
-              )
+              await setMessageReaction(conversation.id, message.id, text, reacted)
             }}
             onRichTextModeChange={setRichTextMode}
             onSendFile={sendFile}
@@ -524,22 +468,14 @@ function TopicDrawerContent({
                   <span className="text-sm text-muted-foreground">
                     参与后可发言，并在会话列表中看到该话题
                   </span>
-                  <Button
-                    disabled={mutating}
-                    onClick={() => void participate()}
-                    type="button"
-                  >
-                    {mutating && (
-                      <LoaderCircle className="size-4 animate-spin" />
-                    )}
+                  <Button disabled={mutating} onClick={() => void participate()} type="button">
+                    {mutating && <LoaderCircle className="size-4 animate-spin" />}
                     参与话题
                   </Button>
                 </div>
               ) : undefined
             }
-            readOnly={
-              conversation.topic?.archived || conversation.canSend === false
-            }
+            readOnly={conversation.topic?.archived || conversation.canSend === false}
             readOnlyReason={
               conversation.canSend === false && !conversation.topic?.archived
                 ? conversation.topic?.parentConversationType === "app"
@@ -589,7 +525,7 @@ function TopicRemovalSync({
           // Ignore malformed realtime events. The websocket remains usable.
         }
       }),
-    [conversationId, onRemoved, parentConversationId, subscribeRealtimeEvent]
+    [conversationId, onRemoved, parentConversationId, subscribeRealtimeEvent],
   )
 
   return null
@@ -611,29 +547,21 @@ function TopicSourceReactionSync({
       subscribeRealtimeEvent("message.reactions_updated", (payload) => {
         try {
           const event = normalizeMessageReactionsUpdatedEventPayload(payload)
-          if (
-            event.conversationId === conversationId &&
-            event.messageId === messageId
-          ) {
+          if (event.conversationId === conversationId && event.messageId === messageId) {
             void onUpdate().catch(() => undefined)
           }
         } catch {
           // Ignore malformed realtime events. The websocket remains usable.
         }
       }),
-    [conversationId, messageId, onUpdate, subscribeRealtimeEvent]
+    [conversationId, messageId, onUpdate, subscribeRealtimeEvent],
   )
 
   return null
 }
 
-export function TopicArchiveAction({
-  conversationId,
-}: {
-  conversationId: string
-}) {
-  const { getConversation, refreshConversations, updateMessageTopic } =
-    useClientData()
+export function TopicArchiveAction({ conversationId }: { conversationId: string }) {
+  const { getConversation, refreshConversations, updateMessageTopic } = useClientData()
   const [detail, setDetail] = React.useState<ClientTopicDetail | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
@@ -660,11 +588,10 @@ export function TopicArchiveAction({
     setSaving(true)
     try {
       await archiveConversationTopic(conversationId)
-      updateMessageTopic?.(
-        currentDetail.parentConversation.id,
-        currentDetail.sourceMessage.id,
-        { archived: true, conversationId }
-      )
+      updateMessageTopic?.(currentDetail.parentConversation.id, currentDetail.sourceMessage.id, {
+        archived: true,
+        conversationId,
+      })
       setDetail({
         ...currentDetail,
         canArchive: false,
@@ -682,10 +609,7 @@ export function TopicArchiveAction({
 
   return (
     <>
-      <TopicArchiveMenu
-        disabled={saving}
-        onSelect={() => setConfirmOpen(true)}
-      />
+      <TopicArchiveMenu disabled={saving} onSelect={() => setConfirmOpen(true)} />
       <TopicArchiveConfirmDialog
         onConfirm={() => void archive()}
         onOpenChange={setConfirmOpen}
@@ -696,13 +620,7 @@ export function TopicArchiveAction({
   )
 }
 
-function TopicArchiveMenu({
-  disabled,
-  onSelect,
-}: {
-  disabled: boolean
-  onSelect: () => void
-}) {
+function TopicArchiveMenu({ disabled, onSelect }: { disabled: boolean; onSelect: () => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -718,11 +636,7 @@ function TopicArchiveMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">
-        <DropdownMenuItem
-          disabled={disabled}
-          onSelect={onSelect}
-          variant="destructive"
-        >
+        <DropdownMenuItem disabled={disabled} onSelect={onSelect} variant="destructive">
           <MessageSquareOff />
           关闭讨论
         </DropdownMenuItem>
@@ -792,8 +706,7 @@ export function TopicSourceBanner({
   reactions?: ClientMessageReaction[]
   sourceMessage?: ClientTopicSourceMessage
 }) {
-  const [fetchedSource, setFetchedSource] =
-    React.useState<ClientTopicSourceMessage | null>(null)
+  const [fetchedSource, setFetchedSource] = React.useState<ClientTopicSourceMessage | null>(null)
   const loadedSource = sourceMessage ?? fetchedSource
 
   React.useEffect(() => {
@@ -813,8 +726,7 @@ export function TopicSourceBanner({
   if (!loadedSource) return null
 
   const fromCurrentUser =
-    loadedSource.sender.type === "user" &&
-    loadedSource.sender.id === currentUserId
+    loadedSource.sender.type === "user" && loadedSource.sender.id === currentUserId
   const avatar = (
     <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
       {loadedSource.sender.avatar && (
@@ -825,10 +737,7 @@ export function TopicSourceBanner({
         />
       )}
       <AvatarFallback
-        className={cn(
-          "rounded-sm",
-          fromCurrentUser && "bg-primary text-primary-foreground"
-        )}
+        className={cn("rounded-sm", fromCurrentUser && "bg-primary text-primary-foreground")}
       >
         {loadedSource.sender.type === "app" ? (
           <Bot className="size-4" />
@@ -845,14 +754,14 @@ export function TopicSourceBanner({
     <div
       className={cn(
         "group/message-row flex gap-3",
-        fromCurrentUser ? "justify-end" : "justify-start"
+        fromCurrentUser ? "justify-end" : "justify-start",
       )}
     >
       {!fromCurrentUser && avatar}
       <div
         className={cn(
           "flex max-w-[min(70%,64rem)] flex-col gap-1",
-          fromCurrentUser ? "items-end" : "items-start"
+          fromCurrentUser ? "items-end" : "items-start",
         )}
       >
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -860,10 +769,7 @@ export function TopicSourceBanner({
           <span>{formatTopicSourceTime(loadedSource.createdAt)}</span>
         </div>
         <div
-          className={cn(
-            "flex max-w-full items-end gap-1.5",
-            fromCurrentUser && "flex-row-reverse"
-          )}
+          className={cn("flex max-w-full items-end gap-1.5", fromCurrentUser && "flex-row-reverse")}
           data-slot="message-bubble-line"
         >
           <div
@@ -871,25 +777,21 @@ export function TopicSourceBanner({
               "max-w-full min-w-0 rounded-md p-3 text-sm leading-relaxed shadow-sm",
               fromCurrentUser
                 ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
-                : "bg-zinc-100 text-foreground dark:bg-zinc-800"
+                : "bg-zinc-100 text-foreground dark:bg-zinc-800",
             )}
             data-testid="topic-source-message-bubble"
           >
             <MessageBodyRenderer
               body={loadedSource.body}
               currentUserId={currentUserId}
-              mentionLabelResolver={
-                mentionLabelResolver ?? emptyMentionLabelResolver
-              }
+              mentionLabelResolver={mentionLabelResolver ?? emptyMentionLabelResolver}
             />
             {reactions.length > 0 && (
               <div className="mt-2">
                 <MessageReactionChips
                   align={fromCurrentUser ? "end" : "start"}
                   canAdd={loadedSource.body.type !== "revoked"}
-                  conversationId={
-                    reactionConversationId ?? conversationId ?? ""
-                  }
+                  conversationId={reactionConversationId ?? conversationId ?? ""}
                   enabled={loadedSource.body.type !== "revoked"}
                   messageId={loadedSource.id}
                   onSetReaction={onSetReaction}
@@ -924,14 +826,10 @@ function formatTopicSourceTime(value: string) {
 
 function normalizeSingleLinkMessageURL(content: string) {
   if (!content || /\s/.test(content)) return null
-  const candidate = content.toLowerCase().startsWith("www.")
-    ? `https://${content}`
-    : content
+  const candidate = content.toLowerCase().startsWith("www.") ? `https://${content}` : content
   try {
     const url = new URL(candidate)
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.toString()
-      : null
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null
   } catch {
     return null
   }

@@ -2,10 +2,7 @@ import * as React from "react"
 import { Loader2Icon, Search } from "lucide-react"
 import { toast } from "sonner"
 
-import type {
-  ClientConversation,
-  ForwardConversationMessagesResult,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ForwardConversationMessagesResult } from "@/lib/client-data-api"
 import { getClientDataErrorMessage } from "@/lib/client-data-state"
 import { cn } from "@/lib/utils"
 import { ConversationSelectionAvatar } from "@/components/conversation/conversation-selection-avatar"
@@ -45,27 +42,23 @@ export function ForwardMessageDialog({
   conversations: ClientConversation[]
   messageCount: number
   onComplete: () => void
-  onForward: (
-    targetConversationIds: string[]
-  ) => Promise<ForwardConversationMessagesResult>
+  onForward: (targetConversationIds: string[]) => Promise<ForwardConversationMessagesResult>
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
-  const [failedByConversationId, setFailedByConversationId] = React.useState<
-    Map<string, string>
-  >(() => new Map())
+  const [failedByConversationId, setFailedByConversationId] = React.useState<Map<string, string>>(
+    () => new Map(),
+  )
   const [keyword, setKeyword] = React.useState("")
-  const [selectedConversationIds, setSelectedConversationIds] = React.useState<
-    Set<string>
-  >(() => new Set())
-  const [sentConversationIds, setSentConversationIds] = React.useState<
-    Set<string>
-  >(() => new Set())
+  const [selectedConversationIds, setSelectedConversationIds] = React.useState<Set<string>>(
+    () => new Set(),
+  )
+  const [sentConversationIds, setSentConversationIds] = React.useState<Set<string>>(() => new Set())
   const [submitting, setSubmitting] = React.useState(false)
 
   const visibleConversations = React.useMemo(() => {
     const sendableConversations = conversations.filter(
-      (conversation) => !conversation.topic?.archived
+      (conversation) => !conversation.topic?.archived,
     )
     const normalizedKeyword = keyword.trim().toLocaleLowerCase()
     if (!normalizedKeyword) {
@@ -73,7 +66,7 @@ export function ForwardMessageDialog({
     }
 
     return sendableConversations.filter((conversation) =>
-      conversation.name.toLocaleLowerCase().includes(normalizedKeyword)
+      conversation.name.toLocaleLowerCase().includes(normalizedKeyword),
     )
   }, [conversations, keyword])
 
@@ -139,9 +132,7 @@ export function ForwardMessageDialog({
         onComplete()
         onOpenChange(false)
       } else if (result.sentCount > 0) {
-        toast.warning(
-          `已转发到 ${result.sentCount} 个会话，${result.failedCount} 个失败`
-        )
+        toast.warning(`已转发到 ${result.sentCount} 个会话，${result.failedCount} 个失败`)
       } else {
         toast.error("转发失败，请检查目标会话后重试")
       }
@@ -180,10 +171,7 @@ export function ForwardMessageDialog({
           </div>
 
           <div className="h-80 overflow-y-auto rounded-md border">
-            <ItemGroup
-              aria-label="转发目标会话"
-              className="gap-1 p-2 has-data-[size=sm]:gap-1"
-            >
+            <ItemGroup aria-label="转发目标会话" className="gap-1 p-2 has-data-[size=sm]:gap-1">
               {visibleConversations.map((conversation) => {
                 const checked = selectedConversationIds.has(conversation.id)
                 const sent = sentConversationIds.has(conversation.id)
@@ -195,19 +183,15 @@ export function ForwardMessageDialog({
                     asChild
                     className={cn(
                       "px-2 py-1.5",
-                      sent
-                        ? "cursor-default opacity-60"
-                        : "cursor-pointer hover:bg-muted",
-                      checked && "bg-primary/10"
+                      sent ? "cursor-default opacity-60" : "cursor-pointer hover:bg-muted",
+                      checked && "bg-primary/10",
                     )}
                     key={conversation.id}
                     size="sm"
                   >
                     <Label htmlFor={checkboxId}>
                       <ItemMedia>
-                        <ConversationSelectionAvatar
-                          conversation={conversation}
-                        />
+                        <ConversationSelectionAvatar conversation={conversation} />
                       </ItemMedia>
                       <ItemContent className="min-w-0">
                         <ItemTitle className="max-w-full">
@@ -217,9 +201,7 @@ export function ForwardMessageDialog({
                           </Badge>
                         </ItemTitle>
                         {(error || sent) && (
-                          <ItemDescription
-                            className={cn(error && "text-destructive")}
-                          >
+                          <ItemDescription className={cn(error && "text-destructive")}>
                             {error ?? "已转发"}
                           </ItemDescription>
                         )}
@@ -257,17 +239,10 @@ export function ForwardMessageDialog({
                   取消
                 </Button>
               </DialogClose>
-              <Button
-                disabled={submitting || selectedConversationIds.size === 0}
-                type="submit"
-              >
-                {submitting && (
-                  <Loader2Icon aria-hidden="true" className="animate-spin" />
-                )}
+              <Button disabled={submitting || selectedConversationIds.size === 0} type="submit">
+                {submitting && <Loader2Icon aria-hidden="true" className="animate-spin" />}
                 转发
-                {selectedConversationIds.size > 0
-                  ? `（${selectedConversationIds.size}）`
-                  : ""}
+                {selectedConversationIds.size > 0 ? `（${selectedConversationIds.size}）` : ""}
               </Button>
             </div>
           </DialogFooter>

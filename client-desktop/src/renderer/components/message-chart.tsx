@@ -93,11 +93,7 @@ function LineMessageChart({ chart }: { chart: ClientLineChartMessageBody }) {
         config={config}
         initialDimension={{ height: defaultChartHeight, width }}
       >
-        <LineChart
-          accessibilityLayer
-          data={data}
-          margin={{ left: 4, right: 12 }}
-        >
+        <LineChart accessibilityLayer data={data} margin={{ left: 4, right: 12 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             axisLine={false}
@@ -153,7 +149,7 @@ function BarMessageChart({ chart }: { chart: ClientBarChartMessageBody }) {
     ? defaultChartWidth
     : getScrollableChartWidth(chart.data.labels.length, 32)
   const visibleSeriesIndexes = chart.data.series.flatMap((_, index) =>
-    hiddenKeys.has(seriesKey(index)) ? [] : [index]
+    hiddenKeys.has(seriesKey(index)) ? [] : [index],
   )
   const bars = chart.data.series.map((_, index) => {
     const key = seriesKey(index)
@@ -163,12 +159,7 @@ function BarMessageChart({ chart }: { chart: ClientBarChartMessageBody }) {
         fill={`var(--color-${key})`}
         hide={hiddenKeys.has(key)}
         key={key}
-        radius={getBarRadius(
-          chart.data.direction,
-          chart.data.mode,
-          index,
-          visibleSeriesIndexes
-        )}
+        radius={getBarRadius(chart.data.direction, chart.data.mode, index, visibleSeriesIndexes)}
         stackId={getBarStackID(chart.data.mode)}
       />
     )
@@ -274,9 +265,7 @@ function PieMessageChart({ chart }: { chart: ClientPieChartMessageBody }) {
       }}
     >
       <PieChart accessibilityLayer>
-        <ChartTooltip
-          content={<ChartTooltipContent hideLabel nameKey="key" />}
-        />
+        <ChartTooltip content={<ChartTooltipContent hideLabel nameKey="key" />} />
         <ChartLegend
           content={
             <ChartLegendContent
@@ -295,9 +284,7 @@ function PieMessageChart({ chart }: { chart: ClientPieChartMessageBody }) {
 
 function RadarMessageChart({ chart }: { chart: ClientRadarChartMessageBody }) {
   const { hiddenKeys, toggleKey } = useHiddenChartItems()
-  const allSeriesHidden = chart.data.series.every((_, index) =>
-    hiddenKeys.has(seriesKey(index))
-  )
+  const allSeriesHidden = chart.data.series.every((_, index) => hiddenKeys.has(seriesKey(index)))
   const config = createChartSeriesConfig(chart.data.series)
   const data = chart.data.axes.map((axis, axisIndex) => {
     const row: Record<string, number | string> = {
@@ -326,9 +313,7 @@ function RadarMessageChart({ chart }: { chart: ClientRadarChartMessageBody }) {
         <PolarGrid />
         <PolarAngleAxis dataKey="axis" tickFormatter={formatAxisLabel} />
         <PolarRadiusAxis axisLine={false} domain={[0, 100]} tick={false} />
-        <ChartTooltip
-          content={<RadarTooltipContent series={chart.data.series} />}
-        />
+        <ChartTooltip content={<RadarTooltipContent series={chart.data.series} />} />
         {shouldShowChartLegend(chart.data.series.length) && (
           <ChartLegend
             content={
@@ -382,16 +367,13 @@ function RadarTooltipContent({
       formatter={(_value, _name, item) => {
         const dataKey = String(item.dataKey ?? "")
         const rawValue = item.payload?.[`${dataKey}Raw`]
-        const seriesIndex =
-          Number.parseInt(dataKey.replace("series", ""), 10) - 1
+        const seriesIndex = Number.parseInt(dataKey.replace("series", ""), 10) - 1
         const seriesName = series[seriesIndex]?.name ?? dataKey
         return (
           <div className="flex w-full items-center justify-between gap-4">
             <span className="text-muted-foreground">{seriesName}</span>
             <span className="font-mono font-medium text-foreground tabular-nums">
-              {typeof rawValue === "number"
-                ? rawValue.toLocaleString()
-                : String(rawValue ?? "")}
+              {typeof rawValue === "number" ? rawValue.toLocaleString() : String(rawValue ?? "")}
             </span>
           </div>
         )
@@ -412,11 +394,7 @@ function ChartViewport({
   width: number
 }) {
   return (
-    <div
-      className={
-        vertical ? "max-h-96 overflow-y-auto" : "max-w-full overflow-x-auto"
-      }
-    >
+    <div className={vertical ? "max-h-96 overflow-y-auto" : "max-w-full overflow-x-auto"}>
       <div style={{ height, width }}>{children}</div>
     </div>
   )
@@ -438,9 +416,7 @@ function getScrollableChartWidth(itemCount: number, pixelsPerItem: number) {
 
 function formatAxisLabel(value: unknown) {
   const label = String(value ?? "")
-  return Array.from(label).length > 8
-    ? `${Array.from(label).slice(0, 8).join("")}…`
-    : label
+  return Array.from(label).length > 8 ? `${Array.from(label).slice(0, 8).join("")}…` : label
 }
 
 function seriesKey(index: number) {
@@ -452,9 +428,7 @@ function itemKey(index: number) {
 }
 
 function useHiddenChartItems() {
-  const [hiddenKeys, setHiddenKeys] = React.useState<Set<string>>(
-    () => new Set()
-  )
+  const [hiddenKeys, setHiddenKeys] = React.useState<Set<string>>(() => new Set())
   const toggleKey = React.useCallback((key: string) => {
     setHiddenKeys((current) => {
       const next = new Set(current)

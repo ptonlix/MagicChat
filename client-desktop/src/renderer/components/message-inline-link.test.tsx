@@ -5,9 +5,7 @@ import { MessageTextWithLinks } from "@/components/message-inline-link"
 
 describe("MessageTextWithLinks", () => {
   it("renders detected URLs as safe external links", () => {
-    render(
-      <MessageTextWithLinks text="打开 https://example.com/path?q=1#detail 查看" />
-    )
+    render(<MessageTextWithLinks text="打开 https://example.com/path?q=1#detail 查看" />)
 
     const link = screen.getByRole("link", {
       name: "https://example.com/path?q=1#detail",

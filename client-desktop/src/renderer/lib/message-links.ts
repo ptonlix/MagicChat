@@ -16,10 +16,9 @@ const pathCharacter = String.raw`[A-Za-z0-9._~%!$&'()*+,;=:@/-]`
 const queryOrHashCharacter = String.raw`[A-Za-z0-9._~%!$&'()*+,;=:@/?-]`
 const supportedURLPattern = new RegExp(
   String.raw`^https?:\/\/${hostnameLabel}(?:\.${hostnameLabel})*(?::\d{1,5})?(?:\/${pathCharacter}*)?(?:\?${queryOrHashCharacter}*)?(?:#${queryOrHashCharacter}*)?$`,
-  "i"
+  "i",
 )
-const urlCandidatePattern =
-  /https?:\/\/[A-Za-z0-9._~%!$&'()*+,;=:@/?#-]+/gi
+const urlCandidatePattern = /https?:\/\/[A-Za-z0-9._~%!$&'()*+,;=:@/?#-]+/gi
 const trailingSentencePunctuationPattern = /[.,!?;:'\]}]+$/
 
 export function linkifyMessageText(value: string): MessageTextPart[] {
@@ -81,10 +80,7 @@ function isSupportedMessageURL(value: string) {
 
   try {
     const url = new URL(value)
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      url.hostname.length > 253
-    ) {
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.hostname.length > 253) {
       return false
     }
 

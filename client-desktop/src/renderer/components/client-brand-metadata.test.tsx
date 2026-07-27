@@ -35,15 +35,13 @@ describe("ClientBrandMetadata", () => {
         }}
       >
         <ClientBrandMetadata />
-      </AppInfoContext.Provider>
+      </AppInfoContext.Provider>,
     )
 
     await waitFor(() => {
       expect(getMetaContent('meta[name="application-name"]')).toBe("星环协作")
       expect(getMetaContent('meta[property="og:site_name"]')).toBe("星环协作")
-      expect(getMetaContent('meta[property="og:title"]')).toBe(
-        "星环协作 AI 企业 IM"
-      )
+      expect(getMetaContent('meta[property="og:title"]')).toBe("星环协作 AI 企业 IM")
       expect(getMetaContent('meta[name="description"]')).toContain("星环协作")
       expect(getMetaContent('meta[name="keywords"]')).toContain("星环协作")
     })

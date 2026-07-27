@@ -9,11 +9,7 @@ import { cn } from "@/lib/utils"
 import { AvatarPreviewDialog } from "@/components/avatar-preview-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type UserProfilePopoverProps = {
   children: React.ReactNode
@@ -47,7 +43,7 @@ export function UserProfilePopoverLink({
       triggerAriaLabel={`${displayName}资料`}
       triggerClassName={cn(
         "max-w-full truncate transition-colors hover:text-sky-500 focus-visible:text-sky-500 data-[state=open]:text-sky-500",
-        triggerClassName
+        triggerClassName,
       )}
       userId={profile.id}
     >
@@ -70,7 +66,7 @@ export function UserProfilePopover({
   const [openingConversation, setOpeningConversation] = React.useState(false)
   const user = React.useMemo(
     () => resolveUserProfile(userId, me, contacts, fallbackProfile),
-    [contacts, fallbackProfile, me, userId]
+    [contacts, fallbackProfile, me, userId],
   )
 
   if (!user) {
@@ -111,18 +107,13 @@ export function UserProfilePopover({
           aria-label={triggerAriaLabel}
           className={cn(
             "inline-flex cursor-pointer appearance-none rounded-sm border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-            triggerClassName
+            triggerClassName,
           )}
           type="button"
         >
           {children}
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-72"
-          side="right"
-          sideOffset={8}
-        >
+        <PopoverContent align="start" className="w-72" side="right" sideOffset={8}>
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <button
@@ -134,11 +125,7 @@ export function UserProfilePopover({
               >
                 <Avatar className="size-14 rounded-sm bg-muted after:rounded-sm">
                   {profile.avatar && (
-                    <AvatarImage
-                      alt={displayName}
-                      className="rounded-sm"
-                      src={profile.avatar}
-                    />
+                    <AvatarImage alt={displayName} className="rounded-sm" src={profile.avatar} />
                   )}
                   <AvatarFallback className="rounded-sm text-lg">
                     {getUserInitial(displayName)}
@@ -146,12 +133,8 @@ export function UserProfilePopover({
                 </Avatar>
               </button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
-                  {displayName}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  用户资料
-                </div>
+                <div className="truncate text-sm font-medium">{displayName}</div>
+                <div className="truncate text-xs text-muted-foreground">用户资料</div>
               </div>
             </div>
 
@@ -184,9 +167,7 @@ export function UserProfilePopover({
               onClick={() => void handleStartConversation()}
               type="button"
             >
-              {openingConversation && (
-                <Loader2Icon aria-hidden="true" className="animate-spin" />
-              )}
+              {openingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
               发消息
             </Button>
           </div>
@@ -199,11 +180,7 @@ export function UserProfilePopover({
       >
         <Avatar className="size-full rounded-sm bg-muted after:rounded-sm">
           {profile.avatar && (
-            <AvatarImage
-              alt={displayName}
-              className="rounded-sm"
-              src={profile.avatar}
-            />
+            <AvatarImage alt={displayName} className="rounded-sm" src={profile.avatar} />
           )}
           <AvatarFallback className="rounded-sm text-6xl">
             {getUserInitial(displayName)}
@@ -218,7 +195,7 @@ function resolveUserProfile(
   userId: string | null,
   me: UserProfile,
   contacts: UserProfile[],
-  fallbackProfile: UserProfile | null
+  fallbackProfile: UserProfile | null,
 ) {
   if (!userId) {
     return null
@@ -250,9 +227,7 @@ function UserProfileRow({
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
       {icon}
       <span className="w-12 shrink-0 text-muted-foreground">{label}</span>
-      <span
-        className={cn("min-w-0 truncate", !hasValue && "text-muted-foreground")}
-      >
+      <span className={cn("min-w-0 truncate", !hasValue && "text-muted-foreground")}>
         {displayValue}
       </span>
     </div>

@@ -14,7 +14,7 @@ import type { ClientChartMessageBody } from "@/lib/client-data-api"
 
 beforeAll(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 448, 256)
+    new DOMRect(0, 0, 448, 256),
   )
 })
 
@@ -65,7 +65,7 @@ describe("MessageChart", () => {
       await user.click(firstLegendItem)
       expect(firstLegendItem).toHaveAttribute("aria-pressed", "true")
       expect(firstLegendItem).toHaveAttribute("data-state", "on")
-    }
+    },
   )
 
   it("keeps a disabled pie item in the legend so it can be enabled again", async () => {

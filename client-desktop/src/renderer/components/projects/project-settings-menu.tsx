@@ -1,19 +1,8 @@
 import * as React from "react"
-import {
-  Camera,
-  Ellipsis,
-  Link2,
-  Loader2,
-  Pencil,
-  Trash2,
-  X,
-} from "lucide-react"
+import { Camera, Ellipsis, Link2, Loader2, Pencil, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  CustomAvatarPicker,
-  type CroppedAvatar,
-} from "@/components/custom-avatar-picker"
+import { CustomAvatarPicker, type CroppedAvatar } from "@/components/custom-avatar-picker"
 import { ProjectAvatar } from "@/components/projects/project-avatar"
 import { ProjectGroupAssociationsDialog } from "@/components/projects/project-group-associations-dialog"
 import {
@@ -108,10 +97,7 @@ export function ProjectSettingsMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem
-            disabled={!canManage}
-            onSelect={() => setEditOpen(true)}
-          >
+          <DropdownMenuItem disabled={!canManage} onSelect={() => setEditOpen(true)}>
             <Pencil />
             修改信息
           </DropdownMenuItem>
@@ -202,8 +188,7 @@ function EditProjectDialog({
   const [avatarPickerOpen, setAvatarPickerOpen] = React.useState(false)
   const [description, setDescription] = React.useState(project.description)
   const [name, setName] = React.useState(project.name)
-  const [pendingAvatar, setPendingAvatar] =
-    React.useState<CroppedAvatar | null>(null)
+  const [pendingAvatar, setPendingAvatar] = React.useState<CroppedAvatar | null>(null)
   const [saving, setSaving] = React.useState(false)
   const trimmedName = name.trim()
   const canSave = !saving && (project.isPersonal || trimmedName.length > 0)
@@ -276,9 +261,7 @@ function EditProjectDialog({
                 )}
               </Button>
               <div className="grid min-w-0 flex-1 gap-2">
-                <Label htmlFor={`edit-project-name-${project.id}`}>
-                  项目名称
-                </Label>
+                <Label htmlFor={`edit-project-name-${project.id}`}>项目名称</Label>
                 <Input
                   disabled={saving || project.isPersonal}
                   id={`edit-project-name-${project.id}`}
@@ -292,9 +275,7 @@ function EditProjectDialog({
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor={`edit-project-description-${project.id}`}>
-                项目描述
-              </Label>
+              <Label htmlFor={`edit-project-description-${project.id}`}>项目描述</Label>
               <Textarea
                 className="min-h-28 resize-none"
                 disabled={saving}
@@ -329,20 +310,13 @@ function EditProjectDialog({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <DialogTitle className="text-base font-medium">
-                上传项目头像
-              </DialogTitle>
+              <DialogTitle className="text-base font-medium">上传项目头像</DialogTitle>
               <DialogDescription className="sr-only">
                 上传并裁切一张图片作为项目头像
               </DialogDescription>
             </div>
             <DialogClose asChild>
-              <Button
-                aria-label="关闭项目头像选择"
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
+              <Button aria-label="关闭项目头像选择" size="icon-sm" type="button" variant="ghost">
                 <X className="size-4" />
               </Button>
             </DialogClose>

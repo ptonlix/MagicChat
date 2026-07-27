@@ -21,13 +21,10 @@ export class AuthController {
     private readonly sessions: SessionController,
     private readonly onFinished: (result: DesktopAuthResult) => void,
     private readonly getParentWindow: () => BrowserWindow | undefined,
-    private readonly iconPath: string
+    private readonly iconPath: string,
   ) {}
 
-  start(
-    serverId: string,
-    providerKey: string
-  ): { transactionId: string } {
+  start(serverId: string, providerKey: string): { transactionId: string } {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(providerKey)) {
       throw new Error("第三方登录方式无效")
     }
@@ -69,7 +66,7 @@ export class AuthController {
           status: "error",
           transactionId,
         }),
-      AUTH_TIMEOUT_MS
+      AUTH_TIMEOUT_MS,
     )
     this.pending.set(transactionId, {
       completing: false,
@@ -108,12 +105,12 @@ export class AuthController {
             transactionId,
           })
         }
-      }
+      },
     )
     const preventDownload = (
       event: Electron.Event,
       _item: Electron.DownloadItem,
-      webContents: Electron.WebContents
+      webContents: Electron.WebContents,
     ) => {
       if (webContents.id === authWindow.webContents.id) event.preventDefault()
     }
@@ -148,10 +145,7 @@ export class AuthController {
     }
   }
 
-  private async completeIfAuthenticated(
-    transactionId: string,
-    rawUrl: string
-  ): Promise<void> {
+  private async completeIfAuthenticated(transactionId: string, rawUrl: string): Promise<void> {
     const pending = this.pending.get(transactionId)
     if (!pending || pending.completing) return
     if (!isAuthCompletionUrl(rawUrl, pending.profile.normalizedUrl)) return
@@ -193,15 +187,12 @@ export class AuthController {
 
 export function buildWebAuthStartUrl(
   profile: Pick<ServerProfile, "normalizedUrl">,
-  providerKey: string
+  providerKey: string,
 ): string {
   return `${profile.normalizedUrl}/api/client/auth/third-party/${encodeURIComponent(providerKey)}/start?redirect=/init`
 }
 
-export function isAllowedAuthNavigation(
-  rawUrl: string,
-  serverUrl: string
-): boolean {
+export function isAllowedAuthNavigation(rawUrl: string, serverUrl: string): boolean {
   try {
     const url = new URL(rawUrl)
     if (url.protocol === "https:") return true
@@ -216,10 +207,7 @@ export function isAllowedAuthNavigation(
   }
 }
 
-export function isAuthCompletionUrl(
-  rawUrl: string,
-  serverUrl: string
-): boolean {
+export function isAuthCompletionUrl(rawUrl: string, serverUrl: string): boolean {
   try {
     const url = new URL(rawUrl)
     const server = new URL(serverUrl)

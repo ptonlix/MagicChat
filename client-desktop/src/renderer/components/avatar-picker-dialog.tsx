@@ -3,10 +3,7 @@ import { Loader2Icon, X } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  CustomAvatarPicker,
-  type CroppedAvatar,
-} from "@/components/custom-avatar-picker"
+import { CustomAvatarPicker, type CroppedAvatar } from "@/components/custom-avatar-picker"
 import {
   Dialog,
   DialogClose,
@@ -28,9 +25,7 @@ const builtinAvatars = Array.from({ length: 64 }, (_, index) => {
 type AvatarPickerDialogProps = {
   onOpenChange: (open: boolean) => void
   onSaveAvatar: (avatar: string) => Promise<void> | void
-  onSaveCustomAvatar?: (
-    avatar: CroppedAvatar
-  ) => Promise<string | void> | string | void
+  onSaveCustomAvatar?: (avatar: CroppedAvatar) => Promise<string | void> | string | void
   open: boolean
   selectedAvatar: string
 }
@@ -63,7 +58,7 @@ function AvatarPickerDialogContent({
   selectedAvatar,
 }: Omit<AvatarPickerDialogProps, "open">) {
   const [mode, setMode] = useState<"builtin" | "custom">(
-    isBuiltinAvatar(selectedAvatar) ? "builtin" : "custom"
+    isBuiltinAvatar(selectedAvatar) ? "builtin" : "custom",
   )
   const [draftAvatar, setDraftAvatar] = useState(selectedAvatar)
   const [saving, setSaving] = useState(false)
@@ -103,9 +98,7 @@ function AvatarPickerDialogContent({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <DialogTitle className="text-base font-medium">选择头像</DialogTitle>
-          <DialogDescription className="sr-only">
-            选择一个头像作为个人头像
-          </DialogDescription>
+          <DialogDescription className="sr-only">选择一个头像作为个人头像</DialogDescription>
         </div>
         <DialogClose asChild>
           <Button
@@ -120,10 +113,7 @@ function AvatarPickerDialogContent({
         </DialogClose>
       </div>
 
-      <Tabs
-        value={mode}
-        onValueChange={(value) => setMode(value as "builtin" | "custom")}
-      >
+      <Tabs value={mode} onValueChange={(value) => setMode(value as "builtin" | "custom")}>
         <TabsList>
           <TabsTrigger disabled={saving} value="builtin">
             系统头像
@@ -152,9 +142,7 @@ function AvatarPickerDialogContent({
                 >
                   <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
                     <AvatarImage alt="" className="rounded-sm" src={item.src} />
-                    <AvatarFallback className="rounded-sm text-xs">
-                      {item.id}
-                    </AvatarFallback>
+                    <AvatarFallback className="rounded-sm text-xs">{item.id}</AvatarFallback>
                   </Avatar>
                 </Button>
               )
@@ -167,9 +155,7 @@ function AvatarPickerDialogContent({
               onClick={() => void handleSave()}
               type="button"
             >
-              {saving && (
-                <Loader2Icon aria-hidden="true" className="animate-spin" />
-              )}
+              {saving && <Loader2Icon aria-hidden="true" className="animate-spin" />}
               保存
             </Button>
           </div>
@@ -184,7 +170,5 @@ function AvatarPickerDialogContent({
 }
 
 function isBuiltinAvatar(avatar: string) {
-  return (
-    avatar.startsWith("/assets/avatars/builtin/") && avatar.endsWith(".webp")
-  )
+  return avatar.startsWith("/assets/avatars/builtin/") && avatar.endsWith(".webp")
 }

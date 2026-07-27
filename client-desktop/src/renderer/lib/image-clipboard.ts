@@ -10,8 +10,7 @@ export async function copyTemporaryImageToClipboard(fileId: string) {
 
 async function readTemporaryImageAsPNG(fileId: string) {
   const readURLs = await readTemporaryFileURLs([fileId])
-  const readURL =
-    readURLs.find((item) => item.fileId === fileId)?.url ?? readURLs[0]?.url
+  const readURL = readURLs.find((item) => item.fileId === fileId)?.url ?? readURLs[0]?.url
 
   if (!readURL) {
     throw new Error("missing image read url")

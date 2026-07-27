@@ -1,7 +1,15 @@
 import type { RendererRuntimeSnapshot } from "@shared/bridge"
 
 const refreshNames = new Set(["contacts", "conversations", "me", "projects"])
-const pages = new Set<RendererRuntimeSnapshot["page"]>(["chat", "contacts", "init", "login", "projects", "setup", "unknown"])
+const pages = new Set<RendererRuntimeSnapshot["page"]>([
+  "chat",
+  "contacts",
+  "init",
+  "login",
+  "projects",
+  "setup",
+  "unknown",
+])
 const requestGroups = new Set([
   "api/client/apps",
   "api/client/auth",
@@ -20,7 +28,7 @@ export function parseRendererRuntimeSnapshot(value: unknown): RendererRuntimeSna
   const data = objectValue(input.data)
   const longTasks = objectValue(input.longTasks)
   const page = pages.has(input.page as RendererRuntimeSnapshot["page"])
-    ? input.page as RendererRuntimeSnapshot["page"]
+    ? (input.page as RendererRuntimeSnapshot["page"])
     : "unknown"
   return {
     activeRefreshes: boundedInteger(input.activeRefreshes, 100),
@@ -45,7 +53,8 @@ export function parseRendererRuntimeSnapshot(value: unknown): RendererRuntimeSna
 
 function refreshSnapshot(value: unknown): NonNullable<RendererRuntimeSnapshot["lastRefresh"]> {
   const input = objectValue(value)
-  if (typeof input.name !== "string" || !refreshNames.has(input.name)) throw new Error("刷新诊断快照无效")
+  if (typeof input.name !== "string" || !refreshNames.has(input.name))
+    throw new Error("刷新诊断快照无效")
   return {
     ageMs: boundedInteger(input.ageMs, 86_400_000),
     durationMs: boundedInteger(input.durationMs, 600_000),
@@ -55,10 +64,10 @@ function refreshSnapshot(value: unknown): NonNullable<RendererRuntimeSnapshot["l
 
 function requestSnapshot(value: unknown): NonNullable<RendererRuntimeSnapshot["lastRequest"]> {
   const input = objectValue(value)
-  const method = typeof input.method === "string" && /^[A-Z]{1,8}$/.test(input.method) ? input.method : "UNKNOWN"
-  const group = typeof input.group === "string" && requestGroups.has(input.group)
-    ? input.group
-    : "unknown"
+  const method =
+    typeof input.method === "string" && /^[A-Z]{1,8}$/.test(input.method) ? input.method : "UNKNOWN"
+  const group =
+    typeof input.group === "string" && requestGroups.has(input.group) ? input.group : "unknown"
   return {
     ageMs: boundedInteger(input.ageMs, 86_400_000),
     durationMs: boundedInteger(input.durationMs, 600_000),
@@ -69,7 +78,8 @@ function requestSnapshot(value: unknown): NonNullable<RendererRuntimeSnapshot["l
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("诊断快照字段无效")
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("诊断快照字段无效")
   return value as Record<string, unknown>
 }
 

@@ -1,9 +1,7 @@
 import type { VoiceRecordingStatus } from "@/hooks/use-voice-recording"
 import { cn } from "@/lib/utils"
 
-const waveformBarHeights = [
-  24, 40, 58, 34, 68, 46, 76, 52, 86, 62, 72, 44, 80, 56, 38, 64, 48, 30,
-]
+const waveformBarHeights = [24, 40, 58, 34, 68, 46, 76, 52, 86, 62, 72, 44, 80, 56, 38, 64, 48, 30]
 
 export function VoiceRecordingPanel({
   elapsedSeconds,
@@ -27,7 +25,7 @@ export function VoiceRecordingPanel({
                 ? "bg-teal-500"
                 : status === "recorded"
                   ? "bg-foreground/40"
-                  : "bg-muted-foreground/20"
+                  : "bg-muted-foreground/20",
             )}
             style={{
               height: `${getWaveformBarHeight(height, index, level, status)}%`,
@@ -59,7 +57,7 @@ function getWaveformBarHeight(
   baseHeight: number,
   index: number,
   level: number,
-  status: VoiceRecordingStatus
+  status: VoiceRecordingStatus,
 ) {
   if (status === "recorded") {
     return baseHeight

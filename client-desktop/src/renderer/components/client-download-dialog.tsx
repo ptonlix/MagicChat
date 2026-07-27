@@ -108,9 +108,7 @@ function ClientPlatformCard({ platform }: { platform: ClientPlatform }) {
         </div>
         <div className="min-w-0">
           <h3 className="font-medium">{platform.name}</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {platform.description}
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{platform.description}</p>
         </div>
       </div>
 

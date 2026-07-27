@@ -49,8 +49,7 @@ export function CreateProjectTaskDialog({
   const [membersError, setMembersError] = React.useState("")
   const [membersLoading, setMembersLoading] = React.useState(true)
   const [priority, setPriority] = React.useState<ProjectTaskPriority>(2)
-  const [reminder, setReminder] =
-    React.useState<ProjectTaskReminderInput | null>(null)
+  const [reminder, setReminder] = React.useState<ProjectTaskReminderInput | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [title, setTitle] = React.useState("")
   const assigneeComboboxPortal = React.useRef<HTMLDivElement | null>(null)
@@ -69,9 +68,7 @@ export function CreateProjectTaskDialog({
       })
       .catch((error: unknown) => {
         if (active) {
-          setMembersError(
-            error instanceof Error ? error.message : "加载项目成员失败"
-          )
+          setMembersError(error instanceof Error ? error.message : "加载项目成员失败")
         }
       })
       .finally(() => {
@@ -85,9 +82,7 @@ export function CreateProjectTaskDialog({
     }
   }, [open, projectId])
 
-  const selectedAssignee = members.find(
-    (member) => member.id === assigneeUserId
-  )
+  const selectedAssignee = members.find((member) => member.id === assigneeUserId)
   const trimmedTitle = title.trim()
   const canSubmit = !saving && trimmedTitle.length > 0
 
@@ -181,9 +176,7 @@ export function CreateProjectTaskDialog({
             <TaskSelectField label="优先级">
               <Select
                 disabled={saving}
-                onValueChange={(value) =>
-                  setPriority(Number(value) as ProjectTaskPriority)
-                }
+                onValueChange={(value) => setPriority(Number(value) as ProjectTaskPriority)}
                 value={String(priority)}
               >
                 <SelectTrigger aria-label="任务优先级" className="w-full">
@@ -214,9 +207,7 @@ export function CreateProjectTaskDialog({
                 portalContainer={assigneeComboboxPortal}
                 value={selectedAssignee ?? null}
               />
-              {membersError && (
-                <p className="text-xs text-destructive">{membersError}</p>
-              )}
+              {membersError && <p className="text-xs text-destructive">{membersError}</p>}
             </TaskSelectField>
           </div>
 
@@ -244,22 +235,13 @@ export function CreateProjectTaskDialog({
             </Button>
           </DialogFooter>
         </form>
-        <div
-          className="absolute top-0 left-0 size-0"
-          ref={assigneeComboboxPortal}
-        />
+        <div className="absolute top-0 left-0 size-0" ref={assigneeComboboxPortal} />
       </DialogContent>
     </Dialog>
   )
 }
 
-function TaskSelectField({
-  children,
-  label,
-}: {
-  children: React.ReactNode
-  label: string
-}) {
+function TaskSelectField({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <div className="grid gap-2">
       <Label>{label}</Label>

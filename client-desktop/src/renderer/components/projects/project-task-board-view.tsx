@@ -14,10 +14,7 @@ import {
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 
-import type {
-  ProjectTask,
-  ProjectTaskStatus,
-} from "@/components/projects/project-types"
+import type { ProjectTask, ProjectTaskStatus } from "@/components/projects/project-types"
 import {
   ProjectTaskAssigneeAvatar,
   ProjectTaskPriorityIcon,
@@ -34,12 +31,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { updateClientProjectTask } from "@/lib/project-task-data-api"
 import { cn } from "@/lib/utils"
 
-const boardColumns: ProjectTaskStatus[] = [
-  "todo",
-  "in_progress",
-  "done",
-  "canceled",
-]
+const boardColumns: ProjectTaskStatus[] = ["todo", "in_progress", "done", "canceled"]
 
 export function ProjectTaskBoardView({
   emptyMessage = "暂无任务",
@@ -55,14 +47,12 @@ export function ProjectTaskBoardView({
   tasks: ProjectTask[]
 }) {
   const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null)
-  const [updatingTaskIds, setUpdatingTaskIds] = React.useState<Set<string>>(
-    () => new Set()
-  )
+  const [updatingTaskIds, setUpdatingTaskIds] = React.useState<Set<string>>(() => new Set())
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
     }),
-    useSensor(KeyboardSensor)
+    useSensor(KeyboardSensor),
   )
 
   const draggedTask = draggedTaskId
@@ -139,7 +129,7 @@ export function ProjectTaskBoardView({
             <DragOverlay dropAnimation={null}>
               {draggedTask && <BoardTaskOverlay task={draggedTask} />}
             </DragOverlay>,
-            document.body
+            document.body,
           )}
       </DndContext>
     </>
@@ -175,21 +165,15 @@ function BoardColumn({
         dragging &&
           `border-dashed ${getProjectTaskDraggingColumnColor(status)} ${getProjectTaskDraggingColumnBorderColor(status)}`,
         isOver &&
-          `${getProjectTaskDropTargetColor(status)} ${getProjectTaskDropTargetBorderColor(status)}`
+          `${getProjectTaskDropTargetColor(status)} ${getProjectTaskDropTargetBorderColor(status)}`,
       )}
     >
       <header className="flex h-9 shrink-0 items-center gap-2 px-1.5">
-        <ProjectTaskStatusIcon
-          className={getProjectTaskStatusColor(status)}
-          status={status}
-        />
+        <ProjectTaskStatusIcon className={getProjectTaskStatusColor(status)} status={status} />
         <h2 className="text-sm font-medium" id={`project-task-board-${status}`}>
           {details.label}
         </h2>
-        <Badge
-          className="ml-auto min-w-5 bg-background px-1.5 tabular-nums"
-          variant="secondary"
-        >
+        <Badge className="ml-auto min-w-5 bg-background px-1.5 tabular-nums" variant="secondary">
           {tasks.length}
         </Badge>
       </header>
@@ -240,7 +224,7 @@ function BoardTask({
         ref={setNodeRef}
         className={cn(
           "group/task w-full cursor-pointer rounded-md border bg-background p-3 text-left shadow-xs transition-colors hover:bg-muted focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
-          isDragging && "opacity-40"
+          isDragging && "opacity-40",
         )}
         onClick={onOpen}
         role="listitem"
@@ -251,7 +235,7 @@ function BoardTask({
           aria-label={`任务：${task.title}。按 Enter 查看详情，按空格拖动`}
           className={cn(
             "cursor-grab touch-none select-none active:cursor-grabbing",
-            draggingDisabled && "cursor-default"
+            draggingDisabled && "cursor-default",
           )}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -294,7 +278,7 @@ function BoardTask({
                   "cursor-pointer hover:ring-1 hover:ring-ring/50",
                   overdue &&
                     "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",
-                  !overdue && "text-muted-foreground"
+                  !overdue && "text-muted-foreground",
                 )}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -307,10 +291,7 @@ function BoardTask({
             </Badge>
           )}
           {task.assignee && (
-            <ProjectTaskAssigneeAvatar
-              assignee={task.assignee}
-              className="ml-auto"
-            />
+            <ProjectTaskAssigneeAvatar assignee={task.assignee} className="ml-auto" />
           )}
         </div>
       </div>
@@ -343,9 +324,7 @@ function BoardTask({
 function BoardTaskOverlay({ task }: { task: ProjectTask }) {
   return (
     <div className="w-full rounded-md border bg-background p-3 text-left shadow-lg">
-      <div className="line-clamp-2 text-sm leading-snug font-medium">
-        {task.title}
-      </div>
+      <div className="line-clamp-2 text-sm leading-snug font-medium">{task.title}</div>
       {task.description && (
         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
           {task.description}
@@ -357,15 +336,10 @@ function BoardTaskOverlay({ task }: { task: ProjectTask }) {
           {projectTaskPriorityLabels[task.priority]}
         </Badge>
         {task.dueDate && (
-          <Badge variant={isOverdue(task) ? "warning" : "outline"}>
-            截止 {task.dueDate}
-          </Badge>
+          <Badge variant={isOverdue(task) ? "warning" : "outline"}>截止 {task.dueDate}</Badge>
         )}
         {task.assignee && (
-          <ProjectTaskAssigneeAvatar
-            assignee={task.assignee}
-            className="ml-auto"
-          />
+          <ProjectTaskAssigneeAvatar assignee={task.assignee} className="ml-auto" />
         )}
       </div>
     </div>
@@ -439,9 +413,7 @@ function getProjectTaskDropTargetBorderColor(status: ProjectTaskStatus) {
 
 function parseProjectTaskStatus(value: unknown): ProjectTaskStatus | null {
   const status = String(value ?? "")
-  return boardColumns.includes(status as ProjectTaskStatus)
-    ? (status as ProjectTaskStatus)
-    : null
+  return boardColumns.includes(status as ProjectTaskStatus) ? (status as ProjectTaskStatus) : null
 }
 
 function isOverdue(task: ProjectTask) {
@@ -449,7 +421,7 @@ function isOverdue(task: ProjectTask) {
     task.dueDate &&
     task.status !== "done" &&
     task.status !== "canceled" &&
-    task.dueDate < getTodayDateKey()
+    task.dueDate < getTodayDateKey(),
   )
 }
 

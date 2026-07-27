@@ -9,7 +9,12 @@ type ResourceSnapshot = {
 }
 
 type RendererSnapshot = RendererRuntimeSnapshot & { ageMs: number }
-type RecordDetails = { durationMs?: number; episodeId?: string; resources?: ResourceSnapshot; runtime?: RendererSnapshot }
+type RecordDetails = {
+  durationMs?: number
+  episodeId?: string
+  resources?: ResourceSnapshot
+  runtime?: RendererSnapshot
+}
 
 export const diagnosticLogMaxBytes = 5 * 1024 * 1024
 export const runtimeStallCooldownMs = 30_000
@@ -33,7 +38,9 @@ export class Diagnostics {
   private readonly maxLogBytes: number
   private readonly stallCooldownMs: number
   private lastRuntimeStallAt?: number
-  private pendingRuntimeStall?: Required<Pick<RecordDetails, "durationMs" | "resources" | "runtime">>
+  private pendingRuntimeStall?: Required<
+    Pick<RecordDetails, "durationMs" | "resources" | "runtime">
+  >
   private persistenceEnabled = false
   private rendererRuntime?: { receivedAt: number; snapshot: RendererRuntimeSnapshot }
   private runtimeStallTimer?: ReturnType<typeof setTimeout>
@@ -41,7 +48,7 @@ export class Diagnostics {
 
   constructor(
     userDataPath: string,
-    options: { maxLogBytes?: number; stallCooldownMs?: number } = {}
+    options: { maxLogBytes?: number; stallCooldownMs?: number } = {},
   ) {
     this.logPath = path.join(userDataPath, "diagnostics", "crashes.jsonl")
     this.rotatedLogPath = `${this.logPath}.1`
@@ -59,7 +66,13 @@ export class Diagnostics {
       // 诊断属于辅助能力，本地日志不可用时不能阻止客户端启动。
     }
     try {
-      crashReporter.start({ companyName: "MagicChat", productName: "MagicChat", submitURL: "", uploadToServer: false, compress: false })
+      crashReporter.start({
+        companyName: "MagicChat",
+        productName: "MagicChat",
+        submitURL: "",
+        uploadToServer: false,
+        compress: false,
+      })
     } catch {
       // Crash Reporter 不可用时保留应用核心功能。
     }
@@ -68,7 +81,7 @@ export class Diagnostics {
   async record(
     processType: DiagnosticRecord["processType"],
     code: string,
-    details: RecordDetails = {}
+    details: RecordDetails = {},
   ): Promise<void> {
     if (!this.persistenceEnabled) return
     const record: DiagnosticRecord = {
@@ -93,7 +106,10 @@ export class Diagnostics {
 
   updateRuntimeSnapshot(snapshot: RendererRuntimeSnapshot): void {
     this.rendererRuntime = { receivedAt: Date.now(), snapshot }
-    if (this.persistenceEnabled && (snapshot.eventLoopLagMs >= 1_000 || snapshot.longTasks.maxDurationMs >= 1_000)) {
+    if (
+      this.persistenceEnabled &&
+      (snapshot.eventLoopLagMs >= 1_000 || snapshot.longTasks.maxDurationMs >= 1_000)
+    ) {
       this.queueRuntimeStall({
         durationMs: Math.max(snapshot.eventLoopLagMs, snapshot.longTasks.maxDurationMs),
         resources: collectResources(),
@@ -102,10 +118,17 @@ export class Diagnostics {
     }
   }
 
-  async recordRendererLifecycle(code: string, episodeId: string, durationMs?: number): Promise<void> {
+  async recordRendererLifecycle(
+    code: string,
+    episodeId: string,
+    durationMs?: number,
+  ): Promise<void> {
     if (!this.persistenceEnabled) return
     const runtime = this.rendererRuntime
-      ? { ...this.rendererRuntime.snapshot, ageMs: Math.max(0, Date.now() - this.rendererRuntime.receivedAt) }
+      ? {
+          ...this.rendererRuntime.snapshot,
+          ageMs: Math.max(0, Date.now() - this.rendererRuntime.receivedAt),
+        }
       : undefined
     await this.record("renderer", code, {
       durationMs,
@@ -116,13 +139,21 @@ export class Diagnostics {
   }
 
   async export(): Promise<{ path?: string }> {
-    const result = await dialog.showSaveDialog({ defaultPath: `MagicChat-diagnostics-${new Date().toISOString().slice(0, 10)}.json` })
+    const result = await dialog.showSaveDialog({
+      defaultPath: `MagicChat-diagnostics-${new Date().toISOString().slice(0, 10)}.json`,
+    })
     if (result.canceled || !result.filePath) return {}
     await this.flushPendingRuntimeStall()
     await this.writeQueue
     const records = await this.readRecords()
     const payload = {
-      application: { arch: process.arch, build: process.env.MAGICCHAT_BUILD_ID ?? "local", channel: releaseChannel(), platform: process.platform, version: app.getVersion() },
+      application: {
+        arch: process.arch,
+        build: process.env.MAGICCHAT_BUILD_ID ?? "local",
+        channel: releaseChannel(),
+        platform: process.platform,
+        version: app.getVersion(),
+      },
       events: records,
       exportedAt: new Date().toISOString(),
       remoteTelemetryEnabled: false,
@@ -134,7 +165,10 @@ export class Diagnostics {
 
   private async readRecords(): Promise<DiagnosticRecord[]> {
     try {
-      const contents = await Promise.all([readOptional(this.rotatedLogPath), readOptional(this.logPath)])
+      const contents = await Promise.all([
+        readOptional(this.rotatedLogPath),
+        readOptional(this.logPath),
+      ])
       const lines = contents.join("\n").split("\n").filter(Boolean).slice(-200)
       return lines.flatMap((line) => {
         try {
@@ -144,12 +178,16 @@ export class Diagnostics {
           return []
         }
       })
-    } catch { return [] }
+    } catch {
+      return []
+    }
   }
 
   private async appendRecord(line: string): Promise<void> {
     await mkdir(path.dirname(this.logPath), { recursive: true })
-    const currentSize = await stat(this.logPath).then((value) => value.size).catch(() => 0)
+    const currentSize = await stat(this.logPath)
+      .then((value) => value.size)
+      .catch(() => 0)
     if (currentSize > 0 && currentSize + Buffer.byteLength(line) > this.maxLogBytes) {
       await rm(this.rotatedLogPath, { force: true })
       await rename(this.logPath, this.rotatedLogPath)
@@ -157,13 +195,17 @@ export class Diagnostics {
     await appendFile(this.logPath, line, { mode: 0o600 })
   }
 
-  private queueRuntimeStall(details: Required<Pick<RecordDetails, "durationMs" | "resources" | "runtime">>): void {
+  private queueRuntimeStall(
+    details: Required<Pick<RecordDetails, "durationMs" | "resources" | "runtime">>,
+  ): void {
     const now = Date.now()
-    const cooldownElapsed = this.lastRuntimeStallAt === undefined || now - this.lastRuntimeStallAt >= this.stallCooldownMs
+    const cooldownElapsed =
+      this.lastRuntimeStallAt === undefined || now - this.lastRuntimeStallAt >= this.stallCooldownMs
     if (cooldownElapsed) {
-      const selected = !this.pendingRuntimeStall || details.durationMs >= this.pendingRuntimeStall.durationMs
-        ? details
-        : this.pendingRuntimeStall
+      const selected =
+        !this.pendingRuntimeStall || details.durationMs >= this.pendingRuntimeStall.durationMs
+          ? details
+          : this.pendingRuntimeStall
       this.pendingRuntimeStall = undefined
       if (this.runtimeStallTimer) clearTimeout(this.runtimeStallTimer)
       this.runtimeStallTimer = undefined
@@ -176,9 +218,12 @@ export class Diagnostics {
       this.pendingRuntimeStall = details
     }
     if (this.runtimeStallTimer) return
-    this.runtimeStallTimer = setTimeout(() => {
-      void this.flushPendingRuntimeStall()
-    }, Math.max(0, this.stallCooldownMs - (now - (this.lastRuntimeStallAt ?? now))))
+    this.runtimeStallTimer = setTimeout(
+      () => {
+        void this.flushPendingRuntimeStall()
+      },
+      Math.max(0, this.stallCooldownMs - (now - (this.lastRuntimeStallAt ?? now))),
+    )
     const timer = this.runtimeStallTimer as unknown as { unref?: () => void }
     timer.unref?.()
   }
@@ -255,7 +300,10 @@ export function releaseChannel(): "preview" | "stable" | "test" {
 }
 
 function sanitizeCode(value: string): string {
-  return value.replace(/https?:\/\/\S+/gi, "[url]").replace(/[\\/][^\s]+/g, "[path]").slice(0, 160)
+  return value
+    .replace(/https?:\/\/\S+/gi, "[url]")
+    .replace(/[\\/][^\s]+/g, "[path]")
+    .slice(0, 160)
 }
 
 function isDiagnosticRecord(value: unknown): value is DiagnosticRecord {
@@ -263,11 +311,11 @@ function isDiagnosticRecord(value: unknown): value is DiagnosticRecord {
   const record = value as Partial<DiagnosticRecord>
   return Boolean(
     typeof record.timestamp === "string" &&
-      typeof record.version === "string" &&
-      typeof record.processType === "string" &&
-      typeof record.code === "string" &&
-      record.code.length <= 160 &&
-      (record.durationMs === undefined ||
-        (Number.isFinite(record.durationMs) && (record.durationMs ?? -1) >= 0))
+    typeof record.version === "string" &&
+    typeof record.processType === "string" &&
+    typeof record.code === "string" &&
+    record.code.length <= 160 &&
+    (record.durationMs === undefined ||
+      (Number.isFinite(record.durationMs) && (record.durationMs ?? -1) >= 0)),
   )
 }

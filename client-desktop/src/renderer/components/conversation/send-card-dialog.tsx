@@ -14,19 +14,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
+import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import type {
-  ClientConversation,
-  ClientCardSendInput,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ClientCardSendInput } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
 
@@ -45,7 +36,7 @@ export function SendCardDialog({
   const [submitting, setSubmitting] = React.useState(false)
   const visibleConversations = React.useMemo(() => {
     const sendableConversations = conversations.filter(
-      (conversation) => !conversation.topic?.archived
+      (conversation) => !conversation.topic?.archived,
     )
     const normalizedKeyword = keyword.trim().toLocaleLowerCase()
     if (!normalizedKeyword) {
@@ -53,7 +44,7 @@ export function SendCardDialog({
     }
 
     return sendableConversations.filter((conversation) =>
-      conversation.name.toLocaleLowerCase().includes(normalizedKeyword)
+      conversation.name.toLocaleLowerCase().includes(normalizedKeyword),
     )
   }, [conversations, keyword])
 
@@ -81,11 +72,9 @@ export function SendCardDialog({
         return
       }
       const conversation = conversations.find(
-        (candidate) => candidate.id === selectedConversationId
+        (candidate) => candidate.id === selectedConversationId,
       )
-      toast.success(
-        conversation ? `已发送到 ${conversation.name}` : "卡片已发送"
-      )
+      toast.success(conversation ? `已发送到 ${conversation.name}` : "卡片已发送")
       setKeyword("")
       setSelectedConversationId("")
       onOpenChange(false)
@@ -136,22 +125,18 @@ export function SendCardDialog({
                     asChild
                     className={cn(
                       "min-w-0 cursor-pointer px-2 py-1.5 hover:bg-muted",
-                      selected && "bg-primary/10"
+                      selected && "bg-primary/10",
                     )}
                     key={conversation.id}
                     size="sm"
                   >
                     <Label htmlFor={radioId}>
                       <ItemMedia>
-                        <ConversationSelectionAvatar
-                          conversation={conversation}
-                        />
+                        <ConversationSelectionAvatar conversation={conversation} />
                       </ItemMedia>
                       <ItemContent className="min-w-0">
                         <ItemTitle className="max-w-full min-w-0">
-                          <span className="min-w-0 truncate">
-                            {conversation.name}
-                          </span>
+                          <span className="min-w-0 truncate">{conversation.name}</span>
                           <Badge className="shrink-0" variant="secondary">
                             {conversationTypeLabel(conversation.type)}
                           </Badge>
@@ -182,13 +167,8 @@ export function SendCardDialog({
                 取消
               </Button>
             </DialogClose>
-            <Button
-              disabled={!selectedConversationId || submitting}
-              type="submit"
-            >
-              {submitting && (
-                <Loader2Icon aria-hidden="true" className="animate-spin" />
-              )}
+            <Button disabled={!selectedConversationId || submitting} type="submit">
+              {submitting && <Loader2Icon aria-hidden="true" className="animate-spin" />}
               发送
             </Button>
           </DialogFooter>

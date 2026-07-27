@@ -1,9 +1,4 @@
-import {
-  ClientDataRequestError,
-  createRequestError,
-  normalizeVisibility,
-  readJson,
-} from "./core"
+import { ClientDataRequestError, createRequestError, normalizeVisibility, readJson } from "./core"
 import type {
   ClientDataFetch,
   ClientDataSuccessEnvelope,
@@ -29,24 +24,22 @@ export async function getCurrentClientUser(fetcher: ClientDataFetch = fetch) {
     method: "GET",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<CurrentClientUserResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CurrentClientUserResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "加载当前用户失败")
   }
 
-  const user = (
-    payload as ClientDataSuccessEnvelope<CurrentClientUserResponse> | undefined
-  )?.data?.user
+  const user = (payload as ClientDataSuccessEnvelope<CurrentClientUserResponse> | undefined)?.data
+    ?.user
 
   return normalizeClientUser(user)
 }
 
 export async function updateCurrentClientUser(
   input: UpdateCurrentClientUserInput,
-  fetcher: ClientDataFetch = fetch
+  fetcher: ClientDataFetch = fetch,
 ) {
   const response = await fetcher("/api/client/me", {
     body: JSON.stringify(input),
@@ -57,25 +50,20 @@ export async function updateCurrentClientUser(
     method: "PATCH",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<CurrentClientUserResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<CurrentClientUserResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "更新个人信息失败")
   }
 
-  const user = (
-    payload as ClientDataSuccessEnvelope<CurrentClientUserResponse> | undefined
-  )?.data?.user
+  const user = (payload as ClientDataSuccessEnvelope<CurrentClientUserResponse> | undefined)?.data
+    ?.user
 
   return normalizeClientUser(user)
 }
 
-export async function uploadCurrentClientAvatar(
-  file: File,
-  fetcher: ClientDataFetch = fetch
-) {
+export async function uploadCurrentClientAvatar(file: File, fetcher: ClientDataFetch = fetch) {
   const formData = new FormData()
   formData.set("file", file)
 
@@ -85,18 +73,15 @@ export async function uploadCurrentClientAvatar(
     method: "POST",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<UploadCurrentClientAvatarResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<UploadCurrentClientAvatarResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "上传头像失败")
   }
 
-  const user = (
-    payload as
-      ClientDataSuccessEnvelope<UploadCurrentClientAvatarResponse> | undefined
-  )?.data?.user
+  const user = (payload as ClientDataSuccessEnvelope<UploadCurrentClientAvatarResponse> | undefined)
+    ?.data?.user
 
   return normalizeClientUser(user)
 }
@@ -107,17 +92,14 @@ export async function listClientContacts(fetcher: ClientDataFetch = fetch) {
     method: "GET",
   })
   const payload = await readJson<
-    | ClientDataErrorEnvelope
-    | ClientDataSuccessEnvelope<ListClientContactsResponse>
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListClientContactsResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createRequestError(payload, response, "加载通讯录失败")
   }
 
-  const data = (
-    payload as ClientDataSuccessEnvelope<ListClientContactsResponse> | undefined
-  )?.data
+  const data = (payload as ClientDataSuccessEnvelope<ListClientContactsResponse> | undefined)?.data
 
   if (
     !data ||
@@ -153,9 +135,7 @@ function normalizeClientUser(user: ClientUserResponse | undefined): ClientUser {
   }
 }
 
-function normalizeContactUser(
-  contact: ContactUserResponse | undefined
-): ContactUser {
+function normalizeContactUser(contact: ContactUserResponse | undefined): ContactUser {
   if (!contact?.email || !contact.id || !contact.name) {
     throw new ClientDataRequestError("通讯录响应格式不正确")
   }
@@ -193,18 +173,14 @@ function normalizeContactApp(app: ContactAppResponse | undefined): ContactApp {
   }
 }
 
-function normalizeContactGroup(
-  group: ContactGroupResponse | undefined
-): ContactGroup {
+function normalizeContactGroup(group: ContactGroupResponse | undefined): ContactGroup {
   if (!group?.id || !group.name) {
     throw new ClientDataRequestError("通讯录响应格式不正确")
   }
 
   return {
     avatar: group.avatar ?? "",
-    avatarMembers: (group.avatar_members ?? []).map(
-      normalizeContactGroupAvatarMember
-    ),
+    avatarMembers: (group.avatar_members ?? []).map(normalizeContactGroupAvatarMember),
     id: group.id,
     joined: Boolean(group.joined),
     memberCount: group.member_count ?? 0,
@@ -215,8 +191,7 @@ function normalizeContactGroup(
 }
 
 function normalizeContactGroupAvatarMember(
-  member:
-    NonNullable<ContactGroupResponse["avatar_members"]>[number] | undefined
+  member: NonNullable<ContactGroupResponse["avatar_members"]>[number] | undefined,
 ): ContactGroupAvatarMember {
   if (!member?.name) {
     throw new ClientDataRequestError("通讯录群头像成员响应格式不正确")
@@ -225,9 +200,6 @@ function normalizeContactGroupAvatarMember(
     avatar: member.avatar ?? "",
     name: member.name,
     nickname: member.nickname ?? "",
-    role:
-      member.role === "owner" || member.role === "admin"
-        ? member.role
-        : ("member" as const),
+    role: member.role === "owner" || member.role === "admin" ? member.role : ("member" as const),
   }
 }

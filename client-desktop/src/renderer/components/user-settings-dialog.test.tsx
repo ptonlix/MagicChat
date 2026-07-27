@@ -12,8 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/browser-notifications", () => ({
   getBrowserNotificationPermission: () => mocks.permission,
-  requestBrowserNotificationPermission:
-    mocks.requestBrowserNotificationPermission,
+  requestBrowserNotificationPermission: mocks.requestBrowserNotificationPermission,
 }))
 
 vi.mock("@/lib/message-notification-sound", () => ({
@@ -35,10 +34,8 @@ describe("UserSettingsDialog", () => {
 
     expect(mocks.playMessageNotificationSound).toHaveBeenCalledOnce()
     expect(mocks.requestBrowserNotificationPermission).toHaveBeenCalledOnce()
-    expect(
-      mocks.playMessageNotificationSound.mock.invocationCallOrder[0]
-    ).toBeLessThan(
-      mocks.requestBrowserNotificationPermission.mock.invocationCallOrder[0]
+    expect(mocks.playMessageNotificationSound.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.requestBrowserNotificationPermission.mock.invocationCallOrder[0],
     )
     expect(screen.getByText("桌面通知已开启")).toBeInTheDocument()
   })

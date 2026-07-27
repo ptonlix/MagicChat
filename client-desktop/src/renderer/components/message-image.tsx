@@ -1,10 +1,7 @@
 import * as React from "react"
 import { ImageOff } from "lucide-react"
 
-import {
-  readTemporaryFileURLs,
-  type ClientImageMessageBody,
-} from "@/lib/client-data-api"
+import { readTemporaryFileURLs, type ClientImageMessageBody } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
 import { resolveHostResourceUrl } from "@/lib/desktop-host"
 import {
@@ -53,12 +50,9 @@ export function MessageImage({ image }: MessageImageProps) {
     loaded: boolean
     url: string | null
   } | null>(null)
-  const [previewAreaSize, setPreviewAreaSize] =
-    React.useState<PreviewSize | null>(null)
-  const [previewAreaElement, setPreviewAreaElement] =
-    React.useState<HTMLDivElement | null>(null)
-  const [previewImageSize, setPreviewImageSize] =
-    React.useState<PreviewSize | null>(null)
+  const [previewAreaSize, setPreviewAreaSize] = React.useState<PreviewSize | null>(null)
+  const [previewAreaElement, setPreviewAreaElement] = React.useState<HTMLDivElement | null>(null)
+  const [previewImageSize, setPreviewImageSize] = React.useState<PreviewSize | null>(null)
   const [previewZoom, setPreviewZoom] = React.useState(1)
   const [previewOffset, setPreviewOffset] = React.useState<PreviewOffset>({
     x: 0,
@@ -75,12 +69,7 @@ export function MessageImage({ image }: MessageImageProps) {
   }, [previewAreaSize, previewImageSize])
   const clampedPreviewOffset =
     previewAreaSize && previewBaseSize
-      ? clampPreviewOffset(
-          previewOffset,
-          previewAreaSize,
-          previewBaseSize,
-          previewZoom
-        )
+      ? clampPreviewOffset(previewOffset, previewAreaSize, previewBaseSize, previewZoom)
       : { x: 0, y: 0 }
 
   const handlePreviewWheel = React.useCallback(
@@ -91,22 +80,17 @@ export function MessageImage({ image }: MessageImageProps) {
 
       event.preventDefault()
       const nextZoom = clampPreviewZoom(
-        previewZoom + (event.deltaY < 0 ? previewZoomStep : -previewZoomStep)
+        previewZoom + (event.deltaY < 0 ? previewZoomStep : -previewZoomStep),
       )
 
       setPreviewZoom(nextZoom)
       setPreviewOffset((currentOffset) =>
         previewAreaSize && previewBaseSize
-          ? clampPreviewOffset(
-              currentOffset,
-              previewAreaSize,
-              previewBaseSize,
-              nextZoom
-            )
-          : { x: 0, y: 0 }
+          ? clampPreviewOffset(currentOffset, previewAreaSize, previewBaseSize, nextZoom)
+          : { x: 0, y: 0 },
       )
     },
-    [previewAreaSize, previewBaseSize, previewZoom]
+    [previewAreaSize, previewBaseSize, previewZoom],
   )
 
   React.useEffect(() => {
@@ -118,8 +102,7 @@ export function MessageImage({ image }: MessageImageProps) {
           return
         }
 
-        const readURL =
-          urls.find((item) => item.fileId === image.fileId) ?? urls[0]
+        const readURL = urls.find((item) => item.fileId === image.fileId) ?? urls[0]
 
         if (!readURL) {
           throw new Error("missing read url")
@@ -251,15 +234,8 @@ export function MessageImage({ image }: MessageImageProps) {
     setOpen(true)
   }
 
-  function handlePreviewPointerDown(
-    event: React.PointerEvent<HTMLDivElement>
-  ) {
-    if (
-      event.button !== 0 ||
-      !previewAreaSize ||
-      !previewBaseSize ||
-      previewZoom <= 1
-    ) {
+  function handlePreviewPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || !previewAreaSize || !previewBaseSize || previewZoom <= 1) {
       return
     }
 
@@ -274,9 +250,7 @@ export function MessageImage({ image }: MessageImageProps) {
     setPreviewDragging(true)
   }
 
-  function handlePreviewPointerMove(
-    event: React.PointerEvent<HTMLDivElement>
-  ) {
+  function handlePreviewPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const previewDrag = previewDragRef.current
 
     if (
@@ -293,14 +267,7 @@ export function MessageImage({ image }: MessageImageProps) {
       y: previewDrag.offset.y + event.clientY - previewDrag.y,
     }
 
-    setPreviewOffset(
-      clampPreviewOffset(
-        nextOffset,
-        previewAreaSize,
-        previewBaseSize,
-        previewZoom
-      )
-    )
+    setPreviewOffset(clampPreviewOffset(nextOffset, previewAreaSize, previewBaseSize, previewZoom))
   }
 
   function handlePreviewPointerEnd(event: React.PointerEvent<HTMLDivElement>) {
@@ -338,14 +305,12 @@ export function MessageImage({ image }: MessageImageProps) {
         style={thumbnailFrame}
         type="button"
       >
-        {!currentSource.loaded && (
-          <MessageImageLoadingStatus frame={thumbnailFrame} />
-        )}
+        {!currentSource.loaded && <MessageImageLoadingStatus frame={thumbnailFrame} />}
         <img
           alt="图片消息"
           className={cn(
             "absolute inset-0 h-full w-full rounded-sm object-cover",
-            currentSource.loaded ? "opacity-100" : "opacity-0"
+            currentSource.loaded ? "opacity-100" : "opacity-0",
           )}
           onError={handleImageError}
           onLoad={handleImageLoad}
@@ -368,8 +333,7 @@ export function MessageImage({ image }: MessageImageProps) {
             ref={setPreviewAreaElement}
             className={cn(
               "relative h-full w-full touch-none overflow-hidden bg-background select-none",
-              previewZoom > 1 &&
-                (previewDragging ? "cursor-grabbing" : "cursor-grab")
+              previewZoom > 1 && (previewDragging ? "cursor-grabbing" : "cursor-grab"),
             )}
             onPointerCancel={handlePreviewPointerEnd}
             onPointerDown={handlePreviewPointerDown}
@@ -382,7 +346,7 @@ export function MessageImage({ image }: MessageImageProps) {
                 "select-none",
                 previewBaseSize
                   ? "absolute top-1/2 left-1/2 max-w-none"
-                  : "h-full w-full object-contain"
+                  : "h-full w-full object-contain",
               )}
               draggable={false}
               onError={handleImageError}
@@ -455,14 +419,8 @@ function getImageThumbnailFrame(image: ClientImageMessageBody): PreviewSize {
     }
   }
 
-  const width = Math.min(
-    maxImageThumbnailWidth,
-    Math.max(minImageThumbnailWidth, image.width)
-  )
-  const height = Math.min(
-    maxImageThumbnailHeight,
-    (image.height * width) / image.width
-  )
+  const width = Math.min(maxImageThumbnailWidth, Math.max(minImageThumbnailWidth, image.width))
+  const height = Math.min(maxImageThumbnailHeight, (image.height * width) / image.width)
 
   return {
     height: Math.max(1, Math.round(height)),
@@ -472,7 +430,7 @@ function getImageThumbnailFrame(image: ClientImageMessageBody): PreviewSize {
 
 function getContainedPreviewSize(
   imageSize: PreviewSize,
-  areaSize: PreviewSize
+  areaSize: PreviewSize,
 ): PreviewSize | null {
   if (
     imageSize.width <= 0 ||
@@ -483,10 +441,7 @@ function getContainedPreviewSize(
     return null
   }
 
-  const scale = Math.min(
-    areaSize.width / imageSize.width,
-    areaSize.height / imageSize.height
-  )
+  const scale = Math.min(areaSize.width / imageSize.width, areaSize.height / imageSize.height)
 
   return {
     height: imageSize.height * scale,
@@ -495,17 +450,14 @@ function getContainedPreviewSize(
 }
 
 function clampPreviewZoom(zoom: number) {
-  return Math.min(
-    maxPreviewZoom,
-    Math.max(minPreviewZoom, Number(zoom.toFixed(2)))
-  )
+  return Math.min(maxPreviewZoom, Math.max(minPreviewZoom, Number(zoom.toFixed(2))))
 }
 
 function clampPreviewOffset(
   offset: PreviewOffset,
   areaSize: PreviewSize,
   baseSize: PreviewSize,
-  zoom: number
+  zoom: number,
 ): PreviewOffset {
   const maxX = Math.max(0, (baseSize.width * zoom - areaSize.width) / 2)
   const maxY = Math.max(0, (baseSize.height * zoom - areaSize.height) / 2)

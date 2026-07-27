@@ -1,20 +1,9 @@
 import * as React from "react"
-import {
-  ImageIcon,
-  LoaderCircle,
-  Paperclip,
-  Send,
-  Smile,
-  UsersRound,
-  X,
-} from "lucide-react"
+import { ImageIcon, LoaderCircle, Paperclip, Send, Smile, UsersRound, X } from "lucide-react"
 import { toast } from "sonner"
 import { getAvatarInitial } from "@/lib/avatar"
 import { cn } from "@/lib/utils"
-import {
-  type ClientConversation,
-  type ClientMessage,
-} from "@/lib/client-data-api"
+import { type ClientConversation, type ClientMessage } from "@/lib/client-data-api"
 import {
   compressImageForMessage,
   imageMessageMaxBytes,
@@ -90,7 +79,7 @@ export const ConversationPanelComposer = React.forwardRef<
     richTextMode,
     sending,
   },
-  ref
+  ref,
 ) {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
   const imageInputRef = React.useRef<HTMLInputElement | null>(null)
@@ -104,27 +93,20 @@ export const ConversationPanelComposer = React.forwardRef<
   const [imagePreparing, setImagePreparing] = React.useState(false)
   const [sendVoiceDialogOpen, setSendVoiceDialogOpen] = React.useState(false)
   const [smartVoiceDialogOpen, setSmartVoiceDialogOpen] = React.useState(false)
-  const [mentionTrigger, setMentionTrigger] =
-    React.useState<MentionTrigger | null>(null)
+  const [mentionTrigger, setMentionTrigger] = React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
   const mentionCandidates = React.useMemo(
     () =>
-      conversation.type === "group" ||
-      conversation.topic?.parentConversationType === "group"
+      conversation.type === "group" || conversation.topic?.parentConversationType === "group"
         ? createMentionCandidates(conversation.members ?? [])
         : [],
-    [
-      conversation.members,
-      conversation.topic?.parentConversationType,
-      conversation.type,
-    ]
+    [conversation.members, conversation.topic?.parentConversationType, conversation.type],
   )
   const filteredMentionCandidates = React.useMemo(
-    () =>
-      filterMentionCandidates(mentionCandidates, mentionTrigger?.query ?? ""),
-    [mentionCandidates, mentionTrigger?.query]
+    () => filterMentionCandidates(mentionCandidates, mentionTrigger?.query ?? ""),
+    [mentionCandidates, mentionTrigger?.query],
   )
 
   React.useImperativeHandle(ref, () => ({
@@ -161,7 +143,7 @@ export const ConversationPanelComposer = React.forwardRef<
 
     const visibleSelectedIndex = getVisibleMentionIndex(
       selectedMentionIndex,
-      filteredMentionCandidates.length
+      filteredMentionCandidates.length,
     )
 
     mentionOptionRefs.current[visibleSelectedIndex]?.scrollIntoView({
@@ -211,8 +193,7 @@ export const ConversationPanelComposer = React.forwardRef<
 
   function updateMentionTrigger(value: string, cursor: number) {
     if (
-      (conversation.type !== "group" &&
-        conversation.topic?.parentConversationType !== "group") ||
+      (conversation.type !== "group" && conversation.topic?.parentConversationType !== "group") ||
       mentionCandidates.length === 0
     ) {
       setMentionTrigger(null)
@@ -235,9 +216,7 @@ export const ConversationPanelComposer = React.forwardRef<
     setSelectedMentionIndex(0)
   }
 
-  function handleComposerKeyDown(
-    event: React.KeyboardEvent<HTMLTextAreaElement>
-  ) {
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (isImeCompositionKeyEvent(event)) {
       return
     }
@@ -246,8 +225,7 @@ export const ConversationPanelComposer = React.forwardRef<
       if (event.key === "ArrowDown") {
         event.preventDefault()
         setSelectedMentionIndex(
-          (currentIndex) =>
-            (currentIndex + 1) % filteredMentionCandidates.length
+          (currentIndex) => (currentIndex + 1) % filteredMentionCandidates.length,
         )
         return
       }
@@ -256,7 +234,7 @@ export const ConversationPanelComposer = React.forwardRef<
         setSelectedMentionIndex(
           (currentIndex) =>
             (currentIndex - 1 + filteredMentionCandidates.length) %
-            filteredMentionCandidates.length
+            filteredMentionCandidates.length,
         )
         return
       }
@@ -269,11 +247,8 @@ export const ConversationPanelComposer = React.forwardRef<
         event.preventDefault()
         insertMentionCandidate(
           filteredMentionCandidates[
-            getVisibleMentionIndex(
-              selectedMentionIndex,
-              filteredMentionCandidates.length
-            )
-          ] ?? filteredMentionCandidates[0]
+            getVisibleMentionIndex(selectedMentionIndex, filteredMentionCandidates.length)
+          ] ?? filteredMentionCandidates[0],
         )
         return
       }
@@ -323,17 +298,15 @@ export const ConversationPanelComposer = React.forwardRef<
     range?: {
       end: number
       start: number
-    }
+    },
   ) {
     const textarea = textareaRef.current
-    const selectionStart =
-      range?.start ?? textarea?.selectionStart ?? draft.length
+    const selectionStart = range?.start ?? textarea?.selectionStart ?? draft.length
     const selectionEnd = range?.end ?? textarea?.selectionEnd ?? selectionStart
 
     const mentionText = `@${target.label}`
     const insertedText = `${mentionText} `
-    const nextDraft =
-      draft.slice(0, selectionStart) + insertedText + draft.slice(selectionEnd)
+    const nextDraft = draft.slice(0, selectionStart) + insertedText + draft.slice(selectionEnd)
     const nextMention: ConversationDraftMention = {
       end: selectionStart + mentionText.length,
       id: target.id,
@@ -345,11 +318,10 @@ export const ConversationPanelComposer = React.forwardRef<
     const nextMentions = [
       ...syncDraftMentions(
         draftMentions.filter(
-          (mention) =>
-            mention.end <= selectionStart || mention.start >= selectionEnd
+          (mention) => mention.end <= selectionStart || mention.start >= selectionEnd,
         ),
         draft,
-        nextDraft
+        nextDraft,
       ),
       nextMention,
     ].sort((mentionA, mentionB) => mentionA.start - mentionB.start)
@@ -448,9 +420,7 @@ export const ConversationPanelComposer = React.forwardRef<
     void prepareSelectedImage(image)
   }
 
-  function handleComposerPaste(
-    event: React.ClipboardEvent<HTMLTextAreaElement>
-  ) {
+  function handleComposerPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
     const image = getClipboardImageFile(event.clipboardData)
 
     if (!image) {
@@ -538,16 +508,8 @@ export const ConversationPanelComposer = React.forwardRef<
   }
 
   return (
-    <footer
-      className="shrink-0 border-t p-4"
-      data-testid="conversation-panel-composer"
-    >
-      <input
-        ref={fileInputRef}
-        className="hidden"
-        onChange={handleFileInputChange}
-        type="file"
-      />
+    <footer className="shrink-0 border-t p-4" data-testid="conversation-panel-composer">
+      <input ref={fileInputRef} className="hidden" onChange={handleFileInputChange} type="file" />
       <input
         ref={imageInputRef}
         accept="image/png,image/jpeg,image/webp"
@@ -555,22 +517,15 @@ export const ConversationPanelComposer = React.forwardRef<
         onChange={handleImageInputChange}
         type="file"
       />
-      <div
-        className="flex w-full flex-col gap-2"
-        data-testid="conversation-panel-composer-content"
-      >
+      <div className="flex w-full flex-col gap-2" data-testid="conversation-panel-composer-content">
         {replyTarget && (
           <div
             className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2"
             data-testid="conversation-reply-preview"
           >
             <div className="min-w-0">
-              <div className="truncate text-xs font-medium">
-                回复 {replyTarget.author}
-              </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {replyTarget.summary}
-              </div>
+              <div className="truncate text-xs font-medium">回复 {replyTarget.author}</div>
+              <div className="truncate text-xs text-muted-foreground">{replyTarget.summary}</div>
             </div>
             <Button
               aria-label="取消回复"
@@ -594,10 +549,7 @@ export const ConversationPanelComposer = React.forwardRef<
             onChange={handleDraftChange}
             onKeyDown={handleComposerKeyDown}
             onSelect={(event) =>
-              updateMentionTrigger(
-                event.currentTarget.value,
-                event.currentTarget.selectionStart
-              )
+              updateMentionTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
             }
             onPaste={handleComposerPaste}
             placeholder={richTextMode ? "输入 Markdown 消息" : "输入消息"}
@@ -617,8 +569,8 @@ export const ConversationPanelComposer = React.forwardRef<
                     index ===
                       getVisibleMentionIndex(
                         selectedMentionIndex,
-                        filteredMentionCandidates.length
-                      ) && "bg-accent"
+                        filteredMentionCandidates.length,
+                      ) && "bg-accent",
                   )}
                   onMouseDown={(event) => {
                     event.preventDefault()
@@ -630,9 +582,7 @@ export const ConversationPanelComposer = React.forwardRef<
                   <Avatar
                     className={cn(
                       "size-6 rounded-sm after:rounded-sm",
-                      candidate.targetType === "all"
-                        ? "bg-teal-500"
-                        : "bg-muted"
+                      candidate.targetType === "all" ? "bg-teal-500" : "bg-muted",
                     )}
                     data-size="sm"
                   >
@@ -653,9 +603,7 @@ export const ConversationPanelComposer = React.forwardRef<
                     )}
                   </Avatar>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">
-                      {candidate.label}
-                    </span>
+                    <span className="block truncate text-sm">{candidate.label}</span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {candidate.description}
                     </span>

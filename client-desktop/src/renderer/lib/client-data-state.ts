@@ -27,7 +27,7 @@ export function getMessageSummary(message: ClientMessage) {
 export function applyMessageReactionsUpdate(
   message: ClientMessage,
   event: MessageReactionsUpdatedEvent,
-  currentUserId: string
+  currentUserId: string,
 ) {
   if (
     message.id !== event.messageId ||
@@ -39,7 +39,7 @@ export function applyMessageReactionsUpdate(
     return message
   }
   const previousByText = new Map(
-    (message.reactions ?? []).map((reaction) => [reaction.text, reaction])
+    (message.reactions ?? []).map((reaction) => [reaction.text, reaction]),
   )
   return {
     ...message,
@@ -61,7 +61,7 @@ export function applyMessageReactionSnapshot(
     messageId: string
     reactionVersion: number
     reactions: ClientMessage["reactions"]
-  }
+  },
 ) {
   if (
     message.id !== snapshot.messageId ||
@@ -92,7 +92,7 @@ export function createConversationMessageState(): ClientConversationMessageState
 
 export function mergeConversationMessages(
   currentMessages: ClientMessage[],
-  nextMessages: ClientMessage[]
+  nextMessages: ClientMessage[],
 ) {
   if (nextMessages.length === 0) {
     return currentMessages
@@ -122,15 +122,14 @@ export function mergeConversationMessages(
   }
 
   const overlapsCurrentMessages = normalizedNextMessages.some((message) =>
-    currentMessageIds.has(message.id)
+    currentMessageIds.has(message.id),
   )
 
   if (currentMessagesAreSortedAndUnique && !overlapsCurrentMessages) {
     const firstCurrentMessage = currentMessages[0]
     const lastCurrentMessage = currentMessages[currentMessages.length - 1]
     const firstNextMessage = normalizedNextMessages[0]
-    const lastNextMessage =
-      normalizedNextMessages[normalizedNextMessages.length - 1]
+    const lastNextMessage = normalizedNextMessages[normalizedNextMessages.length - 1]
 
     if (compareMessages(lastCurrentMessage, firstNextMessage) <= 0) {
       return [...currentMessages, ...normalizedNextMessages]
@@ -141,10 +140,7 @@ export function mergeConversationMessages(
     }
   }
 
-  return deduplicateAndSortMessages([
-    ...currentMessages,
-    ...normalizedNextMessages,
-  ])
+  return deduplicateAndSortMessages([...currentMessages, ...normalizedNextMessages])
 }
 
 function deduplicateAndSortMessages(messages: ClientMessage[]) {
@@ -154,9 +150,7 @@ function deduplicateAndSortMessages(messages: ClientMessage[]) {
     const existing = messagesById.get(message.id)
     messagesById.set(
       message.id,
-      existing?.topic && !message.topic
-        ? { ...message, topic: existing.topic }
-        : message
+      existing?.topic && !message.topic ? { ...message, topic: existing.topic } : message,
     )
   }
 
@@ -173,7 +167,7 @@ function compareMessages(messageA: ClientMessage, messageB: ClientMessage) {
 
 export function updatePageWithMessage(
   page: ClientMessagePage | null,
-  messages: ClientMessage[]
+  messages: ClientMessage[],
 ): ClientMessagePage {
   const firstMessage = messages[0]
   const lastMessage = messages[messages.length - 1]
@@ -190,7 +184,7 @@ export function updatePageWithMessage(
 export function mergePageWithBeforeResult(
   currentPage: ClientMessagePage | null,
   resultPage: ClientMessagePage,
-  messages: ClientMessage[]
+  messages: ClientMessage[],
 ): ClientMessagePage {
   const firstMessage = messages[0]
   const lastMessage = messages[messages.length - 1]
@@ -207,7 +201,7 @@ export function mergePageWithBeforeResult(
 export function mergePageWithAfterResult(
   currentPage: ClientMessagePage | null,
   resultPage: ClientMessagePage,
-  messages: ClientMessage[]
+  messages: ClientMessage[],
 ): ClientMessagePage {
   const firstMessage = messages[0]
   const lastMessage = messages[messages.length - 1]
@@ -253,29 +247,22 @@ export function orderConversations(conversations: ClientConversation[]) {
   })
 }
 
-export function isBuiltinAssistantConversation(
-  conversation: ClientConversation
-) {
+export function isBuiltinAssistantConversation(conversation: ClientConversation) {
   return (
     conversation.type === "app" &&
     conversation.members?.some(
-      (member) => member.type === "app" && member.id === builtinAssistantAppId
+      (member) => member.type === "app" && member.id === builtinAssistantAppId,
     ) === true
   )
 }
 
 function getConversationActivityTimestamp(conversation: ClientConversation) {
-  const timestamp = Date.parse(
-    conversation.lastMessageAt ?? conversation.createdAt
-  )
+  const timestamp = Date.parse(conversation.lastMessageAt ?? conversation.createdAt)
 
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
 }
 
-export function getClientDataErrorMessage(
-  error: unknown,
-  fallbackMessage: string
-) {
+export function getClientDataErrorMessage(error: unknown, fallbackMessage: string) {
   if (error instanceof ClientDataRequestError) {
     return error.message
   }

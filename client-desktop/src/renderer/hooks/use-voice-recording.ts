@@ -9,8 +9,7 @@ import {
   type VoiceMessageRecording,
 } from "@/lib/voice-message"
 
-export type VoiceRecordingStatus =
-  "idle" | "requesting" | "recording" | "processing" | "recorded"
+export type VoiceRecordingStatus = "idle" | "requesting" | "recording" | "processing" | "recorded"
 
 const analyserFFTSize = 256
 const waveformUpdateIntervalMS = 50
@@ -30,8 +29,7 @@ export function useVoiceRecording() {
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
   const [error, setError] = React.useState("")
   const [level, setLevel] = React.useState(0)
-  const [recording, setRecording] =
-    React.useState<VoiceMessageRecording | null>(null)
+  const [recording, setRecording] = React.useState<VoiceMessageRecording | null>(null)
   const [status, setStatus] = React.useState<VoiceRecordingStatus>("idle")
 
   const clearMaxDurationTimeout = React.useCallback(() => {
@@ -99,9 +97,7 @@ export function useVoiceRecording() {
     const interval = window.setInterval(() => {
       const audioTime = audioContextRef.current?.currentTime ?? 0
       const elapsedMS = (audioTime - recordingStartedAtRef.current) * 1_000
-      setElapsedSeconds(
-        Math.min(60, Math.max(0, Math.floor(elapsedMS / 1_000)))
-      )
+      setElapsedSeconds(Math.min(60, Math.max(0, Math.floor(elapsedMS / 1_000))))
     }, 250)
 
     return () => {
@@ -116,15 +112,11 @@ export function useVoiceRecording() {
       discardMediaRecorder()
       releaseMicrophone()
     },
-    [clearMaxDurationTimeout, discardMediaRecorder, releaseMicrophone]
+    [clearMaxDurationTimeout, discardMediaRecorder, releaseMicrophone],
   )
 
   async function startRecording() {
-    if (
-      status === "requesting" ||
-      status === "recording" ||
-      status === "processing"
-    ) {
+    if (status === "requesting" || status === "recording" || status === "processing") {
       return
     }
 
@@ -219,10 +211,8 @@ export function useVoiceRecording() {
           voiceMessageMaxDurationMS,
           Math.max(
             1,
-            Math.round(
-              (audioContext.currentTime - recordingStartedAtRef.current) * 1_000
-            )
-          )
+            Math.round((audioContext.currentTime - recordingStartedAtRef.current) * 1_000),
+          ),
         )
         const blob = new Blob(chunksRef.current, {
           type: voiceMessageContentType,
@@ -265,10 +255,7 @@ export function useVoiceRecording() {
       recorder.start(250)
       setStatus("recording")
       monitorMicrophoneLevel(analyser)
-      maxDurationTimeoutRef.current = window.setTimeout(
-        finishRecording,
-        voiceMessageMaxDurationMS
-      )
+      maxDurationTimeoutRef.current = window.setTimeout(finishRecording, voiceMessageMaxDurationMS)
     } catch (caughtError) {
       if (requestVersionRef.current !== requestVersion) {
         return
@@ -290,10 +277,7 @@ export function useVoiceRecording() {
         return
       }
 
-      if (
-        timestamp - lastWaveformUpdateRef.current >=
-        waveformUpdateIntervalMS
-      ) {
+      if (timestamp - lastWaveformUpdateRef.current >= waveformUpdateIntervalMS) {
         analyser.getByteTimeDomainData(samples)
         let sumOfSquares = 0
 

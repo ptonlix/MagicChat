@@ -10,7 +10,7 @@ describe("MessageMarkdown", () => {
         content="一段可选择的消息"
         currentUserId="user-1"
         mentionLabelResolver={() => "旧名称"}
-      />
+      />,
     )
     const paragraph = screen.getByText("一段可选择的消息")
 
@@ -19,7 +19,7 @@ describe("MessageMarkdown", () => {
         content="一段可选择的消息"
         currentUserId="user-1"
         mentionLabelResolver={() => "新名称"}
-      />
+      />,
     )
 
     expect(screen.getByText("一段可选择的消息")).toBe(paragraph)

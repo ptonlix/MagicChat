@@ -21,9 +21,7 @@ export function MessageLink({ link }: MessageLinkProps) {
         <div className="truncate text-sm leading-snug font-medium transition-colors group-hover/message-bubble:text-sky-500">
           {link.title}
         </div>
-        <div className="truncate text-xs leading-snug text-muted-foreground">
-          {link.url}
-        </div>
+        <div className="truncate text-xs leading-snug text-muted-foreground">{link.url}</div>
       </div>
     </a>
   )

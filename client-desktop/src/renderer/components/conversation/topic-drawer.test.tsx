@@ -26,9 +26,7 @@ describe("TopicSourceBanner", () => {
       summary: "不同的摘要",
     }
 
-    render(
-      <TopicSourceBanner currentUserId="user-2" sourceMessage={sourceMessage} />
-    )
+    render(<TopicSourceBanner currentUserId="user-2" sourceMessage={sourceMessage} />)
 
     expect(screen.getByText("完整来源消息")).toBeInTheDocument()
     expect(screen.queryByText("不同的摘要")).not.toBeInTheDocument()
@@ -52,7 +50,7 @@ describe("TopicSourceBanner", () => {
           },
         ]}
         sourceMessage={createSourceMessage()}
-      />
+      />,
     )
 
     const reactionChip = screen.getByRole("button", {
@@ -60,12 +58,8 @@ describe("TopicSourceBanner", () => {
     })
     const addButton = screen.getByRole("button", { name: "添加表情" })
     const bubbleLine = addButton.closest('[data-slot="message-bubble-line"]')
-    expect(bubbleLine).toContainElement(
-      screen.getByTestId("topic-source-message-bubble")
-    )
-    expect(
-      screen.getByTestId("topic-source-message-bubble")
-    ).toContainElement(reactionChip)
+    expect(bubbleLine).toContainElement(screen.getByTestId("topic-source-message-bubble"))
+    expect(screen.getByTestId("topic-source-message-bubble")).toContainElement(reactionChip)
 
     fireEvent.click(reactionChip)
     await waitFor(() => expect(onSetReaction).toHaveBeenCalledWith("👍", false))

@@ -3,22 +3,11 @@ import { format } from "date-fns"
 import { zhCN } from "date-fns/locale"
 import { CalendarDays, X } from "lucide-react"
 
-import {
-  formatDateKey,
-  parseDateKey,
-} from "@/components/projects/project-task-view-utils"
+import { formatDateKey, parseDateKey } from "@/components/projects/project-task-view-utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-} from "@/components/ui/input-group"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { InputGroup, InputGroupAddon, InputGroupButton } from "@/components/ui/input-group"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
 export function ProjectTaskDatePicker({
@@ -49,7 +38,7 @@ export function ProjectTaskDatePicker({
             aria-label={label}
             className={cn(
               "h-full min-w-0 flex-1 cursor-pointer justify-start rounded-none border-0 bg-transparent px-2.5 text-left font-normal shadow-none hover:bg-transparent focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent",
-              !selectedDate && "text-muted-foreground"
+              !selectedDate && "text-muted-foreground",
             )}
             data-slot="input-group-control"
             disabled={disabled}
@@ -69,10 +58,7 @@ export function ProjectTaskDatePicker({
             autoFocus
             defaultMonth={selectedDate ?? undefined}
             disabled={(date) =>
-              Boolean(
-                (minimumDate && date < minimumDate) ||
-                (maximumDate && date > maximumDate)
-              )
+              Boolean((minimumDate && date < minimumDate) || (maximumDate && date > maximumDate))
             }
             locale={zhCN}
             mode="single"

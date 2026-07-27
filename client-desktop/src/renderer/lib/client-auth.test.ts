@@ -28,8 +28,8 @@ describe("client auth", () => {
             "content-type": "application/json",
           },
           status: 200,
-        }
-      )
+        },
+      ),
     )
 
     const user = await clientLogin(
@@ -37,7 +37,7 @@ describe("client auth", () => {
         account: " Alice@Example.com ",
         password: "secret",
       },
-      fetcher
+      fetcher,
     )
 
     expect(user).toEqual({
@@ -73,8 +73,8 @@ describe("client auth", () => {
             "content-type": "application/json",
           },
           status: 401,
-        }
-      )
+        },
+      ),
     )
 
     await expect(
@@ -83,8 +83,8 @@ describe("client auth", () => {
           account: "alice@example.com",
           password: "wrong",
         },
-        fetcher
-      )
+        fetcher,
+      ),
     ).rejects.toMatchObject({
       code: "invalid_credentials",
       message: "邮箱或密码错误",
@@ -107,8 +107,8 @@ describe("client auth", () => {
           {
             headers: { "content-type": "application/json" },
             status: 200,
-          }
-        )
+          },
+        ),
       )
       .mockResolvedValueOnce(
         new Response(
@@ -125,49 +125,36 @@ describe("client auth", () => {
           {
             headers: { "content-type": "application/json" },
             status: 200,
-          }
-        )
+          },
+        ),
       )
 
-    await expect(
-      requestClientEmailCode(" Alice@Example.com ", fetcher)
-    ).resolves.toEqual({
+    await expect(requestClientEmailCode(" Alice@Example.com ", fetcher)).resolves.toEqual({
       expiresInSeconds: 900,
       retryAfterSeconds: 5,
     })
     await expect(
-      clientEmailCodeLogin(
-        { code: "01234567", email: " Alice@Example.com " },
-        fetcher
-      )
+      clientEmailCodeLogin({ code: "01234567", email: " Alice@Example.com " }, fetcher),
     ).resolves.toEqual({
       email: "alice@example.com",
       id: "user-1",
       name: "Alice",
     })
 
-    expect(fetcher).toHaveBeenNthCalledWith(
-      1,
-      "/api/client/auth/email-code/request",
-      {
-        body: JSON.stringify({ email: "Alice@Example.com" }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }
-    )
-    expect(fetcher).toHaveBeenNthCalledWith(
-      2,
-      "/api/client/auth/email-code/login",
-      {
-        body: JSON.stringify({
-          code: "01234567",
-          email: "Alice@Example.com",
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }
-    )
+    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/client/auth/email-code/request", {
+      body: JSON.stringify({ email: "Alice@Example.com" }),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    })
+    expect(fetcher).toHaveBeenNthCalledWith(2, "/api/client/auth/email-code/login", {
+      body: JSON.stringify({
+        code: "01234567",
+        email: "Alice@Example.com",
+      }),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    })
   })
 })

@@ -1,17 +1,14 @@
-import type {
-  ClientConversation,
-  ContactApp,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ContactApp } from "@/lib/client-data-api"
 
 type ConversationAppProfile = Pick<ContactApp, "avatar" | "id" | "name">
 
 export function getConversationAppProfile(
   conversation: ClientConversation | null | undefined,
   appId: string,
-  appsById?: ReadonlyMap<string, ConversationAppProfile>
+  appsById?: ReadonlyMap<string, ConversationAppProfile>,
 ): ConversationAppProfile | null {
   const member = conversation?.members?.find(
-    (currentMember) => currentMember.type === "app" && currentMember.id === appId
+    (currentMember) => currentMember.type === "app" && currentMember.id === appId,
   )
   if (member) {
     return {
@@ -27,13 +24,9 @@ export function getConversationAppProfile(
 export function getConversationAppDisplayName(
   conversation: ClientConversation | null | undefined,
   appId: string,
-  appsById?: ReadonlyMap<string, ConversationAppProfile>
+  appsById?: ReadonlyMap<string, ConversationAppProfile>,
 ) {
-  const appName = getConversationAppProfile(
-    conversation,
-    appId,
-    appsById
-  )?.name.trim()
+  const appName = getConversationAppProfile(conversation, appId, appsById)?.name.trim()
   if (appName) {
     return appName
   }
@@ -47,13 +40,9 @@ export function getConversationAppDisplayName(
 export function getConversationAppAvatar(
   conversation: ClientConversation | null | undefined,
   appId: string,
-  appsById?: ReadonlyMap<string, ConversationAppProfile>
+  appsById?: ReadonlyMap<string, ConversationAppProfile>,
 ) {
-  const appAvatar = getConversationAppProfile(
-    conversation,
-    appId,
-    appsById
-  )?.avatar.trim()
+  const appAvatar = getConversationAppProfile(conversation, appId, appsById)?.avatar.trim()
   if (appAvatar) {
     return appAvatar
   }

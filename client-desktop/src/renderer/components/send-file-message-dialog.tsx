@@ -47,23 +47,16 @@ export function SendFileMessageDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-base">发送文件</DialogTitle>
-          <DialogDescription className="sr-only">
-            确认发送文件到当前会话
-          </DialogDescription>
+          <DialogDescription className="sr-only">确认发送文件到当前会话</DialogDescription>
         </DialogHeader>
         {file && (
           <div className="grid gap-3">
             <div className="min-w-0 rounded-md border p-3">
               <p className="truncate text-sm font-medium">{file.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatFileSize(file.size)}
-              </p>
+              <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
             </div>
             <p className="min-w-0 text-sm text-muted-foreground">
-              将要发送到{" "}
-              <span className="font-medium text-foreground">
-                {conversationName}
-              </span>
+              将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
             </p>
           </div>
         )}

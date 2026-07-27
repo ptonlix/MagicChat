@@ -1,7 +1,4 @@
-import type {
-  ClientDataErrorEnvelope,
-  ClientDataSuccessEnvelope,
-} from "./types"
+import type { ClientDataErrorEnvelope, ClientDataSuccessEnvelope } from "./types"
 
 export class ClientDataRequestError extends Error {
   code?: string
@@ -20,10 +17,9 @@ export function normalizeVisibility(value: string | undefined) {
 }
 
 export function createRequestError(
-  payload:
-    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<unknown> | undefined,
+  payload: ClientDataErrorEnvelope | ClientDataSuccessEnvelope<unknown> | undefined,
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ) {
   const error = (payload as ClientDataErrorEnvelope | undefined)?.error
 

@@ -19,8 +19,7 @@ export function ProjectAvatar({
   const displayName = project.isPersonal
     ? user?.nickname || user?.name || project.name
     : project.name
-  const avatar =
-    avatarOverride ?? (project.isPersonal ? user?.avatar : project.avatar)
+  const avatar = avatarOverride ?? (project.isPersonal ? user?.avatar : project.avatar)
   const initial = Array.from(displayName.trim())[0]?.toUpperCase() ?? "?"
 
   if (!project.isPersonal && !avatar) {
@@ -28,7 +27,7 @@ export function ProjectAvatar({
       <span
         className={cn(
           "flex shrink-0 items-center justify-center rounded-md bg-amber-600 text-background dark:bg-amber-600",
-          className
+          className,
         )}
       >
         <BriefcaseBusiness aria-hidden="true" className="size-4" />
@@ -37,24 +36,15 @@ export function ProjectAvatar({
   }
 
   return (
-    <Avatar
-      className={cn("shrink-0 rounded-md bg-muted after:rounded-md", className)}
-    >
-      {avatar && (
-        <AvatarImage alt={displayName} className="rounded-md" src={avatar} />
-      )}
+    <Avatar className={cn("shrink-0 rounded-md bg-muted after:rounded-md", className)}>
+      {avatar && <AvatarImage alt={displayName} className="rounded-md" src={avatar} />}
       <AvatarFallback
         className={cn(
           "rounded-md text-xs",
-          !project.isPersonal &&
-            "bg-amber-600 text-background dark:bg-amber-600"
+          !project.isPersonal && "bg-amber-600 text-background dark:bg-amber-600",
         )}
       >
-        {project.isPersonal ? (
-          initial
-        ) : (
-          <BriefcaseBusiness aria-hidden="true" className="size-4" />
-        )}
+        {project.isPersonal ? initial : <BriefcaseBusiness aria-hidden="true" className="size-4" />}
       </AvatarFallback>
     </Avatar>
   )

@@ -7,8 +7,7 @@ import { SendCardDialog } from "@/components/conversation/send-card-dialog"
 import type { ClientCardMessageBody } from "@/lib/client-data-api"
 
 const mocks = vi.hoisted(() => ({
-  longConversationName:
-    "这是一个特别特别长并且必须在对话框中截断的会话名称".repeat(4),
+  longConversationName: "这是一个特别特别长并且必须在对话框中截断的会话名称".repeat(4),
   conversations: [
     {
       avatar: "",
@@ -82,7 +81,7 @@ describe("SendCardDialog", () => {
     render(
       <MemoryRouter>
         <SendCardDialog card={card} onOpenChange={onOpenChange} open />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     const sendButton = screen.getByRole("button", { name: "发送" })
@@ -97,10 +96,7 @@ describe("SendCardDialog", () => {
     await user.click(sendButton)
 
     await waitFor(() => {
-      expect(mocks.sendConversationCard).toHaveBeenCalledWith(
-        "conversation-2",
-        card
-      )
+      expect(mocks.sendConversationCard).toHaveBeenCalledWith("conversation-2", card)
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })

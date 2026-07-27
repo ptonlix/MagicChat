@@ -4,8 +4,7 @@ import { linkifyMessageText } from "@/lib/message-links"
 
 describe("linkifyMessageText", () => {
   it("finds HTTP links with ports, paths, queries, and hashes", () => {
-    const url =
-      "https://api.example.com:8080/v1/users?id=123&active=true#result-1"
+    const url = "https://api.example.com:8080/v1/users?id=123&active=true#result-1"
 
     expect(linkifyMessageText(`查看 ${url} 的结果`)).toEqual([
       { type: "text", value: "查看 " },
@@ -15,29 +14,25 @@ describe("linkifyMessageText", () => {
   })
 
   it("supports multiple links and treats percent signs as ordinary URL characters", () => {
-    expect(
-      linkifyMessageText(
-        "http://api:80/a_%zz?value=50%#part 和 https://example.com"
-      )
-    ).toEqual([
-      {
-        href: "http://api:80/a_%zz?value=50%#part",
-        type: "link",
-        value: "http://api:80/a_%zz?value=50%#part",
-      },
-      { type: "text", value: " 和 " },
-      {
-        href: "https://example.com",
-        type: "link",
-        value: "https://example.com",
-      },
-    ])
+    expect(linkifyMessageText("http://api:80/a_%zz?value=50%#part 和 https://example.com")).toEqual(
+      [
+        {
+          href: "http://api:80/a_%zz?value=50%#part",
+          type: "link",
+          value: "http://api:80/a_%zz?value=50%#part",
+        },
+        { type: "text", value: " 和 " },
+        {
+          href: "https://example.com",
+          type: "link",
+          value: "https://example.com",
+        },
+      ],
+    )
   })
 
   it("keeps surrounding sentence punctuation out of the link", () => {
-    expect(
-      linkifyMessageText("请看（https://example.com/a_(b)），谢谢。")
-    ).toEqual([
+    expect(linkifyMessageText("请看（https://example.com/a_(b)），谢谢。")).toEqual([
       { type: "text", value: "请看（" },
       {
         href: "https://example.com/a_(b)",
@@ -49,8 +44,7 @@ describe("linkifyMessageText", () => {
   })
 
   it("stops a link before adjacent Chinese text", () => {
-    const url =
-      "http://localhost:20070/chat?conversation_id=b6ef4519-34f6-4ac4-8037-dd5caed173e3"
+    const url = "http://localhost:20070/chat?conversation_id=b6ef4519-34f6-4ac4-8037-dd5caed173e3"
 
     expect(linkifyMessageText(`啊啊${url}阿斯顿`)).toEqual([
       { type: "text", value: "啊啊" },

@@ -11,13 +11,7 @@ type HighlightResult = {
 
 const highlightCache = new Map<string, Promise<string | null>>()
 
-export function MarkdownCodeBlock({
-  code,
-  language,
-}: {
-  code: string
-  language: string
-}) {
+export function MarkdownCodeBlock({ code, language }: { code: string; language: string }) {
   const cacheKey = `${language}\u0000${code}`
   const [result, setResult] = React.useState<HighlightResult | null>(null)
 
@@ -73,7 +67,7 @@ function highlightCode(cacheKey: string, code: string, language: string) {
           dark: "github-dark",
           light: "github-light",
         },
-      })
+      }),
     )
     .catch(() => null)
 

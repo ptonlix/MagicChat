@@ -32,9 +32,7 @@ export function UpdateProjectTaskAssigneeDialog({
   projectId: string
   taskId: string
 }) {
-  const [assigneeUserId, setAssigneeUserId] = React.useState(
-    currentAssignee?.id ?? ""
-  )
+  const [assigneeUserId, setAssigneeUserId] = React.useState(currentAssignee?.id ?? "")
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
@@ -55,9 +53,7 @@ export function UpdateProjectTaskAssigneeDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(
-            loadError instanceof Error ? loadError.message : "加载项目成员失败"
-          )
+          setError(loadError instanceof Error ? loadError.message : "加载项目成员失败")
         }
       })
       .finally(() => {
@@ -73,13 +69,10 @@ export function UpdateProjectTaskAssigneeDialog({
 
   const fallbackAssignee = createFallbackMember(currentAssignee)
   const memberOptions =
-    fallbackAssignee &&
-    !members.some((member) => member.id === fallbackAssignee.id)
+    fallbackAssignee && !members.some((member) => member.id === fallbackAssignee.id)
       ? [fallbackAssignee, ...members]
       : members
-  const selectedAssignee = memberOptions.find(
-    (member) => member.id === assigneeUserId
-  )
+  const selectedAssignee = memberOptions.find((member) => member.id === assigneeUserId)
   const unchanged = assigneeUserId === (currentAssignee?.id ?? "")
 
   function handleOpenChange(nextOpen: boolean) {
@@ -110,9 +103,7 @@ export function UpdateProjectTaskAssigneeDialog({
       onOpenChange(false)
       toast.success("任务负责人已更新")
     } catch (saveError) {
-      toast.error(
-        saveError instanceof Error ? saveError.message : "更新任务负责人失败"
-      )
+      toast.error(saveError instanceof Error ? saveError.message : "更新任务负责人失败")
     } finally {
       setSaving(false)
     }
@@ -123,9 +114,7 @@ export function UpdateProjectTaskAssigneeDialog({
       <DialogContent className="gap-5 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>修改负责人</DialogTitle>
-          <DialogDescription className="sr-only">
-            选择任务的新负责人。
-          </DialogDescription>
+          <DialogDescription className="sr-only">选择任务的新负责人。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <ProjectMemberCombobox
@@ -160,9 +149,7 @@ export function UpdateProjectTaskAssigneeDialog({
   )
 }
 
-function createFallbackMember(
-  assignee: ProjectTask["assignee"]
-): ClientProjectMember | null {
+function createFallbackMember(assignee: ProjectTask["assignee"]): ClientProjectMember | null {
   if (!assignee) {
     return null
   }

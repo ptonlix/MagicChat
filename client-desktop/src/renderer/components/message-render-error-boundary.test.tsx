@@ -9,14 +9,11 @@ describe("MessageRenderErrorBoundary", () => {
 
     render(
       <>
-        <MessageRenderErrorBoundary
-          fallback={<span>暂不支持查看该消息</span>}
-          resetKey="message-1"
-        >
+        <MessageRenderErrorBoundary fallback={<span>暂不支持查看该消息</span>} resetKey="message-1">
           <BrokenMessage />
         </MessageRenderErrorBoundary>
         <span>后续正常消息</span>
-      </>
+      </>,
     )
 
     expect(screen.getByText("暂不支持查看该消息")).toBeInTheDocument()

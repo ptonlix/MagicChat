@@ -1,26 +1,11 @@
 import type { ReactNode } from "react"
-import {
-  Bot,
-  Loader2Icon,
-  Mail,
-  Phone,
-  UserPen,
-  UserRound,
-  UsersRound,
-} from "lucide-react"
+import { Bot, Loader2Icon, Mail, Phone, UserPen, UserRound, UsersRound } from "lucide-react"
 
 import { GroupAvatar } from "@/components/group-avatar"
-import {
-  UserProfilePopoverLink,
-  type UserProfile,
-} from "@/components/user-profile-popover"
+import { UserProfilePopoverLink, type UserProfile } from "@/components/user-profile-popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import type {
-  ContactApp,
-  ContactGroup,
-  ContactUser,
-} from "@/lib/client-data-api"
+import type { ContactApp, ContactGroup, ContactUser } from "@/lib/client-data-api"
 import { formatContactPhone } from "@/lib/contact-format"
 import { cn } from "@/lib/utils"
 
@@ -46,23 +31,14 @@ export function AppDetailPanel({
   viewingAccessInfo?: boolean
 }) {
   return (
-    <div
-      className={CONTACT_DETAIL_PANEL_CLASS}
-      data-testid="contact-detail-panel"
-    >
+    <div className={CONTACT_DETAIL_PANEL_CLASS} data-testid="contact-detail-panel">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col items-center gap-3 text-center">
           <Avatar
             className="size-20 rounded-sm bg-muted after:rounded-sm"
             data-testid="contact-detail-avatar"
           >
-            {app.avatar && (
-              <AvatarImage
-                alt={app.name}
-                className="rounded-sm"
-                src={app.avatar}
-              />
-            )}
+            {app.avatar && <AvatarImage alt={app.name} className="rounded-sm" src={app.avatar} />}
             <AvatarFallback className="rounded-sm text-xl">
               <Bot className="size-7" />
             </AvatarFallback>
@@ -70,9 +46,7 @@ export function AppDetailPanel({
           <div>
             <div className="text-base font-medium">{app.name}</div>
             {app.description && (
-              <div className="mt-1 text-sm text-muted-foreground">
-                {app.description}
-              </div>
+              <div className="mt-1 text-sm text-muted-foreground">{app.description}</div>
             )}
           </div>
         </div>
@@ -103,9 +77,7 @@ export function AppDetailPanel({
             onClick={onStartConversation}
             type="button"
           >
-            {startingConversation && (
-              <Loader2Icon aria-hidden="true" className="animate-spin" />
-            )}
+            {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
             发消息
           </Button>
           {onViewAccessInfo && onEditProfile && (
@@ -152,10 +124,7 @@ export function GroupDetailPanel({
   startingConversation: boolean
 }) {
   return (
-    <div
-      className={CONTACT_DETAIL_PANEL_CLASS}
-      data-testid="contact-detail-panel"
-    >
+    <div className={CONTACT_DETAIL_PANEL_CLASS} data-testid="contact-detail-panel">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col items-center gap-3 text-center">
           <GroupAvatar
@@ -166,9 +135,7 @@ export function GroupDetailPanel({
           />
           <div>
             <div className="text-base font-medium">{group.name}</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {group.memberCount} 人群聊
-            </div>
+            <div className="mt-1 text-sm text-muted-foreground">{group.memberCount} 人群聊</div>
           </div>
         </div>
 
@@ -190,9 +157,7 @@ export function GroupDetailPanel({
           onClick={onStartConversation}
           type="button"
         >
-          {startingConversation && (
-            <Loader2Icon aria-hidden="true" className="animate-spin" />
-          )}
+          {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
           {group.joined ? "发消息" : "加入群聊"}
         </Button>
       </div>
@@ -214,10 +179,7 @@ export function ContactDetailPanel({
   const displayName = getContactDisplayName(contact)
 
   return (
-    <div
-      className={CONTACT_DETAIL_PANEL_CLASS}
-      data-testid="contact-detail-panel"
-    >
+    <div className={CONTACT_DETAIL_PANEL_CLASS} data-testid="contact-detail-panel">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col items-center text-center">
           <Avatar
@@ -225,11 +187,7 @@ export function ContactDetailPanel({
             data-testid="contact-detail-avatar"
           >
             {contact.avatar && (
-              <AvatarImage
-                alt={displayName}
-                className="rounded-sm"
-                src={contact.avatar}
-              />
+              <AvatarImage alt={displayName} className="rounded-sm" src={contact.avatar} />
             )}
             <AvatarFallback className="rounded-sm text-xl">
               {getContactInitial(displayName)}
@@ -266,9 +224,7 @@ export function ContactDetailPanel({
             onClick={onStartConversation}
             type="button"
           >
-            {startingConversation && (
-              <Loader2Icon aria-hidden="true" className="animate-spin" />
-            )}
+            {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
             发消息
           </Button>
         )}
@@ -304,9 +260,7 @@ function ContactDetailRow({
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
       {icon}
       <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
-      <span
-        className={cn("min-w-0 truncate", !hasValue && "text-muted-foreground")}
-      >
+      <span className={cn("min-w-0 truncate", !hasValue && "text-muted-foreground")}>
         {displayValue}
       </span>
     </div>

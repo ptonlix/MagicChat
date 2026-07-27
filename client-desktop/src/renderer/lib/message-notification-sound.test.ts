@@ -50,8 +50,7 @@ describe("message notification sound", () => {
     }
     vi.stubGlobal("Audio", AudioMock)
 
-    const { playMessageNotificationSound } =
-      await import("./message-notification-sound")
+    const { playMessageNotificationSound } = await import("./message-notification-sound")
 
     expect(() => playMessageNotificationSound()).not.toThrow()
     await Promise.resolve()

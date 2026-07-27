@@ -171,6 +171,7 @@ NODE_OPTIONS="--max-old-space-size=512" \
   nice -n 10 \
   pnpm build
 ```
+
 ```
 
 - `--max-old-space-size=512` 限制 Node.js V8 堆内存，`nice -n 10` 只降低 CPU 调度优先级，
@@ -215,3 +216,4 @@ NODE_OPTIONS="--max-old-space-size=512" \
 4. 执行本文件要求的验证命令，并记录未执行项目及原因。
 5. 检查 `git diff`，确保没有生成物、敏感信息或无关改动。
 6. 涉及协议或安全时，记录跨端影响；涉及 UI 时，记录人工验收窗口和主题。
+```

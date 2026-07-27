@@ -37,19 +37,16 @@ export function ConversationSearchPopover({
     const nextIndex = createConversationSearchIndex(
       conversations,
       currentUserId,
-      searchIndexRef.current
+      searchIndexRef.current,
     )
     searchIndexRef.current = nextIndex
     return nextIndex
   }, [conversations, currentUserId])
   const results = React.useMemo(
     () => searchConversationIndex(searchIndex, keyword),
-    [keyword, searchIndex]
+    [keyword, searchIndex],
   )
-  const visibleSelectedIndex = getVisibleSelectedIndex(
-    selectedIndex,
-    results.length
-  )
+  const visibleSelectedIndex = getVisibleSelectedIndex(selectedIndex, results.length)
 
   React.useEffect(() => {
     if (!open || results.length === 0) {
@@ -100,9 +97,7 @@ export function ConversationSearchPopover({
         return
       }
 
-      setSelectedIndex((current) =>
-        getNextSelectedIndex(current, results.length, direction)
-      )
+      setSelectedIndex((current) => getNextSelectedIndex(current, results.length, direction))
       return
     }
 
@@ -129,9 +124,7 @@ export function ConversationSearchPopover({
           <Search className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
           <SidebarInput
             aria-activedescendant={
-              open && results.length > 0
-                ? getOptionId(listboxId, visibleSelectedIndex)
-                : undefined
+              open && results.length > 0 ? getOptionId(listboxId, visibleSelectedIndex) : undefined
             }
             aria-autocomplete="list"
             aria-controls={listboxId}
@@ -153,10 +146,7 @@ export function ConversationSearchPopover({
         align="start"
         className="max-h-80 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1"
         onInteractOutside={(event) => {
-          if (
-            event.target instanceof Node &&
-            anchorRef.current?.contains(event.target)
-          ) {
+          if (event.target instanceof Node && anchorRef.current?.contains(event.target)) {
             event.preventDefault()
           }
         }}
@@ -164,9 +154,7 @@ export function ConversationSearchPopover({
       >
         <div aria-label="搜索会话结果" id={listboxId} role="listbox">
           {results.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              未找到相关会话
-            </p>
+            <p className="px-3 py-8 text-center text-sm text-muted-foreground">未找到相关会话</p>
           ) : (
             results.map((result, index) => {
               const selected = index === visibleSelectedIndex
@@ -176,7 +164,7 @@ export function ConversationSearchPopover({
                   aria-selected={selected}
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left outline-none",
-                    selected && "bg-accent text-accent-foreground"
+                    selected && "bg-accent text-accent-foreground",
                   )}
                   id={getOptionId(listboxId, index)}
                   key={result.conversation.id}
@@ -190,19 +178,13 @@ export function ConversationSearchPopover({
                   tabIndex={-1}
                   type="button"
                 >
-                  <ConversationSearchResultAvatar
-                    conversation={result.conversation}
-                  />
+                  <ConversationSearchResultAvatar conversation={result.conversation} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
                       {getConversationDisplayName(result.conversation)}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {getSearchResultDescription(
-                        result,
-                        keyword,
-                        getConversationDescription
-                      )}
+                      {getSearchResultDescription(result, keyword, getConversationDescription)}
                     </span>
                   </span>
                 </button>
@@ -215,11 +197,7 @@ export function ConversationSearchPopover({
   )
 }
 
-function ConversationSearchResultAvatar({
-  conversation,
-}: {
-  conversation: ClientConversation
-}) {
+function ConversationSearchResultAvatar({ conversation }: { conversation: ClientConversation }) {
   return (
     <ConversationAvatar
       className="size-8"
@@ -232,7 +210,7 @@ function ConversationSearchResultAvatar({
 function getSearchResultDescription(
   result: ConversationSearchResult,
   keyword: string,
-  getConversationDescription: (conversation: ClientConversation) => string
+  getConversationDescription: (conversation: ClientConversation) => string,
 ) {
   if (!keyword.trim()) {
     return getConversationDescription(result.conversation)
@@ -270,11 +248,7 @@ function getVisibleSelectedIndex(index: number, length: number) {
   return Math.min(index, length - 1)
 }
 
-function getNextSelectedIndex(
-  current: number,
-  length: number,
-  key: "ArrowDown" | "ArrowUp"
-) {
+function getNextSelectedIndex(current: number, length: number, key: "ArrowDown" | "ArrowUp") {
   const visibleCurrent = getVisibleSelectedIndex(current, length)
 
   if (key === "ArrowDown") {

@@ -1,14 +1,10 @@
 import { pinyin } from "pinyin-pro"
 
-export function createPinyinSearchText(
-  values: Array<string | null | undefined>
-) {
+export function createPinyinSearchText(values: Array<string | null | undefined>) {
   return createPinyinSearchTokens(values).join(" ")
 }
 
-export function createPinyinSearchTokens(
-  values: Array<string | null | undefined>
-) {
+export function createPinyinSearchTokens(values: Array<string | null | undefined>) {
   const tokens = new Set<string>()
 
   for (const value of values) {
@@ -48,15 +44,11 @@ function addSearchToken(tokens: Set<string>, value: string | null | undefined) {
       pattern: "first",
       toneType: "none",
       type: "array",
-    }).join("")
+    }).join(""),
   )
 }
 
-function addPinyinToken(
-  tokens: Set<string>,
-  value: string,
-  preserveSpaces = false
-) {
+function addPinyinToken(tokens: Set<string>, value: string, preserveSpaces = false) {
   const normalizedValue = preserveSpaces
     ? value.trim().toLowerCase().replace(/\s+/g, " ")
     : normalizeSearchToken(value)

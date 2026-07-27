@@ -101,9 +101,7 @@ export function UpdateProjectTaskStatusDialog({
       <DialogContent className="gap-5">
         <DialogHeader>
           <DialogTitle>修改状态</DialogTitle>
-          <DialogDescription className="sr-only">
-            选择任务的新状态。
-          </DialogDescription>
+          <DialogDescription className="sr-only">选择任务的新状态。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <RadioGroup
@@ -119,7 +117,7 @@ export function UpdateProjectTaskStatusDialog({
                 <label
                   className={cn(
                     "flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:bg-muted",
-                    status === option.value && "border-foreground/30 bg-muted"
+                    status === option.value && "border-foreground/30 bg-muted",
                   )}
                   htmlFor={id}
                   key={option.value}

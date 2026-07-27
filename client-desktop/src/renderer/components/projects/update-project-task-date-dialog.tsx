@@ -56,17 +56,13 @@ export function UpdateProjectTaskDateDialog({
     setSaving(true)
     try {
       await updateClientProjectTask(projectId, taskId, {
-        ...(dateType === "start"
-          ? { startDate: value || null }
-          : { dueDate: value || null }),
+        ...(dateType === "start" ? { startDate: value || null } : { dueDate: value || null }),
       })
       await onUpdated()
       onOpenChange(false)
       toast.success(`${fieldLabel}已更新`)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : `更新${fieldLabel}失败`
-      )
+      toast.error(error instanceof Error ? error.message : `更新${fieldLabel}失败`)
     } finally {
       setSaving(false)
     }
@@ -77,17 +73,13 @@ export function UpdateProjectTaskDateDialog({
       <DialogContent className="gap-5 sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>修改{fieldLabel}</DialogTitle>
-          <DialogDescription className="sr-only">
-            选择任务的{fieldLabel}。
-          </DialogDescription>
+          <DialogDescription className="sr-only">选择任务的{fieldLabel}。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <ProjectTaskDatePicker
             disabled={saving}
             label={fieldLabel}
-            maximum={
-              dateType === "start" ? (otherValue ?? undefined) : undefined
-            }
+            maximum={dateType === "start" ? (otherValue ?? undefined) : undefined}
             minimum={dateType === "due" ? (otherValue ?? undefined) : undefined}
             onValueChange={setValue}
             value={value}
@@ -101,10 +93,7 @@ export function UpdateProjectTaskDateDialog({
             >
               取消
             </Button>
-            <Button
-              disabled={saving || value === (currentValue ?? "")}
-              type="submit"
-            >
+            <Button disabled={saving || value === (currentValue ?? "")} type="submit">
               {saving && <Spinner />}
               保存
             </Button>

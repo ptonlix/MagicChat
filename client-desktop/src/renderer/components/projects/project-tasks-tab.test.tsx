@@ -12,9 +12,7 @@ const projectTaskApiMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/project-task-data-api", async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import("@/lib/project-task-data-api")
-  >()
+  const original = await importOriginal<typeof import("@/lib/project-task-data-api")>()
   return {
     ...original,
     getClientProjectTask: projectTaskApiMocks.getClientProjectTask,
@@ -61,20 +59,13 @@ describe("ProjectTasksTab task details route state", () => {
 
     renderProjectTasksTab("/projects/project-1?source=link&taskId=task-1")
 
-    expect(await screen.findByRole("dialog", { name: "任务详情" })).toHaveTextContent(
-      task.title
-    )
-    expect(projectTaskApiMocks.getClientProjectTask).toHaveBeenCalledWith(
-      "project-1",
-      "task-1"
-    )
+    expect(await screen.findByRole("dialog", { name: "任务详情" })).toHaveTextContent(task.title)
+    expect(projectTaskApiMocks.getClientProjectTask).toHaveBeenCalledWith("project-1", "task-1")
 
     await user.click(screen.getByRole("button", { name: "关闭详情" }))
 
     await waitFor(() => {
-      expect(screen.getByTestId("location-search")).toHaveTextContent(
-        "?source=link"
-      )
+      expect(screen.getByTestId("location-search")).toHaveTextContent("?source=link")
     })
     expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument()
   })
@@ -92,13 +83,11 @@ describe("ProjectTasksTab task details route state", () => {
     await user.click(
       await screen.findByRole("button", {
         name: `查看任务详情：${task.title}`,
-      })
+      }),
     )
 
     expect(await screen.findByRole("dialog", { name: "任务详情" })).toBeInTheDocument()
-    expect(screen.getByTestId("location-search")).toHaveTextContent(
-      "source=list&taskId=task-1"
-    )
+    expect(screen.getByTestId("location-search")).toHaveTextContent("source=list&taskId=task-1")
   })
 })
 
@@ -119,7 +108,7 @@ function renderProjectTasksTab(initialEntry: string) {
           }
         />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 

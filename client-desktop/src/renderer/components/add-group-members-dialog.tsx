@@ -45,18 +45,12 @@ type AddGroupUserCandidate = Pick<
   "avatar" | "email" | "id" | "name" | "nickname" | "phone" | "type"
 >
 
-type AddGroupAppCandidate = Pick<
-  ContactApp,
-  "avatar" | "description" | "id" | "name" | "type"
->
+type AddGroupAppCandidate = Pick<ContactApp, "avatar" | "description" | "id" | "name" | "type">
 
 type AddGroupMemberCandidate = AddGroupUserCandidate | AddGroupAppCandidate
 
-export function AddGroupMembersDialog({
-  conversation,
-}: AddGroupMembersDialogProps) {
-  const { addGroupConversationMembers, contactApps, contacts, me } =
-    useClientData()
+export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogProps) {
+  const { addGroupConversationMembers, contactApps, contacts, me } = useClientData()
   const [keyword, setKeyword] = React.useState("")
   const [open, setOpen] = React.useState(false)
   const [tab, setTab] = React.useState<"users" | "apps">("users")
@@ -64,22 +58,20 @@ export function AddGroupMembersDialog({
   const existingMemberKeys = React.useMemo(
     () =>
       new Set(
-        (conversation.members ?? []).map((member) =>
-          memberCandidateKey(member.type, member.id)
-        )
+        (conversation.members ?? []).map((member) => memberCandidateKey(member.type, member.id)),
       ),
-    [conversation.members]
+    [conversation.members],
   )
-  const [selectedMemberKeys, setSelectedMemberKeys] = React.useState<
-    Set<string>
-  >(() => new Set(existingMemberKeys))
+  const [selectedMemberKeys, setSelectedMemberKeys] = React.useState<Set<string>>(
+    () => new Set(existingMemberKeys),
+  )
   const userCandidates = React.useMemo(
     () => createUserCandidates(conversation.members ?? [], me, contacts),
-    [contacts, conversation.members, me]
+    [contacts, conversation.members, me],
   )
   const appCandidates = React.useMemo(
     () => createAppCandidates(conversation.members ?? [], contactApps),
-    [contactApps, conversation.members]
+    [contactApps, conversation.members],
   )
   const filteredUserCandidates = React.useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase()
@@ -89,12 +81,9 @@ export function AddGroupMembersDialog({
     }
 
     return userCandidates.filter((candidate) =>
-      [
-        candidate.email,
-        candidate.name,
-        candidate.nickname,
-        candidate.phone,
-      ].some((value) => value.toLowerCase().includes(normalizedKeyword))
+      [candidate.email, candidate.name, candidate.nickname, candidate.phone].some((value) =>
+        value.toLowerCase().includes(normalizedKeyword),
+      ),
     )
   }, [keyword, userCandidates])
   const filteredAppCandidates = React.useMemo(() => {
@@ -106,8 +95,8 @@ export function AddGroupMembersDialog({
 
     return appCandidates.filter((candidate) =>
       [candidate.name, candidate.description].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword)
-      )
+        value.toLowerCase().includes(normalizedKeyword),
+      ),
     )
   }, [appCandidates, keyword])
   const newMemberIds = React.useMemo(
@@ -118,7 +107,7 @@ export function AddGroupMembersDialog({
           const key = memberCandidateKey("user", memberId)
           return selectedMemberKeys.has(key) && !existingMemberKeys.has(key)
         }),
-    [existingMemberKeys, selectedMemberKeys, userCandidates]
+    [existingMemberKeys, selectedMemberKeys, userCandidates],
   )
   const newAppIds = React.useMemo(
     () =>
@@ -128,7 +117,7 @@ export function AddGroupMembersDialog({
           const key = memberCandidateKey("app", appId)
           return selectedMemberKeys.has(key) && !existingMemberKeys.has(key)
         }),
-    [appCandidates, existingMemberKeys, selectedMemberKeys]
+    [appCandidates, existingMemberKeys, selectedMemberKeys],
   )
   const newMemberCount = newMemberIds.length + newAppIds.length
 
@@ -146,10 +135,7 @@ export function AddGroupMembersDialog({
     setOpen(nextOpen)
   }
 
-  function toggleMember(
-    candidate: AddGroupMemberCandidate,
-    checked: boolean | string
-  ) {
+  function toggleMember(candidate: AddGroupMemberCandidate, checked: boolean | string) {
     const key = memberCandidateKey(candidate.type, candidate.id)
     if (existingMemberKeys.has(key) || submitting) {
       return
@@ -184,11 +170,7 @@ export function AddGroupMembersDialog({
 
     setSubmitting(true)
     try {
-      await addGroupConversationMembers(
-        conversation.id,
-        newMemberIds,
-        newAppIds
-      )
+      await addGroupConversationMembers(conversation.id, newMemberIds, newAppIds)
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "添加成员失败")
@@ -200,30 +182,17 @@ export function AddGroupMembersDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          aria-label="添加成员"
-          size="icon-sm"
-          title="添加成员"
-          type="button"
-          variant="ghost"
-        >
+        <Button aria-label="添加成员" size="icon-sm" title="添加成员" type="button" variant="ghost">
           <UserPlus className="size-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="gap-5 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-base">添加成员</DialogTitle>
-          <DialogDescription className="sr-only">
-            选择联系人添加到当前群聊
-          </DialogDescription>
+          <DialogDescription className="sr-only">选择联系人添加到当前群聊</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={handleSubmit}>
-          <Tabs
-            onValueChange={(value) =>
-              setTab(value === "apps" ? "apps" : "users")
-            }
-            value={tab}
-          >
+          <Tabs onValueChange={(value) => setTab(value === "apps" ? "apps" : "users")} value={tab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger disabled={submitting} value="users">
                 成员
@@ -297,10 +266,7 @@ function CandidateList({
   candidates: AddGroupMemberCandidate[]
   emptyText: string
   existingMemberKeys: Set<string>
-  onToggle: (
-    candidate: AddGroupMemberCandidate,
-    checked: boolean | string
-  ) => void
+  onToggle: (candidate: AddGroupMemberCandidate, checked: boolean | string) => void
   selectedMemberKeys: Set<string>
   submitting: boolean
 }) {
@@ -326,9 +292,7 @@ function CandidateList({
           )
         })}
         {candidates.length === 0 && (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            {emptyText}
-          </div>
+          <div className="px-3 py-8 text-center text-sm text-muted-foreground">{emptyText}</div>
         )}
       </ItemGroup>
     </div>
@@ -355,26 +319,17 @@ function AddGroupMemberItem({
       className={cn(
         "px-2 py-1.5",
         disabled ? "cursor-default opacity-75" : "cursor-pointer",
-        checked ? "bg-primary/10" : "hover:bg-muted"
+        checked ? "bg-primary/10" : "hover:bg-muted",
       )}
       size="sm"
     >
       <Label htmlFor={checkboxId}>
         <ItemMedia>
-          <Avatar
-            className="rounded-sm bg-muted after:rounded-sm"
-            data-size="sm"
-          >
+          <Avatar className="rounded-sm bg-muted after:rounded-sm" data-size="sm">
             {candidate.avatar && (
-              <AvatarImage
-                alt={displayName}
-                className="rounded-sm"
-                src={candidate.avatar}
-              />
+              <AvatarImage alt={displayName} className="rounded-sm" src={candidate.avatar} />
             )}
-            <AvatarFallback className="rounded-sm">
-              {getInitial(displayName)}
-            </AvatarFallback>
+            <AvatarFallback className="rounded-sm">{getInitial(displayName)}</AvatarFallback>
           </Avatar>
         </ItemMedia>
         <ItemContent className="min-w-0">
@@ -397,7 +352,7 @@ function AddGroupMemberItem({
 function createUserCandidates(
   members: ClientConversationMember[],
   currentUser: ClientUser,
-  contacts: ContactUser[]
+  contacts: ContactUser[],
 ) {
   const candidatesById = new Map<string, AddGroupUserCandidate>()
 
@@ -425,10 +380,7 @@ function createUserCandidates(
   return Array.from(candidatesById.values())
 }
 
-function createAppCandidates(
-  members: ClientConversationMember[],
-  apps: ContactApp[]
-) {
+function createAppCandidates(members: ClientConversationMember[], apps: ContactApp[]) {
   const candidatesById = new Map<string, AddGroupAppCandidate>()
 
   for (const member of members) {
@@ -452,7 +404,7 @@ function createAppCandidates(
 }
 
 function getMemberDisplayName(
-  member: Pick<AddGroupMemberCandidate, "name"> & { nickname?: string }
+  member: Pick<AddGroupMemberCandidate, "name"> & { nickname?: string },
 ) {
   return member.nickname?.trim() || member.name.trim()
 }

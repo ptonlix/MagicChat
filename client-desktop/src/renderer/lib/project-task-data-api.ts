@@ -10,10 +10,7 @@ import {
 } from "@/components/projects/project-types"
 import { ClientDataRequestError } from "@/lib/client-data-api"
 
-type ProjectTaskDataFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>
+type ProjectTaskDataFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 type ProjectTaskDataSuccessEnvelope<T> = {
   data?: T
@@ -113,7 +110,7 @@ export type ClientProjectTaskPage = {
 export async function listClientProjectTasks(
   projectId: string,
   options: ListClientProjectTasksOptions = {},
-  fetcher: ProjectTaskDataFetch = fetch
+  fetcher: ProjectTaskDataFetch = fetch,
 ): Promise<ClientProjectTaskPage> {
   const query = new URLSearchParams()
   if (options.assigneeUserIds?.length) {
@@ -137,21 +134,18 @@ export async function listClientProjectTasks(
   const suffix = query.size > 0 ? `?${query.toString()}` : ""
   const response = await fetcher(
     `/api/client/projects/${encodeURIComponent(projectId)}/tasks${suffix}`,
-    { credentials: "include", method: "GET" }
+    { credentials: "include", method: "GET" },
   )
   const payload = await readJson<
-    | ProjectTaskDataErrorEnvelope
-    | ProjectTaskDataSuccessEnvelope<ProjectTaskListResponse>
+    ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<ProjectTaskListResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createProjectTaskRequestError(payload, response, "加载任务列表失败")
   }
 
-  const data = (
-    payload as
-      ProjectTaskDataSuccessEnvelope<ProjectTaskListResponse> | undefined
-  )?.data
+  const data = (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskListResponse> | undefined)
+    ?.data
   if (!Array.isArray(data?.tasks)) {
     throw new ClientDataRequestError("任务列表响应格式不正确")
   }
@@ -165,15 +159,14 @@ export async function listClientProjectTasks(
 export async function getClientProjectTask(
   projectId: string,
   taskId: string,
-  fetcher: ProjectTaskDataFetch = fetch
+  fetcher: ProjectTaskDataFetch = fetch,
 ): Promise<ProjectTask> {
   const response = await fetcher(
     `/api/client/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`,
-    { credentials: "include", method: "GET" }
+    { credentials: "include", method: "GET" },
   )
   const payload = await readJson<
-    | ProjectTaskDataErrorEnvelope
-    | ProjectTaskDataSuccessEnvelope<ProjectTaskResponse>
+    ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<ProjectTaskResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -181,38 +174,33 @@ export async function getClientProjectTask(
   }
 
   return normalizeProjectTask(
-    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskResponse> | undefined)
-      ?.data
+    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskResponse> | undefined)?.data,
   )
 }
 
 export async function createClientProjectTask(
   projectId: string,
   input: CreateClientProjectTaskInput,
-  fetcher: ProjectTaskDataFetch = fetch
+  fetcher: ProjectTaskDataFetch = fetch,
 ): Promise<ProjectTask> {
-  const response = await fetcher(
-    `/api/client/projects/${encodeURIComponent(projectId)}/tasks`,
-    {
-      body: JSON.stringify({
-        assignee_user_id: input.assigneeUserId ?? null,
-        description: input.description ?? "",
-        due_date: input.dueDate ?? null,
-        labels: input.labels ?? [],
-        priority: input.priority ?? 2,
-        reminder: serializeProjectTaskReminder(input.reminder ?? null),
-        start_date: input.startDate ?? null,
-        status: input.status ?? "todo",
-        title: input.title,
-      }),
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }
-  )
+  const response = await fetcher(`/api/client/projects/${encodeURIComponent(projectId)}/tasks`, {
+    body: JSON.stringify({
+      assignee_user_id: input.assigneeUserId ?? null,
+      description: input.description ?? "",
+      due_date: input.dueDate ?? null,
+      labels: input.labels ?? [],
+      priority: input.priority ?? 2,
+      reminder: serializeProjectTaskReminder(input.reminder ?? null),
+      start_date: input.startDate ?? null,
+      status: input.status ?? "todo",
+      title: input.title,
+    }),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  })
   const payload = await readJson<
-    | ProjectTaskDataErrorEnvelope
-    | ProjectTaskDataSuccessEnvelope<ProjectTaskResponse>
+    ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<ProjectTaskResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -220,8 +208,7 @@ export async function createClientProjectTask(
   }
 
   return normalizeProjectTask(
-    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskResponse> | undefined)
-      ?.data
+    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskResponse> | undefined)?.data,
   )
 }
 
@@ -229,7 +216,7 @@ export async function updateClientProjectTask(
   projectId: string,
   taskId: string,
   input: UpdateClientProjectTaskInput,
-  fetcher: ProjectTaskDataFetch = fetch
+  fetcher: ProjectTaskDataFetch = fetch,
 ): Promise<ProjectTask> {
   const body: Record<string, unknown> = {}
   if (input.assigneeUserId !== undefined) {
@@ -267,11 +254,10 @@ export async function updateClientProjectTask(
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "PATCH",
-    }
+    },
   )
   const payload = await readJson<
-    | ProjectTaskDataErrorEnvelope
-    | ProjectTaskDataSuccessEnvelope<ProjectTaskResponse>
+    ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<ProjectTaskResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
@@ -279,14 +265,11 @@ export async function updateClientProjectTask(
   }
 
   return normalizeProjectTask(
-    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskResponse> | undefined)
-      ?.data
+    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskResponse> | undefined)?.data,
   )
 }
 
-function normalizeProjectTask(
-  task: ProjectTaskResponse | undefined
-): ProjectTask {
+function normalizeProjectTask(task: ProjectTaskResponse | undefined): ProjectTask {
   if (
     !task ||
     typeof task.id !== "string" ||
@@ -312,9 +295,7 @@ function normalizeProjectTask(
     description: task.description,
     dueDate: normalizeNullableString(task.due_date),
     id: task.id,
-    labels: task.labels.filter(
-      (label): label is string => typeof label === "string"
-    ),
+    labels: task.labels.filter((label): label is string => typeof label === "string"),
     priority: task.priority,
     reminder: normalizeProjectTaskReminder(task.reminder),
     projectId: task.project_id,
@@ -326,7 +307,7 @@ function normalizeProjectTask(
 }
 
 function normalizeProjectTaskReminder(
-  value: ProjectTaskReminderResponse | null | undefined
+  value: ProjectTaskReminderResponse | null | undefined,
 ): ProjectTaskReminder | null {
   if (value === null || value === undefined) {
     return null
@@ -374,15 +355,11 @@ function normalizeProjectTaskReminder(
       throw new ClientDataRequestError("任务提醒响应格式不正确")
     }
     reminder.weekdays = value.weekdays.filter(
-      (weekday): weekday is number =>
-        Number.isInteger(weekday) && weekday >= 1 && weekday <= 7
+      (weekday): weekday is number => Number.isInteger(weekday) && weekday >= 1 && weekday <= 7,
     )
   }
   if (value.frequency === "monthly") {
-    if (
-      typeof value.day_of_month !== "number" ||
-      !Number.isInteger(value.day_of_month)
-    ) {
+    if (typeof value.day_of_month !== "number" || !Number.isInteger(value.day_of_month)) {
       throw new ClientDataRequestError("任务提醒响应格式不正确")
     }
     reminder.dayOfMonth = value.day_of_month
@@ -391,7 +368,7 @@ function normalizeProjectTaskReminder(
 }
 
 function serializeProjectTaskReminder(
-  value: ProjectTaskReminderInput | null
+  value: ProjectTaskReminderInput | null,
 ): Record<string, unknown> | null {
   if (value === null) {
     return null
@@ -413,20 +390,11 @@ function serializeProjectTaskReminder(
   }
 }
 
-function isProjectTaskReminderState(
-  value: unknown
-): value is ProjectTaskReminderState {
-  return (
-    value === "scheduled" ||
-    value === "paused" ||
-    value === "fired" ||
-    value === "expired"
-  )
+function isProjectTaskReminderState(value: unknown): value is ProjectTaskReminderState {
+  return value === "scheduled" || value === "paused" || value === "fired" || value === "expired"
 }
 
-function normalizeProjectTaskUser(
-  user: ProjectTaskUserResponse
-): ProjectTaskUser {
+function normalizeProjectTaskUser(user: ProjectTaskUserResponse): ProjectTaskUser {
   if (typeof user.id !== "string" || typeof user.name !== "string") {
     throw new ClientDataRequestError("任务用户响应格式不正确")
   }
@@ -439,12 +407,7 @@ function normalizeProjectTaskUser(
 }
 
 function isProjectTaskStatus(value: unknown): value is ProjectTaskStatus {
-  return (
-    value === "todo" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "canceled"
-  )
+  return value === "todo" || value === "in_progress" || value === "done" || value === "canceled"
 }
 
 function isProjectTaskPriority(value: unknown): value is ProjectTaskPriority {
@@ -472,17 +435,14 @@ function normalizeNextCursor(value: unknown) {
 }
 
 function createProjectTaskRequestError(
-  payload:
-    | ProjectTaskDataErrorEnvelope
-    | ProjectTaskDataSuccessEnvelope<unknown>
-    | undefined,
+  payload: ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<unknown> | undefined,
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ) {
   const error = (payload as ProjectTaskDataErrorEnvelope | undefined)?.error
   return new ClientDataRequestError(
     error?.message ?? `${fallbackMessage}（HTTP ${response.status}）`,
-    { code: error?.code, status: response.status }
+    { code: error?.code, status: response.status },
   )
 }
 

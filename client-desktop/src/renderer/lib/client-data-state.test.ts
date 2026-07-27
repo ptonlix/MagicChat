@@ -1,31 +1,30 @@
 import { describe, expect, it } from "vitest"
 
 import type { ClientConversation, ClientMessage } from "@/lib/client-data-api"
-import {
-  mergeConversationMessages,
-  orderConversations,
-} from "@/lib/client-data-state"
+import { mergeConversationMessages, orderConversations } from "@/lib/client-data-state"
 
 describe("mergeConversationMessages", () => {
   it("appends newer messages in sequence order", () => {
     const current = [createMessage("message-1", 1)]
     const next = [createMessage("message-3", 3), createMessage("message-2", 2)]
 
-    expect(
-      mergeConversationMessages(current, next).map(({ id }) => id)
-    ).toEqual(["message-1", "message-2", "message-3"])
+    expect(mergeConversationMessages(current, next).map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+    ])
   })
 
   it("prepends an older page in sequence order", () => {
-    const current = [
-      createMessage("message-3", 3),
-      createMessage("message-4", 4),
-    ]
+    const current = [createMessage("message-3", 3), createMessage("message-4", 4)]
     const next = [createMessage("message-2", 2), createMessage("message-1", 1)]
 
-    expect(
-      mergeConversationMessages(current, next).map(({ id }) => id)
-    ).toEqual(["message-1", "message-2", "message-3", "message-4"])
+    expect(mergeConversationMessages(current, next).map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+      "message-4",
+    ])
   })
 
   it("replaces an existing message with its newest representation", () => {
@@ -43,24 +42,25 @@ describe("mergeConversationMessages", () => {
   })
 
   it("falls back to a full merge for overlapping sequence ranges", () => {
-    const current = [
-      createMessage("message-1", 1),
-      createMessage("message-3", 3),
-    ]
+    const current = [createMessage("message-1", 1), createMessage("message-3", 3)]
     const next = [createMessage("message-4", 4), createMessage("message-2", 2)]
 
-    expect(
-      mergeConversationMessages(current, next).map(({ id }) => id)
-    ).toEqual(["message-1", "message-2", "message-3", "message-4"])
+    expect(mergeConversationMessages(current, next).map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+      "message-4",
+    ])
   })
 
   it("uses creation time to order messages with the same sequence", () => {
     const later = createMessage("message-2", 1, "", "2026-07-14T10:01:00Z")
     const earlier = createMessage("message-1", 1, "", "2026-07-14T10:00:00Z")
 
-    expect(
-      mergeConversationMessages([later], [earlier]).map(({ id }) => id)
-    ).toEqual(["message-1", "message-2"])
+    expect(mergeConversationMessages([later], [earlier]).map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+    ])
   })
 })
 
@@ -70,17 +70,11 @@ describe("orderConversations", () => {
       createAppMember("00000000-0000-0000-0000-000000000001"),
     ])
     const regularApp = createConversation("regular-app", "app", "2026-07-18")
-    const activeGroup = createConversation(
-      "active-group",
-      "group",
-      "2026-07-20"
-    )
+    const activeGroup = createConversation("active-group", "group", "2026-07-20")
     const direct = createConversation("direct", "direct", "2026-07-19")
 
     expect(
-      orderConversations([regularApp, assistant, direct, activeGroup]).map(
-        ({ id }) => id
-      )
+      orderConversations([regularApp, assistant, direct, activeGroup]).map(({ id }) => id),
     ).toEqual(["assistant", "active-group", "direct", "regular-app"])
   })
 
@@ -90,9 +84,10 @@ describe("orderConversations", () => {
       createAppMember("00000000-0000-0000-0000-000000000001"),
     ])
 
-    expect(
-      orderConversations([oldGroup, recentApp]).map(({ id }) => id)
-    ).toEqual(["recent-app", "old-group"])
+    expect(orderConversations([oldGroup, recentApp]).map(({ id }) => id)).toEqual([
+      "recent-app",
+      "old-group",
+    ])
   })
 
   it("orders pinned conversations by activity ahead of unpinned conversations", () => {
@@ -107,19 +102,12 @@ describe("orderConversations", () => {
       ...createConversation("recent-pinned", "direct", "2026-07-19"),
       pinned: true,
     }
-    const newestUnpinned = createConversation(
-      "newest-unpinned",
-      "group",
-      "2026-07-20"
-    )
+    const newestUnpinned = createConversation("newest-unpinned", "group", "2026-07-20")
 
     expect(
-      orderConversations([
-        newestUnpinned,
-        olderPinned,
-        assistant,
-        recentPinned,
-      ]).map(({ id }) => id)
+      orderConversations([newestUnpinned, olderPinned, assistant, recentPinned]).map(
+        ({ id }) => id,
+      ),
     ).toEqual(["assistant", "recent-pinned", "older-pinned", "newest-unpinned"])
   })
 })
@@ -128,7 +116,7 @@ function createMessage(
   id: string,
   seq: number,
   content = id,
-  createdAt = `2026-07-14T10:00:${String(seq).padStart(2, "0")}Z`
+  createdAt = `2026-07-14T10:00:${String(seq).padStart(2, "0")}Z`,
 ): ClientMessage {
   return {
     body: { content, type: "text" },
@@ -147,7 +135,7 @@ function createConversation(
   id: string,
   type: ClientConversation["type"],
   activityDate: string,
-  members?: ClientConversation["members"]
+  members?: ClientConversation["members"],
 ): ClientConversation {
   return {
     avatar: "",

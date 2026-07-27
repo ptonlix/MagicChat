@@ -3,10 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { ConversationSearchPopover } from "@/components/conversation/conversation-search-popover"
-import type {
-  ClientConversation,
-  ClientConversationMember,
-} from "@/lib/client-data-api"
+import type { ClientConversation, ClientConversationMember } from "@/lib/client-data-api"
 
 describe("ConversationSearchPopover", () => {
   it("opens on focus and preserves the conversation-list order", async () => {
@@ -58,14 +55,9 @@ describe("ConversationSearchPopover", () => {
       }),
     ])
 
-    await user.type(
-      screen.getByRole("combobox", { name: "搜索消息" }),
-      "产品群"
-    )
+    await user.type(screen.getByRole("combobox", { name: "搜索消息" }), "产品群")
 
-    expect(
-      screen.getByRole("option", { name: /发布计划 - 产品群/ })
-    ).toBeVisible()
+    expect(screen.getByRole("option", { name: /发布计划 - 产品群/ })).toBeVisible()
   })
 
   it("searches by pinyin and selects a result with the mouse", async () => {
@@ -82,7 +74,7 @@ describe("ConversationSearchPopover", () => {
           name: "产品搭档",
         }),
       ],
-      onSelectConversation
+      onSelectConversation,
     )
 
     const input = screen.getByRole("combobox", { name: "搜索消息" })
@@ -106,7 +98,7 @@ describe("ConversationSearchPopover", () => {
         createConversation({ id: "first", name: "项目一" }),
         createConversation({ id: "second", name: "项目二" }),
       ],
-      onSelectConversation
+      onSelectConversation,
     )
 
     const input = screen.getByRole("combobox", { name: "搜索消息" })
@@ -136,7 +128,7 @@ describe("ConversationSearchPopover", () => {
           onSelectConversation={vi.fn()}
         />
         <button type="button">外部按钮</button>
-      </>
+      </>,
     )
 
     const input = screen.getByRole("combobox", { name: "搜索消息" })
@@ -157,27 +149,21 @@ describe("ConversationSearchPopover", () => {
     const user = userEvent.setup()
     renderSearch([createConversation({ name: "设计讨论" })])
 
-    await user.type(
-      screen.getByRole("combobox", { name: "搜索消息" }),
-      "不存在"
-    )
+    await user.type(screen.getByRole("combobox", { name: "搜索消息" }), "不存在")
 
     expect(screen.getByText("未找到相关会话")).toBeInTheDocument()
     expect(screen.queryByRole("option")).not.toBeInTheDocument()
   })
 })
 
-function renderSearch(
-  conversations: ClientConversation[],
-  onSelectConversation = vi.fn()
-) {
+function renderSearch(conversations: ClientConversation[], onSelectConversation = vi.fn()) {
   return render(
     <ConversationSearchPopover
       conversations={conversations}
       currentUserId="current-user"
       getConversationDescription={getConversationDescription}
       onSelectConversation={onSelectConversation}
-    />
+    />,
   )
 }
 
@@ -185,9 +171,7 @@ function getConversationDescription(conversation: ClientConversation) {
   return conversation.lastMessageSummary.trim() || "暂无消息"
 }
 
-function createConversation(
-  overrides: Partial<ClientConversation> = {}
-): ClientConversation {
+function createConversation(overrides: Partial<ClientConversation> = {}): ClientConversation {
   return {
     avatar: "",
     createdAt: "2026-07-01T00:00:00Z",
@@ -208,9 +192,7 @@ function createConversation(
   }
 }
 
-function createMember(
-  overrides: Partial<ClientConversationMember> = {}
-): ClientConversationMember {
+function createMember(overrides: Partial<ClientConversationMember> = {}): ClientConversationMember {
   return {
     avatar: "",
     email: "member@example.com",

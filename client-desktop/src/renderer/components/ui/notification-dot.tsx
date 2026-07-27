@@ -12,7 +12,7 @@ function NotificationDot({
       aria-hidden={ariaHidden}
       className={cn(
         "pointer-events-none inline-flex size-2.5 shrink-0 rounded-full bg-red-500 ring-2 ring-background",
-        className
+        className,
       )}
       data-slot="notification-dot"
       {...props}

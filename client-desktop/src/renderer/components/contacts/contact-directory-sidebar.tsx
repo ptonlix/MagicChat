@@ -1,11 +1,4 @@
-import {
-  Children,
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type ReactNode,
-} from "react"
+import { Children, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import {
   Blocks,
   Bot,
@@ -16,27 +9,15 @@ import {
   Search,
 } from "lucide-react"
 
-import type {
-  DirectorySelection,
-  DirectoryTab,
-} from "@/components/contacts/contact-directory"
+import type { DirectorySelection, DirectoryTab } from "@/components/contacts/contact-directory"
 import { directoryItemKey } from "@/components/contacts/contact-directory"
 import { AppCredentialsDialog } from "@/components/contacts/app-credentials-dialog"
 import { CreateAppDialog } from "@/components/contacts/create-app-dialog"
 import { GroupAvatar } from "@/components/group-avatar"
-import {
-  Avatar,
-  AvatarBadge,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Sidebar,
   SidebarHeader,
@@ -46,11 +27,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { VirtualList } from "@/components/ui/virtual-list"
-import type {
-  ContactApp,
-  ContactGroup,
-  ContactUser,
-} from "@/lib/client-data-api"
+import type { ContactApp, ContactGroup, ContactUser } from "@/lib/client-data-api"
 import type { ClientAppCredentials } from "@/lib/client-api/apps"
 import { cn } from "@/lib/utils"
 
@@ -94,8 +71,9 @@ export function ContactDirectorySidebar({
   openingDirectoryItemKey: string
 }) {
   const [createAppDialogOpen, setCreateAppDialogOpen] = useState(false)
-  const [createdAppCredentials, setCreatedAppCredentials] =
-    useState<ClientAppCredentials | null>(null)
+  const [createdAppCredentials, setCreatedAppCredentials] = useState<ClientAppCredentials | null>(
+    null,
+  )
   const userScrollRef = useRef<HTMLDivElement>(null)
   const appScrollRef = useRef<HTMLDivElement>(null)
   const groupScrollRef = useRef<HTMLDivElement>(null)
@@ -103,12 +81,11 @@ export function ContactDirectorySidebar({
   const normalizedCurrentUserId = currentUserId.toLowerCase()
   const builtInApps = apps.filter((app) => app.creatorUserId === null)
   const ownedApps = apps.filter(
-    (app) => app.creatorUserId?.toLowerCase() === normalizedCurrentUserId
+    (app) => app.creatorUserId?.toLowerCase() === normalizedCurrentUserId,
   )
   const otherApps = apps.filter(
     (app) =>
-      app.creatorUserId !== null &&
-      app.creatorUserId.toLowerCase() !== normalizedCurrentUserId
+      app.creatorUserId !== null && app.creatorUserId.toLowerCase() !== normalizedCurrentUserId,
   )
   const joinedGroups = groups.filter((group) => group.joined)
   const publicGroups = groups.filter((group) => group.visibility === "public")
@@ -127,9 +104,7 @@ export function ContactDirectorySidebar({
             type="button"
             variant="ghost"
           >
-            <RefreshCw
-              className={cn("size-4", contactsRefreshing && "animate-spin")}
-            />
+            <RefreshCw className={cn("size-4", contactsRefreshing && "animate-spin")} />
           </Button>
         </div>
       </SidebarHeader>
@@ -175,18 +150,11 @@ export function ContactDirectorySidebar({
                     contact={contact}
                     canStartConversation={contact.id !== currentUserId}
                     size="sm"
-                    selected={isDirectorySelection(
-                      activeSelection,
-                      "user",
-                      contact.id
-                    )}
+                    selected={isDirectorySelection(activeSelection, "user", contact.id)}
                     onSelect={() => onSelect({ id: contact.id, type: "user" })}
-                    onStartConversation={() =>
-                      onStartContactConversation(contact)
-                    }
+                    onStartConversation={() => onStartContactConversation(contact)}
                     startingConversation={
-                      openingDirectoryItemKey ===
-                      directoryItemKey("user", contact.id)
+                      openingDirectoryItemKey === directoryItemKey("user", contact.id)
                     }
                   />
                 ))}
@@ -409,10 +377,7 @@ function DirectorySectionCollapsible({
         >
           <span className="flex min-w-0 items-center gap-1.5">
             <ChevronRight
-              className={cn(
-                "size-4 shrink-0 transition-transform",
-                visible && "rotate-90"
-              )}
+              className={cn("size-4 shrink-0 transition-transform", visible && "rotate-90")}
             />
             <span className="truncate">{title}</span>
           </span>
@@ -450,9 +415,7 @@ function GroupDirectoryList({
           selected={isDirectorySelection(activeSelection, "group", group.id)}
           onSelect={() => onSelect({ id: group.id, type: "group" })}
           onStartConversation={() => onStartGroupConversation(group)}
-          startingConversation={
-            openingDirectoryItemKey === directoryItemKey("group", group.id)
-          }
+          startingConversation={openingDirectoryItemKey === directoryItemKey("group", group.id)}
         />
       ))}
       {groups.length === 0 && <DirectoryEmptyState label={ariaLabel} />}
@@ -486,9 +449,7 @@ function AppDirectoryList({
           selected={isDirectorySelection(activeSelection, "app", app.id)}
           onSelect={() => onSelect({ id: app.id, type: "app" })}
           onStartConversation={() => onStartAppConversation(app)}
-          startingConversation={
-            openingDirectoryItemKey === directoryItemKey("app", app.id)
-          }
+          startingConversation={openingDirectoryItemKey === directoryItemKey("app", app.id)}
         />
       ))}
       {apps.length === 0 && <DirectoryEmptyState label={ariaLabel} />}
@@ -499,9 +460,7 @@ function AppDirectoryList({
 function DirectoryEmptyState({ label }: { label: string }) {
   return (
     <div className="group/menu-item relative">
-      <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-        没有匹配的{label}
-      </div>
+      <div className="px-3 py-8 text-center text-sm text-muted-foreground">没有匹配的{label}</div>
     </div>
   )
 }
@@ -526,13 +485,7 @@ function AppListItem({
       actionLoading={startingConversation}
       media={
         <Avatar className="rounded-sm bg-muted after:rounded-sm">
-          {app.avatar && (
-            <AvatarImage
-              alt={app.name}
-              className="rounded-sm"
-              src={app.avatar}
-            />
-          )}
+          {app.avatar && <AvatarImage alt={app.name} className="rounded-sm" src={app.avatar} />}
           <AvatarFallback className="rounded-sm">
             <Bot className="size-4" />
           </AvatarFallback>
@@ -606,20 +559,11 @@ function ContactListItem({
       actionLabel={canStartConversation ? `与 ${title} 对话` : undefined}
       actionLoading={startingConversation}
       media={
-        <Avatar
-          className="rounded-sm bg-muted after:rounded-sm"
-          data-testid="contact-avatar"
-        >
+        <Avatar className="rounded-sm bg-muted after:rounded-sm" data-testid="contact-avatar">
           {contact.avatar && (
-            <AvatarImage
-              alt={displayName}
-              className="rounded-sm"
-              src={contact.avatar}
-            />
+            <AvatarImage alt={displayName} className="rounded-sm" src={contact.avatar} />
           )}
-          <AvatarFallback className="rounded-sm">
-            {getContactInitial(displayName)}
-          </AvatarFallback>
+          <AvatarFallback className="rounded-sm">{getContactInitial(displayName)}</AvatarFallback>
           <ContactAvatarBadge online={contact.online} />
         </Avatar>
       }
@@ -668,7 +612,7 @@ function DirectoryListItem({
         className={cn(
           "gap-2.5 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
           onAction && "pr-8",
-          size === "sm" ? "h-11" : "h-12"
+          size === "sm" ? "h-11" : "h-12",
         )}
         isActive={selected}
         onClick={onSelect}
@@ -705,9 +649,7 @@ function ContactAvatarBadge({ online }: { online: boolean }) {
   return (
     <AvatarBadge
       aria-label={online ? "在线" : "离线"}
-      className={
-        online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"
-      }
+      className={online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"}
     />
   )
 }
@@ -715,7 +657,7 @@ function ContactAvatarBadge({ online }: { online: boolean }) {
 function isDirectorySelection(
   selection: DirectorySelection | null,
   type: DirectorySelection["type"],
-  id: string
+  id: string,
 ) {
   return selection?.type === type && selection.id === id
 }

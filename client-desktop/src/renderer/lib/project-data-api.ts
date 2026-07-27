@@ -1,9 +1,6 @@
 import { ClientDataRequestError } from "@/lib/client-data-api"
 
-type ProjectDataFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>
+type ProjectDataFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 type ProjectDataSuccessEnvelope<T> = {
   data?: T
@@ -177,7 +174,7 @@ export type ClientProjectMemberPage = {
 
 export async function listClientProjects(
   options: { cursor?: string; limit?: number } = {},
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectPage> {
   const query = new URLSearchParams()
 
@@ -201,9 +198,7 @@ export async function listClientProjects(
     throw createProjectRequestError(payload, response, "加载项目列表失败")
   }
 
-  const data = (
-    payload as ProjectDataSuccessEnvelope<ProjectListResponse> | undefined
-  )?.data
+  const data = (payload as ProjectDataSuccessEnvelope<ProjectListResponse> | undefined)?.data
 
   if (
     !data?.personal_project ||
@@ -224,12 +219,12 @@ export async function listClientProjects(
 
 export async function getClientProject(
   projectId: string,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectDetail> {
-  const response = await fetcher(
-    `/api/client/projects/${encodeURIComponent(projectId)}`,
-    { credentials: "include", method: "GET" }
-  )
+  const response = await fetcher(`/api/client/projects/${encodeURIComponent(projectId)}`, {
+    credentials: "include",
+    method: "GET",
+  })
   const payload = await readJson<
     ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<ProjectResponse>
   >(response)
@@ -239,13 +234,13 @@ export async function getClientProject(
   }
 
   return normalizeProjectDetail(
-    (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data
+    (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data,
   )
 }
 
 export async function createClientProject(
   input: CreateClientProjectInput,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectDetail> {
   const response = await fetcher("/api/client/projects", {
     body: JSON.stringify({
@@ -266,9 +261,7 @@ export async function createClientProject(
     throw createProjectRequestError(payload, response, "创建项目失败")
   }
 
-  const project = (
-    payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined
-  )?.data
+  const project = (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data
 
   return normalizeProjectDetail(project)
 }
@@ -276,39 +269,30 @@ export async function createClientProject(
 export async function updateClientProject(
   projectId: string,
   input: UpdateClientProjectInput,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectDetail> {
   return mutateClientProject(projectId, "PATCH", input, "更新项目失败", fetcher)
 }
 
 export async function deleteClientProject(
   projectId: string,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectDetail> {
-  return mutateClientProject(
-    projectId,
-    "DELETE",
-    undefined,
-    "删除项目失败",
-    fetcher
-  )
+  return mutateClientProject(projectId, "DELETE", undefined, "删除项目失败", fetcher)
 }
 
 export async function uploadClientProjectAvatar(
   projectId: string,
   file: File,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectDetail> {
   const formData = new FormData()
   formData.set("file", file)
-  const response = await fetcher(
-    `/api/client/projects/${encodeURIComponent(projectId)}/avatar`,
-    {
-      body: formData,
-      credentials: "include",
-      method: "POST",
-    }
-  )
+  const response = await fetcher(`/api/client/projects/${encodeURIComponent(projectId)}/avatar`, {
+    body: formData,
+    credentials: "include",
+    method: "POST",
+  })
   const payload = await readJson<
     ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<ProjectResponse>
   >(response)
@@ -318,32 +302,29 @@ export async function uploadClientProjectAvatar(
   }
 
   return normalizeProjectDetail(
-    (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data
+    (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data,
   )
 }
 
 export async function listClientProjectGroups(
   projectId: string,
   options: { cursor?: string; limit?: number } = {},
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectGroupPage> {
   const query = createPageQuery(options)
   const response = await fetcher(
     `/api/client/projects/${encodeURIComponent(projectId)}/groups${query}`,
-    { credentials: "include", method: "GET" }
+    { credentials: "include", method: "GET" },
   )
   const payload = await readJson<
-    | ProjectDataErrorEnvelope
-    | ProjectDataSuccessEnvelope<ProjectGroupListResponse>
+    ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<ProjectGroupListResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createProjectRequestError(payload, response, "加载项目群组失败")
   }
 
-  const data = (
-    payload as ProjectDataSuccessEnvelope<ProjectGroupListResponse> | undefined
-  )?.data
+  const data = (payload as ProjectDataSuccessEnvelope<ProjectGroupListResponse> | undefined)?.data
   if (!Array.isArray(data?.groups)) {
     throw new ClientDataRequestError("项目群组响应格式不正确")
   }
@@ -357,53 +338,38 @@ export async function listClientProjectGroups(
 export async function bindClientProjectGroup(
   projectId: string,
   groupId: string,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ) {
-  return mutateClientProjectGroup(
-    projectId,
-    groupId,
-    "PUT",
-    "关联群组失败",
-    fetcher
-  )
+  return mutateClientProjectGroup(projectId, groupId, "PUT", "关联群组失败", fetcher)
 }
 
 export async function unbindClientProjectGroup(
   projectId: string,
   groupId: string,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ) {
-  return mutateClientProjectGroup(
-    projectId,
-    groupId,
-    "DELETE",
-    "解除群组关联失败",
-    fetcher
-  )
+  return mutateClientProjectGroup(projectId, groupId, "DELETE", "解除群组关联失败", fetcher)
 }
 
 export async function listClientProjectMembers(
   projectId: string,
   options: { cursor?: string; limit?: number } = {},
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ): Promise<ClientProjectMemberPage> {
   const query = createPageQuery(options)
   const response = await fetcher(
     `/api/client/projects/${encodeURIComponent(projectId)}/members${query}`,
-    { credentials: "include", method: "GET" }
+    { credentials: "include", method: "GET" },
   )
   const payload = await readJson<
-    | ProjectDataErrorEnvelope
-    | ProjectDataSuccessEnvelope<ProjectMemberListResponse>
+    ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<ProjectMemberListResponse>
   >(response)
 
   if (!response.ok || payload?.success === false) {
     throw createProjectRequestError(payload, response, "加载项目成员失败")
   }
 
-  const data = (
-    payload as ProjectDataSuccessEnvelope<ProjectMemberListResponse> | undefined
-  )?.data
+  const data = (payload as ProjectDataSuccessEnvelope<ProjectMemberListResponse> | undefined)?.data
   if (!Array.isArray(data?.members)) {
     throw new ClientDataRequestError("项目成员响应格式不正确")
   }
@@ -417,28 +383,22 @@ export async function listClientProjectMembers(
 export async function bindGroupConversationProject(
   conversationId: string,
   projectId: string,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ) {
-  return mutateGroupConversationProject(
-    conversationId,
-    projectId,
-    "PUT",
-    "关联项目失败",
-    fetcher
-  )
+  return mutateGroupConversationProject(conversationId, projectId, "PUT", "关联项目失败", fetcher)
 }
 
 export async function unbindGroupConversationProject(
   conversationId: string,
   projectId: string,
-  fetcher: ProjectDataFetch = fetch
+  fetcher: ProjectDataFetch = fetch,
 ) {
   return mutateGroupConversationProject(
     conversationId,
     projectId,
     "DELETE",
     "解除项目关联失败",
-    fetcher
+    fetcher,
   )
 }
 
@@ -447,14 +407,14 @@ async function mutateGroupConversationProject(
   projectId: string,
   method: "DELETE" | "PUT",
   fallbackMessage: string,
-  fetcher: ProjectDataFetch
+  fetcher: ProjectDataFetch,
 ) {
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/projects/${encodeURIComponent(projectId)}`,
     {
       credentials: "include",
       method,
-    }
+    },
   )
   const payload = await readJson<
     ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<Record<string, never>>
@@ -470,20 +430,14 @@ async function mutateClientProject(
   method: "DELETE" | "PATCH",
   input: UpdateClientProjectInput | undefined,
   fallbackMessage: string,
-  fetcher: ProjectDataFetch
+  fetcher: ProjectDataFetch,
 ) {
-  const response = await fetcher(
-    `/api/client/projects/${encodeURIComponent(projectId)}`,
-    {
-      body: input === undefined ? undefined : JSON.stringify(input),
-      credentials: "include",
-      headers:
-        input === undefined
-          ? undefined
-          : { "Content-Type": "application/json" },
-      method,
-    }
-  )
+  const response = await fetcher(`/api/client/projects/${encodeURIComponent(projectId)}`, {
+    body: input === undefined ? undefined : JSON.stringify(input),
+    credentials: "include",
+    headers: input === undefined ? undefined : { "Content-Type": "application/json" },
+    method,
+  })
   const payload = await readJson<
     ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<ProjectResponse>
   >(response)
@@ -493,7 +447,7 @@ async function mutateClientProject(
   }
 
   return normalizeProjectDetail(
-    (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data
+    (payload as ProjectDataSuccessEnvelope<ProjectResponse> | undefined)?.data,
   )
 }
 
@@ -502,11 +456,11 @@ async function mutateClientProjectGroup(
   groupId: string,
   method: "DELETE" | "PUT",
   fallbackMessage: string,
-  fetcher: ProjectDataFetch
+  fetcher: ProjectDataFetch,
 ) {
   const response = await fetcher(
     `/api/client/projects/${encodeURIComponent(projectId)}/groups/${encodeURIComponent(groupId)}`,
-    { credentials: "include", method }
+    { credentials: "include", method },
   )
   const payload = await readJson<
     ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<Record<string, never>>
@@ -518,7 +472,7 @@ async function mutateClientProjectGroup(
 }
 
 function normalizeProjectSummary(
-  project: ProjectSummaryResponse | undefined
+  project: ProjectSummaryResponse | undefined,
 ): ClientProjectSummary {
   if (
     !project ||
@@ -540,9 +494,7 @@ function normalizeProjectSummary(
   }
 }
 
-function normalizeProjectDetail(
-  project: ProjectResponse | undefined
-): ClientProjectDetail {
+function normalizeProjectDetail(project: ProjectResponse | undefined): ClientProjectDetail {
   if (
     !project ||
     typeof project.id !== "string" ||
@@ -554,8 +506,7 @@ function normalizeProjectDetail(
     typeof project.owner.id !== "string" ||
     typeof project.owner.name !== "string" ||
     !project.task_counts ||
-    (project.current_user_role !== "owner" &&
-      project.current_user_role !== "member")
+    (project.current_user_role !== "owner" && project.current_user_role !== "member")
   ) {
     throw new ClientDataRequestError("项目响应格式不正确")
   }
@@ -591,9 +542,7 @@ function normalizeCount(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
-function normalizeProjectGroup(
-  group: ProjectGroupResponse
-): ClientProjectGroup {
+function normalizeProjectGroup(group: ProjectGroupResponse): ClientProjectGroup {
   if (
     typeof group.id !== "string" ||
     typeof group.name !== "string" ||
@@ -612,9 +561,7 @@ function normalizeProjectGroup(
   }
 }
 
-function normalizeProjectMember(
-  member: ProjectMemberResponse
-): ClientProjectMember {
+function normalizeProjectMember(member: ProjectMemberResponse): ClientProjectMember {
   if (
     typeof member.id !== "string" ||
     typeof member.name !== "string" ||
@@ -658,10 +605,9 @@ function normalizeNextCursor(value: string | null | undefined) {
 }
 
 function createProjectRequestError(
-  payload:
-    ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<unknown> | undefined,
+  payload: ProjectDataErrorEnvelope | ProjectDataSuccessEnvelope<unknown> | undefined,
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ) {
   const error = (payload as ProjectDataErrorEnvelope | undefined)?.error
 
@@ -670,7 +616,7 @@ function createProjectRequestError(
     {
       code: error?.code,
       status: response.status,
-    }
+    },
   )
 }
 

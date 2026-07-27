@@ -4,15 +4,9 @@ import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
-import {
-  AppDetailPanel,
-  ContactDetailPanel,
-} from "@/components/contacts/contact-detail-panels"
+import { AppDetailPanel, ContactDetailPanel } from "@/components/contacts/contact-detail-panels"
 import type { ContactApp, ContactUser } from "@/lib/client-data-api"
-import {
-  ClientDataContext,
-  type ClientDataContextValue,
-} from "@/lib/client-data-context"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 const contact: ContactUser = {
   avatar: "",
@@ -34,12 +28,10 @@ describe("ContactDetailPanel", () => {
         contact={contact}
         onStartConversation={vi.fn()}
         startingConversation={false}
-      />
+      />,
     )
 
-    expect(
-      screen.queryByRole("button", { name: "发消息" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "发消息" })).not.toBeInTheDocument()
   })
 
   it("renders a message action for another contact", () => {
@@ -49,7 +41,7 @@ describe("ContactDetailPanel", () => {
         contact={{ ...contact, id: "other-user" }}
         onStartConversation={vi.fn()}
         startingConversation={false}
-      />
+      />,
     )
 
     expect(screen.getByRole("button", { name: "发消息" })).toBeInTheDocument()
@@ -77,7 +69,7 @@ describe("AppDetailPanel", () => {
         onStartConversation={vi.fn()}
         onViewAccessInfo={vi.fn()}
         startingConversation={false}
-      />
+      />,
     )
 
     const accessInfoButton = screen.getByRole("button", {
@@ -101,15 +93,11 @@ describe("AppDetailPanel", () => {
         app={{ ...app, creatorUserId: "other-user" }}
         onStartConversation={vi.fn()}
         startingConversation={false}
-      />
+      />,
     )
 
-    expect(
-      screen.queryByRole("button", { name: "查看接入信息" })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "修改资料" })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "查看接入信息" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "修改资料" })).not.toBeInTheDocument()
     expect(screen.queryByText("开发者")).not.toBeInTheDocument()
   })
 })
@@ -138,6 +126,6 @@ function renderWithClientData(node: ReactNode) {
       >
         {node}
       </ClientDataContext.Provider>
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }

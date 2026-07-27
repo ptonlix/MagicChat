@@ -1,7 +1,4 @@
-type ClientInfoFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>
+type ClientInfoFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 type ClientInfoSuccessEnvelope<T> = {
   data?: T
@@ -79,18 +76,15 @@ export async function getClientInfo(fetcher: ClientInfoFetch = fetch) {
     throw createRequestError(payload, response, "加载应用信息失败")
   }
 
-  const data = (
-    payload as ClientInfoSuccessEnvelope<ClientInfoResponse> | undefined
-  )?.data
+  const data = (payload as ClientInfoSuccessEnvelope<ClientInfoResponse> | undefined)?.data
 
   return normalizeClientInfo(data)
 }
 
 function createRequestError(
-  payload:
-    ClientInfoErrorEnvelope | ClientInfoSuccessEnvelope<unknown> | undefined,
+  payload: ClientInfoErrorEnvelope | ClientInfoSuccessEnvelope<unknown> | undefined,
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ) {
   const error = (payload as ClientInfoErrorEnvelope | undefined)?.error
 
@@ -98,7 +92,7 @@ function createRequestError(
     error?.message ?? `${fallbackMessage}（HTTP ${response.status}）`,
     {
       code: error?.code,
-    }
+    },
   )
 }
 
@@ -108,7 +102,7 @@ function normalizeClientInfo(info: ClientInfoResponse | undefined): AppInfo {
   }
 
   const thirdPartyProviders = normalizeThirdPartyProviders(
-    info.third_party_providers ?? info.oidc_providers
+    info.third_party_providers ?? info.oidc_providers,
   )
 
   return {
@@ -123,7 +117,7 @@ function normalizeClientInfo(info: ClientInfoResponse | undefined): AppInfo {
 }
 
 function normalizeThirdPartyProviders(
-  providers: ClientInfoThirdPartyProviderResponse[] | undefined
+  providers: ClientInfoThirdPartyProviderResponse[] | undefined,
 ): AppInfoThirdPartyProvider[] {
   if (!providers) {
     return []

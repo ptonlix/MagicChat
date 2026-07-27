@@ -23,10 +23,7 @@ import type {
   ClientConversationMessageState,
   ClientDataContextValue,
 } from "@/lib/client-data-context"
-import {
-  emptyConversationMessageState,
-  orderConversations,
-} from "@/lib/client-data-state"
+import { emptyConversationMessageState, orderConversations } from "@/lib/client-data-state"
 
 export function useConversationActions({
   conversations,
@@ -40,10 +37,7 @@ export function useConversationActions({
 }: {
   conversations: ClientConversation[]
   conversationMessageStates: Record<string, ClientConversationMessageState>
-  handleError: (
-    error: unknown,
-    fallbackMessage: string
-  ) => ClientDataRequestError
+  handleError: (error: unknown, fallbackMessage: string) => ClientDataRequestError
   mergeIncomingConversationMessage: ClientDataContextValue["mergeIncomingConversationMessage"]
   navigate: NavigateFunction
   refreshContacts: ClientDataContextValue["refreshContacts"]
@@ -54,31 +48,22 @@ export function useConversationActions({
 }) {
   const getConversationMessageState = useCallback(
     (conversationId: string) => {
-      return (
-        conversationMessageStates[conversationId] ??
-        emptyConversationMessageState
-      )
+      return conversationMessageStates[conversationId] ?? emptyConversationMessageState
     },
-    [conversationMessageStates]
+    [conversationMessageStates],
   )
 
   const getConversation = useCallback(
     (conversationId: string) => {
-      return (
-        conversations.find(
-          (conversation) => conversation.id === conversationId
-        ) ?? null
-      )
+      return conversations.find((conversation) => conversation.id === conversationId) ?? null
     },
-    [conversations]
+    [conversations],
   )
 
   const upsertConversation = useCallback(
     (conversation: ClientConversation) => {
       setConversations((currentConversations) => {
-        const currentConversation = currentConversations.find(
-          (item) => item.id === conversation.id
-        )
+        const currentConversation = currentConversations.find((item) => item.id === conversation.id)
         const nextConversation =
           conversation.projects === undefined && currentConversation?.projects
             ? { ...conversation, projects: currentConversation.projects }
@@ -90,15 +75,13 @@ export function useConversationActions({
         ])
       })
     },
-    [setConversations]
+    [setConversations],
   )
 
   const removeConversation = useCallback(
     (conversationId: string) => {
       setConversations((currentConversations) =>
-        currentConversations.filter(
-          (conversation) => conversation.id !== conversationId
-        )
+        currentConversations.filter((conversation) => conversation.id !== conversationId),
       )
       setConversationMessageStates((currentStates) => {
         const nextStates = { ...currentStates }
@@ -107,7 +90,7 @@ export function useConversationActions({
         return nextStates
       })
     },
-    [setConversationMessageStates, setConversations]
+    [setConversationMessageStates, setConversations],
   )
 
   const openDirectConversation = useCallback(
@@ -120,7 +103,7 @@ export function useConversationActions({
         throw handleError(error, "创建一对一会话失败")
       }
     },
-    [handleError, upsertConversation]
+    [handleError, upsertConversation],
   )
 
   const openAppConversation = useCallback(
@@ -133,7 +116,7 @@ export function useConversationActions({
         throw handleError(error, "创建应用会话失败")
       }
     },
-    [handleError, upsertConversation]
+    [handleError, upsertConversation],
   )
 
   const createGroupConversation = useCallback(
@@ -150,23 +133,16 @@ export function useConversationActions({
         throw handleError(error, "创建群聊失败")
       }
     },
-    [handleError, upsertConversation]
+    [handleError, upsertConversation],
   )
 
   const addGroupConversationMembers = useCallback(
-    async (
-      conversationId: string,
-      memberIds: string[],
-      appIds: string[] = []
-    ) => {
+    async (conversationId: string, memberIds: string[], appIds: string[] = []) => {
       try {
-        const result = await addGroupConversationMembersRequest(
-          conversationId,
-          {
-            appIds,
-            memberIds,
-          }
-        )
+        const result = await addGroupConversationMembersRequest(conversationId, {
+          appIds,
+          memberIds,
+        })
         upsertConversation(result.conversation)
         if (result.message) {
           mergeIncomingConversationMessage(result.message, { markLoaded: true })
@@ -176,14 +152,11 @@ export function useConversationActions({
         throw handleError(error, "添加群聊成员失败")
       }
     },
-    [handleError, mergeIncomingConversationMessage, upsertConversation]
+    [handleError, mergeIncomingConversationMessage, upsertConversation],
   )
 
   const applyGroupConversationAction = useCallback(
-    async (
-      action: () => Promise<GroupConversationActionResult>,
-      fallbackMessage: string
-    ) => {
+    async (action: () => Promise<GroupConversationActionResult>, fallbackMessage: string) => {
       try {
         const result = await action()
         upsertConversation(result.conversation)
@@ -199,48 +172,43 @@ export function useConversationActions({
         throw handleError(error, fallbackMessage)
       }
     },
-    [
-      handleError,
-      mergeIncomingConversationMessage,
-      refreshContacts,
-      upsertConversation,
-    ]
+    [handleError, mergeIncomingConversationMessage, refreshContacts, upsertConversation],
   )
 
   const joinGroupConversation = useCallback(
     async (conversationId: string) =>
       applyGroupConversationAction(
         () => joinGroupConversationRequest(conversationId),
-        "加入群聊失败"
+        "加入群聊失败",
       ),
-    [applyGroupConversationAction]
+    [applyGroupConversationAction],
   )
 
   const setGroupConversationPublic = useCallback(
     async (conversationId: string) =>
       applyGroupConversationAction(
         () => setGroupConversationPublicRequest(conversationId),
-        "设置公开群失败"
+        "设置公开群失败",
       ),
-    [applyGroupConversationAction]
+    [applyGroupConversationAction],
   )
 
   const setGroupConversationPrivate = useCallback(
     async (conversationId: string) =>
       applyGroupConversationAction(
         () => setGroupConversationPrivateRequest(conversationId),
-        "取消公开群失败"
+        "取消公开群失败",
       ),
-    [applyGroupConversationAction]
+    [applyGroupConversationAction],
   )
 
   const updateGroupConversationName = useCallback(
     async (conversationId: string, name: string) =>
       applyGroupConversationAction(
         () => updateGroupConversationNameRequest(conversationId, { name }),
-        "修改群聊名称失败"
+        "修改群聊名称失败",
       ),
-    [applyGroupConversationAction]
+    [applyGroupConversationAction],
   )
 
   const leaveGroupConversation = useCallback(
@@ -254,7 +222,7 @@ export function useConversationActions({
         throw handleError(error, "退出群聊失败")
       }
     },
-    [handleError, navigate, refreshContacts, removeConversation]
+    [handleError, navigate, refreshContacts, removeConversation],
   )
 
   const dissolveGroupConversation = useCallback(
@@ -268,34 +236,22 @@ export function useConversationActions({
         throw handleError(error, "解散群聊失败")
       }
     },
-    [handleError, navigate, refreshContacts, removeConversation]
+    [handleError, navigate, refreshContacts, removeConversation],
   )
 
   const removeGroupConversationMember = useCallback(
-    async (
-      conversationId: string,
-      memberId: string,
-      memberType: "user" | "app" = "user"
-    ) =>
+    async (conversationId: string, memberId: string, memberType: "user" | "app" = "user") =>
       applyGroupConversationAction(
-        () =>
-          removeGroupConversationMemberRequest(
-            conversationId,
-            memberId,
-            memberType
-          ),
-        "移出群聊成员失败"
+        () => removeGroupConversationMemberRequest(conversationId, memberId, memberType),
+        "移出群聊成员失败",
       ),
-    [applyGroupConversationAction]
+    [applyGroupConversationAction],
   )
 
   const updateGroupConversationAvatar = useCallback(
     async (conversationId: string, file: File) => {
       try {
-        const result = await uploadGroupConversationAvatarRequest(
-          conversationId,
-          file
-        )
+        const result = await uploadGroupConversationAvatarRequest(conversationId, file)
         upsertConversation(result.conversation)
         mergeIncomingConversationMessage(result.message, { markLoaded: true })
         return result.conversation
@@ -303,16 +259,13 @@ export function useConversationActions({
         throw handleError(error, "上传群头像失败")
       }
     },
-    [handleError, mergeIncomingConversationMessage, upsertConversation]
+    [handleError, mergeIncomingConversationMessage, upsertConversation],
   )
 
   const revokeConversationMessage = useCallback(
     async (conversationId: string, messageId: string) => {
       try {
-        const result = await revokeConversationMessageRequest(
-          conversationId,
-          messageId
-        )
+        const result = await revokeConversationMessageRequest(conversationId, messageId)
         mergeIncomingConversationMessage(result.message, {
           markLoaded: true,
           updateList: false,
@@ -324,7 +277,7 @@ export function useConversationActions({
         throw handleError(error, "撤回消息失败")
       }
     },
-    [handleError, mergeIncomingConversationMessage]
+    [handleError, mergeIncomingConversationMessage],
   )
 
   return {

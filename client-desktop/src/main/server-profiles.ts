@@ -47,7 +47,10 @@ export class ServerProfiles {
 }
 
 function cleanName(value: string): string {
-  const result = value.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 120)
+  const result = value
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .slice(0, 120)
   if (!result) throw new Error("服务器名称不能为空")
   return result
 }

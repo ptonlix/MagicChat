@@ -1,12 +1,5 @@
 import type { ReactNode } from "react"
-import {
-  Bot,
-  FolderClosed,
-  MessagesSquare,
-  Settings,
-  UserRound,
-  UsersRound,
-} from "lucide-react"
+import { Bot, FolderClosed, MessagesSquare, Settings, UserRound, UsersRound } from "lucide-react"
 import { type ClientConversation } from "@/lib/client-data-api"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { AppProfilePopover } from "@/components/app-profile-popover"
@@ -39,9 +32,7 @@ export function ConversationPanelHeader({
           online={online}
         />
         <div className="flex min-w-0 flex-col justify-center">
-          <h2 className="min-w-0 truncate text-sm leading-5 font-medium">
-            {conversation.name}
-          </h2>
+          <h2 className="min-w-0 truncate text-sm leading-5 font-medium">{conversation.name}</h2>
           {conversation.type === "group" && (
             <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <UsersRound className="size-3" />
@@ -66,18 +57,14 @@ export function ConversationPanelHeader({
               title={getTopicTypeLabel(conversation)}
             >
               <MessagesSquare className="size-3 shrink-0" />
-              <span className="truncate">
-                {getTopicTypeLabel(conversation)}
-              </span>
+              <span className="truncate">{getTopicTypeLabel(conversation)}</span>
             </span>
           )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {actions}
-        {conversation.type === "group" && (
-          <AddGroupMembersDialog conversation={conversation} />
-        )}
+        {conversation.type === "group" && <AddGroupMembersDialog conversation={conversation} />}
         {conversation.type !== "topic" && (
           <Button
             aria-label="历史附件"
@@ -113,8 +100,7 @@ function getGroupMemberCount(conversation: ClientConversation) {
 }
 
 function getTopicTypeLabel(conversation: ClientConversation) {
-  const parentConversationName =
-    conversation.topic?.parentConversationName.trim()
+  const parentConversationName = conversation.topic?.parentConversationName.trim()
 
   return parentConversationName ? `话题 - ${parentConversationName}` : "话题"
 }
@@ -128,28 +114,19 @@ function ConversationPanelHeaderProfileAvatar({
   currentUserId: string
   online?: boolean
 }) {
-  const avatar = (
-    <ConversationPanelHeaderAvatar
-      conversation={conversation}
-      online={online}
-    />
-  )
+  const avatar = <ConversationPanelHeaderAvatar conversation={conversation} online={online} />
 
   if (conversation.type === "topic") {
     return avatar
   }
 
   if (conversation.type === "group") {
-    return (
-      <GroupProfilePopover conversation={conversation}>
-        {avatar}
-      </GroupProfilePopover>
-    )
+    return <GroupProfilePopover conversation={conversation}>{avatar}</GroupProfilePopover>
   }
 
   if (conversation.type === "direct") {
     const otherMember = conversation.members?.find(
-      (member) => member.type === "user" && member.id !== currentUserId
+      (member) => member.type === "user" && member.id !== currentUserId,
     )
 
     if (!otherMember) {
@@ -167,9 +144,7 @@ function ConversationPanelHeaderProfileAvatar({
     )
   }
 
-  const appMember = conversation.members?.find(
-    (member) => member.type === "app"
-  )
+  const appMember = conversation.members?.find((member) => member.type === "app")
   const appId = appMember?.id ?? conversation.id
 
   return (

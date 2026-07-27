@@ -26,22 +26,18 @@ export function useConversationSenders({
   mergeIncomingConversationMessage,
   updateConversationMessageState,
 }: {
-  conversationMessageStatesRef: RefObject<
-    Record<string, ClientConversationMessageState>
-  >
+  conversationMessageStatesRef: RefObject<Record<string, ClientConversationMessageState>>
   mergeIncomingConversationMessage: ClientDataContextValue["mergeIncomingConversationMessage"]
   updateConversationMessageState: (
     conversationId: string,
-    updater: (
-      state: ClientConversationMessageState
-    ) => ClientConversationMessageState
+    updater: (state: ClientConversationMessageState) => ClientConversationMessageState,
   ) => void
 }) {
   const sendConversationText = useCallback(
     async (
       conversationId: string,
       content: string,
-      options: SendConversationMessageOptions = {}
+      options: SendConversationMessageOptions = {},
     ) => {
       const trimmedContent = content.trim()
       const state = conversationMessageStatesRef.current[conversationId]
@@ -77,14 +73,14 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   const sendConversationMarkdown = useCallback(
     async (
       conversationId: string,
       content: string,
-      options: SendConversationMessageOptions = {}
+      options: SendConversationMessageOptions = {},
     ) => {
       const trimmedContent = content.trim()
       const state = conversationMessageStatesRef.current[conversationId]
@@ -120,15 +116,11 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   const sendConversationLink = useCallback(
-    async (
-      conversationId: string,
-      url: string,
-      options: SendConversationMessageOptions = {}
-    ) => {
+    async (conversationId: string, url: string, options: SendConversationMessageOptions = {}) => {
       const trimmedURL = url.trim()
       const state = conversationMessageStatesRef.current[conversationId]
       if (!conversationId || !trimmedURL || state?.sending) {
@@ -163,14 +155,14 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   const sendConversationCard = useCallback(
     async (
       conversationId: string,
       card: ClientCardSendInput,
-      options: SendConversationMessageOptions = {}
+      options: SendConversationMessageOptions = {},
     ) => {
       const state = conversationMessageStatesRef.current[conversationId]
       if (!conversationId || !isValidCardSendInput(card) || state?.sending) {
@@ -215,15 +207,11 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   const sendConversationFile = useCallback(
-    async (
-      conversationId: string,
-      file: File,
-      options: SendConversationMessageOptions = {}
-    ) => {
+    async (conversationId: string, file: File, options: SendConversationMessageOptions = {}) => {
       const state = conversationMessageStatesRef.current[conversationId]
       if (!conversationId || state?.sending) {
         return null
@@ -257,15 +245,11 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   const sendConversationImage = useCallback(
-    async (
-      conversationId: string,
-      image: File,
-      options: SendConversationMessageOptions = {}
-    ) => {
+    async (conversationId: string, image: File, options: SendConversationMessageOptions = {}) => {
       const state = conversationMessageStatesRef.current[conversationId]
       if (!conversationId || state?.sending) {
         return null
@@ -299,14 +283,14 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   const sendConversationVoice = useCallback(
     async (
       conversationId: string,
       voice: VoiceMessageRecording,
-      options: SendConversationMessageOptions = {}
+      options: SendConversationMessageOptions = {},
     ) => {
       const state = conversationMessageStatesRef.current[conversationId]
       if (!conversationId || state?.sending) {
@@ -342,7 +326,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
-    ]
+    ],
   )
 
   return {
@@ -360,7 +344,5 @@ function isValidCardSendInput(card: ClientCardSendInput) {
   if (card.type === "entity_card") {
     return Boolean(card.entityId.trim())
   }
-  return Boolean(
-    card.title.trim() && card.description.trim() && card.url.trim()
-  )
+  return Boolean(card.title.trim() && card.description.trim() && card.url.trim())
 }

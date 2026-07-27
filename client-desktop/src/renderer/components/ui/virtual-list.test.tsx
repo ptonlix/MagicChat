@@ -7,12 +7,13 @@ import { VirtualList } from "@/components/ui/virtual-list"
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: ({ count }: { count: number }) => ({
     getTotalSize: () => count * 40,
-    getVirtualItems: () => count > 0
-      ? [
-          { index: 10, key: "item-10", start: 400 },
-          { index: 11, key: "item-11", start: 440 },
-        ]
-      : [],
+    getVirtualItems: () =>
+      count > 0
+        ? [
+            { index: 10, key: "item-10", start: 400 },
+            { index: 11, key: "item-11", start: 440 },
+          ]
+        : [],
     measure: vi.fn(),
     measureElement: vi.fn(),
   }),

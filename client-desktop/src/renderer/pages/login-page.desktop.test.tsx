@@ -55,7 +55,11 @@ describe("Desktop 第三方登录", () => {
   })
 
   it("打开内嵌认证窗口并提供取消入口", async () => {
-    render(<MemoryRouter><LoginPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
     fireEvent.click(screen.getByRole("link", { name: "使用 OIDC 登录" }))
 
     const cancel = await screen.findByRole("button", { name: "取消 OIDC 登录" })
@@ -66,7 +70,11 @@ describe("Desktop 第三方登录", () => {
   })
 
   it("认证窗口关闭后恢复登录入口", async () => {
-    render(<MemoryRouter><LoginPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
     fireEvent.click(screen.getByRole("link", { name: "使用 OIDC 登录" }))
     await screen.findByRole("button", { name: "取消 OIDC 登录" })
 
@@ -77,14 +85,16 @@ describe("Desktop 第三方登录", () => {
       })
     })
 
-    expect(
-      await screen.findByRole("link", { name: "使用 OIDC 登录" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "使用 OIDC 登录" })).toBeInTheDocument()
     expect(mocks.toastInfo).toHaveBeenCalledWith("已关闭第三方登录窗口")
   })
 
   it("展示 Main 返回的认证错误", async () => {
-    render(<MemoryRouter><LoginPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
     fireEvent.click(screen.getByRole("link", { name: "使用 OIDC 登录" }))
     await screen.findByRole("button", { name: "取消 OIDC 登录" })
 

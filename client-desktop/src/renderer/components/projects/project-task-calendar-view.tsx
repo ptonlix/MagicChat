@@ -15,16 +15,8 @@ import {
 } from "@/components/projects/project-task-view-utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
 const weekdayLabels = ["一", "二", "三", "四", "五", "六", "日"]
@@ -45,18 +37,14 @@ export function ProjectTaskCalendarView({
   tasks: ProjectTask[]
 }) {
   const [monthPickerOpen, setMonthPickerOpen] = React.useState(false)
-  const [monthPickerYear, setMonthPickerYear] = React.useState(() =>
-    new Date().getFullYear()
-  )
+  const [monthPickerYear, setMonthPickerYear] = React.useState(() => new Date().getFullYear())
   const [visibleMonth, setVisibleMonth] = React.useState(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   )
 
   const calendarDays = getCalendarDays(visibleMonth)
   const tasksByDate = getTasksByDate(tasks, calendarDays)
-  const unscheduledTasks = tasks.filter(
-    (task) => !getProjectTaskDateRange(task)
-  )
+  const unscheduledTasks = tasks.filter((task) => !getProjectTaskDateRange(task))
   const today = new Date()
   const todayKey = formatDateKey(today)
   const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -70,10 +58,7 @@ export function ProjectTaskCalendarView({
       ) : (
         <div className="grid gap-4">
           {unscheduledTasks.length > 0 && (
-            <UnscheduledCalendarTasks
-              onOpenTask={onOpenTask}
-              tasks={unscheduledTasks}
-            />
+            <UnscheduledCalendarTasks onOpenTask={onOpenTask} tasks={unscheduledTasks} />
           )}
           <section className="overflow-hidden rounded-md border bg-background shadow-xs">
             <header className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
@@ -88,8 +73,7 @@ export function ProjectTaskCalendarView({
               >
                 <PopoverTrigger asChild>
                   <Button type="button" variant="ghost">
-                    {visibleMonth.getFullYear()} 年{" "}
-                    {visibleMonth.getMonth() + 1} 月
+                    {visibleMonth.getFullYear()} 年 {visibleMonth.getMonth() + 1} 月
                     <ChevronDown />
                   </Button>
                 </PopoverTrigger>
@@ -105,9 +89,7 @@ export function ProjectTaskCalendarView({
                     >
                       <ChevronLeft />
                     </Button>
-                    <span className="text-sm font-medium tabular-nums">
-                      {monthPickerYear} 年
-                    </span>
+                    <span className="text-sm font-medium tabular-nums">{monthPickerYear} 年</span>
                     <Button
                       aria-label="下一年"
                       onClick={() => setMonthPickerYear((year) => year + 1)}
@@ -123,8 +105,7 @@ export function ProjectTaskCalendarView({
                     {Array.from({ length: 12 }, (_, month) => {
                       const monthDate = new Date(monthPickerYear, month, 1)
                       const current =
-                        monthPickerYear === today.getFullYear() &&
-                        month === today.getMonth()
+                        monthPickerYear === today.getFullYear() && month === today.getMonth()
                       const past = monthDate < currentMonthStart
                       const selected =
                         visibleMonth.getFullYear() === monthPickerYear &&
@@ -136,7 +117,7 @@ export function ProjectTaskCalendarView({
                           className={cn(
                             past && "text-muted-foreground",
                             current &&
-                              "bg-foreground text-background hover:bg-foreground/90 hover:text-background"
+                              "bg-foreground text-background hover:bg-foreground/90 hover:text-background",
                           )}
                           key={month}
                           onClick={() => {
@@ -157,13 +138,7 @@ export function ProjectTaskCalendarView({
               <Button
                 onClick={() => {
                   const currentDate = new Date()
-                  setVisibleMonth(
-                    new Date(
-                      currentDate.getFullYear(),
-                      currentDate.getMonth(),
-                      1
-                    )
-                  )
+                  setVisibleMonth(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1))
                 }}
                 size="sm"
                 type="button"
@@ -179,7 +154,7 @@ export function ProjectTaskCalendarView({
                     <div
                       className={cn(
                         "border-r py-2 text-center text-xs font-medium last:border-r-0",
-                        index > 4 && "bg-muted/40"
+                        index > 4 && "bg-muted/40",
                       )}
                       key={label}
                     >
@@ -191,8 +166,7 @@ export function ProjectTaskCalendarView({
                   {calendarDays.map((date, index) => {
                     const dateKey = formatDateKey(date)
                     const dateTasks = tasksByDate.get(dateKey) ?? []
-                    const isCurrentMonth =
-                      date.getMonth() === visibleMonth.getMonth()
+                    const isCurrentMonth = date.getMonth() === visibleMonth.getMonth()
                     const isPast = dateKey < todayKey
                     const isToday = dateKey === todayKey
 
@@ -202,11 +176,9 @@ export function ProjectTaskCalendarView({
                           "min-h-16 border-r border-b p-1.5 last:border-r-0",
                           index % 7 === 6 && "border-r-0",
                           index >= 35 && "border-b-0",
-                          !isToday &&
-                            (!isCurrentMonth || isPast) &&
-                            "text-muted-foreground",
+                          !isToday && (!isCurrentMonth || isPast) && "text-muted-foreground",
                           isPast && "bg-muted",
-                          isToday && "bg-foreground/10"
+                          isToday && "bg-foreground/10",
                         )}
                         key={dateKey}
                       >
@@ -214,14 +186,11 @@ export function ProjectTaskCalendarView({
                           <time
                             className={cn(
                               "flex h-6 items-center justify-center rounded-md px-1.5 text-xs tabular-nums",
-                              !isCurrentMonth &&
-                                !isToday &&
-                                "text-muted-foreground"
+                              !isCurrentMonth && !isToday && "text-muted-foreground",
                             )}
                             dateTime={dateKey}
                           >
-                            {date.getMonth() + 1} 月 {date.getDate()} 日
-                            {isToday && " - 今天"}
+                            {date.getMonth() + 1} 月 {date.getDate()} 日{isToday && " - 今天"}
                           </time>
                         </div>
                         <div className="grid gap-1">
@@ -266,10 +235,7 @@ function UnscheduledCalendarTasks({
         >
           <ChevronRight className="transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
           未设置日期
-          <Badge
-            className="ml-auto min-w-5 bg-background px-1.5 tabular-nums"
-            variant="secondary"
-          >
+          <Badge className="ml-auto min-w-5 bg-background px-1.5 tabular-nums" variant="secondary">
             {tasks.length}
           </Badge>
         </Button>
@@ -284,20 +250,14 @@ function UnscheduledCalendarTasks({
               type="button"
             >
               <ProjectTaskStatusIcon
-                className={cn(
-                  "shrink-0",
-                  getProjectTaskStatusColor(task.status)
-                )}
+                className={cn("shrink-0", getProjectTaskStatusColor(task.status))}
                 status={task.status}
               />
               <span className="min-w-0 flex-1 truncate transition-colors group-hover/task:text-sky-600">
                 {task.title}
               </span>
               {task.assignee && (
-                <ProjectTaskAssigneeAvatar
-                  assignee={task.assignee}
-                  className="size-4 bg-muted"
-                />
+                <ProjectTaskAssigneeAvatar assignee={task.assignee} className="size-4 bg-muted" />
               )}
             </button>
           ))}
@@ -307,30 +267,21 @@ function UnscheduledCalendarTasks({
   )
 }
 
-function CalendarTask({
-  onOpen,
-  task,
-}: {
-  onOpen: () => void
-  task: ProjectTask
-}) {
+function CalendarTask({ onOpen, task }: { onOpen: () => void; task: ProjectTask }) {
   return (
     <button
       aria-label={`查看任务详情：${task.title}`}
       className={cn(
         "flex h-8 w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
         getProjectTaskBlockClassName(task.status),
-        getProjectTaskBlockHoverClassName(task.status)
+        getProjectTaskBlockHoverClassName(task.status),
       )}
       onClick={onOpen}
       title={task.title}
       type="button"
     >
       {task.assignee && (
-        <ProjectTaskAssigneeAvatar
-          assignee={task.assignee}
-          className="size-4 bg-muted"
-        />
+        <ProjectTaskAssigneeAvatar assignee={task.assignee} className="size-4 bg-muted" />
       )}
       <span className="min-w-0 truncate">{task.title}</span>
     </button>
@@ -354,9 +305,7 @@ function getCalendarDays(month: Date) {
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1)
   const mondayBasedOffset = (firstDay.getDay() + 6) % 7
   const calendarStart = addCalendarDays(firstDay, -mondayBasedOffset)
-  return Array.from({ length: 42 }, (_, index) =>
-    addCalendarDays(calendarStart, index)
-  )
+  return Array.from({ length: 42 }, (_, index) => addCalendarDays(calendarStart, index))
 }
 
 function getTasksByDate(tasks: ProjectTask[], calendarDays: Date[]) {
@@ -381,10 +330,7 @@ function getTasksByDate(tasks: ProjectTask[], calendarDays: Date[]) {
   for (const dateTasks of result.values()) {
     dateTasks.sort((left, right) => {
       if (left.status !== right.status) {
-        return (
-          calendarTaskStatusOrder[left.status] -
-          calendarTaskStatusOrder[right.status]
-        )
+        return calendarTaskStatusOrder[left.status] - calendarTaskStatusOrder[right.status]
       }
       return right.priority - left.priority
     })

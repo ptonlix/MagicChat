@@ -25,10 +25,7 @@ import {
   type ClientAppCredentials,
   type ClientAppVisibility,
 } from "@/lib/client-api/apps"
-import {
-  prepareAppAvatar,
-  type PreparedAppAvatar,
-} from "@/lib/app-avatar-processing"
+import { prepareAppAvatar, type PreparedAppAvatar } from "@/lib/app-avatar-processing"
 import { cn } from "@/lib/utils"
 
 const visibilityOptions: Array<{
@@ -74,10 +71,7 @@ function CreateAppDialogContent({
   onCreated,
   onOpenChange,
   users,
-}: Pick<
-  CreateAppDialogProps,
-  "currentUserId" | "onCreated" | "onOpenChange" | "users"
->) {
+}: Pick<CreateAppDialogProps, "currentUserId" | "onCreated" | "onOpenChange" | "users">) {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const userComboboxPortal = React.useRef<HTMLDivElement>(null)
   const nameId = React.useId()
@@ -86,15 +80,13 @@ function CreateAppDialogContent({
   const [creating, setCreating] = React.useState(false)
   const [description, setDescription] = React.useState("")
   const [name, setName] = React.useState("")
-  const [pendingAvatar, setPendingAvatar] =
-    React.useState<PreparedAppAvatar | null>(null)
+  const [pendingAvatar, setPendingAvatar] = React.useState<PreparedAppAvatar | null>(null)
   const [preparingAvatar, setPreparingAvatar] = React.useState(false)
   const [selectedUsers, setSelectedUsers] = React.useState<ContactUser[]>([])
-  const [visibility, setVisibility] =
-    React.useState<ClientAppVisibility>("creator")
+  const [visibility, setVisibility] = React.useState<ClientAppVisibility>("creator")
   const grantableUsers = React.useMemo(
     () => users.filter((user) => user.id !== currentUserId),
-    [currentUserId, users]
+    [currentUserId, users],
   )
   const canSubmit =
     !creating &&
@@ -102,9 +94,7 @@ function CreateAppDialogContent({
     name.trim().length > 0 &&
     (visibility !== "restricted" || selectedUsers.length > 0)
 
-  async function handleAvatarChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
     const sourceFile = event.target.files?.[0]
 
     event.target.value = ""
@@ -135,10 +125,7 @@ function CreateAppDialogContent({
       credentials = await createClientApp({
         description: description.trim(),
         name: name.trim(),
-        userIds:
-          visibility === "restricted"
-            ? selectedUsers.map((user) => user.id)
-            : [],
+        userIds: visibility === "restricted" ? selectedUsers.map((user) => user.id) : [],
         visibility,
       })
     } catch (error) {
@@ -152,10 +139,7 @@ function CreateAppDialogContent({
       try {
         credentials = {
           ...credentials,
-          app: await uploadClientAppAvatar(
-            credentials.app.id,
-            pendingAvatar.file
-          ),
+          app: await uploadClientAppAvatar(credentials.app.id, pendingAvatar.file),
         }
       } catch (error) {
         avatarUploadError = error
@@ -168,7 +152,7 @@ function CreateAppDialogContent({
       toast.error(
         avatarUploadError instanceof Error
           ? `应用已创建，但头像上传失败：${avatarUploadError.message}`
-          : "应用已创建，但头像上传失败"
+          : "应用已创建，但头像上传失败",
       )
     }
     onOpenChange(false)
@@ -202,10 +186,7 @@ function CreateAppDialogContent({
         </Button>
       </div>
 
-      <form
-        className="grid gap-5"
-        onSubmit={(event) => void handleSubmit(event)}
-      >
+      <form className="grid gap-5" onSubmit={(event) => void handleSubmit(event)}>
         <div className="flex items-start gap-4">
           <input
             accept="image/png,image/jpeg,image/webp"
@@ -238,7 +219,7 @@ function CreateAppDialogContent({
               aria-hidden="true"
               className={cn(
                 "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-foreground/40 text-background opacity-0 transition-opacity group-hover/avatar-change:opacity-100 group-focus-visible/avatar-change:opacity-100",
-                preparingAvatar && "opacity-100"
+                preparingAvatar && "opacity-100",
               )}
             >
               {preparingAvatar ? <Spinner /> : <Camera className="size-5" />}
@@ -281,9 +262,7 @@ function CreateAppDialogContent({
             aria-labelledby={visibilityLabelId}
             className="grid gap-2 sm:grid-cols-3"
             disabled={creating}
-            onValueChange={(value) =>
-              setVisibility(value as ClientAppVisibility)
-            }
+            onValueChange={(value) => setVisibility(value as ClientAppVisibility)}
             value={visibility}
           >
             {visibilityOptions.map((option) => {
@@ -293,8 +272,7 @@ function CreateAppDialogContent({
                 <label
                   className={cn(
                     "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2.5 transition-colors hover:bg-muted",
-                    visibility === option.value &&
-                      "border-foreground/30 bg-muted"
+                    visibility === option.value && "border-foreground/30 bg-muted",
                   )}
                   htmlFor={id}
                   key={option.value}
@@ -317,9 +295,7 @@ function CreateAppDialogContent({
               users={grantableUsers}
               value={selectedUsers}
             />
-            <p className="text-xs text-muted-foreground">
-              已选择 {selectedUsers.length} 名用户
-            </p>
+            <p className="text-xs text-muted-foreground">已选择 {selectedUsers.length} 名用户</p>
           </div>
         )}
 

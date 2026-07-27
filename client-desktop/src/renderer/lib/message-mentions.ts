@@ -32,7 +32,7 @@ export function createMentionToken(target: MentionTarget) {
 
 export function parseMentionTemplate(
   content: string,
-  resolveLabel: MentionLabelResolver
+  resolveLabel: MentionLabelResolver,
 ): MentionTemplatePart[] {
   const parts: MentionTemplatePart[] = []
   let cursor = 0
@@ -65,19 +65,13 @@ export function parseMentionTemplate(
   return parts
 }
 
-export function formatMentionTemplateText(
-  content: string,
-  resolveLabel: MentionLabelResolver
-) {
+export function formatMentionTemplateText(content: string, resolveLabel: MentionLabelResolver) {
   return parseMentionTemplate(content, resolveLabel)
     .map((part) => (part.type === "mention" ? part.label : part.text))
     .join("")
 }
 
-function resolveMentionLabel(
-  target: MentionTarget,
-  resolveLabel: MentionLabelResolver
-) {
+function resolveMentionLabel(target: MentionTarget, resolveLabel: MentionLabelResolver) {
   if (target.type === "all") {
     return "@所有人"
   }

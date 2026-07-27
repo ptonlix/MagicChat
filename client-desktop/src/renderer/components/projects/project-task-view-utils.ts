@@ -67,11 +67,7 @@ export function parseDateKey(value: string | null) {
   if (!match) {
     return null
   }
-  const date = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3])
-  )
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
   if (formatDateKey(date) !== value) {
     return null
   }
@@ -92,11 +88,7 @@ export function addCalendarDays(date: Date, amount: number) {
 
 export function differenceInCalendarDays(date: Date, reference: Date) {
   const dateUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
-  const referenceUtc = Date.UTC(
-    reference.getFullYear(),
-    reference.getMonth(),
-    reference.getDate()
-  )
+  const referenceUtc = Date.UTC(reference.getFullYear(), reference.getMonth(), reference.getDate())
   return Math.round((dateUtc - referenceUtc) / DAY_IN_MILLISECONDS)
 }
 

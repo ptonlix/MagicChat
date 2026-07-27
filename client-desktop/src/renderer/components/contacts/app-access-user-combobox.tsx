@@ -44,9 +44,7 @@ export function AppAccessUserCombobox({
       <div ref={anchor}>
         <ComboboxChips className="max-h-24 overflow-y-auto">
           {value.map((user) => (
-            <ComboboxChip key={user.id}>
-              {getContactDisplayName(user)}
-            </ComboboxChip>
+            <ComboboxChip key={user.id}>{getContactDisplayName(user)}</ComboboxChip>
           ))}
           <ComboboxChipsInput
             aria-label="选择可访问用户"
@@ -66,9 +64,7 @@ export function AppAccessUserCombobox({
                 <SelectionListAvatar avatar={user.avatar} name={displayName} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{displayName}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {user.email}
-                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
                 </span>
               </ComboboxItem>
             )
@@ -87,7 +83,7 @@ function contactMatchesQuery(user: ContactUser, query: string) {
   }
 
   return [user.email, user.name, user.nickname, user.phone].some((value) =>
-    value.toLowerCase().includes(normalizedQuery)
+    value.toLowerCase().includes(normalizedQuery),
   )
 }
 
