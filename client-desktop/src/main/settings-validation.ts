@@ -1,14 +1,13 @@
-import type { DesktopSettings } from "@shared/bridge"
+import type { DesktopSettingsPatch } from "@shared/bridge"
 
 const allowedDesktopSettings = new Set([
   "autoLaunch",
   "closeBehavior",
   "messageSoundEnabled",
   "notificationPrivacy",
-  "selectedServerId",
 ])
 
-export function parseDesktopSettingsPatch(value: unknown): Partial<DesktopSettings> {
+export function parseDesktopSettingsPatch(value: unknown): DesktopSettingsPatch {
   if (!value || typeof value !== "object") throw new Error("设置参数无效")
   const input = value as Record<string, unknown>
   for (const key of Object.keys(input)) {
@@ -20,5 +19,30 @@ export function parseDesktopSettingsPatch(value: unknown): Partial<DesktopSettin
   if (input.messageSoundEnabled !== undefined && typeof input.messageSoundEnabled !== "boolean") {
     throw new Error("新消息提示音设置无效")
   }
-  return { ...input } as Partial<DesktopSettings>
+  if (
+    input.closeBehavior !== undefined &&
+    input.closeBehavior !== "background" &&
+    input.closeBehavior !== "quit"
+  ) {
+    throw new Error("关闭行为设置无效")
+  }
+  if (
+    input.notificationPrivacy !== undefined &&
+    input.notificationPrivacy !== "hidden" &&
+    input.notificationPrivacy !== "metadata" &&
+    input.notificationPrivacy !== "preview"
+  ) {
+    throw new Error("通知隐私设置无效")
+  }
+
+  return {
+    ...(input.autoLaunch === undefined ? {} : { autoLaunch: input.autoLaunch }),
+    ...(input.closeBehavior === undefined ? {} : { closeBehavior: input.closeBehavior }),
+    ...(input.messageSoundEnabled === undefined
+      ? {}
+      : { messageSoundEnabled: input.messageSoundEnabled }),
+    ...(input.notificationPrivacy === undefined
+      ? {}
+      : { notificationPrivacy: input.notificationPrivacy }),
+  }
 }

@@ -25,7 +25,13 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import App from "@/app/App"
 import type { AuthenticatedTarget } from "@shared/client-contract"
-import type { DesktopAppInfo, DesktopSettings, ServerProfile, UpdaterState } from "@shared/bridge"
+import type {
+  DesktopAppInfo,
+  DesktopSettings,
+  DesktopSettingsPatch,
+  ServerProfile,
+  UpdaterState,
+} from "@shared/bridge"
 import { DesktopWebSocket, installDesktopFetch } from "./desktop-transport"
 import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
@@ -260,6 +266,7 @@ function DesktopSettingsPanel({
   const [name, setName] = useState(profile.displayName)
   const [busy, setBusy] = useState(false)
   const [removeError, setRemoveError] = useState("")
+  const [settingsError, setSettingsError] = useState("")
   const [updateActionError, setUpdateActionError] = useState("")
   const showMacManualUpdate =
     updater.installationSource === "mac_app" &&
@@ -293,11 +300,16 @@ function DesktopSettingsPanel({
     }
   }, [])
 
-  async function updateSettings(patch: Partial<DesktopSettings>) {
-    const nextSettings = await window.desktop.settings.set(patch)
-    setSettings(nextSettings)
-    if (patch.messageSoundEnabled !== undefined) {
-      onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
+  async function updateSettings(patch: DesktopSettingsPatch) {
+    setSettingsError("")
+    try {
+      const nextSettings = await window.desktop.settings.set(patch)
+      setSettings(nextSettings)
+      if (patch.messageSoundEnabled !== undefined) {
+        onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
+      }
+    } catch (reason) {
+      setSettingsError(reason instanceof Error ? reason.message : "设置保存失败")
     }
   }
 
@@ -370,6 +382,7 @@ function DesktopSettingsPanel({
               </div>
               <span className="desktop-status-pill">运行正常</span>
             </div>
+            {settingsError && <p role="alert">{settingsError}</p>}
             <section className="desktop-setting-section">
               <div className="desktop-setting-section-heading">
                 <MonitorCog size={17} />

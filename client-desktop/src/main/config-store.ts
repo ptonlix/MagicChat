@@ -122,8 +122,37 @@ function migrate(raw: Partial<StoredConfig>): StoredConfig {
     throw new UnsupportedConfigVersionError()
   }
   const servers = Array.isArray(raw.servers) ? raw.servers.filter(isServerProfile) : []
-  const settings = { ...defaultSettings, ...(raw.settings ?? {}) }
+  const settings = normalizeSettings(raw.settings, servers)
   return { schemaVersion: CURRENT_SCHEMA, settings, servers }
+}
+
+function normalizeSettings(value: unknown, servers: ServerProfile[]): DesktopSettings {
+  const input = value && typeof value === "object" ? (value as Record<string, unknown>) : {}
+  const selectedServerId =
+    typeof input.selectedServerId === "string" &&
+    servers.some((server) => server.id === input.selectedServerId)
+      ? input.selectedServerId
+      : undefined
+
+  return {
+    autoLaunch:
+      typeof input.autoLaunch === "boolean" ? input.autoLaunch : defaultSettings.autoLaunch,
+    closeBehavior:
+      input.closeBehavior === "background" || input.closeBehavior === "quit"
+        ? input.closeBehavior
+        : defaultSettings.closeBehavior,
+    messageSoundEnabled:
+      typeof input.messageSoundEnabled === "boolean"
+        ? input.messageSoundEnabled
+        : defaultSettings.messageSoundEnabled,
+    notificationPrivacy:
+      input.notificationPrivacy === "hidden" ||
+      input.notificationPrivacy === "metadata" ||
+      input.notificationPrivacy === "preview"
+        ? input.notificationPrivacy
+        : defaultSettings.notificationPrivacy,
+    ...(selectedServerId ? { selectedServerId } : {}),
+  }
 }
 
 function isServerProfile(value: unknown): value is ServerProfile {

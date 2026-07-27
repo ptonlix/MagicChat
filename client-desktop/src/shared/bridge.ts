@@ -74,6 +74,8 @@ export type DesktopSettings = Readonly<{
   selectedServerId?: string
 }>
 
+export type DesktopSettingsPatch = Partial<Omit<DesktopSettings, "selectedServerId">>
+
 export type DesktopAppInfo = Readonly<{
   arch: string
   build: string
@@ -214,7 +216,7 @@ export interface DesktopBridge {
   }
   settings: {
     get(): Promise<DesktopSettings>
-    set(patch: Partial<DesktopSettings>): Promise<DesktopSettings>
+    set(patch: DesktopSettingsPatch): Promise<DesktopSettings>
   }
   shell: { openExternal(url: string): Promise<void> }
   transport: {

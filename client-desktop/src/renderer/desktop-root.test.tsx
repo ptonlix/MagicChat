@@ -129,6 +129,25 @@ describe("桌面设置服务器管理", () => {
     await waitFor(() => expect(mocks.messageNotificationSoundEnabled?.()).toBe(false))
   })
 
+  it("设置保存失败时保留原值并显示错误", async () => {
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.settings.set).mockRejectedValueOnce(new Error("配置写入失败"))
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const soundToggle = screen.getByRole("checkbox", { name: "新消息提示音" })
+    await user.click(soundToggle)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("配置写入失败")
+    expect(soundToggle).toBeChecked()
+    expect(mocks.messageNotificationSoundEnabled?.()).toBe(true)
+  })
+
   it("展示实验性更新信息并支持键盘触发手动升级", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
