@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   openSettings: undefined as (() => void) | undefined,
   messageNotificationSoundEnabled: undefined as (() => boolean) | undefined,
   remove: vi.fn(),
-  setMessageNotificationSoundEnabled: vi.fn(),
 }))
 
 vi.mock("@/app/App", () => ({
@@ -47,10 +46,6 @@ vi.mock("@/lib/desktop-link-navigation", () => ({
   installDesktopLinkNavigation: () => () => undefined,
 }))
 
-vi.mock("@/lib/message-notification-sound", () => ({
-  setMessageNotificationSoundEnabled: mocks.setMessageNotificationSoundEnabled,
-}))
-
 vi.mock("@/lib/desktop-resource-url", () => ({
   resolveDesktopResourceUrl: (_profile: ServerProfile, url: string) => url,
 }))
@@ -67,7 +62,6 @@ describe("桌面设置服务器管理", () => {
     mocks.openManual.mockReset().mockResolvedValue(undefined)
     mocks.openRelease.mockReset().mockResolvedValue(undefined)
     mocks.remove.mockResolvedValue(undefined)
-    mocks.setMessageNotificationSoundEnabled.mockReset()
     vi.spyOn(window, "confirm").mockReturnValue(true)
     Object.defineProperty(window, "desktop", {
       configurable: true,
@@ -133,7 +127,6 @@ describe("桌面设置服务器管理", () => {
     expect(bridge.settings.set).toHaveBeenCalledWith({ messageSoundEnabled: false })
     await waitFor(() => expect(soundToggle).not.toBeChecked())
     await waitFor(() => expect(mocks.messageNotificationSoundEnabled?.()).toBe(false))
-    expect(mocks.setMessageNotificationSoundEnabled).toHaveBeenLastCalledWith(false)
   })
 
   it("展示实验性更新信息并支持键盘触发手动升级", async () => {

@@ -37,7 +37,7 @@ export class NotificationService {
               120,
             )
           : cleanNotificationPreview(input.preview)
-    const notification = new Notification({ title, body, silent: !settings.messageSoundEnabled })
+    const notification = new Notification({ title, body, silent: true })
     notification.on("click", () => void this.onClick(input))
     notification.show()
   }
