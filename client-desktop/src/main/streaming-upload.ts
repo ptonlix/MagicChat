@@ -102,8 +102,20 @@ export class StreamingUploadController {
     }
     if (!upload.stream.write(Buffer.from(chunk)))
       await new Promise<void>((resolve, reject) => {
-        upload.stream.once("drain", resolve)
-        upload.stream.once("error", reject)
+        const cleanup = () => {
+          upload.stream.off("drain", onDrain)
+          upload.stream.off("error", onError)
+        }
+        const onDrain = () => {
+          cleanup()
+          resolve()
+        }
+        const onError = (error: Error) => {
+          cleanup()
+          reject(error)
+        }
+        upload.stream.once("drain", onDrain)
+        upload.stream.once("error", onError)
       })
   }
 

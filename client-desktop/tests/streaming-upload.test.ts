@@ -1,4 +1,4 @@
-import { Readable } from "node:stream"
+import { PassThrough, Readable } from "node:stream"
 import { describe, expect, it, vi } from "vitest"
 import { StreamingUploadController } from "@main/streaming-upload"
 
@@ -57,6 +57,49 @@ describe("流式上传", () => {
       "分块",
     )
     controller.abort(8, streamId)
+  })
+
+  it("连续背压恢复后不累积流事件监听器", async () => {
+    const fetch = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          )
+        }),
+    )
+    const controller = new StreamingUploadController(
+      { require: () => profile } as never,
+      { for: () => ({ fetch }) } as never,
+    )
+    const streamId = controller.start(10, target, {
+      headers: { "content-type": "multipart/form-data; boundary=test" },
+      method: "POST",
+      path: "/api/client/temporary-files",
+      requestId: "request_5",
+    })
+    const stream = (
+      controller as unknown as {
+        uploads: Map<string, { stream: PassThrough }>
+      }
+    ).uploads.get(streamId)!.stream
+    const drainListeners = stream.listenerCount("drain")
+    const errorListeners = stream.listenerCount("error")
+    vi.spyOn(stream, "write").mockReturnValue(false)
+
+    for (let index = 0; index < 20; index += 1) {
+      const pendingChunk = controller.chunk(10, streamId, Uint8Array.of(index))
+      expect(stream.listenerCount("drain")).toBe(drainListeners + 1)
+      expect(stream.listenerCount("error")).toBe(errorListeners + 1)
+
+      stream.emit("drain")
+      await pendingChunk
+
+      expect(stream.listenerCount("drain")).toBe(drainListeners)
+      expect(stream.listenerCount("error")).toBe(errorListeners)
+    }
+
+    controller.abort(10, streamId)
   })
 
   it("移除服务器时只中止该服务器的活动上传", async () => {
