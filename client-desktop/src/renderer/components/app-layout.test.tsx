@@ -58,7 +58,7 @@ vi.mock("@/lib/client-data-api", () => ({
 }))
 
 describe("AppLayout", () => {
-  it("splits profile and settings actions in the user avatar menu", async () => {
+  it("keeps profile in the avatar menu and moves settings to the sidebar footer", async () => {
     const user = userEvent.setup()
 
     render(
@@ -70,7 +70,7 @@ describe("AppLayout", () => {
     await user.click(screen.getByRole("button", { name: "用户菜单" }))
 
     expect(screen.getByRole("menuitem", { name: /个人资料/ })).toBeInTheDocument()
-    expect(screen.getByRole("menuitem", { name: /^设置$/ })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /^设置$/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("menuitem", { name: /个人资料/ }))
 
@@ -81,8 +81,7 @@ describe("AppLayout", () => {
     expect(within(profileDialog).queryByText("桌面通知")).not.toBeInTheDocument()
 
     await user.click(within(profileDialog).getByRole("button", { name: "关闭" }))
-    await user.click(screen.getByRole("button", { name: "用户菜单" }))
-    await user.click(screen.getByRole("menuitem", { name: /^设置$/ }))
+    await user.click(screen.getByRole("button", { name: "设置" }))
 
     const settingsDialog = await screen.findByRole("dialog", { name: "设置" })
     expect(within(settingsDialog).getByText("桌面通知")).toBeInTheDocument()
@@ -101,8 +100,7 @@ describe("AppLayout", () => {
         </MemoryRouter>,
       )
 
-      await user.click(screen.getByRole("button", { name: "用户菜单" }))
-      await user.click(screen.getByRole("menuitem", { name: /^设置$/ }))
+      await user.click(screen.getByRole("button", { name: "设置" }))
 
       expect(openSettings).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument()
@@ -111,33 +109,14 @@ describe("AppLayout", () => {
     }
   })
 
-  it("shows download options for all client platforms", async () => {
-    const user = userEvent.setup()
-
+  it("does not show the client download entry in the desktop sidebar", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>
         <AppLayout />
       </MemoryRouter>,
     )
 
-    const downloadButton = screen.getByRole("button", { name: "下载客户端" })
-
-    await user.click(downloadButton)
-
-    const dialog = await screen.findByRole("dialog", { name: "下载客户端" })
-    expect(within(dialog).getByText("Windows")).toBeInTheDocument()
-    expect(within(dialog).getByText("macOS")).toBeInTheDocument()
-    expect(within(dialog).getByText("Android")).toBeInTheDocument()
-    expect(within(dialog).getByText("iOS")).toBeInTheDocument()
-    expect(
-      within(dialog).getByRole("link", {
-        name: "下载 Android 客户端",
-      }),
-    ).toMatchObject({
-      href: "https://chat-public-1450770193.cos.ap-guangzhou.myqcloud.com/releases/magic-chat.apk.1",
-      target: "_blank",
-    })
-    expect(within(dialog).getAllByRole("button", { name: "敬请期待" })).toHaveLength(3)
+    expect(screen.queryByRole("button", { name: "下载客户端" })).not.toBeInTheDocument()
   })
 
   it("opens the MagicChat repository in a new tab", () => {

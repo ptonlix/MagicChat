@@ -16,7 +16,6 @@ import { toast } from "sonner"
 
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog"
 import type { CroppedAvatar } from "@/components/custom-avatar-picker"
-import { ClientDownloadDialog } from "@/components/client-download-dialog"
 import { useTheme } from "@/components/theme-provider"
 import { UserSettingsDialog } from "@/components/user-settings-dialog"
 import {
@@ -121,8 +120,8 @@ export function AppLayout() {
         </nav>
         <div className="flex flex-col items-center gap-2">
           <GithubLink />
-          <ClientDownloadDialog />
           <ThemeSwitcher />
+          <SidebarSettingsButton />
         </div>
       </aside>
       <Outlet />
@@ -136,12 +135,7 @@ function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; u
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [logoutPending, setLogoutPending] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const displayName = getUserDisplayName(user)
-
-  function handleSettingsOpen() {
-    if (!openHostSettings()) setSettingsOpen(true)
-  }
 
   async function handleLogout() {
     setLogoutPending(true)
@@ -219,10 +213,6 @@ function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; u
             <UserRound className="size-4" />
             个人资料
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleSettingsOpen}>
-            <Settings className="size-4" />
-            设置
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={logoutPending}
@@ -241,7 +231,6 @@ function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; u
           onNicknameSave={handleNicknameSave}
           user={user}
         />
-        <UserSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       </DropdownMenu>
 
       <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
@@ -266,6 +255,31 @@ function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; u
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  )
+}
+
+function SidebarSettingsButton() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  function handleSettingsOpen() {
+    if (!openHostSettings()) setSettingsOpen(true)
+  }
+
+  return (
+    <>
+      <Button
+        aria-label="设置"
+        className="rounded-md hover:bg-transparent hover:text-teal-500 aria-expanded:bg-transparent aria-expanded:text-teal-500 dark:hover:bg-transparent"
+        onClick={handleSettingsOpen}
+        size="icon-sm"
+        title="设置"
+        type="button"
+        variant="ghost"
+      >
+        <Settings className="size-4" />
+      </Button>
+      <UserSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>
   )
 }

@@ -151,6 +151,206 @@ describe("桌面设置服务器管理", () => {
     expect(mocks.messageNotificationSoundEnabled?.()).toBe(true)
   })
 
+  it("发现 OTA 新版本后在右上角提供下载入口", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      retryable: true,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    const updateButton = await screen.findByRole("button", { name: "新版本" })
+    expect(updateButton).toHaveAttribute("title", "即应 1.1.0")
+    await user.click(updateButton)
+
+    expect(bridge.updater.download).toHaveBeenCalledOnce()
+  })
+
+  it("下载更新时展示进度、禁用重复操作并遵循 reduced-motion", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge({
+        currentVersion: "1.0.0",
+        installMode: "ota",
+        installationSource: "nsis",
+        progress: 42.4,
+        retryable: false,
+        status: "downloading",
+        targetVersion: "1.1.0",
+      }),
+    })
+    render(<DesktopRoot />)
+
+    const updateButton = await screen.findByRole("button", { name: "下载中 42%" })
+    expect(updateButton).toBeDisabled()
+    expect(updateButton.querySelector("svg")).toHaveClass("motion-safe:animate-spin")
+    expect(updateButton.querySelector("svg")).not.toHaveClass("animate-spin")
+  })
+
+  it("下载调用失败时展示可恢复提示", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      retryable: true,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    vi.mocked(bridge.updater.download).mockRejectedValue(new Error("IPC unavailable"))
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "新版本" }))
+
+    expect(await screen.findByText("更新操作失败，请稍后重试")).toBeInTheDocument()
+  })
+
+  it("手动升级来源从顶部入口打开匹配的安装包", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "manual",
+      installationSource: "deb",
+      manualAction: { label: "下载 deb" },
+      retryable: false,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "新版本" }))
+
+    expect(mocks.openManual).toHaveBeenCalledOnce()
+    expect(bridge.updater.download).not.toHaveBeenCalled()
+  })
+
+  it("更新下载完成后在右上角执行重启安装", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      progress: 100,
+      retryable: true,
+      status: "downloaded",
+      targetVersion: "1.1.0",
+    })
+    vi.mocked(bridge.updater.install).mockResolvedValue({ status: "started" })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "重启更新" }))
+
+    expect(bridge.updater.install).toHaveBeenCalledOnce()
+  })
+
+  it("安装被活跃传输阻止时展示准确提示", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      progress: 100,
+      retryable: true,
+      status: "downloaded",
+      targetVersion: "1.1.0",
+    })
+    vi.mocked(bridge.updater.install).mockResolvedValue({
+      reason: "active_transfers",
+      status: "blocked",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "重启更新" }))
+
+    expect(await screen.findByText("仍有文件正在传输，请完成或取消传输后重试")).toBeInTheDocument()
+  })
+
+  it("可重试错误从顶部入口重新检查更新", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      errorCode: "network",
+      installMode: "ota",
+      installationSource: "nsis",
+      retryable: true,
+      status: "error",
+      targetVersion: "1.1.0",
+    })
+    vi.mocked(bridge.updater.check).mockResolvedValue({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      retryable: false,
+      status: "idle",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "更新失败" }))
+
+    expect(bridge.updater.check).toHaveBeenCalledOnce()
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "更新失败" })).not.toBeInTheDocument(),
+    )
+  })
+
+  it("直接根据安装来源定位 macOS 更新入口", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "mac_app",
+      retryable: true,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    render(<DesktopRoot />)
+
+    expect(await screen.findByRole("button", { name: "新版本" })).toHaveAttribute(
+      "data-platform",
+      "darwin",
+    )
+    expect(bridge.app.info).not.toHaveBeenCalled()
+  })
+
+  it("没有新版本时不显示右上角更新入口", async () => {
+    render(<DesktopRoot />)
+
+    await screen.findByRole("button", { name: "打开设置" })
+    expect(screen.queryByRole("button", { name: "新版本" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "重启更新" })).not.toBeInTheDocument()
+  })
+
   it("展示实验性更新信息并支持键盘触发手动升级", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
@@ -170,6 +370,12 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     expect(await screen.findByText("目标版本：1.1.0")).toBeInTheDocument()
+    expect(
+      screen
+        .getByRole("heading", { name: "关于即应" })
+        .compareDocumentPosition(screen.getByRole("heading", { name: "应用行为" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(bridge.updater.getState).toHaveBeenCalledOnce()
     expect(screen.getByText("安装来源：Linux deb")).toBeInTheDocument()
     expect(screen.queryByLabelText("更新说明")).not.toBeInTheDocument()

@@ -25,6 +25,52 @@ body,
 .dark .desktop-titlebar-drag-region {
   box-shadow: 0 6px 18px oklch(0 0 0 / 22%);
 }
+.desktop-update-prompt {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  background: color-mix(in oklch, var(--primary) 10%, var(--background));
+  border: 1px solid color-mix(in oklch, var(--primary) 28%, var(--border));
+  border-radius: 6px;
+  color: color-mix(in oklch, var(--primary) 82%, var(--foreground));
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 6px;
+  height: 26px;
+  max-width: 160px;
+  overflow: hidden;
+  padding: 0 9px;
+  position: fixed;
+  right: 148px;
+  text-overflow: ellipsis;
+  top: 7px;
+  white-space: nowrap;
+  z-index: 50;
+}
+.desktop-update-prompt[data-platform="darwin"] {
+  right: 12px;
+}
+.desktop-update-prompt:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--primary) 16%, var(--background));
+  border-color: color-mix(in oklch, var(--primary) 44%, var(--border));
+}
+.desktop-update-prompt:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 35%, transparent);
+  outline: none;
+}
+.desktop-update-prompt:disabled {
+  cursor: wait;
+}
+.desktop-update-prompt > svg {
+  flex: none;
+}
+.desktop-update-prompt > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .desktop-icon-button {
   -webkit-app-region: no-drag;
   align-items: center;
