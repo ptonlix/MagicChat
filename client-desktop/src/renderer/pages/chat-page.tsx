@@ -20,7 +20,7 @@ import {
   type MessageChoiceSnapshot,
   type MessageReactionSnapshot,
 } from "@/lib/client-data-api"
-import { getClientDataErrorMessage } from "@/lib/client-data-state"
+import { applyTopicSourceMessageUpdate, getClientDataErrorMessage } from "@/lib/client-data-state"
 import type { DirectorySearchItem } from "@/lib/local-search"
 import { createClientMessageId } from "@/lib/message-id"
 import {
@@ -42,6 +42,7 @@ import {
   TopicDrawer,
   TopicSourceBanner,
   TopicSourceChoiceSync,
+  TopicSourceMessageSync,
   TopicSourceReactionSync,
 } from "@/components/conversation/topic-drawer"
 import {
@@ -189,6 +190,7 @@ export function ChatPage() {
     snapshot: MessageChoiceSnapshot
     sourceMessageId: string
   } | null>(null)
+  const topicSourceChoiceRequestIdRef = React.useRef(0)
   const [topicSourceReaction, setTopicSourceReaction] =
     React.useState<TopicSourceReactionState | null>(null)
   React.useEffect(() => () => setForegroundConversationId?.(""), [setForegroundConversationId])
@@ -549,7 +551,32 @@ export function ChatPage() {
     [activeConversationId, activeConversationType],
   )
 
+  const handleActiveTopicSourceMessageUpdate = React.useCallback(
+    (message: ClientMessage) => {
+      setLoadedTopicSource((current) => {
+        if (
+          !current ||
+          current.conversationId !== activeConversationId ||
+          current.message.id !== message.id
+        ) {
+          return current
+        }
+        return { ...current, message: applyTopicSourceMessageUpdate(current.message, message) }
+      })
+      if (message.body.type === "revoked") {
+        setTopicSourceReaction((current) =>
+          current?.parentConversationId === message.conversationId &&
+          current.sourceMessageId === message.id
+            ? null
+            : current,
+        )
+      }
+    },
+    [activeConversationId],
+  )
+
   const refreshActiveTopicSourceChoice = React.useCallback(async () => {
+    const requestId = ++topicSourceChoiceRequestIdRef.current
     if (
       activeTopicSource?.body.type !== "choice" ||
       !activeTopicParentConversationId ||
@@ -562,7 +589,7 @@ export function ChatPage() {
       activeTopicParentConversationId,
       [activeTopicSourceMessageId],
     )
-    if (!snapshot) return
+    if (requestId !== topicSourceChoiceRequestIdRef.current || !snapshot) return
     setTopicSourceChoice({
       parentConversationId: activeTopicParentConversationId,
       snapshot,
@@ -591,28 +618,16 @@ export function ChatPage() {
   }, [activeTopicParentConversationId, activeTopicSourceMessageId])
 
   React.useEffect(() => {
-    let active = true
     if (activeTopicSource?.body.type !== "choice") {
+      topicSourceChoiceRequestIdRef.current += 1
       setTopicSourceChoice(null)
       return
     }
-    void listConversationMessageChoiceSnapshots(activeTopicParentConversationId, [
-      activeTopicSourceMessageId,
-    ])
-      .then(([snapshot]) => {
-        if (active && snapshot) {
-          setTopicSourceChoice({
-            parentConversationId: activeTopicParentConversationId,
-            snapshot,
-            sourceMessageId: activeTopicSourceMessageId,
-          })
-        }
-      })
-      .catch(() => undefined)
+    void refreshActiveTopicSourceChoice().catch(() => undefined)
     return () => {
-      active = false
+      topicSourceChoiceRequestIdRef.current += 1
     }
-  }, [activeTopicParentConversationId, activeTopicSource, activeTopicSourceMessageId])
+  }, [activeTopicSource?.body.type, refreshActiveTopicSourceChoice])
 
   React.useEffect(() => {
     let active = true
@@ -757,11 +772,18 @@ export function ChatPage() {
             />
           )}
           {activeTopicSource && activeTopicParentConversationId && (
-            <TopicSourceReactionSync
-              conversationId={activeTopicParentConversationId}
-              messageId={activeTopicSource.id}
-              onUpdate={refreshActiveTopicSourceReaction}
-            />
+            <>
+              <TopicSourceMessageSync
+                conversationId={activeTopicParentConversationId}
+                messageId={activeTopicSource.id}
+                onUpdate={handleActiveTopicSourceMessageUpdate}
+              />
+              <TopicSourceReactionSync
+                conversationId={activeTopicParentConversationId}
+                messageId={activeTopicSource.id}
+                onUpdate={refreshActiveTopicSourceReaction}
+              />
+            </>
           )}
         </>
       ) : undefined,
@@ -774,6 +796,7 @@ export function ChatPage() {
       activeTopicSourceReaction,
       forwardTopicSourceMessage,
       getConversation,
+      handleActiveTopicSourceMessageUpdate,
       me.id,
       recordTopicSourceMessage,
       refreshActiveTopicSourceChoice,

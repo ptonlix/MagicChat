@@ -674,33 +674,45 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [currentUserId, refreshMessageReactions],
   )
 
-  const applyChoiceSnapshots = useCallback((snapshots: MessageChoiceSnapshot[]) => {
-    if (snapshots.length === 0) return
-    const snapshotsByMessageId = new Map(
-      snapshots.map((snapshot) => [snapshot.messageId, snapshot]),
-    )
-    setConversationMessageStates((currentStates) => {
-      let statesChanged = false
-      const nextStates = { ...currentStates }
-      for (const [conversationId, state] of Object.entries(currentStates)) {
-        let messagesChanged = false
-        const messages = state.messages
-          .map((message) => {
-            const snapshot = snapshotsByMessageId.get(message.id)
-            if (!snapshot || snapshot.conversationId !== conversationId) return message
-            const nextMessage = applyMessageChoiceSnapshot(message, snapshot)
-            if (nextMessage !== message) messagesChanged = true
-            return nextMessage
-          })
-          .filter((message): message is ClientMessage => message !== null)
-        if (messagesChanged) {
-          statesChanged = true
-          nextStates[conversationId] = { ...state, messages }
+  const applyChoiceSnapshots = useCallback(
+    (
+      snapshots: MessageChoiceSnapshot[],
+      expectedChoices?: ReadonlyMap<string, ClientMessage["choice"]>,
+    ) => {
+      if (snapshots.length === 0) return
+      const snapshotsByMessageId = new Map(
+        snapshots.map((snapshot) => [snapshot.messageId, snapshot]),
+      )
+      setConversationMessageStates((currentStates) => {
+        let statesChanged = false
+        const nextStates = { ...currentStates }
+        for (const [conversationId, state] of Object.entries(currentStates)) {
+          let messagesChanged = false
+          const messages = state.messages
+            .map((message) => {
+              const snapshot = snapshotsByMessageId.get(message.id)
+              if (!snapshot || snapshot.conversationId !== conversationId) return message
+              const nextMessage = applyMessageChoiceSnapshot(
+                message,
+                snapshot,
+                expectedChoices?.has(message.id)
+                  ? { expectedChoice: expectedChoices.get(message.id) }
+                  : undefined,
+              )
+              if (nextMessage !== message) messagesChanged = true
+              return nextMessage
+            })
+            .filter((message): message is ClientMessage => message !== null)
+          if (messagesChanged) {
+            statesChanged = true
+            nextStates[conversationId] = { ...state, messages }
+          }
         }
-      }
-      return statesChanged ? nextStates : currentStates
-    })
-  }, [])
+        return statesChanged ? nextStates : currentStates
+      })
+    },
+    [],
+  )
 
   const handleIncomingMessageChoiceUpdate = useCallback(
     (event: MessageChoiceUpdatedEvent) => {
@@ -1091,15 +1103,15 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
         conversationId,
         state.messages.map((message) => message.id),
       ).catch(() => undefined)
-      const choiceMessageIds = state.messages
-        .filter((message) => message.body.type === "choice")
-        .map((message) => message.id)
-      for (let index = 0; index < choiceMessageIds.length; index += choiceSnapshotBatchSize) {
+      const choiceMessages = state.messages.filter((message) => message.body.type === "choice")
+      for (let index = 0; index < choiceMessages.length; index += choiceSnapshotBatchSize) {
+        const batch = choiceMessages.slice(index, index + choiceSnapshotBatchSize)
+        const expectedChoices = new Map(batch.map((message) => [message.id, message.choice]))
         void listConversationMessageChoiceSnapshots(
           conversationId,
-          choiceMessageIds.slice(index, index + choiceSnapshotBatchSize),
+          batch.map((message) => message.id),
         )
-          .then(applyChoiceSnapshots)
+          .then((snapshots) => applyChoiceSnapshots(snapshots, expectedChoices))
           .catch(() => undefined)
       }
     }

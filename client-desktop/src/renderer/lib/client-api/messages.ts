@@ -1010,7 +1010,9 @@ export function normalizeConversationMemberChoiceReceivedEventPayload(payload: u
   if (
     typeof event.conversation_id !== "string" ||
     event.conversation_id.trim() === "" ||
-    typeof event.last_choice_seq !== "number"
+    typeof event.last_choice_seq !== "number" ||
+    !Number.isSafeInteger(event.last_choice_seq) ||
+    event.last_choice_seq <= 0
   ) {
     throw new ClientDataRequestError("选择消息提醒推送格式不正确")
   }

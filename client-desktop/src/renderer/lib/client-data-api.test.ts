@@ -9,6 +9,7 @@ import {
   listClientContacts,
   listClientConversations,
   listConversationMessages,
+  normalizeConversationMemberChoiceReceivedEventPayload,
   normalizeMessageCreatedEventPayload,
   normalizeConversationMuteUpdatedEventPayload,
   normalizeConversationPinUpdatedEventPayload,
@@ -25,6 +26,24 @@ import {
 } from "@/lib/client-data-api"
 
 describe("client data API", () => {
+  it("validates choice notification sequence numbers", () => {
+    expect(
+      normalizeConversationMemberChoiceReceivedEventPayload({
+        conversation_id: "conversation-1",
+        last_choice_seq: 12,
+      }),
+    ).toEqual({ conversationId: "conversation-1", lastChoiceSeq: 12 })
+
+    for (const lastChoiceSeq of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() =>
+        normalizeConversationMemberChoiceReceivedEventPayload({
+          conversation_id: "conversation-1",
+          last_choice_seq: lastChoiceSeq,
+        }),
+      ).toThrow("选择消息提醒推送格式不正确")
+    }
+  })
+
   it("loads the current client user with credentials", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(

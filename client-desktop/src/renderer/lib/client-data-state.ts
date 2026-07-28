@@ -4,6 +4,7 @@ import {
   type ClientConversation,
   type ClientChoiceState,
   type ClientMessage,
+  type ClientTopicSourceMessage,
   type MessageChoiceSnapshot,
   type ClientMessagePage,
   type MessageReactionsUpdatedEvent,
@@ -109,8 +110,12 @@ export function applyMessageChoiceState(message: ClientMessage, choice: ClientCh
 export function applyMessageChoiceSnapshot(
   message: ClientMessage,
   snapshot: MessageChoiceSnapshot,
+  options?: { expectedChoice: ClientChoiceState | undefined },
 ): ClientMessage | null {
   if (message.id !== snapshot.messageId || message.conversationId !== snapshot.conversationId) {
+    return message
+  }
+  if (options && message.choice !== options.expectedChoice) {
     return message
   }
   if (snapshot.status === "deleted") {
@@ -120,6 +125,20 @@ export function applyMessageChoiceSnapshot(
     return { ...message, body: { type: "revoked" }, choice: undefined, reactions: [] }
   }
   return snapshot.choice ? applyMessageChoiceState(message, snapshot.choice) : message
+}
+
+export function applyTopicSourceMessageUpdate(
+  source: ClientTopicSourceMessage,
+  message: ClientMessage,
+): ClientTopicSourceMessage {
+  if (source.id !== message.id) return source
+  return {
+    ...source,
+    body: message.body,
+    createdAt: message.createdAt,
+    revokedAt: message.revokedAt ?? null,
+    seq: message.seq,
+  }
 }
 
 export function createConversationMessageState(): ClientConversationMessageState {

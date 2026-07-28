@@ -1,16 +1,84 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import { TopicSourceBanner } from "@/components/conversation/topic-drawer"
-import type { ClientTopicSourceMessage } from "@/lib/client-data-api"
+import { TopicSourceBanner, TopicSourceMessageSync } from "@/components/conversation/topic-drawer"
+import type { ClientMessage, ClientTopicSourceMessage } from "@/lib/client-data-api"
+import { applyTopicSourceMessageUpdate } from "@/lib/client-data-state"
+import { RealtimeContext } from "@/lib/realtime-context"
 
 vi.mock("@/components/user-profile-popover", () => ({
   UserProfilePopover: ({ children }: { children: ReactNode }) => children,
 }))
 
 describe("TopicSourceBanner", () => {
+  it("replaces an open source message when it is revoked in realtime", () => {
+    const callbacks = new Map<string, (payload: unknown) => void>()
+    const onForward = vi.fn()
+    const onSetReaction = vi.fn().mockResolvedValue(undefined)
+
+    function Probe() {
+      const [source, setSource] = useState(createSourceMessage)
+      function handleUpdate(message: ClientMessage) {
+        setSource((current) => applyTopicSourceMessageUpdate(current, message))
+      }
+      return (
+        <>
+          <TopicSourceMessageSync
+            conversationId="conversation-parent"
+            messageId={source.id}
+            onUpdate={handleUpdate}
+          />
+          <TopicSourceBanner
+            currentUserId="user-2"
+            onForward={onForward}
+            onSetReaction={onSetReaction}
+            reactions={[{ count: 1, reactedByMe: false, text: "👍", users: [] }]}
+            sourceMessage={source}
+          />
+        </>
+      )
+    }
+
+    render(
+      <RealtimeContext.Provider
+        value={{
+          ready: true,
+          sendRealtimeRequest: vi.fn(),
+          status: "connected",
+          subscribeRealtimeEvent: (event, callback) => {
+            callbacks.set(event, callback)
+            return () => callbacks.delete(event)
+          },
+        }}
+      >
+        <Probe />
+      </RealtimeContext.Provider>,
+    )
+
+    act(() => {
+      callbacks.get("message.updated")?.({
+        message: {
+          client_message_id: "client-message-1",
+          conversation_id: "conversation-parent",
+          created_at: "2026-07-20T04:00:00Z",
+          id: "message-1",
+          revoked_at: "2026-07-28T10:00:00Z",
+          revoked_by_user_id: "user-1",
+          sender: { id: "user-1", type: "user" },
+          seq: 8,
+        },
+      })
+    })
+
+    expect(screen.queryByText("完整来源消息")).not.toBeInTheDocument()
+    expect(screen.getByText("该消息已被撤回")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "添加表情" })).not.toBeInTheDocument()
+    fireEvent.contextMenu(screen.getByTestId("topic-source-message-bubble"))
+    expect(screen.queryByRole("menuitem", { name: "转发" })).not.toBeInTheDocument()
+  })
+
   it("renders the preserved source body instead of reducing it to its summary", () => {
     const sourceMessage: ClientTopicSourceMessage = {
       body: { content: "完整来源消息", type: "text" },

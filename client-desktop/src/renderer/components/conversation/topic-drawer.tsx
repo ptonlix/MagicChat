@@ -9,6 +9,7 @@ import {
   listConversationMessageChoiceSnapshots,
   listConversationMessageReactionSnapshots,
   normalizeConversationRemovedEventPayload,
+  normalizeMessageUpdatedEventPayload,
   normalizeMessageReactionsUpdatedEventPayload,
   normalizeMessageChoiceUpdatedEventPayload,
   participateConversationTopic,
@@ -21,7 +22,7 @@ import {
   type ClientTopicSourceMessage,
 } from "@/lib/client-data-api"
 import { getAvatarInitial } from "@/lib/avatar"
-import { getClientDataErrorMessage } from "@/lib/client-data-state"
+import { applyTopicSourceMessageUpdate, getClientDataErrorMessage } from "@/lib/client-data-state"
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
@@ -155,6 +156,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     React.useState<MessageReactionSnapshot | null>(null)
   const [sourceChoiceSnapshot, setSourceChoiceSnapshot] =
     React.useState<MessageChoiceSnapshot | null>(null)
+  const sourceChoiceRequestIdRef = React.useRef(0)
   const [forwardOperation, setForwardOperation] = React.useState<TopicForwardOperation | null>(null)
   const messageSelection = useMessageSelection(conversationId)
   const {
@@ -204,6 +206,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
 
   const sourceIsChoice = detail?.sourceMessage.body.type === "choice"
   const refreshSourceChoice = React.useCallback(async () => {
+    const requestId = ++sourceChoiceRequestIdRef.current
     if (!sourceIsChoice || !sourceConversationId || !sourceMessageId) {
       setSourceChoiceSnapshot(null)
       return
@@ -211,8 +214,29 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     const [snapshot] = await listConversationMessageChoiceSnapshots(sourceConversationId, [
       sourceMessageId,
     ])
-    if (snapshot) setSourceChoiceSnapshot(snapshot)
+    if (requestId === sourceChoiceRequestIdRef.current && snapshot) {
+      setSourceChoiceSnapshot(snapshot)
+    }
   }, [sourceConversationId, sourceIsChoice, sourceMessageId])
+
+  const handleSourceMessageUpdate = React.useCallback((message: ClientMessage) => {
+    setDetail((current) => {
+      if (
+        !current ||
+        current.parentConversation.id !== message.conversationId ||
+        current.sourceMessage.id !== message.id
+      ) {
+        return current
+      }
+      return {
+        ...current,
+        sourceMessage: applyTopicSourceMessageUpdate(current.sourceMessage, message),
+      }
+    })
+    if (message.body.type === "revoked") {
+      setSourceReactionSnapshot(null)
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!open || !sourceConversationId || !sourceMessageId) return
@@ -232,16 +256,11 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
 
   React.useEffect(() => {
     if (!open || !sourceIsChoice || !sourceConversationId || !sourceMessageId) return
-    let active = true
-    void listConversationMessageChoiceSnapshots(sourceConversationId, [sourceMessageId])
-      .then(([snapshot]) => {
-        if (active && snapshot) setSourceChoiceSnapshot(snapshot)
-      })
-      .catch(() => undefined)
+    void refreshSourceChoice().catch(() => undefined)
     return () => {
-      active = false
+      sourceChoiceRequestIdRef.current += 1
     }
-  }, [open, sourceConversationId, sourceIsChoice, sourceMessageId])
+  }, [open, refreshSourceChoice, sourceConversationId, sourceIsChoice, sourceMessageId])
 
   const detailConversation = detail?.conversation ?? null
   const listedConversation = detailConversation ? getConversation(detailConversation.id) : null
@@ -564,6 +583,11 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
           />
           {sourceConversationId && sourceMessageId && (
             <>
+              <TopicSourceMessageSync
+                conversationId={sourceConversationId}
+                messageId={sourceMessageId}
+                onUpdate={handleSourceMessageUpdate}
+              />
               <TopicSourceReactionSync
                 conversationId={sourceConversationId}
                 messageId={sourceMessageId}
@@ -784,6 +808,35 @@ export function TopicSourceReactionSync({
           const event = normalizeMessageReactionsUpdatedEventPayload(payload)
           if (event.conversationId === conversationId && event.messageId === messageId) {
             void onUpdate().catch(() => undefined)
+          }
+        } catch {
+          // Ignore malformed realtime events. The websocket remains usable.
+        }
+      }),
+    [conversationId, messageId, onUpdate, subscribeRealtimeEvent],
+  )
+
+  return null
+}
+
+export function TopicSourceMessageSync({
+  conversationId,
+  messageId,
+  onUpdate,
+}: {
+  conversationId: string
+  messageId: string
+  onUpdate: (message: ClientMessage) => void
+}) {
+  const { subscribeRealtimeEvent } = useRealtime()
+
+  React.useEffect(
+    () =>
+      subscribeRealtimeEvent("message.updated", (payload) => {
+        try {
+          const message = normalizeMessageUpdatedEventPayload(payload)
+          if (message.conversationId === conversationId && message.id === messageId) {
+            onUpdate(message)
           }
         } catch {
           // Ignore malformed realtime events. The websocket remains usable.
@@ -1087,19 +1140,22 @@ export function TopicSourceBanner({
           showChoiceResponseCounts={showChoiceResponseCounts}
         />
       )}
-      {!selectionMode && !choiceUnavailable && reactions.length > 0 && (
-        <div className="mt-2">
-          <MessageReactionChips
-            align={fromCurrentUser ? "end" : "start"}
-            canAdd={loadedSource.body.type !== "revoked"}
-            conversationId={reactionConversationId ?? conversationId ?? ""}
-            enabled={loadedSource.body.type !== "revoked"}
-            messageId={loadedSource.id}
-            onSetReaction={onSetReaction}
-            reactions={reactions}
-          />
-        </div>
-      )}
+      {!selectionMode &&
+        !choiceUnavailable &&
+        loadedSource.body.type !== "revoked" &&
+        reactions.length > 0 && (
+          <div className="mt-2">
+            <MessageReactionChips
+              align={fromCurrentUser ? "end" : "start"}
+              canAdd
+              conversationId={reactionConversationId ?? conversationId ?? ""}
+              enabled
+              messageId={loadedSource.id}
+              onSetReaction={onSetReaction}
+              reactions={reactions}
+            />
+          </div>
+        )}
     </div>
   )
   const renderedMessageBubble =

@@ -1,7 +1,59 @@
 import { describe, expect, it } from "vitest"
 
 import type { ClientConversation, ClientMessage } from "@/lib/client-data-api"
-import { mergeConversationMessages, orderConversations } from "@/lib/client-data-state"
+import {
+  applyMessageChoiceSnapshot,
+  mergeConversationMessages,
+  orderConversations,
+} from "@/lib/client-data-state"
+
+describe("applyMessageChoiceSnapshot", () => {
+  it("does not apply a snapshot when the choice changed after the request started", () => {
+    const expectedChoice = {
+      myOptionIds: ["option-a"],
+      options: [
+        { id: "option-a", responseCount: 1 },
+        { id: "option-b", responseCount: 0 },
+      ],
+      responseCount: 1,
+    }
+    const currentChoice = {
+      myOptionIds: ["option-b"],
+      options: [
+        { id: "option-a", responseCount: 0 },
+        { id: "option-b", responseCount: 1 },
+      ],
+      responseCount: 1,
+    }
+    const message: ClientMessage = {
+      ...createMessage("message-choice", 1),
+      body: {
+        content: "选择项目",
+        contentType: "text",
+        options: [
+          { id: "option-a", label: "项目 A" },
+          { id: "option-b", label: "项目 B" },
+        ],
+        selection: "single",
+        type: "choice",
+      },
+      choice: currentChoice,
+    }
+
+    expect(
+      applyMessageChoiceSnapshot(
+        message,
+        {
+          choice: expectedChoice,
+          conversationId: message.conversationId,
+          messageId: message.id,
+          status: "active",
+        },
+        { expectedChoice },
+      ),
+    ).toBe(message)
+  })
+})
 
 describe("mergeConversationMessages", () => {
   it("appends newer messages in sequence order", () => {
