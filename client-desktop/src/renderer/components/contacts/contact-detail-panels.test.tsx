@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router"
@@ -61,10 +61,12 @@ describe("AppDetailPanel", () => {
 
   it("renders the owned application actions and opens its developer profile", async () => {
     const user = userEvent.setup()
+    const onDelete = vi.fn().mockResolvedValue(undefined)
     renderWithClientData(
       <AppDetailPanel
         app={app}
         developer={contact}
+        onDelete={onDelete}
         onEditProfile={vi.fn()}
         onStartConversation={vi.fn()}
         onViewAccessInfo={vi.fn()}
@@ -73,11 +75,17 @@ describe("AppDetailPanel", () => {
     )
 
     const accessInfoButton = screen.getByRole("button", {
-      name: "查看接入信息",
+      name: "开发指南",
     })
     const editProfileButton = screen.getByRole("button", { name: "修改资料" })
+    const deleteButton = screen.getByRole("button", { name: "删除应用" })
     expect(accessInfoButton).toBeInTheDocument()
     expect(editProfileButton).toBeInTheDocument()
+    expect(deleteButton).toBeInTheDocument()
+    expect(
+      editProfileButton.compareDocumentPosition(accessInfoButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(screen.getByText("开发者")).toBeInTheDocument()
     expect(screen.getByText("当前用户")).toBeInTheDocument()
     const developerLink = screen.getByRole("button", { name: "当前用户资料" })
@@ -96,9 +104,59 @@ describe("AppDetailPanel", () => {
       />,
     )
 
-    expect(screen.queryByRole("button", { name: "查看接入信息" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "开发指南" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "修改资料" })).not.toBeInTheDocument()
     expect(screen.queryByText("开发者")).not.toBeInTheDocument()
+  })
+
+  it("requires the exact application name before deletion", async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+    render(
+      <AppDetailPanel
+        app={app}
+        onDelete={onDelete}
+        onEditProfile={vi.fn()}
+        onStartConversation={vi.fn()}
+        onViewAccessInfo={vi.fn()}
+        startingConversation={false}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "删除应用" }))
+    const confirmation = screen.getByRole("alertdialog", { name: "确认删除应用" })
+    const confirmButton = within(confirmation).getByRole("button", { name: "删除应用" })
+    const input = within(confirmation).getByLabelText("请输入应用名称“分析助手”以确认删除")
+    expect(confirmButton).toBeDisabled()
+    await user.type(input, "分析助手")
+    await user.click(confirmButton)
+    await waitFor(() => expect(onDelete).toHaveBeenCalledOnce())
+  })
+
+  it("keeps the application deletion dialog recoverable after failure", async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn().mockRejectedValue(new Error("没有删除权限"))
+    render(
+      <AppDetailPanel
+        app={app}
+        onDelete={onDelete}
+        onEditProfile={vi.fn()}
+        onStartConversation={vi.fn()}
+        onViewAccessInfo={vi.fn()}
+        startingConversation={false}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "删除应用" }))
+    const confirmation = screen.getByRole("alertdialog", { name: "确认删除应用" })
+    const input = within(confirmation).getByLabelText("请输入应用名称“分析助手”以确认删除")
+    await user.type(input, "分析助手")
+    await user.click(within(confirmation).getByRole("button", { name: "删除应用" }))
+
+    await waitFor(() => expect(onDelete).toHaveBeenCalledOnce())
+    expect(confirmation).toBeInTheDocument()
+    expect(input).toBeEnabled()
+    expect(input).toHaveValue("分析助手")
   })
 })
 

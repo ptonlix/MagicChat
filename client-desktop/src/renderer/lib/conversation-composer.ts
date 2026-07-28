@@ -52,7 +52,9 @@ export function insertTextareaText(
   onChange(nextValue, nextCursor)
 }
 
-export function isImeCompositionKeyEvent(event: KeyboardEvent<HTMLTextAreaElement>) {
+export function isImeCompositionKeyEvent(
+  event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>,
+) {
   return event.nativeEvent.isComposing || event.keyCode === 229
 }
 
@@ -131,6 +133,35 @@ export function getMentionTrigger(value: string, cursor: number): MentionTrigger
     query,
     start,
   }
+}
+
+export function insertDraftMention(
+  value: string,
+  mentions: ConversationDraftMention[],
+  target: ConversationPanelMentionTarget,
+  selectionStart: number,
+  selectionEnd: number,
+) {
+  const mentionText = `@${target.label}`
+  const insertedText = `${mentionText} `
+  const nextValue = value.slice(0, selectionStart) + insertedText + value.slice(selectionEnd)
+  const nextMention: ConversationDraftMention = {
+    end: selectionStart + mentionText.length,
+    id: target.id,
+    label: target.label,
+    start: selectionStart,
+    targetType: target.targetType,
+  }
+  const nextMentions = [
+    ...syncDraftMentions(
+      mentions.filter((mention) => mention.end <= selectionStart || mention.start >= selectionEnd),
+      value,
+      nextValue,
+    ),
+    nextMention,
+  ].sort((left, right) => left.start - right.start)
+
+  return { cursor: selectionStart + insertedText.length, mentions: nextMentions, value: nextValue }
 }
 
 export function syncDraftMentions(

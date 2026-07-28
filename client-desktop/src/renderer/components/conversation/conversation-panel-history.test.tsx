@@ -1,5 +1,5 @@
 import * as React from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ClientConversation } from "@/lib/client-data-api"
@@ -110,6 +110,7 @@ describe("ConversationPanelHistory", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     Object.defineProperty(window, "ResizeObserver", {
       configurable: true,
       value: defaultResizeObserver,
@@ -257,6 +258,43 @@ describe("ConversationPanelHistory", () => {
     expect(testState.bubbleRenderCount).toBe(1)
   })
 
+  it("protects prepended history for three minutes without resetting for new messages", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-07-28T10:00:00Z"))
+    const onCompactMessages = vi.fn()
+    const originalMessages = Array.from({ length: 300 }, (_, index) =>
+      createMessage(`message-${index + 2}`, "other"),
+    )
+    const props = { ...createProps(originalMessages), onCompactMessages }
+    const { rerender } = render(<ConversationPanelHistory {...props} />)
+
+    rerender(<ConversationPanelHistory {...props} loadingBefore />)
+    const prependedMessages = [createMessage("message-1", "other"), ...originalMessages]
+    rerender(<ConversationPanelHistory {...props} loadingBefore messages={prependedMessages} />)
+    rerender(<ConversationPanelHistory {...props} messages={prependedMessages} />)
+    expect(onCompactMessages).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+    })
+    rerender(
+      <ConversationPanelHistory
+        {...props}
+        messages={[...prependedMessages, createMessage("message-302", "other")]}
+      />,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 1000 - 1)
+    })
+    expect(onCompactMessages).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(onCompactMessages).toHaveBeenCalledOnce()
+  })
+
   it("marks the newer message when adjacent messages are more than one hour apart", () => {
     const firstMessage = createMessage("message-1", "other", "2026-07-21T10:00:00Z")
     const exactlyOneHourLater = createMessage("message-2", "other", "2026-07-21T11:00:00Z")
@@ -310,6 +348,7 @@ function createConversation(): ClientConversation {
     lastMessageId: "message-1",
     lastMessageSeq: 1,
     lastMessageSummary: "测试消息",
+    lastChoiceSeq: 0,
     lastReadSeq: 1,
     memberCount: 2,
     name: "测试会话",

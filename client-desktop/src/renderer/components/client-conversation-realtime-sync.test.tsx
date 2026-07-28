@@ -1,9 +1,10 @@
-import { act, render } from "@testing-library/react"
+import { act, render, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const callbacks = new Map<string, (payload: unknown) => void>()
 const updateConversationMuted = vi.fn()
+const refreshConversations = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/lib/realtime-context", () => ({
   useRealtime: () => ({
@@ -21,7 +22,7 @@ vi.mock("@/lib/client-data-context", () => ({
     handleIncomingConversationMessage: vi.fn(),
     handleIncomingConversationMessageUpdate: vi.fn(),
     handleIncomingMessageReactionsUpdate: vi.fn(),
-    refreshConversations: vi.fn().mockResolvedValue(undefined),
+    refreshConversations,
     removeConversation: vi.fn(),
     syncLoadedConversationMessages: vi.fn(),
     updateConversationLastMentionedSeq: vi.fn(),
@@ -34,6 +35,12 @@ vi.mock("@/lib/client-data-context", () => ({
 import { ClientConversationRealtimeSync } from "@/components/client-conversation-realtime-sync"
 
 describe("ClientConversationRealtimeSync", () => {
+  beforeEach(() => {
+    callbacks.clear()
+    refreshConversations.mockClear()
+    updateConversationMuted.mockClear()
+  })
+
   it("applies conversation mute realtime events", () => {
     render(
       <MemoryRouter initialEntries={["/chat/conversation-1"]}>
@@ -49,5 +56,20 @@ describe("ClientConversationRealtimeSync", () => {
     })
 
     expect(updateConversationMuted).toHaveBeenCalledWith("conversation-1", true)
+  })
+
+  it("refreshes conversations for a valid restored event and ignores malformed payloads", async () => {
+    render(
+      <MemoryRouter initialEntries={["/chat/conversation-1"]}>
+        <ClientConversationRealtimeSync />
+      </MemoryRouter>,
+    )
+
+    act(() => {
+      callbacks.get("conversation.restored")?.({ conversation_id: "conversation-2" })
+      callbacks.get("conversation.restored")?.({ conversation_id: "" })
+    })
+
+    await waitFor(() => expect(refreshConversations).toHaveBeenCalledOnce())
   })
 })

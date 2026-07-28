@@ -5,6 +5,7 @@ import {
   type ClientDataRequestError,
   type MarkConversationReadOptions,
   type ClientMessage,
+  type ImageCaptionType,
   type MessageReactionsUpdatedEvent,
   type MessageChoiceUpdatedEvent,
   type MessageReactionSnapshot,
@@ -31,6 +32,11 @@ export type ClientConversationMessageState = {
 
 export type SendConversationMessageOptions = {
   replyToMessageId?: string
+}
+
+export type SendConversationImageOptions = SendConversationMessageOptions & {
+  caption?: string
+  captionType?: ImageCaptionType
 }
 
 export type ClientDataContextValue = {
@@ -65,7 +71,10 @@ export type ClientDataContextValue = {
   ) => Promise<ClientConversation>
   createProject: (name: string, groupIds?: string[]) => Promise<ClientProjectDetail>
   dissolveGroupConversation: (conversationId: string) => Promise<void>
+  dismissConversation: (conversationId: string) => Promise<void>
   ensureConversationMessages: (conversationId: string) => void
+  compactConversationMessages?: (conversationId: string) => void
+  registerConversationMessageView?: (conversationId: string) => () => void
   getConversation: (conversationId: string) => ClientConversation | null
   getConversationMessageState: (conversationId: string) => ClientConversationMessageState
   loadBeforeConversationMessages: (conversationId: string) => void
@@ -83,6 +92,7 @@ export type ClientDataContextValue = {
   handleIncomingMessageReactionsUpdate: (event: MessageReactionsUpdatedEvent) => void
   handleIncomingMessageChoiceUpdate?: (event: MessageChoiceUpdatedEvent) => void
   updateConversationLastMentionedSeq: (conversationId: string, lastMentionedSeq: number) => void
+  updateConversationLastChoiceSeq?: (conversationId: string, lastChoiceSeq: number) => void
   updateMessageTopic?: (
     parentConversationId: string,
     sourceMessageId: string,
@@ -94,6 +104,7 @@ export type ClientDataContextValue = {
   ) => void
   openDirectConversation: (userId: string) => Promise<ClientConversation>
   openAppConversation: (appId: string) => Promise<ClientConversation>
+  restoreConversation: (conversationId: string) => Promise<ClientConversation>
   joinGroupConversation: (conversationId: string) => Promise<ClientConversation>
   leaveGroupConversation: (conversationId: string) => Promise<void>
   removeConversation: (conversationId: string) => void
@@ -150,7 +161,7 @@ export type ClientDataContextValue = {
   sendConversationImage: (
     conversationId: string,
     image: File,
-    options?: SendConversationMessageOptions,
+    options?: SendConversationImageOptions,
   ) => Promise<ClientMessage | null>
   sendConversationVoice: (
     conversationId: string,

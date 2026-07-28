@@ -11,6 +11,7 @@ import type {
   ContactApp,
   ContactUser,
 } from "@/lib/client-data-api"
+import { ClientDataRequestError } from "@/lib/client-data-api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -50,11 +51,17 @@ type AddGroupAppCandidate = Pick<ContactApp, "avatar" | "description" | "id" | "
 type AddGroupMemberCandidate = AddGroupUserCandidate | AddGroupAppCandidate
 
 export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogProps) {
-  const { addGroupConversationMembers, contactApps, contacts, me } = useClientData()
+  const { addGroupConversationMembers, contactApps, contacts, me, refreshConversations } =
+    useClientData()
   const [keyword, setKeyword] = React.useState("")
   const [open, setOpen] = React.useState(false)
   const [tab, setTab] = React.useState<"users" | "apps">("users")
   const [submitting, setSubmitting] = React.useState(false)
+  const currentMember = (conversation.members ?? []).find(
+    (member) => member.type === "user" && member.id === me.id,
+  )
+  const canInviteApps = currentMember?.role === "owner" || currentMember?.role === "admin"
+  const activeTab = canInviteApps ? tab : "users"
   const existingMemberKeys = React.useMemo(
     () =>
       new Set(
@@ -111,15 +118,31 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
   )
   const newAppIds = React.useMemo(
     () =>
-      appCandidates
-        .map((candidate) => candidate.id)
-        .filter((appId) => {
-          const key = memberCandidateKey("app", appId)
-          return selectedMemberKeys.has(key) && !existingMemberKeys.has(key)
-        }),
-    [appCandidates, existingMemberKeys, selectedMemberKeys],
+      canInviteApps
+        ? appCandidates
+            .map((candidate) => candidate.id)
+            .filter((appId) => {
+              const key = memberCandidateKey("app", appId)
+              return selectedMemberKeys.has(key) && !existingMemberKeys.has(key)
+            })
+        : [],
+    [appCandidates, canInviteApps, existingMemberKeys, selectedMemberKeys],
   )
   const newMemberCount = newMemberIds.length + newAppIds.length
+
+  React.useEffect(() => {
+    if (canInviteApps) return
+    setTab("users")
+    setSelectedMemberKeys((current) => {
+      let changed = false
+      const next = new Set(current)
+      for (const app of appCandidates) {
+        const key = memberCandidateKey("app", app.id)
+        if (!existingMemberKeys.has(key) && next.delete(key)) changed = true
+      }
+      return changed ? next : current
+    })
+  }, [appCandidates, canInviteApps, existingMemberKeys])
 
   function handleOpenChange(nextOpen: boolean) {
     if (submitting) {
@@ -173,6 +196,9 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
       await addGroupConversationMembers(conversation.id, newMemberIds, newAppIds)
       setOpen(false)
     } catch (error) {
+      if (isGroupInvitePermissionError(error)) {
+        await refreshConversations().catch(() => undefined)
+      }
       toast.error(error instanceof Error ? error.message : "添加成员失败")
     } finally {
       setSubmitting(false)
@@ -192,18 +218,23 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
           <DialogDescription className="sr-only">选择联系人添加到当前群聊</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={handleSubmit}>
-          <Tabs onValueChange={(value) => setTab(value === "apps" ? "apps" : "users")} value={tab}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs
+            onValueChange={(value) => setTab(value === "apps" && canInviteApps ? "apps" : "users")}
+            value={activeTab}
+          >
+            <TabsList className={cn("grid w-full", canInviteApps ? "grid-cols-2" : "grid-cols-1")}>
               <TabsTrigger disabled={submitting} value="users">
                 成员
               </TabsTrigger>
-              <TabsTrigger disabled={submitting} value="apps">
-                应用
-              </TabsTrigger>
+              {canInviteApps && (
+                <TabsTrigger disabled={submitting} value="apps">
+                  应用
+                </TabsTrigger>
+              )}
             </TabsList>
             <div className="grid gap-2">
               <Label htmlFor="add-group-member-search">
-                {tab === "apps" ? "选择应用" : "选择成员"}
+                {activeTab === "apps" ? "选择应用" : "选择成员"}
               </Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -212,7 +243,7 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
                   disabled={submitting}
                   id="add-group-member-search"
                   onChange={(event) => setKeyword(event.target.value)}
-                  placeholder={tab === "apps" ? "搜索应用" : "搜索联系人"}
+                  placeholder={activeTab === "apps" ? "搜索应用" : "搜索联系人"}
                   type="search"
                   value={keyword}
                 />
@@ -252,6 +283,12 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function isGroupInvitePermissionError(error: unknown) {
+  return (
+    error instanceof ClientDataRequestError && (error.status === 403 || error.code === "forbidden")
   )
 }
 

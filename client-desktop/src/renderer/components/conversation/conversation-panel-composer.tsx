@@ -3,7 +3,11 @@ import { ImageIcon, LoaderCircle, Paperclip, Send, Smile, UsersRound, X } from "
 import { toast } from "sonner"
 import { getAvatarInitial } from "@/lib/avatar"
 import { cn } from "@/lib/utils"
-import { type ClientConversation, type ClientMessage } from "@/lib/client-data-api"
+import {
+  type ClientConversation,
+  type ClientMessage,
+  type ImageCaptionType,
+} from "@/lib/client-data-api"
 import {
   compressImageForMessage,
   imageMessageMaxBytes,
@@ -41,8 +45,7 @@ import type {
   ConversationPanelMentionTarget,
   ConversationPanelReplyTarget,
 } from "@/lib/conversation-panel-types"
-
-const maxFileMessageUploadBytes = 20 * 1024 * 1024
+import { getFileMessageUploadError } from "@/lib/file-message"
 
 export const ConversationPanelComposer = React.forwardRef<
   ConversationPanelComposerHandle,
@@ -55,7 +58,11 @@ export const ConversationPanelComposer = React.forwardRef<
     onDraftBlur?: () => void
     onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
     onSendFile: (file: File) => Promise<ClientMessage | null>
-    onSendImage: (image: File) => Promise<ClientMessage | null>
+    onSendImage: (
+      image: File,
+      caption: string,
+      captionType: ImageCaptionType,
+    ) => Promise<ClientMessage | null>
     onSendVoice: (voice: VoiceMessageRecording) => Promise<ClientMessage | null>
     onRichTextModeChange: (richTextMode: boolean) => void
     onSendMessage: (content?: string) => void
@@ -97,6 +104,7 @@ export const ConversationPanelComposer = React.forwardRef<
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
+  const [imageCaption, setImageCaption] = React.useState("")
   const mentionCandidates = React.useMemo(
     () =>
       conversation.type === "group" || conversation.topic?.parentConversationType === "group"
@@ -397,10 +405,11 @@ export const ConversationPanelComposer = React.forwardRef<
   }
 
   function prepareSelectedFile(file: File) {
-    if (file.size > maxFileMessageUploadBytes) {
+    const validationError = getFileMessageUploadError(file)
+    if (validationError) {
       setSelectedFile(null)
       setFileDialogOpen(false)
-      toast.error("文件大于 20MB，无法上传")
+      toast.error(validationError)
       return
     }
 
@@ -438,6 +447,7 @@ export const ConversationPanelComposer = React.forwardRef<
 
     setImagePreparing(true)
     setSelectedImage(null)
+    setImageCaption("")
     setImageDialogOpen(false)
 
     try {
@@ -491,24 +501,29 @@ export const ConversationPanelComposer = React.forwardRef<
 
     if (!open) {
       setSelectedImage(null)
+      setImageCaption("")
     }
   }
 
-  async function handleImageSendConfirm() {
+  async function handleImageSendConfirm(caption: string) {
     if (!selectedImage || sending) {
       return
     }
 
-    const message = await onSendImage(selectedImage)
+    const message = await onSendImage(selectedImage, caption, "text")
 
     if (message) {
       setImageDialogOpen(false)
       setSelectedImage(null)
+      setImageCaption("")
     }
   }
 
   return (
-    <footer className="shrink-0 border-t p-4" data-testid="conversation-panel-composer">
+    <footer
+      className="conversation-panel-composer-surface shrink-0 p-4"
+      data-testid="conversation-panel-composer"
+    >
       <input ref={fileInputRef} className="hidden" onChange={handleFileInputChange} type="file" />
       <input
         ref={imageInputRef}
@@ -705,9 +720,12 @@ export const ConversationPanelComposer = React.forwardRef<
         sending={sending}
       />
       <SendImageMessageDialog
+        caption={imageCaption}
         conversationName={conversation.name}
         image={selectedImage}
-        onConfirm={() => void handleImageSendConfirm()}
+        mentionCandidates={mentionCandidates}
+        onCaptionChange={setImageCaption}
+        onConfirm={(caption) => void handleImageSendConfirm(caption)}
         onOpenChange={handleImageDialogOpenChange}
         open={imageDialogOpen}
         sending={sending}

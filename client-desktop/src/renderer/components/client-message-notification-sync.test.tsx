@@ -170,6 +170,7 @@ function createConversation(overrides: Partial<ClientConversation> = {}): Client
     lastMessageId: null,
     lastMessageSeq: 0,
     lastMessageSummary: "",
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 0,
     memberCount: 2,

@@ -145,6 +145,7 @@ function createConversation(
     lastMessageId: `message-${id}`,
     lastMessageSeq: 1,
     lastMessageSummary: id,
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 1,
     memberCount: members?.length ?? 2,

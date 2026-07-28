@@ -36,8 +36,12 @@ describe("ConversationPanel file drop", () => {
     renderConversationPanel(createConversation())
     const panel = screen.getByTestId("chat-detail-shell")
     const header = screen.getByTestId("conversation-panel-header")
+    const composer = screen.getByTestId("conversation-panel-composer")
     const image = new File(["image"], "photo.png", { type: "image/png" })
     const dataTransfer = createFileDataTransfer([image])
+
+    expect(header).toHaveClass("conversation-panel-header-surface")
+    expect(composer).toHaveClass("conversation-panel-composer-surface")
 
     expect(fireEvent.dragEnter(panel, { dataTransfer })).toBe(false)
 
@@ -165,6 +169,7 @@ function createConversation(): ClientConversation {
     lastMessageId: null,
     lastMessageSeq: 0,
     lastMessageSummary: "",
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 0,
     memberCount: 2,

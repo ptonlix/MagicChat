@@ -281,6 +281,10 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("group-preview")).toHaveTextContent("无发送者：")
     act(() => screen.getByRole("button", { name: "receive group message" }).click())
     expect(screen.getByTestId("group-preview")).toHaveTextContent("小张：方案已经更新")
+    expect(screen.getByTestId("group-message-count")).toHaveTextContent("0")
+
+    act(() => screen.getByRole("button", { name: "receive active group message" }).click())
+    expect(screen.getByTestId("group-message-count")).toHaveTextContent("1")
   })
 
   it("recovers exact reactions for version gaps and loaded-conversation sync", async () => {
@@ -346,12 +350,223 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("reaction-state")).toHaveTextContent("4:🎉")
     expect(snapshotRequestCount).toBe(2)
   })
+
+  it("clears retained messages on dismiss and restores without duplicate rows", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(
+          jsonResponse(createConversationsResponse([createConversationResponse("conversation-1")])),
+        )
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/conversations/conversation-1/messages?limit=20") {
+        return Promise.resolve(jsonResponse(createMessagesResponse()))
+      }
+      if (url === "/api/client/conversations/conversation-1" && init?.method === "DELETE") {
+        expect(init.method).toBe("DELETE")
+        return Promise.resolve(
+          jsonResponse({ data: { conversation_id: "conversation-1" }, success: true }),
+        )
+      }
+      if (url === "/api/client/conversations/conversation-1/restore") {
+        expect(init?.method).toBe("POST")
+        return Promise.resolve(
+          jsonResponse({
+            data: { conversation: createConversationResponse("conversation-1") },
+            success: true,
+          }),
+        )
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ConversationLifecycleProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "load lifecycle messages" }).click()
+    })
+    expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("1:1")
+
+    await act(async () => {
+      screen.getByRole("button", { name: "dismiss lifecycle conversation" }).click()
+    })
+    expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("0:0")
+
+    await act(async () => {
+      screen.getByRole("button", { name: "restore lifecycle conversation" }).click()
+      screen.getByRole("button", { name: "restore lifecycle conversation" }).click()
+    })
+    expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("1:0")
+  })
+
+  it("does not restore a dismissed conversation from an older refresh", async () => {
+    vi.useFakeTimers()
+    const staleRefresh = createDeferred<Response>()
+    let conversationRequestCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      }
+      if (url === "/api/client/conversations") {
+        conversationRequestCount += 1
+        if (conversationRequestCount === 1) {
+          return Promise.resolve(
+            jsonResponse(
+              createConversationsResponse([createConversationResponse("conversation-1")]),
+            ),
+          )
+        }
+        return staleRefresh.promise
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/conversations/conversation-1" && init?.method === "DELETE") {
+        return Promise.resolve(
+          jsonResponse({ data: { conversation_id: "conversation-1" }, success: true }),
+        )
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ConversationRefreshRaceProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.getByTestId("conversation-ids")).toHaveTextContent("conversation-1")
+    act(() => screen.getByRole("button", { name: "refresh conversations" }).click())
+    expect(conversationRequestCount).toBe(2)
+
+    await act(async () => {
+      screen.getByRole("button", { name: "dismiss conversation" }).click()
+    })
+    expect(screen.getByTestId("conversation-ids")).toHaveTextContent("none")
+
+    await act(async () => {
+      staleRefresh.resolve(
+        jsonResponse(createConversationsResponse([createConversationResponse("conversation-1")])),
+      )
+    })
+    expect(screen.getByTestId("conversation-ids")).toHaveTextContent("none")
+  })
+
+  it("keeps the newest result when concurrent conversation refreshes resolve out of order", async () => {
+    vi.useFakeTimers()
+    const olderRefresh = createDeferred<Response>()
+    const newerRefresh = createDeferred<Response>()
+    let conversationRequestCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      }
+      if (url === "/api/client/conversations") {
+        conversationRequestCount += 1
+        if (conversationRequestCount === 1) {
+          return Promise.resolve(
+            jsonResponse(createConversationsResponse([createConversationResponse("initial")])),
+          )
+        }
+        return conversationRequestCount === 2 ? olderRefresh.promise : newerRefresh.promise
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ConversationRefreshRaceProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    act(() => screen.getByRole("button", { name: "refresh conversations" }).click())
+    act(() => screen.getByRole("button", { name: "refresh conversations" }).click())
+    expect(conversationRequestCount).toBe(3)
+
+    await act(async () => {
+      newerRefresh.resolve(
+        jsonResponse(createConversationsResponse([createConversationResponse("newest")])),
+      )
+    })
+    expect(screen.getByTestId("conversation-ids")).toHaveTextContent("newest")
+
+    await act(async () => {
+      olderRefresh.resolve(
+        jsonResponse(createConversationsResponse([createConversationResponse("older")])),
+      )
+    })
+    expect(screen.getByTestId("conversation-ids")).toHaveTextContent("newest")
+  })
 })
 
 function ConversationCount() {
   const { conversations } = useClientData()
 
   return <div data-testid="conversation-count">{conversations.length}</div>
+}
+
+function ConversationRefreshRaceProbe() {
+  const { conversations, dismissConversation, refreshConversations } = useClientData()
+
+  return (
+    <>
+      <button
+        aria-label="refresh conversations"
+        onClick={() => void refreshConversations()}
+        type="button"
+      />
+      <button
+        aria-label="dismiss conversation"
+        onClick={() => void dismissConversation("conversation-1")}
+        type="button"
+      />
+      <div data-testid="conversation-ids">
+        {conversations.map((conversation) => conversation.id).join(",") || "none"}
+      </div>
+    </>
+  )
 }
 
 function TopicArchiveProbe() {
@@ -444,13 +659,67 @@ function ConversationMuteProbe() {
   )
 }
 
+function ConversationLifecycleProbe() {
+  const {
+    conversations,
+    dismissConversation,
+    ensureConversationMessages,
+    getConversationMessageState,
+    restoreConversation,
+  } = useClientData()
+
+  return (
+    <>
+      <button
+        aria-label="load lifecycle messages"
+        onClick={() => ensureConversationMessages("conversation-1")}
+        type="button"
+      />
+      <button
+        aria-label="dismiss lifecycle conversation"
+        onClick={() => void dismissConversation("conversation-1")}
+        type="button"
+      />
+      <button
+        aria-label="restore lifecycle conversation"
+        onClick={() => void restoreConversation("conversation-1")}
+        type="button"
+      />
+      <div data-testid="lifecycle-state">
+        {conversations.length}:{getConversationMessageState("conversation-1").messages.length}
+      </div>
+    </>
+  )
+}
+
 function GroupRealtimeMessageProbe() {
-  const { conversations, handleIncomingConversationMessage } = useClientData()
+  const { conversations, getConversationMessageState, handleIncomingConversationMessage } =
+    useClientData()
   const conversation = conversations[0]
   const sender = conversation?.lastMessageSender
 
   return (
     <>
+      <button
+        aria-label="receive active group message"
+        onClick={() =>
+          handleIncomingConversationMessage(
+            {
+              body: { content: "活动会话消息", type: "text" },
+              clientMessageId: "client-message-live-2",
+              conversationId: "group-1",
+              createdAt: "2026-07-28T01:01:00Z",
+              id: "message-live-2",
+              reactionVersion: 0,
+              reactions: [],
+              sender: { id: "user-2", type: "user" },
+              seq: 2,
+            },
+            { activeConversationId: "group-1", visible: true },
+          )
+        }
+        type="button"
+      />
       <button
         aria-label="receive group message"
         onClick={() =>
@@ -471,6 +740,9 @@ function GroupRealtimeMessageProbe() {
       <div data-testid="group-preview">
         {sender?.nickname || sender?.name || "无发送者"}：{conversation?.lastMessageSummary}
       </div>
+      <div data-testid="group-message-count">
+        {getConversationMessageState("group-1").messages.length}
+      </div>
     </>
   )
 }
@@ -482,6 +754,14 @@ function jsonResponse(body: unknown) {
     },
     status: 200,
   })
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
 }
 
 function createCurrentUserResponse() {

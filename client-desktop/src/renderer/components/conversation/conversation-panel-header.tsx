@@ -22,7 +22,7 @@ export function ConversationPanelHeader({
 }) {
   return (
     <header
-      className="flex h-14 shrink-0 items-center justify-between border-b px-5"
+      className="conversation-panel-header-surface flex h-14 shrink-0 items-center justify-between px-5"
       data-testid="conversation-panel-header"
     >
       <div className="flex min-w-0 items-center gap-3 pr-3">

@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest"
 
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
-import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
+import {
+  ClientDataRequestError,
+  type ClientConversation,
+  type ClientUser,
+} from "@/lib/client-data-api"
 
 describe("AddGroupMembersDialog", () => {
   it("adds selected apps through the group member dialog", async () => {
@@ -26,6 +30,66 @@ describe("AddGroupMembersDialog", () => {
     await user.click(screen.getByRole("button", { name: "添加" }))
 
     expect(addGroupConversationMembers).toHaveBeenCalledWith("conversation-group-1", [], ["app-1"])
+  })
+
+  it("refreshes the current role after a forbidden invite without retrying", async () => {
+    const user = userEvent.setup()
+    const addGroupConversationMembers = vi.fn().mockRejectedValue(
+      new ClientDataRequestError("只有群主或管理员可以邀请应用加入群聊", {
+        code: "forbidden",
+        status: 403,
+      }),
+    )
+    const refreshConversations = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ClientDataContext.Provider
+        value={createClientDataContextValue({
+          addGroupConversationMembers,
+          refreshConversations,
+        })}
+      >
+        <AddGroupMembersDialog conversation={createGroupConversation()} />
+      </ClientDataContext.Provider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "添加成员" }))
+    await user.click(screen.getByRole("tab", { name: "应用" }))
+    await user.click(screen.getByRole("checkbox", { name: "茉莉" }))
+    await user.click(screen.getByRole("button", { name: "添加" }))
+
+    expect(addGroupConversationMembers).toHaveBeenCalledOnce()
+    expect(refreshConversations).toHaveBeenCalledOnce()
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+
+  it("clears pending application selections when the role changes", async () => {
+    const user = userEvent.setup()
+    const ownerConversation = createGroupConversation()
+    const memberConversation = createGroupConversation()
+    memberConversation.members = memberConversation.members?.map((member) => ({
+      ...member,
+      role: "member" as const,
+    }))
+    const context = createClientDataContextValue({})
+    const { rerender } = render(
+      <ClientDataContext.Provider value={context}>
+        <AddGroupMembersDialog conversation={ownerConversation} />
+      </ClientDataContext.Provider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "添加成员" }))
+    await user.click(screen.getByRole("tab", { name: "应用" }))
+    await user.click(screen.getByRole("checkbox", { name: "茉莉" }))
+
+    rerender(
+      <ClientDataContext.Provider value={context}>
+        <AddGroupMembersDialog conversation={memberConversation} />
+      </ClientDataContext.Provider>,
+    )
+
+    expect(screen.queryByRole("tab", { name: "应用" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "添加" })).toBeDisabled()
   })
 })
 
@@ -89,7 +153,10 @@ function createClientDataContextValue(
     createGroupConversation: vi.fn(),
     createProject: vi.fn(),
     dissolveGroupConversation: vi.fn(),
+    dismissConversation: vi.fn(),
     ensureConversationMessages: vi.fn(),
+    compactConversationMessages: vi.fn(),
+    registerConversationMessageView: vi.fn(() => vi.fn()),
     getConversation: vi.fn(),
     getConversationMessageState: vi.fn(),
     handleIncomingConversationMessage: vi.fn(),
@@ -105,6 +172,7 @@ function createClientDataContextValue(
     mergeIncomingConversationMessage: vi.fn(),
     openAppConversation: vi.fn(),
     openDirectConversation: vi.fn(),
+    restoreConversation: vi.fn(),
     refreshContacts: vi.fn(),
     refreshConversations: vi.fn(),
     refreshMe: vi.fn(),
@@ -124,6 +192,7 @@ function createClientDataContextValue(
     setGroupConversationPublic: vi.fn(),
     syncLoadedConversationMessages: vi.fn(),
     updateConversationLastMentionedSeq: vi.fn(),
+    updateConversationLastChoiceSeq: vi.fn(),
     updateConversationLastMessage: vi.fn(),
     updateConversationPinned: vi.fn(),
     updateConversationMuted: vi.fn(),
@@ -170,6 +239,7 @@ function createGroupConversation(): ClientConversation {
     lastMessageId: null,
     lastMessageSeq: 0,
     lastMessageSummary: "",
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 0,
     memberCount: 1,

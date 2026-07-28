@@ -1,8 +1,22 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { getClientProjectTask, updateClientProjectTask } from "@/lib/project-task-data-api"
+import {
+  deleteClientProjectTask,
+  getClientProjectTask,
+  updateClientProjectTask,
+} from "@/lib/project-task-data-api"
 
 describe("project task reminder data API", () => {
+  it("deletes a task", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ success: true, data: { task_id: "task-1" } }))
+    await expect(deleteClientProjectTask("project-1", "task-1", fetcher)).resolves.toBe("task-1")
+    expect(fetcher).toHaveBeenCalledWith("/api/client/projects/project-1/tasks/task-1", {
+      credentials: "include",
+      method: "DELETE",
+    })
+  })
   it("normalizes a weekly reminder", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       jsonResponse({

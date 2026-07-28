@@ -39,7 +39,7 @@ describe("AppCredentialsDialog", () => {
       />,
     )
 
-    expect(screen.getByRole("dialog", { name: "应用接入信息" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "开发指南" })).toBeInTheDocument()
     expect(screen.getByLabelText("连接密钥")).toHaveValue("current-secret")
     expect(screen.getByLabelText("应用 ID")).toHaveValue("app-1")
 

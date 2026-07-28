@@ -1,13 +1,15 @@
 import * as React from "react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
-import { Bell, BellOff, LoaderCircle, Pin, PinOff } from "lucide-react"
+import { Bell, BellOff, LoaderCircle, Pin, PinOff, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
 type ConversationListItemMenuProps = {
   children: React.ReactNode
+  dismissing?: boolean
   muted?: boolean
   muting?: boolean
+  onDismiss?: () => void
   onMutedChange?: (muted: boolean) => void
   onPinnedChange?: (pinned: boolean) => void
   showPinAction?: boolean
@@ -17,8 +19,10 @@ type ConversationListItemMenuProps = {
 
 export function ConversationListItemMenu({
   children,
+  dismissing = false,
   muted = false,
   muting = false,
+  onDismiss,
   onMutedChange,
   onPinnedChange,
   showPinAction = true,
@@ -78,6 +82,23 @@ export function ConversationListItemMenu({
               <BellOff aria-hidden="true" className="size-4" />
             )}
             <span>{muted ? "取消免打扰" : "消息免打扰"}</span>
+          </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Item
+            className={cn(
+              "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-hidden select-none",
+              "focus:bg-destructive/10 focus:text-destructive",
+              "data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+            )}
+            data-slot="conversation-list-item-menu-item"
+            disabled={dismissing || !onDismiss}
+            onSelect={onDismiss}
+          >
+            {dismissing ? (
+              <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+            ) : (
+              <Trash2 aria-hidden="true" className="size-4" />
+            )}
+            <span>删除对话</span>
           </ContextMenuPrimitive.Item>
         </ContextMenuPrimitive.Content>
       </ContextMenuPrimitive.Portal>

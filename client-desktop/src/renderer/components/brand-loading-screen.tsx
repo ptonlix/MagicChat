@@ -8,26 +8,27 @@ type BrandLoadingScreenProps = {
 
 export function BrandLoadingScreen({
   className,
-  detail = "正在同步你的工作空间",
-  message = "正在进入即应",
+  detail = "正在为你加载数据",
+  message,
 }: BrandLoadingScreenProps) {
   return (
-    <main className={cn("brand-loading-screen", className)}>
-      <div aria-hidden="true" className="brand-loading-orb brand-loading-orb-one" />
-      <div aria-hidden="true" className="brand-loading-orb brand-loading-orb-two" />
-      <div className="brand-loading-content">
-        <div className="brand-loading-mark-wrap">
-          <div aria-hidden="true" className="brand-loading-ring" />
-          <img alt="即应" className="brand-loading-mark" src="/logo.png" />
+    <main
+      className={cn(
+        "flex h-svh items-center justify-center bg-background text-foreground",
+        className,
+      )}
+    >
+      <div className="flex w-56 flex-col items-center gap-3">
+        <div className="text-center text-sm text-muted-foreground">
+          {message ? `${message} · ${detail}` : detail}
         </div>
-        <div className="brand-loading-copy">
-          <strong>{message}</strong>
-          <span>{detail}</span>
-        </div>
-        <div aria-label="加载中" className="brand-loading-dots" role="status">
-          <i />
-          <i />
-          <i />
+        <div
+          aria-label="加载进度"
+          aria-valuetext="加载中"
+          className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+        >
+          <div className="client-loading-progress-indicator h-full w-1/3 rounded-full bg-primary" />
         </div>
       </div>
     </main>

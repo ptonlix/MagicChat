@@ -4,12 +4,17 @@ import { toast } from "sonner"
 
 import {
   archiveConversationTopic,
+  forwardConversationMessages,
   getConversationTopic,
+  listConversationMessageChoiceSnapshots,
   listConversationMessageReactionSnapshots,
   normalizeConversationRemovedEventPayload,
   normalizeMessageReactionsUpdatedEventPayload,
+  normalizeMessageChoiceUpdatedEventPayload,
   participateConversationTopic,
   type ClientMessageReaction,
+  type ClientChoiceState,
+  type MessageChoiceSnapshot,
   type MessageReactionSnapshot,
   type ClientMessage,
   type ClientTopicDetail,
@@ -21,6 +26,9 @@ import { createConversationMentionLabelResolver } from "@/lib/conversation-menti
 import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
 import { type MentionLabelResolver } from "@/lib/message-mentions"
+import { isTopicSourceMessageSelectable } from "@/lib/topic-source-message"
+import { createClientMessageId } from "@/lib/message-id"
+import { useMessageSelection } from "@/hooks/use-message-selection"
 import type {
   ConversationDraftMention,
   ConversationDraftReplyTarget,
@@ -31,8 +39,18 @@ import {
 } from "@/lib/conversation-message-presenter"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
 import { cn } from "@/lib/utils"
-import { ConversationPanel, type ConversationPanelMessage } from "@/components/conversation-panel"
+import {
+  ConversationPanel,
+  type ConversationPanelForwardMode,
+  type ConversationPanelMessage,
+} from "@/components/conversation-panel"
+import { ForwardMessageDialog } from "@/components/conversation/forward-message-dialog"
 import { MessageBodyRenderer } from "@/components/conversation/conversation-message"
+import {
+  MessageActionMenu,
+  MessageMoreActionsMenu,
+  type MessageActionOptions,
+} from "@/components/message-action-menu"
 import {
   MessageReactionAddButton,
   MessageReactionChips,
@@ -49,6 +67,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,10 +85,27 @@ import {
 const emptyMessages: ClientMessage[] = []
 const emptyMentionLabelResolver: MentionLabelResolver = () => undefined
 
+function isMessageSelectable(message: Pick<ClientMessage, "body">) {
+  return (
+    message.body.type !== "choice" &&
+    message.body.type !== "revoked" &&
+    message.body.type !== "unsupported" &&
+    message.body.type !== "system_event"
+  )
+}
+
 type TopicDrawerProps = {
   conversationId: string
   onOpenChange: (open: boolean) => void
   open: boolean
+}
+
+type TopicForwardOperation = {
+  clientForwardId: string
+  messageIds: string[]
+  messageTypes: ClientMessage["body"]["type"][]
+  mode: ConversationPanelForwardMode
+  sourceConversationId: string
 }
 
 export function TopicDrawer(props: TopicDrawerProps) {
@@ -84,14 +120,19 @@ export function TopicDrawer(props: TopicDrawerProps) {
 function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerProps) {
   const {
     contactApps,
+    compactConversationMessages,
     contacts,
+    conversations,
     ensureConversationMessages,
     getConversation,
     getConversationMessageState,
     loadBeforeConversationMessages,
     markConversationRead,
     me,
+    mergeIncomingConversationMessage,
     refreshConversations,
+    registerConversationMessageView,
+    respondToChoice,
     revokeConversationMessage,
     sendConversationFile,
     sendConversationImage,
@@ -112,6 +153,16 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
   const [replyTarget, setReplyTarget] = React.useState<ConversationDraftReplyTarget | null>(null)
   const [sourceReactionSnapshot, setSourceReactionSnapshot] =
     React.useState<MessageReactionSnapshot | null>(null)
+  const [sourceChoiceSnapshot, setSourceChoiceSnapshot] =
+    React.useState<MessageChoiceSnapshot | null>(null)
+  const [forwardOperation, setForwardOperation] = React.useState<TopicForwardOperation | null>(null)
+  const messageSelection = useMessageSelection(conversationId)
+  const {
+    maxSelectedMessages,
+    selectedMessageIds,
+    start: startSelectingMessage,
+    toggle: toggleSelectedMessage,
+  } = messageSelection
   const [richTextMode, setRichTextMode] = React.useState(false)
   React.useEffect(() => {
     if (!open || !conversationId) {
@@ -139,6 +190,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
 
   const sourceConversationId = detail?.parentConversation.id ?? ""
   const sourceMessageId = detail?.sourceMessage.id ?? ""
+  const sourceConversationCanSend = getConversation(sourceConversationId)?.canSend !== false
   const refreshSourceReactions = React.useCallback(async () => {
     if (!sourceConversationId || !sourceMessageId) return
     const [snapshot] = await listConversationMessageReactionSnapshots(sourceConversationId, [
@@ -149,6 +201,18 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
       current && current.reactionVersion > snapshot.reactionVersion ? current : snapshot,
     )
   }, [sourceConversationId, sourceMessageId])
+
+  const sourceIsChoice = detail?.sourceMessage.body.type === "choice"
+  const refreshSourceChoice = React.useCallback(async () => {
+    if (!sourceIsChoice || !sourceConversationId || !sourceMessageId) {
+      setSourceChoiceSnapshot(null)
+      return
+    }
+    const [snapshot] = await listConversationMessageChoiceSnapshots(sourceConversationId, [
+      sourceMessageId,
+    ])
+    if (snapshot) setSourceChoiceSnapshot(snapshot)
+  }, [sourceConversationId, sourceIsChoice, sourceMessageId])
 
   React.useEffect(() => {
     if (!open || !sourceConversationId || !sourceMessageId) return
@@ -165,6 +229,19 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
       active = false
     }
   }, [open, sourceConversationId, sourceMessageId])
+
+  React.useEffect(() => {
+    if (!open || !sourceIsChoice || !sourceConversationId || !sourceMessageId) return
+    let active = true
+    void listConversationMessageChoiceSnapshots(sourceConversationId, [sourceMessageId])
+      .then(([snapshot]) => {
+        if (active && snapshot) setSourceChoiceSnapshot(snapshot)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [open, sourceConversationId, sourceIsChoice, sourceMessageId])
 
   const detailConversation = detail?.conversation ?? null
   const listedConversation = detailConversation ? getConversation(detailConversation.id) : null
@@ -234,6 +311,32 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
         : [],
     [appsById, clientMessages, contactsById, conversation, me, mentionLabelResolver, messagesById],
   )
+  const sourceMessageSelectable = Boolean(
+    detail?.sourceMessage && isTopicSourceMessageSelectable(detail.sourceMessage),
+  )
+  const selectedForwardMessages = React.useMemo(() => {
+    const selected: Array<Pick<ClientMessage, "body" | "id">> = []
+    if (
+      sourceMessageSelectable &&
+      detail?.sourceMessage &&
+      selectedMessageIds.has(detail.sourceMessage.id)
+    ) {
+      selected.push(detail.sourceMessage)
+    }
+    for (const message of clientMessages) {
+      if (selectedMessageIds.has(message.id) && isMessageSelectable(message)) {
+        selected.push(message)
+      }
+    }
+    return selected
+  }, [clientMessages, detail?.sourceMessage, selectedMessageIds, sourceMessageSelectable])
+  const visibleMessageSelection = React.useMemo(
+    () => ({
+      active: messageSelection.active,
+      selectedMessageIds: new Set(selectedForwardMessages.map((message) => message.id)),
+    }),
+    [messageSelection.active, selectedForwardMessages],
+  )
 
   React.useEffect(() => {
     if (
@@ -291,9 +394,11 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     return message
   }
 
-  async function sendImage(image: File) {
+  async function sendImage(image: File, caption: string, captionType: "text" | "markdown") {
     if (!conversation) return null
     const message = await sendConversationImage(conversation.id, image, {
+      caption,
+      captionType,
       replyToMessageId: replyTarget?.id,
     })
     if (message) setReplyTarget(null)
@@ -368,6 +473,86 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     )
   }
 
+  function openForwardOperation(
+    selected: Array<Pick<ClientMessage, "body" | "id">>,
+    mode: ConversationPanelForwardMode,
+  ) {
+    if (
+      !conversation ||
+      selected.length === 0 ||
+      selected.some((message) => !isMessageSelectable(message)) ||
+      (mode === "merged" && selected.length < 2)
+    ) {
+      return
+    }
+    setForwardOperation({
+      clientForwardId: createClientMessageId(),
+      messageIds: selected.map((message) => message.id),
+      messageTypes: selected.map((message) => message.body.type),
+      mode,
+      sourceConversationId: conversation.id,
+    })
+  }
+
+  function forwardMessage(message: ConversationPanelMessage) {
+    const clientMessage = messagesById.get(message.id)
+    if (clientMessage && isMessageSelectable(clientMessage)) {
+      openForwardOperation([clientMessage], "separate")
+    }
+  }
+
+  function startMessageSelection(message: ConversationPanelMessage) {
+    const clientMessage = messagesById.get(message.id)
+    if (clientMessage && isMessageSelectable(clientMessage)) {
+      startSelectingMessage(clientMessage.id)
+    }
+  }
+
+  function toggleMessageSelection(message: ConversationPanelMessage) {
+    const clientMessage = messagesById.get(message.id)
+    if (!clientMessage || !isMessageSelectable(clientMessage)) return
+    toggleSelectableMessage(clientMessage.id)
+  }
+
+  function toggleSelectableMessage(messageId: string) {
+    const selected = selectedMessageIds.has(messageId)
+    if (!selected && selectedMessageIds.size >= maxSelectedMessages) {
+      toast.warning(`一次最多选择 ${maxSelectedMessages} 条消息`)
+      return
+    }
+    toggleSelectedMessage(messageId)
+  }
+
+  function forwardTopicSource(message: ClientTopicSourceMessage) {
+    if (sourceMessageSelectable && detail?.sourceMessage.id === message.id) {
+      openForwardOperation([message], "separate")
+    }
+  }
+
+  function startTopicSourceSelection(message: ClientTopicSourceMessage) {
+    if (sourceMessageSelectable && detail?.sourceMessage.id === message.id) {
+      startSelectingMessage(message.id)
+    }
+  }
+
+  async function submitForwardOperation(targetConversationIds: string[]) {
+    if (!forwardOperation) throw new Error("转发操作不存在")
+    if (forwardOperation.messageTypes.includes("choice")) {
+      throw new Error("选择消息不能转发")
+    }
+    const result = await forwardConversationMessages(forwardOperation.sourceConversationId, {
+      clientForwardId: forwardOperation.clientForwardId,
+      messageIds: forwardOperation.messageIds,
+      mode: forwardOperation.mode,
+      targetConversationIds,
+    })
+    for (const target of result.results) {
+      if (target.status !== "sent") continue
+      for (const message of target.messages) mergeIncomingConversationMessage(message)
+    }
+    return result
+  }
+
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       {open && (
@@ -378,11 +563,20 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
             parentConversationId={detail?.parentConversation.id}
           />
           {sourceConversationId && sourceMessageId && (
-            <TopicSourceReactionSync
-              conversationId={sourceConversationId}
-              messageId={sourceMessageId}
-              onUpdate={refreshSourceReactions}
-            />
+            <>
+              <TopicSourceReactionSync
+                conversationId={sourceConversationId}
+                messageId={sourceMessageId}
+                onUpdate={refreshSourceReactions}
+              />
+              {sourceIsChoice && (
+                <TopicSourceChoiceSync
+                  conversationId={sourceConversationId}
+                  messageId={sourceMessageId}
+                  onUpdate={refreshSourceChoice}
+                />
+              )}
+            </>
           )}
         </>
       )}
@@ -435,17 +629,45 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
                 reactionConversationId={sourceConversationId}
                 currentUserId={me.id}
                 mentionLabelResolver={mentionLabelResolver}
+                onForward={forwardTopicSource}
+                onMultiSelect={startTopicSourceSelection}
                 onSetReaction={conversation.canSend === false ? undefined : setSourceReaction}
+                onRespondToChoice={
+                  sourceIsChoice && sourceConversationCanSend && respondToChoice
+                    ? async (optionIds) => {
+                        await respondToChoice(sourceConversationId, sourceMessageId, optionIds)
+                        await refreshSourceChoice()
+                      }
+                    : undefined
+                }
                 reactions={sourceReactionSnapshot?.reactions}
+                selected={Boolean(
+                  detail?.sourceMessage &&
+                  visibleMessageSelection.selectedMessageIds.has(detail.sourceMessage.id),
+                )}
+                selectionMode={visibleMessageSelection.active}
+                showChoiceResponseCounts={conversation.topic?.parentConversationType === "group"}
+                sourceChoice={sourceChoiceSnapshot?.choice}
+                sourceChoiceStatus={sourceChoiceSnapshot?.status}
                 sourceMessage={detail?.sourceMessage}
+                onToggleSelected={(message) => toggleSelectableMessage(message.id)}
               />
             }
             mentionLabelResolver={mentionLabelResolver}
             messages={messages}
+            messageSelection={visibleMessageSelection}
+            onCancelMessageSelection={messageSelection.cancel}
             onCancelReply={() => setReplyTarget(null)}
+            onCompactMessages={() => compactConversationMessages?.(conversation.id)}
+            onRegisterMessageView={registerConversationMessageView}
             onDraftChange={updateDraft}
+            onForwardMessage={forwardMessage}
+            onForwardSelectedMessages={(mode) =>
+              openForwardOperation(selectedForwardMessages, mode)
+            }
             onLoadBeforeMessages={() => loadBeforeConversationMessages(conversation.id)}
             onReplyToMessage={replyToMessage}
+            onStartMessageSelection={startMessageSelection}
             onRevokeMessage={(message) =>
               void revokeConversationMessage(conversation.id, message.id).catch((requestError) =>
                 toast.error(getClientDataErrorMessage(requestError, "撤回消息失败")),
@@ -454,6 +676,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
             onSetMessageReaction={async (message, text, reacted) => {
               await setMessageReaction(conversation.id, message.id, text, reacted)
             }}
+            onToggleMessageSelection={toggleMessageSelection}
             onRichTextModeChange={setRichTextMode}
             onSendFile={sendFile}
             onSendImage={sendImage}
@@ -495,6 +718,18 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
         open={archiveConfirmOpen}
         saving={mutating}
       />
+      {forwardOperation && (
+        <ForwardMessageDialog
+          conversations={conversations}
+          messageCount={forwardOperation.messageIds.length}
+          onComplete={messageSelection.cancel}
+          onForward={submitForwardOperation}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setForwardOperation(null)
+          }}
+          open
+        />
+      )}
     </Sheet>
   )
 }
@@ -531,7 +766,7 @@ function TopicRemovalSync({
   return null
 }
 
-function TopicSourceReactionSync({
+export function TopicSourceReactionSync({
   conversationId,
   messageId,
   onUpdate,
@@ -557,6 +792,33 @@ function TopicSourceReactionSync({
     [conversationId, messageId, onUpdate, subscribeRealtimeEvent],
   )
 
+  return null
+}
+
+export function TopicSourceChoiceSync({
+  conversationId,
+  messageId,
+  onUpdate,
+}: {
+  conversationId: string
+  messageId: string
+  onUpdate: () => Promise<void>
+}) {
+  const { subscribeRealtimeEvent } = useRealtime()
+  React.useEffect(
+    () =>
+      subscribeRealtimeEvent("message.choice_updated", (payload) => {
+        try {
+          const event = normalizeMessageChoiceUpdatedEventPayload(payload)
+          if (event.conversationId === conversationId && event.messageId === messageId) {
+            void onUpdate().catch(() => undefined)
+          }
+        } catch {
+          // Ignore malformed realtime events. The websocket remains usable.
+        }
+      }),
+    [conversationId, messageId, onUpdate, subscribeRealtimeEvent],
+  )
   return null
 }
 
@@ -693,18 +955,38 @@ export function TopicSourceBanner({
   conversationId,
   currentUserId,
   mentionLabelResolver,
+  onForward,
+  onMultiSelect,
   onSetReaction,
+  onRespondToChoice,
+  onSourceMessageLoaded,
+  onToggleSelected,
   reactionConversationId,
   reactions = [],
+  selected = false,
+  selectionMode = false,
+  showChoiceResponseCounts = false,
   sourceMessage,
+  sourceChoice,
+  sourceChoiceStatus,
 }: {
   conversationId?: string
   currentUserId: string
   mentionLabelResolver?: MentionLabelResolver
+  onForward?: (message: ClientTopicSourceMessage) => void
+  onMultiSelect?: (message: ClientTopicSourceMessage) => void
   onSetReaction?: (text: string, reacted: boolean) => Promise<unknown>
+  onRespondToChoice?: (optionIds: string[]) => Promise<void>
+  onSourceMessageLoaded?: (message: ClientTopicSourceMessage) => void
+  onToggleSelected?: (message: ClientTopicSourceMessage) => void
   reactionConversationId?: string
   reactions?: ClientMessageReaction[]
+  selected?: boolean
+  selectionMode?: boolean
+  showChoiceResponseCounts?: boolean
   sourceMessage?: ClientTopicSourceMessage
+  sourceChoice?: ClientChoiceState | null
+  sourceChoiceStatus?: "active" | "deleted" | "revoked"
 }) {
   const [fetchedSource, setFetchedSource] = React.useState<ClientTopicSourceMessage | null>(null)
   const loadedSource = sourceMessage ?? fetchedSource
@@ -723,7 +1005,34 @@ export function TopicSourceBanner({
     }
   }, [conversationId, sourceMessage])
 
+  React.useEffect(() => {
+    if (loadedSource) onSourceMessageLoaded?.(loadedSource)
+  }, [loadedSource, onSourceMessageLoaded])
+
   if (!loadedSource) return null
+  const renderedSource = loadedSource
+
+  const choiceUnavailable =
+    loadedSource.body.type === "choice" &&
+    (sourceChoiceStatus === "revoked" || sourceChoiceStatus === "deleted")
+  const selectable = !choiceUnavailable && isTopicSourceMessageSelectable(loadedSource)
+  const hasMessageActions = Boolean(onForward || onMultiSelect)
+  const canAddReaction = Boolean(
+    onSetReaction && !choiceUnavailable && loadedSource.body.type !== "revoked",
+  )
+  const messageActionOptions: MessageActionOptions = {
+    copyDisabled: true,
+    onForward: onForward ? () => onForward(loadedSource) : undefined,
+    onMultiSelect: onMultiSelect ? () => onMultiSelect(loadedSource) : undefined,
+  }
+
+  function handleSelectionClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!selectionMode || !selectable || !onToggleSelected) return
+    if (event.target instanceof Element && event.target.closest("[data-slot=checkbox]")) return
+    event.preventDefault()
+    event.stopPropagation()
+    onToggleSelected(renderedSource)
+  }
 
   const fromCurrentUser =
     loadedSource.sender.type === "user" && loadedSource.sender.id === currentUserId
@@ -750,65 +1059,119 @@ export function TopicSourceBanner({
     </Avatar>
   )
 
+  const messageBubble = (
+    <div
+      className={cn(
+        "max-w-full min-w-0 rounded-md p-3 text-sm leading-relaxed shadow-sm",
+        fromCurrentUser
+          ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
+          : "bg-zinc-100 text-foreground dark:bg-zinc-800",
+      )}
+      data-message-action-trigger={
+        !selectionMode && selectable && hasMessageActions ? "" : undefined
+      }
+      data-testid="topic-source-message-bubble"
+    >
+      {choiceUnavailable ? (
+        <span className="text-muted-foreground">
+          {sourceChoiceStatus === "revoked" ? "该消息已被撤回" : "该消息已被删除"}
+        </span>
+      ) : (
+        <MessageBodyRenderer
+          body={loadedSource.body}
+          choice={sourceChoice ?? undefined}
+          currentUserId={currentUserId}
+          mentionLabelResolver={mentionLabelResolver ?? emptyMentionLabelResolver}
+          messageId={loadedSource.id}
+          onRespondToChoice={onRespondToChoice}
+          showChoiceResponseCounts={showChoiceResponseCounts}
+        />
+      )}
+      {!selectionMode && !choiceUnavailable && reactions.length > 0 && (
+        <div className="mt-2">
+          <MessageReactionChips
+            align={fromCurrentUser ? "end" : "start"}
+            canAdd={loadedSource.body.type !== "revoked"}
+            conversationId={reactionConversationId ?? conversationId ?? ""}
+            enabled={loadedSource.body.type !== "revoked"}
+            messageId={loadedSource.id}
+            onSetReaction={onSetReaction}
+            reactions={reactions}
+          />
+        </div>
+      )}
+    </div>
+  )
+  const renderedMessageBubble =
+    selectionMode || !selectable || !hasMessageActions ? (
+      messageBubble
+    ) : (
+      <MessageActionMenu {...messageActionOptions}>{messageBubble}</MessageActionMenu>
+    )
+
   return (
     <div
       className={cn(
-        "group/message-row flex gap-3",
-        fromCurrentUser ? "justify-end" : "justify-start",
+        "group/message-row relative rounded-md transition-colors",
+        selectionMode && "px-3 py-2 pl-11",
+        selected && "bg-primary/5",
       )}
+      data-conversation-message-id={loadedSource.id}
+      data-message-selection-row
+      onClickCapture={handleSelectionClick}
     >
-      {!fromCurrentUser && avatar}
-      <div
-        className={cn(
-          "flex max-w-[min(70%,64rem)] flex-col gap-1",
-          fromCurrentUser ? "items-end" : "items-start",
-        )}
-      >
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{loadedSource.sender.name}</span>
-          <span>{formatTopicSourceTime(loadedSource.createdAt)}</span>
-        </div>
+      {selectionMode && (
+        <Checkbox
+          aria-label={`${selected ? "取消选择" : "选择"}${loadedSource.sender.name}的消息`}
+          checked={selected}
+          className="absolute top-4 left-3"
+          disabled={!selectable}
+          onCheckedChange={() => onToggleSelected?.(loadedSource)}
+        />
+      )}
+      <div className={cn("flex gap-3", fromCurrentUser ? "justify-end" : "justify-start")}>
+        {!fromCurrentUser && avatar}
         <div
-          className={cn("flex max-w-full items-end gap-1.5", fromCurrentUser && "flex-row-reverse")}
-          data-slot="message-bubble-line"
+          className={cn(
+            "flex max-w-[min(70%,64rem)] flex-col gap-1",
+            fromCurrentUser ? "items-end" : "items-start",
+          )}
         >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{loadedSource.sender.name}</span>
+            <span>{formatTopicSourceTime(loadedSource.createdAt)}</span>
+          </div>
           <div
             className={cn(
-              "max-w-full min-w-0 rounded-md p-3 text-sm leading-relaxed shadow-sm",
-              fromCurrentUser
-                ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
-                : "bg-zinc-100 text-foreground dark:bg-zinc-800",
+              "flex max-w-full items-end gap-1.5",
+              fromCurrentUser && "flex-row-reverse",
             )}
-            data-testid="topic-source-message-bubble"
+            data-slot="message-bubble-line"
           >
-            <MessageBodyRenderer
-              body={loadedSource.body}
-              currentUserId={currentUserId}
-              mentionLabelResolver={mentionLabelResolver ?? emptyMentionLabelResolver}
-            />
-            {reactions.length > 0 && (
-              <div className="mt-2">
-                <MessageReactionChips
-                  align={fromCurrentUser ? "end" : "start"}
-                  canAdd={loadedSource.body.type !== "revoked"}
-                  conversationId={reactionConversationId ?? conversationId ?? ""}
-                  enabled={loadedSource.body.type !== "revoked"}
-                  messageId={loadedSource.id}
-                  onSetReaction={onSetReaction}
-                  reactions={reactions}
-                />
+            {renderedMessageBubble}
+            {!selectionMode && (canAddReaction || (selectable && hasMessageActions)) && (
+              <div
+                className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/message-row:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
+                data-slot="message-hover-actions"
+              >
+                {canAddReaction && onSetReaction && (
+                  <MessageReactionAddButton
+                    align={fromCurrentUser ? "end" : "start"}
+                    onSetReaction={onSetReaction}
+                  />
+                )}
+                {selectable && hasMessageActions && (
+                  <MessageMoreActionsMenu
+                    {...messageActionOptions}
+                    align={fromCurrentUser ? "end" : "start"}
+                  />
+                )}
               </div>
             )}
           </div>
-          {onSetReaction && loadedSource.body.type !== "revoked" && (
-            <MessageReactionAddButton
-              align={fromCurrentUser ? "end" : "start"}
-              onSetReaction={onSetReaction}
-            />
-          )}
         </div>
+        {fromCurrentUser && avatar}
       </div>
-      {fromCurrentUser && avatar}
     </div>
   )
 }

@@ -1,11 +1,38 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ConversationSidebar } from "@/components/conversation/conversation-sidebar"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
 
 describe("ConversationSidebar", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("matches the Web search and filter header", () => {
+    render(
+      <SidebarProvider>
+        <ConversationSidebar
+          activeConversationId=""
+          appsById={new Map()}
+          contactsById={new Map()}
+          conversations={[createAppConversation()]}
+          currentUser={createCurrentUser()}
+          drafts={{}}
+          onCreateGroup={vi.fn()}
+          onSelectConversation={vi.fn()}
+          onSetConversationMuted={vi.fn()}
+          onSetConversationPinned={vi.fn()}
+        />
+      </SidebarProvider>,
+    )
+
+    expect(screen.getByRole("button", { name: "全局搜索" })).toBeInTheDocument()
+    expect(screen.getByRole("tablist", { name: "会话类型" })).toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "搜索消息" })).not.toBeInTheDocument()
+  })
+
   it("pins an ordinary conversation from its context menu", async () => {
     const onSetConversationPinned = vi.fn().mockResolvedValue(undefined)
     render(
@@ -99,6 +126,34 @@ describe("ConversationSidebar", () => {
     )
   })
 
+  it("confirms before dismissing a conversation", async () => {
+    const onDismissConversation = vi.fn().mockResolvedValue(undefined)
+    render(
+      <SidebarProvider>
+        <ConversationSidebar
+          activeConversationId=""
+          appsById={new Map()}
+          contactsById={new Map()}
+          conversations={[createAppConversation()]}
+          currentUser={createCurrentUser()}
+          drafts={{}}
+          onCreateGroup={vi.fn()}
+          onDismissConversation={onDismissConversation}
+          onSelectConversation={vi.fn()}
+          onSetConversationMuted={vi.fn()}
+          onSetConversationPinned={vi.fn()}
+        />
+      </SidebarProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByText("智能助手").closest("button")!)
+    fireEvent.click(await screen.findByText("删除对话"))
+    expect(onDismissConversation).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "删除" }))
+    await waitFor(() => expect(onDismissConversation).toHaveBeenCalledWith("conversation-app-1"))
+  })
+
   it("shows unread reminders even when notifications are muted", () => {
     const conversation = createAppConversation()
     conversation.pinned = true
@@ -125,8 +180,45 @@ describe("ConversationSidebar", () => {
 
     expect(screen.getByLabelText("已置顶")).toBeInTheDocument()
     expect(screen.getByLabelText("消息免打扰已开启")).toBeInTheDocument()
-    expect(screen.getByLabelText("6 条未读消息")).toBeInTheDocument()
+    expect(screen.getByLabelText("有未读消息")).toBeInTheDocument()
+    expect(screen.queryByLabelText("6 条未读消息")).not.toBeInTheDocument()
     expect(screen.getByText("[有人 @ 我]")).toBeInTheDocument()
+  })
+
+  it("uses the topic source sender avatar and expires inactive topic rows", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-07-28T10:00:00Z"))
+    const parent = createAppConversation()
+    parent.id = "group-1"
+    parent.name = "产品群"
+    parent.type = "group"
+    const topic = createTopicConversation()
+
+    render(
+      <SidebarProvider>
+        <ConversationSidebar
+          activeConversationId=""
+          appsById={new Map()}
+          contactsById={new Map()}
+          conversations={[parent, topic]}
+          currentUser={createCurrentUser()}
+          drafts={{}}
+          onCreateGroup={vi.fn()}
+          onSelectConversation={vi.fn()}
+          onSetConversationMuted={vi.fn()}
+          onSetConversationPinned={vi.fn()}
+        />
+      </SidebarProvider>,
+    )
+
+    expect(screen.getByText("发布计划")).toBeInTheDocument()
+    expect(screen.getByLabelText("Alice")).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_001)
+    })
+
+    expect(screen.queryByText("发布计划")).not.toBeInTheDocument()
   })
 
   it("shows the sender name before a group conversation message", () => {
@@ -171,6 +263,7 @@ function createAppConversation(): ClientConversation {
     lastMessageId: null,
     lastMessageSeq: 0,
     lastMessageSummary: "暂无消息",
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 0,
     memberCount: 2,
@@ -179,6 +272,32 @@ function createAppConversation(): ClientConversation {
     type: "app",
     unreadCount: 0,
     visibility: "private",
+  }
+}
+
+function createTopicConversation(): ClientConversation {
+  return {
+    ...createAppConversation(),
+    createdAt: "2026-07-28T09:30:59Z",
+    id: "topic-1",
+    lastMessageAt: "2026-07-28T09:30:59Z",
+    name: "发布计划",
+    topic: {
+      archived: false,
+      parentConversationId: "group-1",
+      parentConversationName: "产品群",
+      parentConversationType: "group",
+      participating: true,
+      sourceMessageId: "message-1",
+      sourceMessageSeq: 1,
+      sourceSender: {
+        avatar: "",
+        id: "user-2",
+        name: "Alice",
+        type: "user",
+      },
+    },
+    type: "topic",
   }
 }
 

@@ -34,11 +34,20 @@ import type {
   SetConversationPinResponse,
   ConversationPinUpdatedEventPayloadResponse,
   SetConversationMuteResponse,
+  DismissConversationResponse,
+  RestoreConversationResponse,
   ConversationMuteUpdatedEventPayloadResponse,
 } from "./types"
 
-export async function listClientConversations(fetcher: ClientDataFetch = fetch) {
-  const response = await fetcher("/api/client/conversations", {
+export async function listClientConversations(
+  fetcher: ClientDataFetch = fetch,
+  options: { includeConversationId?: string } = {},
+) {
+  const includeConversationId = options.includeConversationId?.trim()
+  const query = includeConversationId
+    ? `?include_conversation_id=${encodeURIComponent(includeConversationId)}`
+    : ""
+  const response = await fetcher(`/api/client/conversations${query}`, {
     credentials: "include",
     method: "GET",
   })
@@ -123,6 +132,47 @@ export async function setConversationMuted(
     conversationId: data.conversation_id,
     muted: data.muted,
   }
+}
+
+export async function dismissConversation(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch,
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}`,
+    { credentials: "include", method: "DELETE" },
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<DismissConversationResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "删除对话失败")
+  }
+  const data = (payload as ClientDataSuccessEnvelope<DismissConversationResponse> | undefined)?.data
+  if (typeof data?.conversation_id !== "string" || data.conversation_id.trim() === "") {
+    throw new ClientDataRequestError("删除对话响应格式不正确")
+  }
+  return { conversationId: data.conversation_id }
+}
+
+export async function restoreConversation(
+  conversationId: string,
+  fetcher: ClientDataFetch = fetch,
+) {
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/restore`,
+    { credentials: "include", method: "POST" },
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<RestoreConversationResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "恢复对话失败")
+  }
+  const conversation = (
+    payload as ClientDataSuccessEnvelope<RestoreConversationResponse> | undefined
+  )?.data?.conversation
+  return normalizeConversation(conversation)
 }
 
 export function normalizeConversationPinUpdatedEventPayload(payload: unknown) {
@@ -620,6 +670,7 @@ function normalizeConversation(conversation: ConversationResponse | undefined): 
     lastMessageId: conversation.last_message_id ?? null,
     lastMessageSeq: conversation.last_message_seq ?? 0,
     lastMessageSummary: conversation.last_message_summary ?? "",
+    lastChoiceSeq: conversation.last_choice_seq ?? 0,
     lastMentionedSeq: conversation.last_mentioned_seq ?? 0,
     lastReadSeq: conversation.last_read_seq ?? 0,
     memberCount: conversation.member_count ?? 0,

@@ -89,6 +89,7 @@ function conversation(id: string, lastMessageAt: string | null): ClientConversat
     lastMessageId: lastMessageAt ? `${id}-message` : null,
     lastMessageSeq: lastMessageAt ? 1 : 0,
     lastMessageSummary: `消息 ${id}`,
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 0,
     memberCount: 2,

@@ -13,6 +13,7 @@ import {
   leaveGroupConversation as leaveGroupConversationRequest,
   openAppConversation as openAppConversationRequest,
   removeGroupConversationMember as removeGroupConversationMemberRequest,
+  restoreConversation as restoreConversationRequest,
   revokeConversationMessage as revokeConversationMessageRequest,
   setGroupConversationPrivate as setGroupConversationPrivateRequest,
   setGroupConversationPublic as setGroupConversationPublicRequest,
@@ -31,6 +32,7 @@ export function useConversationActions({
   handleError,
   mergeIncomingConversationMessage,
   navigate,
+  onConversationsMutated,
   refreshContacts,
   setConversationMessageStates,
   setConversations,
@@ -40,6 +42,7 @@ export function useConversationActions({
   handleError: (error: unknown, fallbackMessage: string) => ClientDataRequestError
   mergeIncomingConversationMessage: ClientDataContextValue["mergeIncomingConversationMessage"]
   navigate: NavigateFunction
+  onConversationsMutated: () => void
   refreshContacts: ClientDataContextValue["refreshContacts"]
   setConversationMessageStates: Dispatch<
     SetStateAction<Record<string, ClientConversationMessageState>>
@@ -62,6 +65,7 @@ export function useConversationActions({
 
   const upsertConversation = useCallback(
     (conversation: ClientConversation) => {
+      onConversationsMutated()
       setConversations((currentConversations) => {
         const currentConversation = currentConversations.find((item) => item.id === conversation.id)
         const nextConversation =
@@ -75,11 +79,12 @@ export function useConversationActions({
         ])
       })
     },
-    [setConversations],
+    [onConversationsMutated, setConversations],
   )
 
   const removeConversation = useCallback(
     (conversationId: string) => {
+      onConversationsMutated()
       setConversations((currentConversations) =>
         currentConversations.filter((conversation) => conversation.id !== conversationId),
       )
@@ -90,7 +95,7 @@ export function useConversationActions({
         return nextStates
       })
     },
-    [setConversationMessageStates, setConversations],
+    [onConversationsMutated, setConversationMessageStates, setConversations],
   )
 
   const openDirectConversation = useCallback(
@@ -114,6 +119,19 @@ export function useConversationActions({
         return conversation
       } catch (error) {
         throw handleError(error, "创建应用会话失败")
+      }
+    },
+    [handleError, upsertConversation],
+  )
+
+  const restoreConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        const conversation = await restoreConversationRequest(conversationId)
+        upsertConversation(conversation)
+        return conversation
+      } catch (error) {
+        throw handleError(error, "恢复对话失败")
       }
     },
     [handleError, upsertConversation],
@@ -291,6 +309,7 @@ export function useConversationActions({
     openAppConversation,
     openDirectConversation,
     removeConversation,
+    restoreConversation,
     removeGroupConversationMember,
     revokeConversationMessage,
     setGroupConversationPrivate,

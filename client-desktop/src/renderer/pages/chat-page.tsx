@@ -10,12 +10,18 @@ import { useMessageSelection } from "@/hooks/use-message-selection"
 import {
   createConversationTopic,
   forwardConversationMessages,
+  listConversationMessageChoiceSnapshots,
+  listConversationMessageReactionSnapshots,
   type ClientConversation,
   type ClientMessage,
+  type ClientTopicSourceMessage,
   type ContactApp,
   type ContactUser,
+  type MessageChoiceSnapshot,
+  type MessageReactionSnapshot,
 } from "@/lib/client-data-api"
 import { getClientDataErrorMessage } from "@/lib/client-data-state"
+import type { DirectorySearchItem } from "@/lib/local-search"
 import { createClientMessageId } from "@/lib/message-id"
 import {
   clearLastConversationId,
@@ -35,6 +41,8 @@ import {
   TopicArchiveAction,
   TopicDrawer,
   TopicSourceBanner,
+  TopicSourceChoiceSync,
+  TopicSourceReactionSync,
 } from "@/components/conversation/topic-drawer"
 import {
   ConversationPanel,
@@ -58,8 +66,42 @@ const emptyClientMessages: ClientMessage[] = []
 type ForwardOperation = {
   clientForwardId: string
   messageIds: string[]
+  messageTypes: ClientMessage["body"]["type"][]
   mode: ConversationPanelForwardMode
   sourceConversationId: string
+}
+
+type SelectableMessage = Pick<ClientMessage, "body" | "id"> | ClientTopicSourceMessage
+
+type TopicSourceReactionState = {
+  parentConversationId: string
+  snapshot: MessageReactionSnapshot
+  sourceMessageId: string
+}
+
+function canForwardOrSelectMessage(message: SelectableMessage) {
+  return (
+    message.body.type !== "choice" &&
+    message.body.type !== "revoked" &&
+    message.body.type !== "unsupported" &&
+    message.body.type !== "system_event"
+  )
+}
+
+function mergeTopicSourceReactionSnapshot(
+  current: TopicSourceReactionState | null,
+  parentConversationId: string,
+  sourceMessageId: string,
+  snapshot: MessageReactionSnapshot,
+): TopicSourceReactionState {
+  if (
+    current?.parentConversationId === parentConversationId &&
+    current.sourceMessageId === sourceMessageId &&
+    current.snapshot.reactionVersion >= snapshot.reactionVersion
+  ) {
+    return current
+  }
+  return { parentConversationId, snapshot, sourceMessageId }
 }
 
 type CreateTopicOperation = {
@@ -92,12 +134,16 @@ function normalizeSingleLinkMessageURL(content: string) {
 
 export function ChatPage() {
   const navigate = useNavigate()
+  const navigationIntentRef = React.useRef(0)
   const { conversationId } = useParams<{ conversationId?: string }>()
   const {
     contactApps,
+    contactGroups,
     contacts,
     conversations,
     createGroupConversation,
+    compactConversationMessages,
+    dismissConversation,
     ensureConversationMessages,
     getConversation,
     getConversationMessageState,
@@ -105,7 +151,12 @@ export function ChatPage() {
     markConversationRead,
     me,
     mergeIncomingConversationMessage,
+    openAppConversation,
+    openDirectConversation,
+    restoreConversation,
+    joinGroupConversation,
     refreshConversations,
+    registerConversationMessageView,
     respondToChoice,
     revokeConversationMessage,
     sendConversationFile,
@@ -129,8 +180,22 @@ export function ChatPage() {
     React.useState<CreateTopicOperation | null>(null)
   const [creatingTopic, setCreatingTopic] = React.useState(false)
   const [topicDrawerConversationId, setTopicDrawerConversationId] = React.useState("")
+  const [loadedTopicSource, setLoadedTopicSource] = React.useState<{
+    conversationId: string
+    message: ClientTopicSourceMessage
+  } | null>(null)
+  const [topicSourceChoice, setTopicSourceChoice] = React.useState<{
+    parentConversationId: string
+    snapshot: MessageChoiceSnapshot
+    sourceMessageId: string
+  } | null>(null)
+  const [topicSourceReaction, setTopicSourceReaction] =
+    React.useState<TopicSourceReactionState | null>(null)
   React.useEffect(() => () => setForegroundConversationId?.(""), [setForegroundConversationId])
   const requestedConversationId = conversationId ?? ""
+  React.useLayoutEffect(() => {
+    navigationIntentRef.current += 1
+  }, [requestedConversationId])
   const storedConversationId = React.useMemo(
     () => (requestedConversationId ? "" : readLastConversationId(me.id)),
     [me.id, requestedConversationId],
@@ -144,6 +209,7 @@ export function ChatPage() {
   )
 
   const activeConversationId = activeConversation?.id ?? ""
+  const activeConversationType = activeConversation?.type
   const messageSelection = useMessageSelection(activeConversationId)
   const {
     maxSelectedMessages,
@@ -244,23 +310,45 @@ export function ChatPage() {
       me,
     ],
   )
-  const selectedClientMessages = React.useMemo(
-    () =>
-      activeClientMessages.filter(
-        (message) =>
-          selectedMessageIds.has(message.id) &&
-          message.body.type !== "revoked" &&
-          message.body.type !== "unsupported" &&
-          message.body.type !== "system_event",
-      ),
-    [activeClientMessages, selectedMessageIds],
+  const activeTopicSource =
+    loadedTopicSource?.conversationId === activeConversationId ? loadedTopicSource.message : null
+  const activeTopicParentConversationId = activeConversation?.topic?.parentConversationId ?? ""
+  const activeTopicSourceMessageId = activeTopicSource?.id ?? ""
+  const activeTopicSourceChoice =
+    topicSourceChoice?.parentConversationId === activeTopicParentConversationId &&
+    topicSourceChoice.sourceMessageId === activeTopicSourceMessageId
+      ? topicSourceChoice.snapshot
+      : null
+  const activeTopicSourceReaction =
+    topicSourceReaction?.parentConversationId === activeTopicParentConversationId &&
+    topicSourceReaction.sourceMessageId === activeTopicSourceMessageId
+      ? topicSourceReaction.snapshot
+      : null
+  const activeTopicSourceSelectable = Boolean(
+    activeTopicSource && canForwardOrSelectMessage(activeTopicSource),
   )
+  const selectedForwardMessages = React.useMemo(() => {
+    const messages: SelectableMessage[] = []
+    if (
+      activeTopicSourceSelectable &&
+      activeTopicSource &&
+      selectedMessageIds.has(activeTopicSource.id)
+    ) {
+      messages.push(activeTopicSource)
+    }
+    for (const message of activeClientMessages) {
+      if (selectedMessageIds.has(message.id) && canForwardOrSelectMessage(message)) {
+        messages.push(message)
+      }
+    }
+    return messages
+  }, [activeClientMessages, activeTopicSource, activeTopicSourceSelectable, selectedMessageIds])
   const visibleMessageSelection = React.useMemo(
     () => ({
       active: messageSelection.active,
-      selectedMessageIds: new Set(selectedClientMessages.map((message) => message.id)),
+      selectedMessageIds: new Set(selectedForwardMessages.map((message) => message.id)),
     }),
-    [messageSelection.active, selectedClientMessages],
+    [messageSelection.active, selectedForwardMessages],
   )
 
   React.useEffect(() => {
@@ -273,6 +361,7 @@ export function ChatPage() {
       return
     }
 
+    navigationIntentRef.current += 1
     navigate(`/chat/${encodeURIComponent(storedConversation.id)}`, {
       replace: true,
     })
@@ -392,8 +481,12 @@ export function ChatPage() {
   )
 
   const openForwardOperation = React.useCallback(
-    (messages: ClientMessage[], mode: ConversationPanelForwardMode) => {
-      if (!activeConversationId || messages.length === 0) {
+    (messages: SelectableMessage[], mode: ConversationPanelForwardMode) => {
+      if (
+        !activeConversationId ||
+        messages.length === 0 ||
+        messages.some((message) => !canForwardOrSelectMessage(message))
+      ) {
         return
       }
       if (mode === "merged" && messages.length < 2) {
@@ -403,6 +496,7 @@ export function ChatPage() {
       setForwardOperation({
         clientForwardId: createClientMessageId(),
         messageIds: messages.map((message) => message.id),
+        messageTypes: messages.map((message) => message.body.type),
         mode,
         sourceConversationId: activeConversationId,
       })
@@ -421,12 +515,15 @@ export function ChatPage() {
   )
 
   const startMessageSelection = React.useCallback(
-    (message: ConversationPanelMessage) => startSelectingMessage(message.id),
+    (message: ConversationPanelMessage) => {
+      if (canForwardOrSelectMessage(message)) startSelectingMessage(message.id)
+    },
     [startSelectingMessage],
   )
 
   const toggleMessageSelection = React.useCallback(
     (message: ConversationPanelMessage) => {
+      if (!canForwardOrSelectMessage(message)) return
       const selected = selectedMessageIds.has(message.id)
       if (!selected && selectedMessageIds.size >= maxSelectedMessages) {
         toast.warning(`一次最多选择 ${maxSelectedMessages} 条消息`)
@@ -439,14 +536,262 @@ export function ChatPage() {
 
   const forwardSelectedMessages = React.useCallback(
     (mode: ConversationPanelForwardMode) => {
-      openForwardOperation(selectedClientMessages, mode)
+      openForwardOperation(selectedForwardMessages, mode)
     },
-    [openForwardOperation, selectedClientMessages],
+    [openForwardOperation, selectedForwardMessages],
+  )
+
+  const recordTopicSourceMessage = React.useCallback(
+    (message: ClientTopicSourceMessage) => {
+      if (!activeConversationId || activeConversationType !== "topic") return
+      setLoadedTopicSource({ conversationId: activeConversationId, message })
+    },
+    [activeConversationId, activeConversationType],
+  )
+
+  const refreshActiveTopicSourceChoice = React.useCallback(async () => {
+    if (
+      activeTopicSource?.body.type !== "choice" ||
+      !activeTopicParentConversationId ||
+      !activeTopicSourceMessageId
+    ) {
+      setTopicSourceChoice(null)
+      return
+    }
+    const [snapshot] = await listConversationMessageChoiceSnapshots(
+      activeTopicParentConversationId,
+      [activeTopicSourceMessageId],
+    )
+    if (!snapshot) return
+    setTopicSourceChoice({
+      parentConversationId: activeTopicParentConversationId,
+      snapshot,
+      sourceMessageId: activeTopicSourceMessageId,
+    })
+  }, [activeTopicParentConversationId, activeTopicSource, activeTopicSourceMessageId])
+
+  const refreshActiveTopicSourceReaction = React.useCallback(async () => {
+    if (!activeTopicParentConversationId || !activeTopicSourceMessageId) {
+      setTopicSourceReaction(null)
+      return
+    }
+    const [snapshot] = await listConversationMessageReactionSnapshots(
+      activeTopicParentConversationId,
+      [activeTopicSourceMessageId],
+    )
+    if (!snapshot) return
+    setTopicSourceReaction((current) =>
+      mergeTopicSourceReactionSnapshot(
+        current,
+        activeTopicParentConversationId,
+        activeTopicSourceMessageId,
+        snapshot,
+      ),
+    )
+  }, [activeTopicParentConversationId, activeTopicSourceMessageId])
+
+  React.useEffect(() => {
+    let active = true
+    if (activeTopicSource?.body.type !== "choice") {
+      setTopicSourceChoice(null)
+      return
+    }
+    void listConversationMessageChoiceSnapshots(activeTopicParentConversationId, [
+      activeTopicSourceMessageId,
+    ])
+      .then(([snapshot]) => {
+        if (active && snapshot) {
+          setTopicSourceChoice({
+            parentConversationId: activeTopicParentConversationId,
+            snapshot,
+            sourceMessageId: activeTopicSourceMessageId,
+          })
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [activeTopicParentConversationId, activeTopicSource, activeTopicSourceMessageId])
+
+  React.useEffect(() => {
+    let active = true
+    if (!activeTopicParentConversationId || !activeTopicSourceMessageId) {
+      setTopicSourceReaction(null)
+      return
+    }
+    void listConversationMessageReactionSnapshots(activeTopicParentConversationId, [
+      activeTopicSourceMessageId,
+    ])
+      .then(([snapshot]) => {
+        if (!active || !snapshot) return
+        setTopicSourceReaction((current) =>
+          mergeTopicSourceReactionSnapshot(
+            current,
+            activeTopicParentConversationId,
+            activeTopicSourceMessageId,
+            snapshot,
+          ),
+        )
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [activeTopicParentConversationId, activeTopicSourceMessageId])
+
+  const updateTopicSourceReaction = React.useCallback(
+    async (text: string, reacted: boolean) => {
+      if (!activeTopicParentConversationId || !activeTopicSourceMessageId) return
+      const snapshot = await setMessageReaction(
+        activeTopicParentConversationId,
+        activeTopicSourceMessageId,
+        text,
+        reacted,
+      )
+      setTopicSourceReaction((current) =>
+        mergeTopicSourceReactionSnapshot(
+          current,
+          activeTopicParentConversationId,
+          activeTopicSourceMessageId,
+          snapshot,
+        ),
+      )
+    },
+    [activeTopicParentConversationId, activeTopicSourceMessageId, setMessageReaction],
+  )
+
+  const respondToTopicSourceChoice = React.useCallback(
+    async (optionIds: string[]) => {
+      if (!respondToChoice || activeTopicSource?.body.type !== "choice") return
+      await respondToChoice(activeTopicParentConversationId, activeTopicSourceMessageId, optionIds)
+      await refreshActiveTopicSourceChoice()
+    },
+    [
+      activeTopicParentConversationId,
+      activeTopicSource,
+      activeTopicSourceMessageId,
+      refreshActiveTopicSourceChoice,
+      respondToChoice,
+    ],
+  )
+
+  const forwardTopicSourceMessage = React.useCallback(
+    (message: ClientTopicSourceMessage) => {
+      if (activeTopicSourceSelectable && activeTopicSource?.id === message.id) {
+        openForwardOperation([message], "separate")
+      }
+    },
+    [activeTopicSource, activeTopicSourceSelectable, openForwardOperation],
+  )
+
+  const startTopicSourceSelection = React.useCallback(
+    (message: ClientTopicSourceMessage) => {
+      if (activeTopicSourceSelectable && activeTopicSource?.id === message.id) {
+        startSelectingMessage(message.id)
+      }
+    },
+    [activeTopicSource, activeTopicSourceSelectable, startSelectingMessage],
+  )
+
+  const toggleTopicSourceSelection = React.useCallback(
+    (message: ClientTopicSourceMessage) => {
+      if (activeTopicSourceSelectable && activeTopicSource?.id === message.id) {
+        const selected = selectedMessageIds.has(message.id)
+        if (!selected && selectedMessageIds.size >= maxSelectedMessages) {
+          toast.warning(`一次最多选择 ${maxSelectedMessages} 条消息`)
+          return
+        }
+        toggleSelectedMessage(message.id)
+      }
+    },
+    [
+      activeTopicSource,
+      activeTopicSourceSelectable,
+      maxSelectedMessages,
+      selectedMessageIds,
+      toggleSelectedMessage,
+    ],
+  )
+
+  const activeHistoryHeader = React.useMemo(
+    () =>
+      activeConversation?.type === "topic" ? (
+        <>
+          <TopicSourceBanner
+            conversationId={activeConversation.id}
+            currentUserId={me.id}
+            mentionLabelResolver={activeMentionLabelResolver}
+            onForward={forwardTopicSourceMessage}
+            onMultiSelect={startTopicSourceSelection}
+            onRespondToChoice={
+              activeTopicSource?.body.type === "choice" &&
+              getConversation(activeTopicParentConversationId)?.canSend !== false
+                ? respondToTopicSourceChoice
+                : undefined
+            }
+            onSetReaction={
+              getConversation(activeTopicParentConversationId)?.canSend === false
+                ? undefined
+                : updateTopicSourceReaction
+            }
+            onSourceMessageLoaded={recordTopicSourceMessage}
+            onToggleSelected={toggleTopicSourceSelection}
+            reactionConversationId={activeTopicParentConversationId}
+            reactions={activeTopicSourceReaction?.reactions}
+            selected={Boolean(
+              activeTopicSource &&
+              visibleMessageSelection.selectedMessageIds.has(activeTopicSource.id),
+            )}
+            selectionMode={visibleMessageSelection.active}
+            showChoiceResponseCounts={activeConversation.topic?.parentConversationType === "group"}
+            sourceChoice={activeTopicSourceChoice?.choice}
+            sourceChoiceStatus={activeTopicSourceChoice?.status}
+            sourceMessage={activeTopicSource ?? undefined}
+          />
+          {activeTopicSource?.body.type === "choice" && activeTopicParentConversationId && (
+            <TopicSourceChoiceSync
+              conversationId={activeTopicParentConversationId}
+              messageId={activeTopicSource.id}
+              onUpdate={refreshActiveTopicSourceChoice}
+            />
+          )}
+          {activeTopicSource && activeTopicParentConversationId && (
+            <TopicSourceReactionSync
+              conversationId={activeTopicParentConversationId}
+              messageId={activeTopicSource.id}
+              onUpdate={refreshActiveTopicSourceReaction}
+            />
+          )}
+        </>
+      ) : undefined,
+    [
+      activeConversation,
+      activeMentionLabelResolver,
+      activeTopicParentConversationId,
+      activeTopicSource,
+      activeTopicSourceChoice,
+      activeTopicSourceReaction,
+      forwardTopicSourceMessage,
+      getConversation,
+      me.id,
+      recordTopicSourceMessage,
+      refreshActiveTopicSourceChoice,
+      refreshActiveTopicSourceReaction,
+      respondToTopicSourceChoice,
+      startTopicSourceSelection,
+      toggleTopicSourceSelection,
+      updateTopicSourceReaction,
+      visibleMessageSelection,
+    ],
   )
 
   async function submitForwardOperation(targetConversationIds: string[]) {
     if (!forwardOperation) {
       throw new Error("转发操作不存在")
+    }
+    if (forwardOperation.messageTypes.includes("choice")) {
+      throw new Error("选择消息不能转发")
     }
     const result = await forwardConversationMessages(forwardOperation.sourceConversationId, {
       clientForwardId: forwardOperation.clientForwardId,
@@ -522,7 +867,7 @@ export function ChatPage() {
     return message
   }
 
-  async function sendImageMessage(image: File) {
+  async function sendImageMessage(image: File, caption: string, captionType: "text" | "markdown") {
     if (!activeConversationId || activeMessageState?.sending) {
       return null
     }
@@ -530,6 +875,8 @@ export function ChatPage() {
     const sendingConversationId = activeConversationId
     const sendingReplyToMessageId = replyTarget?.id
     const message = await sendConversationImage(sendingConversationId, image, {
+      caption,
+      captionType,
       replyToMessageId: sendingReplyToMessageId,
     })
     if (message) {
@@ -557,11 +904,13 @@ export function ChatPage() {
   }
 
   function selectConversation(conversationId: string) {
+    navigationIntentRef.current += 1
     flushDrafts()
     navigate(`/chat/${encodeURIComponent(conversationId)}`, { replace: true })
   }
 
   async function startGroupConversation(name: string, memberIds: string[], appIds: string[]) {
+    navigationIntentRef.current += 1
     const conversation = await createGroupConversation(name, memberIds, appIds)
     flushDrafts()
     navigate(`/chat/${encodeURIComponent(conversation.id)}`)
@@ -610,6 +959,42 @@ export function ChatPage() {
     setForegroundConversationId?.("")
   }
 
+  async function selectDirectoryItem(item: DirectorySearchItem) {
+    const navigationIntent = ++navigationIntentRef.current
+    try {
+      const conversation =
+        item.type === "user"
+          ? await openDirectConversation(item.id)
+          : item.type === "app"
+            ? await openAppConversation(item.id)
+            : item.joined
+              ? await restoreConversation(item.id)
+              : await joinGroupConversation(item.id)
+      if (navigationIntentRef.current === navigationIntent) {
+        selectConversation(conversation.id)
+      }
+    } catch (error) {
+      if (navigationIntentRef.current === navigationIntent) {
+        toast.error(getClientDataErrorMessage(error, "打开会话失败"))
+      }
+    }
+  }
+
+  async function deleteConversation(conversationId: string) {
+    navigationIntentRef.current += 1
+    await dismissConversation(conversationId)
+    clearConversationDraft(conversationId)
+    if (readLastConversationId(me.id) === conversationId) {
+      clearLastConversationId(me.id)
+    }
+    if (activeConversationId === conversationId) {
+      navigate("/chat", { replace: true })
+    }
+    if (topicDrawerConversationId === conversationId) {
+      closeTopicDrawer()
+    }
+  }
+
   return (
     <SidebarProvider
       className="min-h-0 min-w-0 flex-1"
@@ -622,11 +1007,16 @@ export function ChatPage() {
       <ConversationSidebar
         activeConversationId={activeConversationId}
         appsById={contactAppsByLookup}
+        contactApps={contactApps}
+        contactGroups={contactGroups}
+        contacts={contacts}
         contactsById={contactsById}
         conversations={conversations}
         currentUser={me}
         drafts={drafts}
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
+        onDismissConversation={deleteConversation}
+        onSelectDirectoryItem={(item) => void selectDirectoryItem(item)}
         onSelectConversation={selectConversation}
         onSetConversationMuted={setConversationMuted}
         onSetConversationPinned={setConversationPinned}
@@ -642,16 +1032,7 @@ export function ChatPage() {
         historyError={activeMessageState?.error ?? null}
         historyLoading={historyLoading}
         historyLoadingBefore={Boolean(activeMessageState?.loadingBefore)}
-        historyHeader={
-          activeConversation?.type === "topic" ? (
-            <TopicSourceBanner
-              conversationId={activeConversation.id}
-              currentUserId={me.id}
-              mentionLabelResolver={activeMentionLabelResolver}
-              reactionConversationId={activeConversation.topic?.parentConversationId}
-            />
-          ) : undefined
-        }
+        historyHeader={activeHistoryHeader}
         headerActions={
           activeConversation?.type === "topic" && activeConversation.canSend !== false ? (
             <TopicArchiveAction conversationId={activeConversation.id} />
@@ -662,6 +1043,8 @@ export function ChatPage() {
         messageSelection={visibleMessageSelection}
         onCancelMessageSelection={messageSelection.cancel}
         onCancelReply={clearReplyTarget}
+        onCompactMessages={() => compactConversationMessages?.(activeConversationId)}
+        onRegisterMessageView={registerConversationMessageView}
         onDraftBlur={flushDrafts}
         onDraftChange={setDraft}
         onCreateTopic={

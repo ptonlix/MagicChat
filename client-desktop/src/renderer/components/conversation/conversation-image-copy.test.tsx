@@ -154,6 +154,7 @@ function createConversation(): ClientConversation {
     lastMessageId: null,
     lastMessageSeq: 1,
     lastMessageSummary: "[图片]",
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 1,
     memberCount: 2,

@@ -16,8 +16,10 @@ import type {
   ListMessageReactionSnapshotsResponse,
   SetMessageReactionResponse,
   SetChoiceResponse,
+  ListChoiceSnapshotsResponse,
   ConversationRemovedEventPayloadResponse,
   ConversationMemberMentionedEventPayloadResponse,
+  ConversationMemberChoiceReceivedEventPayloadResponse,
   TopicEventPayloadResponse,
   ReadTemporaryFileURLsResponse,
   ClientMessageBody,
@@ -43,6 +45,7 @@ import type {
   ClientMessageReactionUser,
   SetMessageReactionInput,
   SetChoiceResult,
+  MessageChoiceSnapshot,
 } from "./types"
 import {
   isTemporaryFileReadURLFresh,
@@ -102,6 +105,57 @@ export async function setConversationChoiceResponse(
       userId: data.response.user_id,
     },
   }
+}
+
+export async function listConversationMessageChoiceSnapshots(
+  conversationId: string,
+  messageIds: string[],
+  fetcher: ClientDataFetch = fetch,
+): Promise<MessageChoiceSnapshot[]> {
+  const requestedMessageIds = [...new Set(messageIds)]
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/messages/choices/query`,
+    {
+      body: JSON.stringify({ message_ids: requestedMessageIds }),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    },
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListChoiceSnapshotsResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "同步选择状态失败")
+  }
+  const data = (payload as ClientDataSuccessEnvelope<ListChoiceSnapshotsResponse> | undefined)?.data
+  if (data?.conversation_id !== conversationId || !Array.isArray(data.snapshots)) {
+    throw new ClientDataRequestError("选择状态快照响应格式不正确")
+  }
+  const snapshots = data.snapshots.map((snapshot) => {
+    if (
+      !snapshot?.message_id ||
+      (snapshot.status !== "active" &&
+        snapshot.status !== "deleted" &&
+        snapshot.status !== "revoked") ||
+      (snapshot.status === "active" && !snapshot.choice)
+    ) {
+      throw new ClientDataRequestError("选择状态快照响应格式不正确")
+    }
+    return {
+      choice: snapshot.status === "active" ? normalizeChoiceState(snapshot.choice) : null,
+      conversationId,
+      messageId: snapshot.message_id,
+      status: snapshot.status,
+    }
+  })
+  if (
+    snapshots.length !== requestedMessageIds.length ||
+    snapshots.some((snapshot, index) => snapshot.messageId !== requestedMessageIds[index])
+  ) {
+    throw new ClientDataRequestError("选择状态快照响应格式不正确")
+  }
+  return snapshots
 }
 
 export async function setConversationMessageReaction(
@@ -613,6 +667,11 @@ export async function sendConversationImageMessage(
   if (input.replyToMessageId) {
     formData.set("reply_to_message_id", input.replyToMessageId)
   }
+  const caption = input.caption?.trim() ?? ""
+  if (caption) {
+    formData.set("caption", caption)
+    formData.set("caption_type", input.captionType ?? "text")
+  }
   formData.set("image", input.image)
 
   const response = await fetcher(
@@ -942,6 +1001,26 @@ export function normalizeConversationMemberMentionedEventPayload(payload: unknow
   }
 }
 
+export function normalizeConversationMemberChoiceReceivedEventPayload(payload: unknown) {
+  if (!isObject(payload)) {
+    throw new ClientDataRequestError("选择消息提醒推送格式不正确")
+  }
+
+  const event = payload as ConversationMemberChoiceReceivedEventPayloadResponse
+  if (
+    typeof event.conversation_id !== "string" ||
+    event.conversation_id.trim() === "" ||
+    typeof event.last_choice_seq !== "number"
+  ) {
+    throw new ClientDataRequestError("选择消息提醒推送格式不正确")
+  }
+
+  return {
+    conversationId: event.conversation_id,
+    lastChoiceSeq: event.last_choice_seq,
+  }
+}
+
 export function normalizeTopicEventPayload(payload: unknown) {
   if (!isObject(payload)) {
     throw new ClientDataRequestError("话题推送格式不正确")
@@ -990,7 +1069,12 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
   }
 
   if (body.type === "image") {
-    return "[图片]"
+    if (!body.caption) {
+      return "[图片]"
+    }
+    const caption =
+      body.captionType === "markdown" ? formatMarkdownMessageSummary(body.caption) : body.caption
+    return caption ? `[图片] ${caption}` : "[图片]"
   }
 
   if (body.type === "voice") {

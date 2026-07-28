@@ -13,6 +13,26 @@ import type { ClientConversation } from "@/lib/client-data-api"
 import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 describe("conversation message selection", () => {
+  it("exposes message actions from the hover more-actions button", async () => {
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter>
+        <ClientDataContext.Provider value={createClientDataValue()}>
+          <SelectionHarness onForwardSelected={vi.fn()} />
+        </ClientDataContext.Provider>
+      </MemoryRouter>,
+    )
+
+    const actionButtons = screen.getAllByRole("button", { name: "更多操作" })
+    expect(actionButtons).toHaveLength(2)
+    expect(actionButtons[0].parentElement).toHaveAttribute("data-slot", "message-hover-actions")
+
+    await user.click(actionButtons[0])
+    expect(screen.getByRole("menuitem", { name: "回复" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: "多选" })).toBeInTheDocument()
+  })
+
   it("enters multi-select from the context menu and chooses a forward mode", async () => {
     const user = userEvent.setup()
     const onForwardSelected = vi.fn()
@@ -240,6 +260,7 @@ function createConversation(): ClientConversation {
     lastMessageId: null,
     lastMessageSeq: 2,
     lastMessageSummary: "第二条",
+    lastChoiceSeq: 0,
     lastMentionedSeq: 0,
     lastReadSeq: 2,
     memberCount: 2,

@@ -26,8 +26,10 @@ describe("SendImageMessageDialog", () => {
 
     render(
       <SendImageMessageDialog
+        caption=""
         conversationName="测试会话"
         image={new File(["image"], "image.png", { type: "image/png" })}
+        onCaptionChange={vi.fn()}
         onConfirm={vi.fn()}
         onOpenChange={vi.fn()}
         open

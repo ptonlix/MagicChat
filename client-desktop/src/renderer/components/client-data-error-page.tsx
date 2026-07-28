@@ -30,7 +30,7 @@ export function ClientDataErrorPage({ message, onRetry }: ClientDataErrorPagePro
   return (
     <>
       <ClientDocumentTitle title="工作区加载失败" disableMessageAlert />
-      <main className="client-data-error-page app-green-shell min-h-svh pt-10 text-foreground">
+      <main className="client-data-error-page min-h-svh bg-background pt-10 text-foreground">
         <header className="client-data-error-header">
           <div className="client-data-error-brand">
             <img alt="即应" src="/logo.png" />

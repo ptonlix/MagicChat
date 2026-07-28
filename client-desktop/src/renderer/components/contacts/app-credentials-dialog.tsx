@@ -85,8 +85,10 @@ export function AppCredentialsDialog({
           onPointerDownOutside={(event) => event.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>应用接入信息</DialogTitle>
-            <DialogDescription className="sr-only">查看应用的信息和连接凭据</DialogDescription>
+            <DialogTitle>开发指南</DialogTitle>
+            <DialogDescription className="sr-only">
+              查看应用开发接入信息和连接凭据
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">

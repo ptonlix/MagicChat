@@ -1,7 +1,11 @@
 import * as React from "react"
 import { Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { type ClientConversation, type ClientMessage } from "@/lib/client-data-api"
+import {
+  type ClientConversation,
+  type ClientMessage,
+  type ImageCaptionType,
+} from "@/lib/client-data-api"
 import type { MentionLabelResolver } from "@/lib/message-mentions"
 import type { ConversationDraftMention } from "@/lib/conversation-drafts"
 import type {
@@ -55,6 +59,8 @@ type ConversationPanelProps = {
   onForwardMessage?: (message: ConversationPanelMessage) => void
   onForwardSelectedMessages?: (mode: ConversationPanelForwardMode) => void
   onCancelReply: () => void
+  onCompactMessages?: () => void
+  onRegisterMessageView?: (conversationId: string) => () => void
   onReplyToMessage: (message: ConversationPanelMessage) => void
   onRevokeMessage: (message: ConversationPanelMessage) => void
   onRespondToChoice?: (message: ConversationPanelMessage, optionIds: string[]) => Promise<void>
@@ -64,7 +70,11 @@ type ConversationPanelProps = {
     reacted: boolean,
   ) => Promise<void>
   onSendFile: (file: File) => Promise<ClientMessage | null>
-  onSendImage: (image: File) => Promise<ClientMessage | null>
+  onSendImage: (
+    image: File,
+    caption: string,
+    captionType: ImageCaptionType,
+  ) => Promise<ClientMessage | null>
   onSendVoice: (voice: VoiceMessageRecording) => Promise<ClientMessage | null>
   onLoadBeforeMessages: () => void
   onOpenTopic?: (conversationId: string) => void
@@ -101,6 +111,8 @@ export function ConversationPanel({
   onForwardMessage,
   onForwardSelectedMessages,
   onCancelReply,
+  onCompactMessages,
+  onRegisterMessageView,
   onReplyToMessage,
   onRevokeMessage,
   onRespondToChoice,
@@ -263,6 +275,8 @@ export function ConversationPanel({
             mentionLabelResolver={mentionLabelResolver}
             messageSelection={messageSelection}
             messages={messages}
+            onCompactMessages={onCompactMessages}
+            onRegisterMessageView={onRegisterMessageView}
             onForwardMessage={onForwardMessage}
             onCreateTopic={onCreateTopic}
             onLoadBeforeMessages={onLoadBeforeMessages}

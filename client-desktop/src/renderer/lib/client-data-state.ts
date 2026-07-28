@@ -2,13 +2,16 @@ import {
   ClientDataRequestError,
   formatClientMessageBodySummary,
   type ClientConversation,
+  type ClientChoiceState,
   type ClientMessage,
+  type MessageChoiceSnapshot,
   type ClientMessagePage,
   type MessageReactionsUpdatedEvent,
 } from "@/lib/client-data-api"
 import type { ClientConversationMessageState } from "@/lib/client-data-context"
 
 export const messagePageLimit = 20
+export const conversationMessageRetentionLimit = 300
 
 export const emptyConversationMessageState: ClientConversationMessageState = {
   error: null,
@@ -78,6 +81,47 @@ export function applyMessageReactionSnapshot(
   }
 }
 
+export function applyMessageChoiceState(message: ClientMessage, choice: ClientChoiceState) {
+  if (message.body.type !== "choice" || message.body.options.length !== choice.options.length) {
+    return message
+  }
+
+  const previous = message.choice
+  if (previous) {
+    if (previous.responseCount > choice.responseCount) {
+      if (previous.myOptionIds.length === 0 && choice.myOptionIds.length > 0) {
+        return { ...message, choice: { ...previous, myOptionIds: choice.myOptionIds } }
+      }
+      return message
+    }
+    if (
+      previous.responseCount === choice.responseCount &&
+      previous.myOptionIds.length > 0 &&
+      choice.myOptionIds.length === 0
+    ) {
+      return message
+    }
+  }
+
+  return { ...message, choice }
+}
+
+export function applyMessageChoiceSnapshot(
+  message: ClientMessage,
+  snapshot: MessageChoiceSnapshot,
+): ClientMessage | null {
+  if (message.id !== snapshot.messageId || message.conversationId !== snapshot.conversationId) {
+    return message
+  }
+  if (snapshot.status === "deleted") {
+    return null
+  }
+  if (snapshot.status === "revoked") {
+    return { ...message, body: { type: "revoked" }, choice: undefined, reactions: [] }
+  }
+  return snapshot.choice ? applyMessageChoiceState(message, snapshot.choice) : message
+}
+
 export function createConversationMessageState(): ClientConversationMessageState {
   return {
     error: null,
@@ -87,6 +131,30 @@ export function createConversationMessageState(): ClientConversationMessageState
     messages: [],
     page: null,
     sending: false,
+  }
+}
+
+export function compactConversationMessageState(
+  state: ClientConversationMessageState,
+  limit = conversationMessageRetentionLimit,
+): ClientConversationMessageState {
+  if (state.messages.length <= limit) {
+    return state
+  }
+
+  const messages = state.messages.slice(-limit)
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+  return {
+    ...state,
+    messages,
+    page: {
+      hasMoreAfter: state.page?.hasMoreAfter ?? false,
+      hasMoreBefore: true,
+      limit: state.page?.limit ?? messagePageLimit,
+      newestSeq: lastMessage?.seq ?? 0,
+      oldestSeq: firstMessage?.seq ?? 0,
+    },
   }
 }
 
@@ -222,29 +290,67 @@ export function getNewestMessageSeq(state: ClientConversationMessageState) {
 }
 
 const builtinAssistantAppId = "00000000-0000-0000-0000-000000000001"
+const topicConversationListActivityWindowMs = 30 * 60 * 1000
 
-export function orderConversations(conversations: ClientConversation[]) {
-  return [...conversations].sort((left, right) => {
-    const leftIsBuiltinAssistant = isBuiltinAssistantConversation(left)
-    const rightIsBuiltinAssistant = isBuiltinAssistantConversation(right)
-    if (leftIsBuiltinAssistant !== rightIsBuiltinAssistant) {
-      return leftIsBuiltinAssistant ? -1 : 1
+export function orderConversations(conversations: ClientConversation[], now = Date.now()) {
+  const parents: ClientConversation[] = []
+  const orphanTopics: ClientConversation[] = []
+  const topicsByParentId = new Map<string, ClientConversation[]>()
+  const parentIds = new Set(
+    conversations.filter((conversation) => conversation.type !== "topic").map(({ id }) => id),
+  )
+
+  for (const conversation of conversations) {
+    if (conversation.type !== "topic") {
+      parents.push(conversation)
+      continue
     }
-
-    const leftPinned = Boolean(left.pinned)
-    const rightPinned = Boolean(right.pinned)
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1
+    const parentId = conversation.topic?.parentConversationId
+    if (!parentId || !parentIds.has(parentId)) {
+      orphanTopics.push(conversation)
+      continue
     }
+    const topics = topicsByParentId.get(parentId) ?? []
+    topics.push(conversation)
+    topicsByParentId.set(parentId, topics)
+  }
 
-    const leftActivity = getConversationActivityTimestamp(left)
-    const rightActivity = getConversationActivityTimestamp(right)
-    if (leftActivity !== rightActivity) {
-      return rightActivity - leftActivity
-    }
+  parents.sort((left, right) =>
+    compareConversationGroups(
+      left,
+      getActiveTopicChildren(topicsByParentId.get(left.id) ?? [], now),
+      right,
+      getActiveTopicChildren(topicsByParentId.get(right.id) ?? [], now),
+    ),
+  )
 
-    return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
-  })
+  const ordered: ClientConversation[] = []
+  for (const parent of parents) {
+    ordered.push(parent)
+    const topics = topicsByParentId.get(parent.id) ?? []
+    topics.sort(compareTopicConversationItems)
+    ordered.push(...topics)
+  }
+  orphanTopics.sort(compareTopicConversationItems)
+  ordered.push(...orphanTopics)
+  return ordered
+}
+
+export function isConversationTopicVisibleInList(
+  conversation: ClientConversation,
+  options: { activeConversationId?: string; now?: number } = {},
+) {
+  if (conversation.type !== "topic") return true
+  if (!conversation.topic?.participating || conversation.topic.archived) return false
+  if (conversation.id === options.activeConversationId) return true
+  if (conversation.unreadCount > 0 || conversation.lastMessageSeq > conversation.lastReadSeq) {
+    return true
+  }
+  const activityAt = getConversationActivityTimestamp(conversation)
+  return (
+    Number.isFinite(activityAt) &&
+    activityAt >= (options.now ?? Date.now()) - topicConversationListActivityWindowMs
+  )
 }
 
 export function isBuiltinAssistantConversation(conversation: ClientConversation) {
@@ -260,6 +366,40 @@ function getConversationActivityTimestamp(conversation: ClientConversation) {
   const timestamp = Date.parse(conversation.lastMessageAt ?? conversation.createdAt)
 
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
+function getActiveTopicChildren(topics: ClientConversation[], now: number) {
+  return topics.filter((topic) => isConversationTopicVisibleInList(topic, { now }))
+}
+
+function compareConversationGroups(
+  left: ClientConversation,
+  leftTopics: ClientConversation[],
+  right: ClientConversation,
+  rightTopics: ClientConversation[],
+) {
+  const leftAssistant = isBuiltinAssistantConversation(left)
+  const rightAssistant = isBuiltinAssistantConversation(right)
+  if (leftAssistant !== rightAssistant) return leftAssistant ? -1 : 1
+  const leftPinned = Boolean(left.pinned)
+  const rightPinned = Boolean(right.pinned)
+  if (leftPinned !== rightPinned) return leftPinned ? -1 : 1
+  const leftActivity = Math.max(
+    getConversationActivityTimestamp(left),
+    ...leftTopics.map(getConversationActivityTimestamp),
+  )
+  const rightActivity = Math.max(
+    getConversationActivityTimestamp(right),
+    ...rightTopics.map(getConversationActivityTimestamp),
+  )
+  if (leftActivity !== rightActivity) return rightActivity - leftActivity
+  return left.id.localeCompare(right.id)
+}
+
+function compareTopicConversationItems(left: ClientConversation, right: ClientConversation) {
+  const activityDifference =
+    getConversationActivityTimestamp(right) - getConversationActivityTimestamp(left)
+  return activityDifference || left.id.localeCompare(right.id)
 }
 
 export function getClientDataErrorMessage(error: unknown, fallbackMessage: string) {

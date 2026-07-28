@@ -361,9 +361,15 @@ function normalizeMessageBody(
   }
 
   if (body?.type === "image" && typeof body.file_id === "string") {
+    const caption = typeof body.caption === "string" ? body.caption.trim() : ""
     const normalizedImage: ClientImageMessageBody = {
       fileId: body.file_id,
       type: "image",
+    }
+
+    if (caption) {
+      normalizedImage.caption = caption
+      normalizedImage.captionType = body.caption_type === "markdown" ? "markdown" : "text"
     }
 
     if (isPositiveFiniteNumber(body.width)) {

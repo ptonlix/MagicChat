@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,6 +7,7 @@ import { ProjectTaskDetailsDialog } from "@/components/projects/project-task-det
 import type { ProjectTask } from "@/components/projects/project-types"
 
 const mocks = vi.hoisted(() => ({
+  deleteClientProjectTask: vi.fn(),
   getClientProjectTask: vi.fn(),
   listAllClientProjectMembers: vi.fn(),
   listClientProjectTasks: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/project-task-data-api", () => ({
+  deleteClientProjectTask: mocks.deleteClientProjectTask,
   getClientProjectTask: mocks.getClientProjectTask,
   listClientProjectTasks: mocks.listClientProjectTasks,
   updateClientProjectTask: mocks.updateClientProjectTask,
@@ -45,6 +47,8 @@ vi.mock("@/lib/client-data-context", () => ({
 describe("ProjectTaskDetailsDialog card message", () => {
   beforeEach(() => {
     const task = createTask()
+    mocks.deleteClientProjectTask.mockReset()
+    mocks.deleteClientProjectTask.mockResolvedValue(task.id)
     mocks.getClientProjectTask.mockReset()
     mocks.getClientProjectTask.mockResolvedValue(task)
     mocks.listAllClientProjectMembers.mockReset()
@@ -89,6 +93,70 @@ describe("ProjectTaskDetailsDialog card message", () => {
     expect(screen.queryByRole("dialog", { name: "发送到对话" })).not.toBeInTheDocument()
     expect(screen.getByRole("dialog", { name: "任务详情" })).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it("confirms before deleting the task", async () => {
+    const user = userEvent.setup()
+    const onDeleted = vi.fn()
+    const onOpenChange = vi.fn()
+    render(
+      <MemoryRouter>
+        <ProjectTaskDetailsDialog
+          onDeleted={onDeleted}
+          onOpenChange={onOpenChange}
+          open
+          task={createTask()}
+        />
+      </MemoryRouter>,
+    )
+
+    const deleteButton = await screen.findByRole("button", { name: "删除任务" })
+    await waitFor(() => expect(deleteButton).toBeEnabled())
+    const titleInput = screen.getByRole("textbox", { name: "标题" })
+    await user.clear(titleInput)
+    await user.type(titleInput, "未保存的新标题")
+    await user.click(deleteButton)
+    const confirmation = screen.getByRole("alertdialog", { name: "删除任务" })
+    expect(mocks.deleteClientProjectTask).not.toHaveBeenCalled()
+    await user.click(within(confirmation).getByRole("button", { name: "删除任务" }))
+    await waitFor(() => {
+      expect(mocks.deleteClientProjectTask).toHaveBeenCalledWith("project-1", "task-1")
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+      expect(onDeleted).toHaveBeenCalledWith("task-1")
+    })
+    expect(mocks.updateClientProjectTask).not.toHaveBeenCalled()
+  })
+
+  it("keeps task details and unsaved edits after deletion fails", async () => {
+    const user = userEvent.setup()
+    const onDeleted = vi.fn()
+    const onOpenChange = vi.fn()
+    mocks.deleteClientProjectTask.mockRejectedValue(new Error("没有删除权限"))
+    render(
+      <MemoryRouter>
+        <ProjectTaskDetailsDialog
+          onDeleted={onDeleted}
+          onOpenChange={onOpenChange}
+          open
+          task={createTask()}
+        />
+      </MemoryRouter>,
+    )
+
+    const titleInput = await screen.findByRole("textbox", { name: "标题" })
+    await user.clear(titleInput)
+    await user.type(titleInput, "保留这个编辑")
+    await user.click(screen.getByRole("button", { name: "删除任务" }))
+    const confirmation = screen.getByRole("alertdialog", { name: "删除任务" })
+    await user.click(within(confirmation).getByRole("button", { name: "删除任务" }))
+
+    await waitFor(() => expect(mocks.deleteClientProjectTask).toHaveBeenCalledOnce())
+    expect(screen.getByText("任务详情").closest('[role="dialog"]')).toBeInTheDocument()
+    expect(screen.getByDisplayValue("保留这个编辑")).toBeInTheDocument()
+    expect(confirmation).toBeInTheDocument()
+    expect(onDeleted).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(mocks.updateClientProjectTask).not.toHaveBeenCalled()
   })
 
   it("configures a recurring reminder in the task form", async () => {

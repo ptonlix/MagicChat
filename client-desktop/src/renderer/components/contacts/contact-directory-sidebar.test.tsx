@@ -178,7 +178,7 @@ describe("ContactDirectorySidebar", () => {
     resolveCreate(createCredentials())
 
     const credentialsDialog = await screen.findByRole("dialog", {
-      name: "应用接入信息",
+      name: "开发指南",
     })
     expect(within(credentialsDialog).getByLabelText("连接密钥")).toHaveValue("app-secret")
     expect(

@@ -4,6 +4,7 @@ import {
   addGroupConversationMembers,
   ClientDataRequestError,
   createGroupConversation,
+  dismissConversation,
   getCurrentClientUser,
   listClientContacts,
   listClientConversations,
@@ -18,6 +19,7 @@ import {
   sendConversationCardMessage,
   sendConversationEntityCardMessage,
   sendConversationTextMessage,
+  restoreConversation,
   setConversationPinned,
   setConversationMuted,
 } from "@/lib/client-data-api"
@@ -231,6 +233,7 @@ describe("client data API", () => {
           type: "user",
         },
         lastMessageSummary: "好的，我看一下",
+        lastChoiceSeq: 0,
         lastMentionedSeq: 0,
         lastReadSeq: 0,
         memberCount: 2,
@@ -336,6 +339,59 @@ describe("client data API", () => {
     })
   })
 
+  it("dismisses a conversation with credentials", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { conversation_id: "conversation-1" },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
+    )
+
+    await expect(dismissConversation("conversation/1", fetcher)).resolves.toEqual({
+      conversationId: "conversation-1",
+    })
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/conversation%2F1", {
+      credentials: "include",
+      method: "DELETE",
+    })
+  })
+
+  it("restores and normalizes a hidden conversation", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            conversation: {
+              created_at: "2026-07-03T09:30:00Z",
+              id: "conversation-1",
+              name: "新品讨论组",
+              notification_muted: true,
+              pinned: false,
+              type: "group",
+            },
+          },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
+    )
+
+    await expect(restoreConversation("conversation-1", fetcher)).resolves.toMatchObject({
+      id: "conversation-1",
+      name: "新品讨论组",
+      notificationMuted: true,
+      pinned: false,
+      type: "group",
+    })
+    expect(fetcher).toHaveBeenCalledWith("/api/client/conversations/conversation-1/restore", {
+      credentials: "include",
+      method: "POST",
+    })
+  })
+
   it("normalizes conversation mute realtime events", () => {
     expect(
       normalizeConversationMuteUpdatedEventPayload({
@@ -411,6 +467,7 @@ describe("client data API", () => {
       lastMessageId: null,
       lastMessageSeq: 0,
       lastMessageSummary: "",
+      lastChoiceSeq: 0,
       lastMentionedSeq: 0,
       lastReadSeq: 0,
       memberCount: 2,

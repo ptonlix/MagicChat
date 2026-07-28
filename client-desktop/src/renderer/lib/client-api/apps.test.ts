@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest"
 import {
   buildAppWebSocketURL,
   createClientApp,
+  deleteClientApp,
   getClientAppCredentials,
+  getClientAppProfile,
   regenerateClientAppSecret,
   updateClientApp,
   uploadClientAppAvatar,
@@ -109,6 +111,25 @@ describe("client app API", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/client/apps/app%2F1", {
       credentials: "include",
       method: "GET",
+    })
+  })
+
+  it("loads profile data without exposing the secret to its caller", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      createJSONResponse({
+        success: true,
+        data: { app: createAppResponse(), connection_secret: "private-secret" },
+      }),
+    )
+    await expect(getClientAppProfile("app-1", fetcher)).resolves.toMatchObject({ id: "app-1" })
+  })
+
+  it("deletes an owned application", async () => {
+    const fetcher = vi.fn().mockResolvedValue(createJSONResponse({ success: true, data: {} }))
+    await expect(deleteClientApp("app/1", fetcher)).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenCalledWith("/api/client/apps/app%2F1", {
+      credentials: "include",
+      method: "DELETE",
     })
   })
 

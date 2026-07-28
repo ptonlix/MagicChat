@@ -15,6 +15,7 @@ import type { ClientCardSendInput } from "@/lib/client-data-api"
 import type {
   ClientConversationMessageState,
   ClientDataContextValue,
+  SendConversationImageOptions,
   SendConversationMessageOptions,
 } from "@/lib/client-data-context"
 import { getClientDataErrorMessage } from "@/lib/client-data-state"
@@ -249,7 +250,7 @@ export function useConversationSenders({
   )
 
   const sendConversationImage = useCallback(
-    async (conversationId: string, image: File, options: SendConversationMessageOptions = {}) => {
+    async (conversationId: string, image: File, options: SendConversationImageOptions = {}) => {
       const state = conversationMessageStatesRef.current[conversationId]
       if (!conversationId || state?.sending) {
         return null
@@ -263,6 +264,8 @@ export function useConversationSenders({
 
       try {
         const message = await sendConversationImageMessage(conversationId, {
+          caption: options.caption,
+          captionType: options.captionType,
           clientMessageId,
           image,
           replyToMessageId: options.replyToMessageId,

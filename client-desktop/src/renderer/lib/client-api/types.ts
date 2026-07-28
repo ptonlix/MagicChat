@@ -94,6 +94,7 @@ export type ConversationResponse = {
   last_message_seq?: number
   last_message_sender?: ConversationLastMessageSenderResponse | null
   last_message_summary?: string
+  last_choice_seq?: number
   last_mentioned_seq?: number
   last_read_seq?: number
   member_count?: number
@@ -196,6 +197,14 @@ export type SetConversationPinResponse = {
 export type SetConversationMuteResponse = {
   conversation_id?: string
   muted?: boolean
+}
+
+export type DismissConversationResponse = {
+  conversation_id?: string
+}
+
+export type RestoreConversationResponse = {
+  conversation?: ConversationResponse
 }
 
 export type CreateDirectConversationResponse = {
@@ -318,6 +327,8 @@ export type FileMessageBodyResponse = {
 }
 
 export type ImageMessageBodyResponse = {
+  caption?: string
+  caption_type?: "text" | "markdown"
   file_id?: string
   height?: number
   type?: "image"
@@ -493,6 +504,17 @@ export type SetChoiceResponse = {
   }
 }
 
+export type MessageChoiceSnapshotResponse = {
+  choice?: ChoiceStateResponse
+  message_id?: string
+  status?: "active" | "deleted" | "revoked"
+}
+
+export type ListChoiceSnapshotsResponse = {
+  conversation_id?: string
+  snapshots?: MessageChoiceSnapshotResponse[]
+}
+
 export type MessageReactionSnapshotResponse = {
   message_id?: string
   reaction_version?: number
@@ -610,6 +632,11 @@ export type ConversationMemberMentionedEventPayloadResponse = {
   last_mentioned_seq?: number
 }
 
+export type ConversationMemberChoiceReceivedEventPayloadResponse = {
+  conversation_id?: string
+  last_choice_seq?: number
+}
+
 export type ConversationPinUpdatedEventPayloadResponse = {
   conversation_id?: string
   pinned?: boolean
@@ -705,6 +732,7 @@ export type ClientConversation = {
   lastMessageSeq: number
   lastMessageSender?: ClientConversationLastMessageSender | null
   lastMessageSummary: string
+  lastChoiceSeq: number
   lastMentionedSeq: number
   lastReadSeq: number
   memberCount: number
@@ -935,7 +963,11 @@ export type ClientFileMessageBody = {
   type: "file"
 }
 
+export type ImageCaptionType = "text" | "markdown"
+
 export type ClientImageMessageBody = {
+  caption?: string
+  captionType?: ImageCaptionType
   fileId: string
   height?: number
   type: "image"
@@ -1126,6 +1158,13 @@ export type SetChoiceResult = {
   }
 }
 
+export type MessageChoiceSnapshot = {
+  choice: ClientChoiceState | null
+  conversationId: string
+  messageId: string
+  status: "active" | "deleted" | "revoked"
+}
+
 export type MessageReactionsUpdatedEvent = {
   actorReacted: boolean
   actorText: string
@@ -1226,6 +1265,8 @@ export type SendConversationFileMessageInput = {
 }
 
 export type SendConversationImageMessageInput = {
+  caption?: string
+  captionType?: ImageCaptionType
   clientMessageId: string
   image: File
   replyToMessageId?: string

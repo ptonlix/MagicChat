@@ -73,6 +73,8 @@ const statusOptions: Array<{ label: string; value: ProjectTaskStatus }> = [
   { label: "已取消", value: "canceled" },
 ]
 
+const defaultTaskStatuses: ProjectTaskStatus[] = ["todo", "in_progress"]
+
 const priorityOptions: Array<{
   label: string
   value: ProjectTaskPriority
@@ -82,12 +84,12 @@ const priorityOptions: Array<{
   { label: "高", value: 3 },
 ]
 
-function createEmptyTaskFilters(): TaskFilters {
+function createDefaultTaskFilters(): TaskFilters {
   return {
     assigneeUserIds: [],
     keyword: "",
     priorities: [],
-    statuses: [],
+    statuses: [...defaultTaskStatuses],
   }
 }
 
@@ -122,9 +124,9 @@ export function ProjectTasksTab({
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeView, setActiveView] = React.useState<TaskView>(readStoredProjectTaskView)
   const [fallbackActiveTask, setFallbackActiveTask] = React.useState<ProjectTask | null>(null)
-  const [appliedFilters, setAppliedFilters] = React.useState<TaskFilters>(createEmptyTaskFilters)
+  const [appliedFilters, setAppliedFilters] = React.useState<TaskFilters>(createDefaultTaskFilters)
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
-  const [filters, setFilters] = React.useState<TaskFilters>(createEmptyTaskFilters)
+  const [filters, setFilters] = React.useState<TaskFilters>(createDefaultTaskFilters)
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
@@ -246,6 +248,12 @@ export function ProjectTasksTab({
     await Promise.allSettled([refreshTasks(), onTasksChanged()])
   }
 
+  function handleTaskDeleted(taskId: string) {
+    setTasks((current) => current.filter((task) => task.id !== taskId))
+    setFallbackActiveTask(null)
+    void onTasksChanged().catch(() => undefined)
+  }
+
   function handleTaskStatusChange(taskId: string, status: ProjectTaskStatus) {
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, status } : task)))
   }
@@ -354,6 +362,7 @@ export function ProjectTasksTab({
       {activeTask && activeTask.id === activeTaskId && (
         <ProjectTaskDetailsDialog
           key={`${activeTask.id}-${activeTask.updatedAt}`}
+          onDeleted={handleTaskDeleted}
           onOpenChange={(open) => {
             if (!open) {
               handleCloseTask()
