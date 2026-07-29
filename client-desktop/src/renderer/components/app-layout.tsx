@@ -143,11 +143,11 @@ function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; u
 
     try {
       await clientLogout()
-      setAuthenticated(false)
-      navigate("/login", { replace: true })
     } catch (error) {
       toast.error(getLogoutErrorMessage(error))
     } finally {
+      setAuthenticated(false)
+      navigate("/login", { replace: true })
       setLogoutPending(false)
     }
   }

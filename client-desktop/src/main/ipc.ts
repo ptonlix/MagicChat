@@ -16,6 +16,7 @@ import { Diagnostics, releaseChannel } from "@main/diagnostics"
 import { FileService } from "@main/file-service"
 import { HttpTransport } from "@main/http-transport"
 import { NotificationService } from "@main/notification-service"
+import { MessageCacheService } from "@main/message-cache"
 import { RealtimeController } from "@main/realtime-controller"
 import { ServerProfiles } from "@main/server-profiles"
 import { SessionController } from "@main/session-controller"
@@ -33,6 +34,7 @@ export type IpcDependencies = {
   diagnostics: Diagnostics
   files: FileService
   http: HttpTransport
+  messageCache: MessageCacheService
   notifications: NotificationService
   profiles: ServerProfiles
   realtime: RealtimeController
@@ -50,7 +52,9 @@ export function registerIpc(deps: IpcDependencies): () => void {
   }
   const markUnauthorized = (authTarget: AuthenticatedTarget) => {
     deps.realtime.close(authTarget)
-    broadcast(IPC.realtimeUnauthorized, authTarget)
+    void deps.messageCache.clearUser(authTarget).finally(() => {
+      broadcast(IPC.realtimeUnauthorized, authTarget)
+    })
   }
   const register = (
     channel: string,
@@ -102,6 +106,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
     const profile = deps.profiles.require(id)
     deps.realtime.closeServer(id)
     deps.uploads.cleanupServer(id)
+    await deps.messageCache.clearServer(profile)
     await Promise.all([
       deps.files.cleanupServer(id),
       deps.sessions.remove(profile),
@@ -120,9 +125,15 @@ export function registerIpc(deps: IpcDependencies): () => void {
   })
   register(IPC.transportRequest, async (event, rawTarget, rawRequest) => {
     const authTarget = target(rawTarget)
-    const response = await deps.http.request(event.sender.id, authTarget, request(rawRequest))
-    if (response.status === 401) markUnauthorized(authTarget)
-    return response
+    const clientRequest = request(rawRequest)
+    const isLogout = clientRequest.path.startsWith("/api/client/auth/logout")
+    try {
+      const response = await deps.http.request(event.sender.id, authTarget, clientRequest)
+      if (response.status === 401) markUnauthorized(authTarget)
+      return response
+    } finally {
+      if (isLogout) await deps.messageCache.clearUser(authTarget).catch(() => undefined)
+    }
   })
   register(IPC.transportCancel, (event, requestId) =>
     deps.http.cancel(asRequestId(requestId), event.sender.id),
@@ -184,6 +195,48 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.updaterOpenManual, () => deps.updater.openManualDownload())
   register(IPC.updaterOpenRelease, () => deps.updater.openReleasePage())
   register(IPC.diagnosticsExport, () => deps.diagnostics.export())
+  register(IPC.messageCacheClearAll, () => deps.messageCache.clearAll())
+  register(IPC.messageCacheClearConversation, (_event, scope) =>
+    deps.messageCache.clearConversation(scope),
+  )
+  register(IPC.messageCacheClearServer, (_event, cacheTarget) =>
+    deps.messageCache.clearServer(cacheTarget),
+  )
+  register(IPC.messageCacheClearUser, (_event, cacheTarget) =>
+    deps.messageCache.clearUser(cacheTarget),
+  )
+  register(IPC.messageCacheCommitAfter, (_event, scope, commit) =>
+    deps.messageCache.commitAfter(scope, commit),
+  )
+  register(IPC.messageCacheCommitBefore, (_event, scope, commit) =>
+    deps.messageCache.commitBefore(scope, commit),
+  )
+  register(IPC.messageCacheCommitLatest, (_event, scope, commit) =>
+    deps.messageCache.commitLatest(scope, commit),
+  )
+  register(IPC.messageCacheGetById, (_event, scope, messageId) =>
+    deps.messageCache.getById(scope, messageId),
+  )
+  register(IPC.messageCacheGetStats, (_event, cacheTarget) =>
+    deps.messageCache.getStats(cacheTarget),
+  )
+  register(IPC.messageCacheGetSyncState, (_event, scope) => deps.messageCache.getSyncState(scope))
+  register(IPC.messageCacheListSyncStates, (_event, cacheTarget) =>
+    deps.messageCache.listSyncStates(cacheTarget),
+  )
+  register(IPC.messageCacheReadBefore, (_event, scope, beforeSeq, limit) =>
+    deps.messageCache.readBefore(scope, beforeSeq, limit),
+  )
+  register(IPC.messageCacheReadRecent, (_event, scope, limit) =>
+    deps.messageCache.readRecent(scope, limit),
+  )
+  register(IPC.messageCacheRemoveMessage, (_event, scope, messageId, generation) =>
+    deps.messageCache.removeMessage(scope, messageId, generation),
+  )
+  register(IPC.messageCacheStatus, () => deps.messageCache.status())
+  register(IPC.messageCacheUpsert, (_event, scope, records, generation) =>
+    deps.messageCache.upsert(scope, records, generation),
+  )
 
   const unregisterRuntimeDiagnostics = registerRuntimeDiagnosticsIpc(deps.diagnostics)
 

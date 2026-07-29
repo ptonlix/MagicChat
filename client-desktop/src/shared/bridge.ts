@@ -6,6 +6,7 @@ import type {
   RealtimeSnapshot,
   ServerTarget,
 } from "@shared/client-contract"
+import type { MessageCacheBridge } from "@shared/message-cache-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
@@ -27,6 +28,22 @@ export const IPC = {
   filesOpenLocation: "desktop:v1:files-open-location",
   filesPick: "desktop:v1:files-pick",
   filesUpload: "desktop:v1:files-upload",
+  messageCacheClearAll: "desktop:v1:message-cache-clear-all",
+  messageCacheClearConversation: "desktop:v1:message-cache-clear-conversation",
+  messageCacheClearServer: "desktop:v1:message-cache-clear-server",
+  messageCacheClearUser: "desktop:v1:message-cache-clear-user",
+  messageCacheCommitAfter: "desktop:v1:message-cache-commit-after",
+  messageCacheCommitBefore: "desktop:v1:message-cache-commit-before",
+  messageCacheCommitLatest: "desktop:v1:message-cache-commit-latest",
+  messageCacheGetById: "desktop:v1:message-cache-get-by-id",
+  messageCacheGetStats: "desktop:v1:message-cache-get-stats",
+  messageCacheGetSyncState: "desktop:v1:message-cache-get-sync-state",
+  messageCacheListSyncStates: "desktop:v1:message-cache-list-sync-states",
+  messageCacheReadBefore: "desktop:v1:message-cache-read-before",
+  messageCacheReadRecent: "desktop:v1:message-cache-read-recent",
+  messageCacheRemoveMessage: "desktop:v1:message-cache-remove-message",
+  messageCacheStatus: "desktop:v1:message-cache-status",
+  messageCacheUpsert: "desktop:v1:message-cache-upsert",
   notificationShow: "desktop:v1:notification-show",
   navigate: "desktop:v1:navigate",
   openExternal: "desktop:v1:open-external",
@@ -196,6 +213,7 @@ export interface DesktopBridge {
     }): Promise<ReadonlyArray<{ id: string; name: string; size: number }>>
     upload(target: AuthenticatedTarget, apiPath: string, fileId: string): Promise<ClientResponse>
   }
+  messageCache: MessageCacheBridge
   notifications: { show(input: NotificationInput): Promise<void> }
   navigation: {
     subscribe(listener: (route: string) => void): () => void

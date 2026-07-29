@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ClientDataProvider } from "@/components/client-data-provider"
 import { useClientData } from "@/lib/client-data-context"
+import { configureMessageCacheTarget } from "@/lib/messages"
 
 describe("ClientDataProvider", () => {
   afterEach(() => {
@@ -418,6 +419,72 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("1:0")
   })
 
+  it("会话移除后忽略更早发出的消息响应", async () => {
+    vi.useFakeTimers()
+    const messagesResponse = createDeferred<Response>()
+    const messageCache = createMessageCacheMock()
+    vi.stubGlobal("desktop", { messageCache })
+    const restoreTarget = configureMessageCacheTarget({
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    })
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(
+          jsonResponse(createConversationsResponse([createConversationResponse("conversation-1")])),
+        )
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/conversations/conversation-1/messages?limit=20") {
+        return messagesResponse.promise
+      }
+      if (url === "/api/client/conversations/conversation-1" && init?.method === "DELETE") {
+        return Promise.resolve(
+          jsonResponse({ data: { conversation_id: "conversation-1" }, success: true }),
+        )
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ConversationLifecycleProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    act(() => screen.getByRole("button", { name: "load lifecycle messages" }).click())
+    await act(async () => undefined)
+    await act(async () => {
+      screen.getByRole("button", { name: "dismiss lifecycle conversation" }).click()
+    })
+    expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("0:0")
+
+    await act(async () => {
+      messagesResponse.resolve(jsonResponse(createMessagesResponse()))
+    })
+
+    expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("0:0")
+    expect(messageCache.commitLatest).not.toHaveBeenCalled()
+    expect(messageCache.clearConversation).toHaveBeenCalledOnce()
+    restoreTarget()
+  })
+
   it("does not restore a dismissed conversation from an older refresh", async () => {
     vi.useFakeTimers()
     const staleRefresh = createDeferred<Response>()
@@ -762,6 +829,27 @@ function createDeferred<T>() {
     resolve = promiseResolve
   })
   return { promise, resolve }
+}
+
+function createMessageCacheMock() {
+  const generation = { conversation: 0, server: 0, user: 0 }
+  return {
+    clearConversation: vi.fn().mockResolvedValue({ ...generation, conversation: 1 }),
+    commitLatest: vi.fn(),
+    getSyncState: vi.fn().mockResolvedValue({
+      conversationId: "conversation-1",
+      generation,
+      hasMoreBefore: true,
+      httpSyncedThroughSeq: 0,
+      lastAccessedAt: 0,
+    }),
+    readRecent: vi.fn().mockResolvedValue({
+      hasMoreBefore: true,
+      messages: [],
+      newestSeq: 0,
+      oldestSeq: 0,
+    }),
+  }
 }
 
 function createCurrentUserResponse() {

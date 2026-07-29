@@ -98,6 +98,23 @@ POC 不启用远程崩溃遥测，`crashReporter.uploadToServer=false`，也不�
 日志或行为分析。诊断只能由用户主动导出，使用字段白名单，不包含 Server 地址、
 身份、消息、文件路径、完整 URL、Header、Cookie、Token 或原始 dump。
 
+消息缓存位于 Electron `userData/message-cache/messages-v1.sqlite3`，由 Main 管理的专用
+Worker 使用 Node.js 内置 `node:sqlite` 独占访问。Renderer 只能通过版本化的
+`DesktopBridge.messageCache` 执行有界分页、事务提交、状态查询和定向清理，不能获得
+数据库路径、SQL、Worker 或 Node.js 能力。数据库使用 WAL、SQLite `user_version` 迁移、
+按 Server/用户/会话隔离和 generation 防迟到写入；POSIX 目录与文件权限分别限制为
+`0700`、`0600`，Windows 依赖当前用户的 `userData` ACL。
+
+与 Mobile 普通 `expo-sqlite` 缓存一致，消息 SQLite 不使用 SQLCipher 或应用级静态加密，
+正文在本机以明文数据库形式存在。其保护边界是操作系统账户、应用数据目录权限和系统磁盘
+加密。日志、崩溃记录与诊断导出不得包含消息 payload、身份 ID、Server URL、数据库路径、
+SQL 参数或原始 SQLite 错误；设置页只展示近似逻辑占用、稳定状态和定向清理操作。
+
+该缓存只保存规范化消息 JSON 与附件引用，不保存图片、语音、文件二进制。它也不提供完整
+冷启动离线工作区：当前用户、联系人、会话摘要和项目 bootstrap 仍依赖 Server；完全离线
+启动继续进入现有失败与重试流程。用户清理消息缓存不会删除服务端消息、认证、草稿、主题、
+设置、下载或附件资源。
+
 ## 跨端变更规则
 
 修改以下内容时，必须分别核对 Server、Web、Desktop 和 Mobile，并记录哪些端已修改、

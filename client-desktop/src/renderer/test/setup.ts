@@ -23,40 +23,42 @@ function createMemoryStorage(): Storage {
   }
 }
 
-Object.defineProperty(window, "localStorage", {
-  configurable: true,
-  value: createMemoryStorage(),
-})
-
-if (!window.matchMedia) {
-  Object.defineProperty(window, "matchMedia", {
-    value: (query: string): MediaQueryList => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => undefined,
-      removeListener: () => undefined,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-      dispatchEvent: () => false,
-    }),
-    writable: true,
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: createMemoryStorage(),
   })
-}
 
-if (!window.ResizeObserver) {
-  class ResizeObserverMock implements ResizeObserver {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+  if (!window.matchMedia) {
+    Object.defineProperty(window, "matchMedia", {
+      value: (query: string): MediaQueryList => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => false,
+      }),
+      writable: true,
+    })
   }
 
-  Object.defineProperty(window, "ResizeObserver", {
-    configurable: true,
-    value: ResizeObserverMock,
-  })
+  if (!window.ResizeObserver) {
+    class ResizeObserverMock implements ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: ResizeObserverMock,
+    })
+  }
 }
 
 afterEach(() => {
-  cleanup()
+  if (typeof document !== "undefined") cleanup()
 })

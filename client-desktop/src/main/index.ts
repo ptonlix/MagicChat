@@ -11,6 +11,7 @@ import { HttpTransport } from "@main/http-transport"
 import { registerIpc } from "@main/ipc"
 import { installLocalProtocol, registerPrivilegedSchemes } from "@main/local-protocol"
 import { NotificationService } from "@main/notification-service"
+import { MessageCacheService } from "@main/message-cache"
 import { RealtimeController } from "@main/realtime-controller"
 import { ProxyAuthPrompt } from "@main/proxy-auth"
 import { ServerProfiles } from "@main/server-profiles"
@@ -49,6 +50,12 @@ async function start(): Promise<void> {
   const store = new ConfigStore(app.getPath("userData"))
   await store.load()
   const profiles = new ServerProfiles(store)
+  const messageCache = new MessageCacheService(
+    app.getPath("userData"),
+    path.resolve(__dirname, "message-cache-worker.js"),
+    profiles,
+  )
+  await messageCache.initialize().catch(() => undefined)
   const sessions = new SessionController()
   installLocalProtocol(path.resolve(__dirname, "../renderer"), profiles, sessions)
   const files = new FileService(profiles, sessions)
@@ -108,6 +115,7 @@ async function start(): Promise<void> {
     diagnostics,
     files,
     http,
+    messageCache,
     notifications,
     profiles,
     realtime,
@@ -169,7 +177,7 @@ async function start(): Promise<void> {
     auth.dispose()
     realtime.closeAll()
     event.preventDefault()
-    void files.cleanup().finally(() => {
+    void Promise.all([files.cleanup(), messageCache.close()]).finally(() => {
       updater.dispose()
       unregisterIpc()
       app.quit()

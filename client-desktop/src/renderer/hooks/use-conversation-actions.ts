@@ -33,6 +33,8 @@ export function useConversationActions({
   mergeIncomingConversationMessage,
   navigate,
   onConversationsMutated,
+  onConversationRemoved,
+  onConversationRestored,
   refreshContacts,
   setConversationMessageStates,
   setConversations,
@@ -43,6 +45,8 @@ export function useConversationActions({
   mergeIncomingConversationMessage: ClientDataContextValue["mergeIncomingConversationMessage"]
   navigate: NavigateFunction
   onConversationsMutated: () => void
+  onConversationRemoved?: (conversationId: string) => void
+  onConversationRestored?: (conversationId: string) => void
   refreshContacts: ClientDataContextValue["refreshContacts"]
   setConversationMessageStates: Dispatch<
     SetStateAction<Record<string, ClientConversationMessageState>>
@@ -94,8 +98,9 @@ export function useConversationActions({
 
         return nextStates
       })
+      onConversationRemoved?.(conversationId)
     },
-    [onConversationsMutated, setConversationMessageStates, setConversations],
+    [onConversationRemoved, onConversationsMutated, setConversationMessageStates, setConversations],
   )
 
   const openDirectConversation = useCallback(
@@ -128,13 +133,14 @@ export function useConversationActions({
     async (conversationId: string) => {
       try {
         const conversation = await restoreConversationRequest(conversationId)
+        onConversationRestored?.(conversation.id)
         upsertConversation(conversation)
         return conversation
       } catch (error) {
         throw handleError(error, "恢复对话失败")
       }
     },
-    [handleError, upsertConversation],
+    [handleError, onConversationRestored, upsertConversation],
   )
 
   const createGroupConversation = useCallback(

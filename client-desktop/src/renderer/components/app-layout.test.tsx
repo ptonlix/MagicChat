@@ -162,6 +162,21 @@ describe("AppLayout", () => {
     expect(screen.queryByTestId("init-page")).not.toBeInTheDocument()
     expect(mocks.clientLogout).toHaveBeenCalledTimes(1)
   })
+
+  it("远端退出失败时仍结束本地会话", async () => {
+    const user = userEvent.setup()
+    mocks.clientLogout.mockRejectedValue(new Error("network unavailable"))
+
+    render(<LogoutFlow />)
+
+    await user.click(screen.getByRole("button", { name: "用户菜单" }))
+    await user.click(screen.getByRole("menuitem", { name: "退出登录" }))
+    const dialog = await screen.findByRole("alertdialog", { name: "确认退出登录" })
+    await user.click(within(dialog).getByRole("button", { name: "退出登录" }))
+
+    expect(await screen.findByRole("heading", { name: "即应 智能协作平台" })).toBeInTheDocument()
+    expect(mocks.clientLogout).toHaveBeenCalledTimes(1)
+  })
 })
 
 function LogoutFlow() {

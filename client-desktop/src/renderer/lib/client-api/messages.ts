@@ -282,7 +282,7 @@ export async function listConversationMessages(
   fetcher: ClientDataFetch = fetch,
 ) {
   const searchParams = new URLSearchParams()
-  searchParams.set("limit", String(options.limit ?? 20))
+  searchParams.set("limit", String(normalizeMessagePageLimit(options.limit)))
   if (options.beforeSeq !== undefined) {
     searchParams.set("before_seq", String(options.beforeSeq))
   }
@@ -314,10 +314,20 @@ export async function listConversationMessages(
     throw new ClientDataRequestError("消息列表响应格式不正确")
   }
 
+  const messages = data.messages.map(normalizeMessage)
+  if (messages.some((message) => message.conversationId !== conversationId)) {
+    throw new ClientDataRequestError("消息列表响应包含错误会话")
+  }
+  messages.sort((left, right) => left.seq - right.seq || left.id.localeCompare(right.id))
   return {
-    messages: data.messages.map(normalizeMessage),
+    messages,
     page: normalizeMessagePage(data.page),
   }
+}
+
+export function normalizeMessagePageLimit(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 20
+  return Math.max(1, Math.min(20, Math.trunc(value)))
 }
 
 export async function forwardConversationMessages(
