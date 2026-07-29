@@ -374,10 +374,7 @@ export function SendImageMessageDialog({
                   setCaptionState((current) => ({
                     ...current,
                     image,
-                    trigger:
-                      mentionCandidates.length > 0
-                        ? getMentionTrigger(value, cursor)
-                        : null,
+                    trigger: mentionCandidates.length > 0 ? getMentionTrigger(value, cursor) : null,
                   }))
                 }}
                 placeholder="添加图片说明"
