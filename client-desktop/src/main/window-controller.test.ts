@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -33,8 +35,13 @@ describe("主窗口标题栏", () => {
   })
 
   it("只在主应用页面使用自定义窗口按钮", () => {
+    expect(usesCustomWindowControls("magicchat-app://app/")).toBe(true)
     expect(usesCustomWindowControls("magicchat-app://app/index.html")).toBe(true)
+    expect(usesCustomWindowControls("magicchat-app://app/login")).toBe(true)
+    expect(usesCustomWindowControls("magicchat-app://app/chat/conversation-1")).toBe(true)
     expect(usesCustomWindowControls("magicchat-app://app/recovery.html")).toBe(false)
+    expect(usesCustomWindowControls("magicchat-app://app/proxy-auth.html")).toBe(false)
+    expect(usesCustomWindowControls("magicchat-app://app/assets/index.js")).toBe(false)
     expect(usesCustomWindowControls("http://localhost:20050/chat", "http://localhost:20050/")).toBe(
       true,
     )
@@ -48,6 +55,13 @@ describe("主窗口标题栏", () => {
       ),
     ).toBe(false)
     expect(usesCustomWindowControls("not a url", "http://localhost:20050/")).toBe(false)
+  })
+
+  it("恢复页提供独立的窗口拖动区域", async () => {
+    const source = await readFile(path.resolve(process.cwd(), "src/renderer/recovery.html"), "utf8")
+
+    expect(source).toContain("-webkit-app-region: drag")
+    expect(source).toContain("-webkit-app-region: no-drag")
   })
 
   it.each(["win32", "linux"] as const)("在 %s 使用系统窗口控制键覆盖层", (platform) => {

@@ -54,6 +54,17 @@ describe("Desktop 第三方登录", () => {
     vi.useRealTimers()
   })
 
+  it("在短视口中使用登录页自身的滚动容器", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole("main").parentElement).toHaveClass("h-svh", "overflow-y-auto")
+    expect(screen.getByRole("main")).toHaveClass("min-h-full")
+  })
+
   it("打开内嵌认证窗口并提供取消入口", async () => {
     render(
       <MemoryRouter>

@@ -17,6 +17,16 @@
         place-items: center;
         min-height: 100vh;
       }
+      .titlebar {
+        -webkit-app-region: drag;
+        background: #f4f4f5;
+        border-bottom: 1px solid #e4e4e7;
+        height: 40px;
+        left: 0;
+        position: fixed;
+        right: 0;
+        top: 0;
+      }
       .box {
         max-width: 420px;
         padding: 32px;
@@ -32,6 +42,7 @@
         line-height: 1.6;
       }
       a {
+        -webkit-app-region: no-drag;
         display: inline-block;
         margin-top: 12px;
         color: #fff;
@@ -43,6 +54,7 @@
     </style>
   </head>
   <body>
+    <div aria-hidden="true" class="titlebar"></div>
     <main class="box">
       <h1>界面进程已停止</h1>
       <p>服务器配置和登录会话仍保存在主进程中。重新加载只会恢复本地界面。</p>

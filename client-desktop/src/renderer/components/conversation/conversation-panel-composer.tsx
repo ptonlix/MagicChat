@@ -533,106 +533,108 @@ export const ConversationPanelComposer = React.forwardRef<
         type="file"
       />
       <div
-        className="conversation-panel-composer-card flex w-full flex-col gap-2 rounded-[10px] border bg-background p-2"
+        className="conversation-panel-composer-content flex w-full flex-col gap-2"
         data-testid="conversation-panel-composer-content"
       >
-        {replyTarget && (
-          <div
-            className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2"
-            data-testid="conversation-reply-preview"
-          >
-            <div className="min-w-0">
-              <div className="truncate text-xs font-medium">回复 {replyTarget.author}</div>
-              <div className="truncate text-xs text-muted-foreground">{replyTarget.summary}</div>
-            </div>
-            <Button
-              aria-label="取消回复"
-              disabled={sending}
-              onClick={onCancelReply}
-              size="icon-sm"
-              title="取消回复"
-              type="button"
-              variant="ghost"
+        <div className="conversation-panel-composer-card flex w-full flex-col gap-2 rounded-[10px] border bg-background p-2">
+          {replyTarget && (
+            <div
+              className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2"
+              data-testid="conversation-reply-preview"
             >
-              <X className="size-4" />
-            </Button>
-          </div>
-        )}
-        <div className="relative" data-testid="conversation-panel-editor-row">
-          <Textarea
-            ref={textareaRef}
-            value={draft}
-            aria-disabled={sending}
-            onBlur={onDraftBlur}
-            onChange={handleDraftChange}
-            onKeyDown={handleComposerKeyDown}
-            onSelect={(event) =>
-              updateMentionTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
-            }
-            onPaste={handleComposerPaste}
-            placeholder={richTextMode ? "输入 Markdown 消息" : "输入消息"}
-            readOnly={sending}
-            className="max-h-48 min-h-20 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-          />
-          {mentionTrigger && filteredMentionCandidates.length > 0 && (
-            <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-              {filteredMentionCandidates.map((candidate, index) => (
-                <Button
-                  key={`${candidate.targetType}-${candidate.id}`}
-                  ref={(element) => {
-                    mentionOptionRefs.current[index] = element
-                  }}
-                  className={cn(
-                    "h-auto w-full justify-start gap-2 px-2 py-1.5 text-left",
-                    index ===
-                      getVisibleMentionIndex(
-                        selectedMentionIndex,
-                        filteredMentionCandidates.length,
-                      ) && "bg-accent",
-                  )}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    insertMentionCandidate(candidate)
-                  }}
-                  type="button"
-                  variant="ghost"
-                >
-                  <Avatar
-                    className={cn(
-                      "size-6 rounded-sm after:rounded-sm",
-                      candidate.targetType === "all" ? "bg-teal-500" : "bg-muted",
-                    )}
-                    data-size="sm"
-                  >
-                    {candidate.targetType === "all" ? (
-                      <AvatarFallback className="rounded-sm bg-transparent text-background">
-                        <UsersRound className="size-3.5" />
-                      </AvatarFallback>
-                    ) : candidate.avatar ? (
-                      <AvatarImage
-                        alt={candidate.label}
-                        className="rounded-sm"
-                        src={candidate.avatar}
-                      />
-                    ) : (
-                      <AvatarFallback className="rounded-sm text-xs">
-                        {getAvatarInitial(candidate.label)}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{candidate.label}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {candidate.description}
-                    </span>
-                  </span>
-                </Button>
-              ))}
+              <div className="min-w-0">
+                <div className="truncate text-xs font-medium">回复 {replyTarget.author}</div>
+                <div className="truncate text-xs text-muted-foreground">{replyTarget.summary}</div>
+              </div>
+              <Button
+                aria-label="取消回复"
+                disabled={sending}
+                onClick={onCancelReply}
+                size="icon-sm"
+                title="取消回复"
+                type="button"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
             </div>
           )}
+          <div className="relative" data-testid="conversation-panel-editor-row">
+            <Textarea
+              ref={textareaRef}
+              value={draft}
+              aria-disabled={sending}
+              onBlur={onDraftBlur}
+              onChange={handleDraftChange}
+              onKeyDown={handleComposerKeyDown}
+              onSelect={(event) =>
+                updateMentionTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
+              }
+              onPaste={handleComposerPaste}
+              placeholder={richTextMode ? "输入 Markdown 消息" : "输入消息"}
+              readOnly={sending}
+              className="max-h-48 min-h-20 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            />
+            {mentionTrigger && filteredMentionCandidates.length > 0 && (
+              <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                {filteredMentionCandidates.map((candidate, index) => (
+                  <Button
+                    key={`${candidate.targetType}-${candidate.id}`}
+                    ref={(element) => {
+                      mentionOptionRefs.current[index] = element
+                    }}
+                    className={cn(
+                      "h-auto w-full justify-start gap-2 px-2 py-1.5 text-left",
+                      index ===
+                        getVisibleMentionIndex(
+                          selectedMentionIndex,
+                          filteredMentionCandidates.length,
+                        ) && "bg-accent",
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      insertMentionCandidate(candidate)
+                    }}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Avatar
+                      className={cn(
+                        "size-6 rounded-sm after:rounded-sm",
+                        candidate.targetType === "all" ? "bg-teal-500" : "bg-muted",
+                      )}
+                      data-size="sm"
+                    >
+                      {candidate.targetType === "all" ? (
+                        <AvatarFallback className="rounded-sm bg-transparent text-background">
+                          <UsersRound className="size-3.5" />
+                        </AvatarFallback>
+                      ) : candidate.avatar ? (
+                        <AvatarImage
+                          alt={candidate.label}
+                          className="rounded-sm"
+                          src={candidate.avatar}
+                        />
+                      ) : (
+                        <AvatarFallback className="rounded-sm text-xs">
+                          {getAvatarInitial(candidate.label)}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{candidate.label}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {candidate.description}
+                      </span>
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div
-          className="flex items-center justify-between gap-2"
+          className="conversation-panel-composer-actions flex items-center justify-between gap-2 px-1"
           data-testid="conversation-panel-toolbar-row"
         >
           <div className="flex items-center gap-1">

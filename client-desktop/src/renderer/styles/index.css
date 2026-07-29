@@ -156,6 +156,15 @@
     box-shadow: 0 4px 14px oklch(0 0 0 / 4%);
   }
 
+  .desktop-conversation-filter-tabs {
+    border: 1px solid color-mix(in oklch, var(--foreground) 12%, var(--border));
+  }
+
+  .desktop-conversation-filter-tab[data-state="active"],
+  .desktop-conversation-filter-tab[data-active] {
+    border-color: color-mix(in oklch, var(--foreground) 24%, var(--input));
+  }
+
   .app-green-shell {
     background:
       radial-gradient(circle at 4% 0%, oklch(0.92 0.06 164 / 30%), transparent 24rem),

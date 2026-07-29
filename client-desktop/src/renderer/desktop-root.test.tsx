@@ -185,7 +185,14 @@ describe("桌面设置服务器管理", () => {
     expect(chatPage).toContain('"--sidebar-width": "clamp(17rem, 24vw, 20rem)"')
     expect(conversationSidebar).toContain("desktop-conversation-list-item")
     expect(conversationSidebar).toContain("desktop-conversation-list flex flex-col gap-0 px-0")
+    expect(conversationSidebar).toContain("desktop-conversation-filter-tabs")
+    expect(conversationSidebar).toContain("desktop-conversation-filter-tab")
+    expect(composer).toContain("conversation-panel-composer-content")
     expect(composer).toContain("conversation-panel-composer-card")
+    expect(composer).toContain("conversation-panel-composer-actions")
+    expect(composer.indexOf("conversation-panel-composer-card")).toBeLessThan(
+      composer.indexOf("conversation-panel-composer-actions"),
+    )
     expect(desktopStyles).toMatch(
       /\.desktop-workspace-main > \.desktop-chat-workspace\s*\{[^}]*gap:\s*4px/,
     )
@@ -199,6 +206,12 @@ describe("桌面设置服务器管理", () => {
       /\.conversation-panel-header-surface\s*\{[^}]*border-bottom:\s*1px solid/,
     )
     expect(applicationStyles).toMatch(/\.conversation-panel-composer-card\s*\{[^}]*box-shadow:/)
+    expect(applicationStyles).toMatch(
+      /\.desktop-conversation-filter-tabs\s*\{[^}]*border:\s*1px solid/,
+    )
+    expect(applicationStyles).toMatch(
+      /\.desktop-conversation-filter-tab\[data-state="active"\],[\s\S]*?border-color:/,
+    )
   })
 
   it("移除失败时保留设置并显示错误", async () => {

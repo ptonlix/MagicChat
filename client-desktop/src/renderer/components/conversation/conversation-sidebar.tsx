@@ -306,9 +306,16 @@ export function ConversationSidebar({
             onValueChange={(value) => setConversationFilter(value as ConversationFilter)}
             value={conversationFilter}
           >
-            <TabsList aria-label="会话类型" className="grid w-full grid-cols-4">
+            <TabsList
+              aria-label="会话类型"
+              className="desktop-conversation-filter-tabs grid w-full grid-cols-4"
+            >
               {conversationFilterOptions.map((option) => (
-                <TabsTrigger key={option.value} value={option.value}>
+                <TabsTrigger
+                  className="desktop-conversation-filter-tab"
+                  key={option.value}
+                  value={option.value}
+                >
                   {option.label}
                 </TabsTrigger>
               ))}

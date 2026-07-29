@@ -105,8 +105,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-background text-foreground">
-      <main className="flex flex-1 items-center justify-center px-4 py-10">
+    <div className="h-svh overflow-y-auto bg-background text-foreground">
+      <main className="flex min-h-full items-center justify-center px-4 py-10">
         <div className="flex w-full max-w-sm flex-col gap-6">
           <div className="flex flex-col gap-2">
             <h1 className="text-left text-2xl font-medium">{appName} 智能协作平台</h1>

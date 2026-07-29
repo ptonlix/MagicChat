@@ -183,12 +183,10 @@ export function configureMainWindowButtons(
 export function usesCustomWindowControls(rawUrl: string, developmentUrl?: string): boolean {
   try {
     const url = new URL(rawUrl)
-    if (
-      url.protocol === "magicchat-app:" &&
-      url.hostname === "app" &&
-      url.pathname === "/index.html"
-    )
-      return true
+    if (url.protocol === "magicchat-app:" && url.hostname === "app") {
+      const fileName = url.pathname.split("/").pop() ?? ""
+      return url.pathname === "/" || url.pathname === "/index.html" || !fileName.includes(".")
+    }
     return Boolean(developmentUrl && url.origin === new URL(developmentUrl).origin)
   } catch {
     return false
