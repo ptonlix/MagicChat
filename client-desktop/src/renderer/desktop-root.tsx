@@ -44,12 +44,15 @@ import { BrandLoadingScreen } from "@/components/brand-loading-screen"
 export function DesktopRoot() {
   return (
     <ThemeProvider>
-      <div className="desktop-frame">
-        <div aria-hidden="true" className="desktop-titlebar-drag-region" />
-        <div className="desktop-content">
-          <DesktopRootContent />
+      <TooltipProvider>
+        <div className="desktop-frame">
+          <div aria-hidden="true" className="desktop-titlebar-drag-region" />
+          <div className="desktop-content">
+            <DesktopRootContent />
+          </div>
         </div>
-      </div>
+        <Toaster position="top-center" />
+      </TooltipProvider>
     </ThemeProvider>
   )
 }
@@ -59,6 +62,7 @@ function DesktopRootContent() {
   const [selectedId, setSelectedId] = useState<string>()
   const [messageSoundEnabled, setMessageSoundEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
+  const { setUpdater, updater } = useDesktopUpdaterState()
 
   useEffect(() => startRuntimeDiagnostics(), [])
 
@@ -93,34 +97,47 @@ function DesktopRootContent() {
     setSelectedId(undefined)
   }
 
-  if (loading) return <StatusPage text="正在启动即应" />
   const selected = profiles.find((profile) => profile.id === selectedId)
-  if (!selected) return <ServerSetup onAdded={added} />
+
   return (
-    <DesktopWorkspace
-      key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
-      messageSoundEnabled={messageSoundEnabled}
-      profile={selected}
-      onMessageSoundEnabledChange={setMessageSoundEnabled}
-      onRemoved={removed}
-    />
+    <>
+      <DesktopUpdatePrompt state={updater} onStateChange={setUpdater} />
+      {loading ? (
+        <StatusPage text="正在启动即应" />
+      ) : selected ? (
+        <DesktopWorkspace
+          key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
+          messageSoundEnabled={messageSoundEnabled}
+          profile={selected}
+          updater={updater}
+          onMessageSoundEnabledChange={setMessageSoundEnabled}
+          onRemoved={removed}
+          onUpdaterChange={setUpdater}
+        />
+      ) : (
+        <ServerSetup onAdded={added} />
+      )}
+    </>
   )
 }
 
 function DesktopWorkspace({
   messageSoundEnabled,
   profile,
+  updater,
   onMessageSoundEnabledChange,
   onRemoved,
+  onUpdaterChange,
 }: {
   messageSoundEnabled: boolean
   profile: ServerProfile
+  updater: UpdaterState
   onMessageSoundEnabledChange(enabled: boolean): void
   onRemoved(serverId: string): void
+  onUpdaterChange(state: UpdaterState): void
 }) {
   const [userId, setUserId] = useState(profile.lastUserId ?? "anonymous")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { setUpdater, updater } = useDesktopUpdaterState()
   const target = useMemo<AuthenticatedTarget>(
     () => ({ id: profile.id, normalizedUrl: profile.normalizedUrl, userId }),
     [profile.id, profile.normalizedUrl, userId],
@@ -129,19 +146,15 @@ function DesktopWorkspace({
 
   return (
     <>
-      <TooltipProvider>
-        <DesktopUpdatePrompt state={updater} onStateChange={setUpdater} />
-        <BrowserRouter>
-          <DesktopHostedApp
-            messageSoundEnabled={messageSoundEnabled}
-            profile={profile}
-            target={target}
-            onAuthenticated={setUserId}
-            onOpenSettings={openSettings}
-          />
-          <Toaster position="top-center" />
-        </BrowserRouter>
-      </TooltipProvider>
+      <BrowserRouter>
+        <DesktopHostedApp
+          messageSoundEnabled={messageSoundEnabled}
+          profile={profile}
+          target={target}
+          onAuthenticated={setUserId}
+          onOpenSettings={openSettings}
+        />
+      </BrowserRouter>
       {settingsOpen && (
         <DesktopSettingsPanel
           profile={profile}
@@ -149,7 +162,7 @@ function DesktopWorkspace({
           onMessageSoundEnabledChange={onMessageSoundEnabledChange}
           onOpenChange={setSettingsOpen}
           onRemoved={onRemoved}
-          onUpdaterChange={setUpdater}
+          onUpdaterChange={onUpdaterChange}
         />
       )}
     </>
@@ -188,6 +201,34 @@ function useDesktopUpdaterState() {
   return { setUpdater, updater }
 }
 
+function useDesktopUpdateAction(onError: (message: string) => void) {
+  const [actionPending, setActionPending] = useState(false)
+  const actionPendingRef = useRef(false)
+
+  const runUpdateAction = useCallback(
+    async (action: () => Promise<void>) => {
+      if (actionPendingRef.current) return
+      actionPendingRef.current = true
+      setActionPending(true)
+      try {
+        await action()
+      } catch {
+        onError("更新操作失败，请稍后重试")
+      } finally {
+        actionPendingRef.current = false
+        setActionPending(false)
+      }
+    },
+    [onError],
+  )
+
+  return { actionPending, runUpdateAction }
+}
+
+function showUpdateActionToast(message: string) {
+  toast.error(message)
+}
+
 function DesktopUpdatePrompt({
   onStateChange,
   state,
@@ -195,17 +236,16 @@ function DesktopUpdatePrompt({
   onStateChange(state: UpdaterState): void
   state: UpdaterState
 }) {
-  const [actionPending, setActionPending] = useState(false)
+  const { actionPending, runUpdateAction } = useDesktopUpdateAction(showUpdateActionToast)
   const hasNewVersion =
     Boolean(state.targetVersion) &&
     ["available", "downloaded", "downloading", "error", "installing"].includes(state.status)
 
   if (!hasNewVersion) return null
 
-  async function handleUpdateAction() {
-    if (actionPending || state.status === "downloading" || state.status === "installing") return
-    setActionPending(true)
-    try {
+  function handleUpdateAction() {
+    if (state.status === "downloading" || state.status === "installing") return
+    void runUpdateAction(async () => {
       if (state.status === "available") {
         if (state.installMode === "ota") await window.desktop.updater.download()
         else await window.desktop.updater.openManualDownload()
@@ -223,11 +263,7 @@ function DesktopUpdatePrompt({
           onStateChange(await window.desktop.updater.check())
         }
       }
-    } catch {
-      toast.error("更新操作失败，请稍后重试")
-    } finally {
-      setActionPending(false)
-    }
+    })
   }
 
   const Icon =
@@ -245,7 +281,7 @@ function DesktopUpdatePrompt({
       className="desktop-update-prompt"
       data-platform={state.installationSource === "mac_app" ? "darwin" : undefined}
       disabled={actionPending || state.status === "downloading" || state.status === "installing"}
-      onClick={() => void handleUpdateAction()}
+      onClick={handleUpdateAction}
       title={state.targetVersion ? `即应 ${state.targetVersion}` : "即应新版本"}
       type="button"
     >
@@ -618,10 +654,16 @@ function DesktopAboutSettingsSection({
   state: UpdaterState
 }) {
   const [updateActionError, setUpdateActionError] = useState("")
+  const { actionPending, runUpdateAction } = useDesktopUpdateAction(setUpdateActionError)
   const showMacManualUpdate =
     state.installationSource === "mac_app" &&
     Boolean(state.targetVersion) &&
     (state.status === "available" || state.status === "error")
+
+  function runSettingsUpdateAction(action: () => Promise<void>) {
+    setUpdateActionError("")
+    void runUpdateAction(action)
+  }
 
   return (
     <section className="desktop-setting-section">
@@ -651,12 +693,18 @@ function DesktopAboutSettingsSection({
           aria-label="检查更新"
           className="desktop-icon-action"
           disabled={
+            actionPending ||
             state.status === "checking" ||
             state.status === "downloading" ||
             state.status === "installing"
           }
-          onClick={() => void window.desktop.updater.check().then(onStateChange)}
+          onClick={() =>
+            runSettingsUpdateAction(async () => {
+              onStateChange(await window.desktop.updater.check())
+            })
+          }
           title="检查更新"
+          type="button"
         >
           <RefreshCw size={17} />
         </button>
@@ -664,7 +712,13 @@ function DesktopAboutSettingsSection({
       {state.targetVersion && (
         <button
           className="desktop-release-link"
-          onClick={() => void window.desktop.updater.openReleasePage()}
+          disabled={actionPending}
+          onClick={() =>
+            runSettingsUpdateAction(async () => {
+              await window.desktop.updater.openReleasePage()
+            })
+          }
+          type="button"
         >
           <ExternalLink size={15} />
           查看发布内容
@@ -674,8 +728,13 @@ function DesktopAboutSettingsSection({
         (state.installMode === "ota" ? (
           <button
             className="desktop-primary-action"
-            disabled={!state.retryable}
-            onClick={() => void window.desktop.updater.download()}
+            disabled={actionPending || !state.retryable}
+            onClick={() =>
+              runSettingsUpdateAction(async () => {
+                await window.desktop.updater.download()
+              })
+            }
+            type="button"
           >
             <Download size={16} />
             {state.installationSource === "mac_app"
@@ -685,7 +744,13 @@ function DesktopAboutSettingsSection({
         ) : (
           <button
             className="desktop-primary-action"
-            onClick={() => void window.desktop.updater.openManualDownload()}
+            disabled={actionPending}
+            onClick={() =>
+              runSettingsUpdateAction(async () => {
+                await window.desktop.updater.openManualDownload()
+              })
+            }
+            type="button"
           >
             <Download size={16} />
             {state.manualAction?.label ?? "手动升级"}
@@ -694,7 +759,13 @@ function DesktopAboutSettingsSection({
       {state.status === "manual" && state.manualAction && (
         <button
           className="desktop-primary-action"
-          onClick={() => void window.desktop.updater.openManualDownload()}
+          disabled={actionPending}
+          onClick={() =>
+            runSettingsUpdateAction(async () => {
+              await window.desktop.updater.openManualDownload()
+            })
+          }
+          type="button"
         >
           <Download size={16} />
           {state.manualAction.label}
@@ -702,18 +773,20 @@ function DesktopAboutSettingsSection({
       )}
       {state.status === "downloaded" && (
         <div className="grid grid-cols-2 gap-2">
-          <button className="desktop-secondary-action" onClick={onClose}>
+          <button className="desktop-secondary-action" onClick={onClose} type="button">
             稍后
           </button>
           <button
             className="desktop-primary-action"
-            onClick={() => {
-              setUpdateActionError("")
-              void window.desktop.updater.install().then((result) => {
+            disabled={actionPending}
+            onClick={() =>
+              runSettingsUpdateAction(async () => {
+                const result = await window.desktop.updater.install()
                 if (result.status === "started") return
                 setUpdateActionError(getUpdateInstallErrorMessage(result.reason))
               })
-            }}
+            }
+            type="button"
           >
             <Sparkles size={16} />
             安装并重启
@@ -723,7 +796,13 @@ function DesktopAboutSettingsSection({
       {state.status === "error" && state.retryable && (
         <button
           className="desktop-primary-action"
-          onClick={() => void window.desktop.updater.check().then(onStateChange)}
+          disabled={actionPending}
+          onClick={() =>
+            runSettingsUpdateAction(async () => {
+              onStateChange(await window.desktop.updater.check())
+            })
+          }
+          type="button"
         >
           重试检查
         </button>
@@ -739,7 +818,13 @@ function DesktopAboutSettingsSection({
           </ol>
           <button
             className="desktop-primary-action"
-            onClick={() => void window.desktop.updater.openManualDownload()}
+            disabled={actionPending}
+            onClick={() =>
+              runSettingsUpdateAction(async () => {
+                await window.desktop.updater.openManualDownload()
+              })
+            }
+            type="button"
           >
             <Download size={16} />
             下载 macOS 安装包

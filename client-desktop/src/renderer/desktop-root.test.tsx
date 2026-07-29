@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -172,6 +172,32 @@ describe("桌面设置服务器管理", () => {
     await user.click(updateButton)
 
     expect(bridge.updater.download).toHaveBeenCalledOnce()
+  })
+
+  it("未配置服务器时仍订阅并展示可用更新", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      retryable: true,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    vi.mocked(bridge.servers.list).mockResolvedValue([])
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+
+    render(<DesktopRoot />)
+
+    expect(await screen.findByRole("heading", { name: "开始使用即应" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "新版本" })).toHaveAttribute(
+      "title",
+      "即应 1.1.0",
+    )
+    expect(bridge.updater.subscribe).toHaveBeenCalledOnce()
+    expect(bridge.updater.getState).toHaveBeenCalledOnce()
   })
 
   it("下载更新时展示进度、禁用重复操作并遵循 reduced-motion", async () => {
@@ -388,6 +414,34 @@ describe("桌面设置服务器管理", () => {
     manual.focus()
     await user.keyboard("{Enter}")
     expect(mocks.openManual).toHaveBeenCalledOnce()
+  })
+
+  it("设置页捕获更新 Bridge 异常并在操作完成前阻止重复调用", async () => {
+    const bridge = createDesktopBridge()
+    let rejectCheck: (reason?: unknown) => void = () => undefined
+    const checkPromise = new Promise<UpdaterState>((_, reject) => {
+      rejectCheck = reject
+    })
+    vi.mocked(bridge.updater.check).mockReturnValue(checkPromise)
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const checkButton = await screen.findByRole("button", { name: "检查更新" })
+    await user.click(checkButton)
+
+    expect(checkButton).toBeDisabled()
+    await user.click(checkButton)
+    expect(bridge.updater.check).toHaveBeenCalledOnce()
+
+    await act(async () => rejectCheck(new Error("IPC unavailable")))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("更新操作失败，请稍后重试")
+    await waitFor(() => expect(checkButton).toBeEnabled())
   })
 
   it("订阅事件先到时不使用较旧的状态快照", async () => {
