@@ -276,18 +276,16 @@ function DesktopUpdatePrompt({
           ? RefreshCw
           : Download
   const label = updatePromptLabel(state)
+  const actionDisabled =
+    actionPending || state.status === "downloading" || state.status === "installing"
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="desktop-update-tooltip-trigger">
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
           <button
-            aria-label={label}
-            aria-live="polite"
+            aria-disabled={actionDisabled}
             className="desktop-update-prompt"
-            disabled={
-              actionPending || state.status === "downloading" || state.status === "installing"
-            }
             onClick={handleUpdateAction}
             title={state.targetVersion ? `${label} · 即应 ${state.targetVersion}` : label}
             type="button"
@@ -301,13 +299,17 @@ function DesktopUpdatePrompt({
               }
               size={16}
             />
+            <span className="sr-only">{label}</span>
           </button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="right" sideOffset={6}>
-        {state.targetVersion ? `${label} · ${state.targetVersion}` : label}
-      </TooltipContent>
-    </Tooltip>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={6}>
+          {state.targetVersion ? `${label} · ${state.targetVersion}` : label}
+        </TooltipContent>
+      </Tooltip>
+      <span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
+        {label}
+      </span>
+    </>
   )
 }
 

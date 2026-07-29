@@ -25,9 +25,6 @@ body,
 .dark .desktop-titlebar-drag-region {
   box-shadow: 0 6px 18px oklch(0 0 0 / 22%);
 }
-.desktop-update-tooltip-trigger {
-  display: flex;
-}
 .desktop-update-prompt {
   -webkit-app-region: no-drag;
   align-items: center;
@@ -44,7 +41,7 @@ body,
   padding: 0;
   width: 32px;
 }
-.desktop-update-prompt:hover:not(:disabled) {
+.desktop-update-prompt:hover:not([aria-disabled="true"]) {
   background: color-mix(in oklch, var(--primary) 16%, var(--background));
   border-color: color-mix(in oklch, var(--primary) 44%, var(--border));
 }
@@ -52,7 +49,7 @@ body,
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 35%, transparent);
   outline: none;
 }
-.desktop-update-prompt:disabled {
+.desktop-update-prompt[aria-disabled="true"] {
   cursor: wait;
   opacity: 0.72;
 }

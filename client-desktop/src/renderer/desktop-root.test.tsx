@@ -175,7 +175,8 @@ describe("桌面设置服务器管理", () => {
 
     const updateButton = await screen.findByRole("button", { name: "新版本" })
     expect(updateButton).toHaveAttribute("title", "新版本 · 即应 1.1.0")
-    expect(updateButton.textContent).toBe("")
+    expect(updateButton).toHaveTextContent("新版本")
+    expect(screen.getByRole("status")).toHaveTextContent("新版本")
     expect(updateButton.closest("aside")).toHaveAccessibleName("应用侧边栏")
     await user.click(updateButton)
 
@@ -222,13 +223,60 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     const updateButton = await screen.findByRole("button", { name: "下载中 42%" })
-    expect(updateButton).toBeDisabled()
+    expect(updateButton).toBeEnabled()
+    expect(updateButton).toHaveAttribute("aria-disabled", "true")
+    expect(updateButton).toHaveTextContent("下载中 42%")
+    expect(screen.getByRole("status")).toHaveTextContent("下载中 42%")
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite")
+    expect(screen.getByRole("status")).toHaveAttribute("aria-atomic", "true")
     expect(updateButton.querySelector("svg")).toHaveClass("motion-safe:animate-spin")
     expect(updateButton.querySelector("svg")).not.toHaveClass("animate-spin")
-    const tooltipTrigger = updateButton.closest(".desktop-update-tooltip-trigger")
-    if (!tooltipTrigger) throw new Error("更新 Tooltip 触发区域不存在")
-    await user.hover(tooltipTrigger)
+    updateButton.focus()
+    expect(updateButton).toHaveFocus()
     expect(await screen.findByRole("tooltip")).toHaveTextContent("下载中 42% · 1.1.0")
+    await user.click(updateButton)
+    expect(window.desktop.updater.download).not.toHaveBeenCalled()
+  })
+
+  it("更新状态变化时同步刷新无障碍实时文本", async () => {
+    const bridge = createDesktopBridge({
+      currentVersion: "1.0.0",
+      installMode: "ota",
+      installationSource: "nsis",
+      retryable: true,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    let publish: ((state: UpdaterState) => void) | undefined
+    vi.mocked(bridge.updater.subscribe).mockImplementation((listener) => {
+      publish = listener
+      return () => undefined
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    render(<DesktopRoot />)
+
+    expect(await screen.findByRole("status")).toHaveTextContent("新版本")
+
+    act(() => {
+      publish?.({
+        currentVersion: "1.0.0",
+        installMode: "ota",
+        installationSource: "nsis",
+        progress: 42.4,
+        retryable: false,
+        status: "downloading",
+        targetVersion: "1.1.0",
+      })
+    })
+
+    expect(screen.getByRole("status")).toHaveTextContent("下载中 42%")
+    expect(screen.getByRole("button", { name: "下载中 42%" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    )
   })
 
   it("下载调用失败时展示可恢复提示", async () => {
