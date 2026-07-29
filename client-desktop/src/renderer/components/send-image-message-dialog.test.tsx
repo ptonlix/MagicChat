@@ -5,6 +5,10 @@ import { SendImageMessageDialog } from "@/components/send-image-message-dialog"
 
 describe("SendImageMessageDialog", () => {
   beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: () => undefined,
+    })
     Object.defineProperties(URL, {
       createObjectURL: {
         configurable: true,
@@ -53,5 +57,36 @@ describe("SendImageMessageDialog", () => {
 
     expect(hasNonPassiveWheelListener).toBe(true)
     expect(fireEvent.wheel(previewArea!, { deltaY: -1 })).toBe(false)
+  })
+
+  it("updates mention candidates when the caption selection changes", async () => {
+    render(
+      <SendImageMessageDialog
+        caption="@zh"
+        conversationName="测试会话"
+        image={new File(["image"], "image.png", { type: "image/png" })}
+        mentionCandidates={[
+          {
+            avatar: "",
+            description: "成员",
+            id: "user-1",
+            label: "张三",
+            searchText: "张三 zhangsan zs",
+            targetType: "user",
+          },
+        ]}
+        onCaptionChange={vi.fn()}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        open
+        sending={false}
+      />,
+    )
+
+    const captionInput = screen.getByRole("textbox", { name: "图片说明" }) as HTMLInputElement
+    captionInput.setSelectionRange(3, 3)
+    fireEvent.select(captionInput)
+
+    expect(await screen.findByRole("button", { name: /张三/ })).toBeInTheDocument()
   })
 })

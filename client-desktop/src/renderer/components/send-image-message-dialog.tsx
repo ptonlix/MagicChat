@@ -366,19 +366,20 @@ export function SendImageMessageDialog({
                   )
                 }
                 onKeyDown={handleCaptionKeyDown}
-                onSelect={(event) =>
+                onSelect={(event) => {
+                  const input = event.currentTarget
+                  const value = input.value
+                  const cursor = input.selectionStart ?? value.length
+
                   setCaptionState((current) => ({
                     ...current,
                     image,
                     trigger:
                       mentionCandidates.length > 0
-                        ? getMentionTrigger(
-                            event.currentTarget.value,
-                            event.currentTarget.selectionStart ?? event.currentTarget.value.length,
-                          )
+                        ? getMentionTrigger(value, cursor)
                         : null,
                   }))
-                }
+                }}
                 placeholder="添加图片说明"
                 ref={captionInputRef}
                 value={caption}
