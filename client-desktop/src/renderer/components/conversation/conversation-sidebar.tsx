@@ -209,8 +209,8 @@ export function ConversationSidebar({
           <SidebarMenuButton
             aria-selected={selected}
             className={cn(
-              "h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
-              nested && "ml-4 h-14 w-[calc(100%-1rem)] py-1.5",
+              "desktop-conversation-list-item h-[68px] gap-3 rounded-none px-4 py-2.5 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
+              nested && "h-14 w-full py-1.5 pl-8",
               !nested &&
                 conversation.pinned &&
                 "bg-neutral-100 hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-900",
@@ -268,7 +268,7 @@ export function ConversationSidebar({
   }
 
   return (
-    <Sidebar className="border-r bg-background" collapsible="none">
+    <Sidebar className="desktop-conversation-sidebar border-r-0 bg-background" collapsible="none">
       <SidebarHeader className="gap-0 p-0">
         <div className="flex h-14 items-center justify-between px-4">
           <h1 className="text-base font-medium">消息</h1>
@@ -327,7 +327,7 @@ export function ConversationSidebar({
           </div>
         ) : (
           <VirtualList
-            className="flex flex-col gap-1 px-2 pb-3"
+            className="desktop-conversation-list flex flex-col gap-0 px-0 pb-2"
             estimateSize={68}
             getKey={(row) => row.conversation.id}
             items={visibleRows}

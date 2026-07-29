@@ -1020,10 +1020,10 @@ export function ChatPage() {
 
   return (
     <SidebarProvider
-      className="min-h-0 min-w-0 flex-1"
+      className="desktop-chat-workspace min-h-0 min-w-0 flex-1"
       style={
         {
-          "--sidebar-width": "18rem",
+          "--sidebar-width": "clamp(17rem, 24vw, 20rem)",
         } as React.CSSProperties
       }
     >

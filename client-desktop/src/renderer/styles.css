@@ -3,8 +3,13 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  overflow: clip;
 }
 .desktop-frame {
+  border: 1px solid color-mix(in oklch, var(--foreground) 22%, var(--border));
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--foreground) 10%, transparent);
+  box-sizing: border-box;
   height: 100%;
   position: relative;
   background: var(--background);
@@ -12,18 +17,94 @@ body,
 }
 .desktop-titlebar-drag-region {
   -webkit-app-region: drag;
-  background: color-mix(in oklch, var(--background) 90%, var(--muted));
-  box-shadow: 0 6px 18px oklch(0 0 0 / 5%);
+  background: var(--sidebar);
   box-sizing: border-box;
-  height: 40px;
-  left: 0;
+  border-radius: 11px 11px 0 0;
+  height: 39px;
+  left: 1px;
   position: fixed;
-  right: 0;
-  top: 0;
+  right: 1px;
+  top: 1px;
   z-index: 50;
 }
-.dark .desktop-titlebar-drag-region {
+.desktop-titlebar-drag-region::after {
+  bottom: 0;
+  box-shadow: 0 6px 18px oklch(0 0 0 / 5%);
+  content: "";
+  height: 1px;
+  left: 48px;
+  position: absolute;
+  right: 0;
+}
+.dark .desktop-titlebar-drag-region::after {
   box-shadow: 0 6px 18px oklch(0 0 0 / 22%);
+}
+.desktop-window-controls {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  display: flex;
+  gap: 1px;
+  left: 2px;
+  position: fixed;
+  top: 10px;
+  z-index: 51;
+}
+.desktop-window-control {
+  align-items: center;
+  border: 0;
+  color: oklch(0.24 0.03 70 / 72%);
+  cursor: pointer;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  width: 14px;
+}
+.desktop-window-control::before {
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 18%);
+  content: "";
+  height: 10px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+}
+.desktop-window-control > svg {
+  height: 6px;
+  opacity: 0;
+  position: relative;
+  stroke-width: 2.4;
+  transition: opacity 100ms ease;
+  width: 6px;
+}
+.desktop-window-controls:hover .desktop-window-control > svg,
+.desktop-window-control:focus-visible > svg {
+  opacity: 1;
+}
+.desktop-window-control:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--ring) 65%, transparent);
+  outline-offset: 2px;
+}
+.desktop-window-control-close {
+  background: transparent;
+}
+.desktop-window-control-close::before {
+  background: #ff5f57;
+}
+.desktop-window-control-minimize {
+  background: transparent;
+}
+.desktop-window-control-minimize::before {
+  background: #febc2e;
+}
+.desktop-window-control-maximize {
+  background: transparent;
+}
+.desktop-window-control-maximize::before {
+  background: #28c840;
 }
 .desktop-update-prompt {
   -webkit-app-region: no-drag;
@@ -95,21 +176,72 @@ body,
 .desktop-content {
   height: 100%;
   min-height: 0;
-  overflow: hidden;
 }
 .desktop-content > div,
 .desktop-content > div > div {
   min-height: 100%;
 }
+.desktop-workspace-main {
+  background: color-mix(in oklch, var(--muted) 52%, var(--sidebar));
+  padding: 0;
+}
+.desktop-workspace-main > [data-slot="sidebar-wrapper"] {
+  background: transparent;
+  border-radius: 0;
+  gap: 3px;
+  min-height: 0;
+}
+.desktop-workspace-main > [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
+.desktop-workspace-main > [data-slot="sidebar-wrapper"] > main {
+  border: 1px solid color-mix(in oklch, var(--foreground) 12%, var(--border));
+  border-top-color: color-mix(in oklch, var(--foreground) 22%, var(--border));
+  box-shadow: 0 4px 14px oklch(0 0 0 / 4%);
+  min-height: 0;
+  overflow: hidden;
+}
+.desktop-workspace-main > [data-slot="sidebar-wrapper"] > [data-slot="sidebar"] {
+  border-radius: 0 10px 10px 0;
+}
+.desktop-workspace-main > [data-slot="sidebar-wrapper"] > main {
+  border-radius: 10px 0 0 10px;
+}
+.desktop-workspace-main > .desktop-chat-workspace {
+  gap: 4px;
+}
+.desktop-workspace-main > .desktop-chat-workspace > [data-slot="sidebar"],
+.desktop-workspace-main > .desktop-chat-workspace > main {
+  border: 0;
+  box-shadow: none;
+}
+.desktop-workspace-main > .desktop-chat-workspace > [data-slot="sidebar"] {
+  background: color-mix(in oklch, var(--muted) 58%, var(--background));
+  border-radius: 8px;
+}
+.desktop-workspace-main > .desktop-chat-workspace > main {
+  border-radius: 8px;
+}
+.desktop-chat-workspace .desktop-conversation-list-item {
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.dark .desktop-workspace-main > [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
+.dark .desktop-workspace-main > [data-slot="sidebar-wrapper"] > main {
+  box-shadow: 0 4px 14px oklch(0 0 0 / 18%);
+}
+.dark .desktop-workspace-main > .desktop-chat-workspace > [data-slot="sidebar"],
+.dark .desktop-workspace-main > .desktop-chat-workspace > main {
+  box-shadow: none;
+}
 .server-setup {
   align-items: stretch;
-  background: var(--background);
+  background: var(--sidebar);
   color: var(--foreground);
   display: flex;
   height: 100%;
   justify-content: stretch;
   min-height: 100%;
-  padding: 0;
+  padding: 8px;
 }
 .status-page {
   align-items: center;
@@ -121,9 +253,9 @@ body,
 }
 .server-setup-shell {
   background: var(--card);
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px oklch(0 0 0 / 6%);
   display: grid;
   grid-template-columns: minmax(360px, 0.86fr) minmax(520px, 1.14fr);
   height: 100%;

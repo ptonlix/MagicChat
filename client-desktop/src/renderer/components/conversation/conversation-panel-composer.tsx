@@ -521,7 +521,7 @@ export const ConversationPanelComposer = React.forwardRef<
 
   return (
     <footer
-      className="conversation-panel-composer-surface shrink-0 p-4"
+      className="conversation-panel-composer-surface shrink-0 px-5 pt-3 pb-4"
       data-testid="conversation-panel-composer"
     >
       <input ref={fileInputRef} className="hidden" onChange={handleFileInputChange} type="file" />
@@ -532,7 +532,10 @@ export const ConversationPanelComposer = React.forwardRef<
         onChange={handleImageInputChange}
         type="file"
       />
-      <div className="flex w-full flex-col gap-2" data-testid="conversation-panel-composer-content">
+      <div
+        className="conversation-panel-composer-card flex w-full flex-col gap-2 rounded-[10px] border bg-background p-2"
+        data-testid="conversation-panel-composer-content"
+      >
         {replyTarget && (
           <div
             className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2"
@@ -569,7 +572,7 @@ export const ConversationPanelComposer = React.forwardRef<
             onPaste={handleComposerPaste}
             placeholder={richTextMode ? "输入 Markdown 消息" : "输入消息"}
             readOnly={sending}
-            className="max-h-48 min-h-24 resize-none"
+            className="max-h-48 min-h-20 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
           {mentionTrigger && filteredMentionCandidates.length > 0 && (
             <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">

@@ -1,13 +1,53 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { getMainWindowTitleBarOptions } from "@main/window-controller"
+import {
+  configureMainWindowButtons,
+  getMainWindowTitleBarOptions,
+  usesCustomWindowControls,
+} from "@main/window-controller"
 
 describe("主窗口标题栏", () => {
-  it("在 macOS 使用保留交通灯的内容式标题栏", () => {
+  it("在 macOS 保留系统窗口表面并隐藏标题栏", () => {
     expect(getMainWindowTitleBarOptions("darwin")).toEqual({
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 14, y: 13 },
+      roundedCorners: true,
+      titleBarStyle: "hidden",
     })
+  })
+
+  it("在 macOS 根据当前页面切换原生交通灯", () => {
+    const window = { setWindowButtonVisibility: vi.fn() }
+
+    configureMainWindowButtons(window, "darwin", false)
+    configureMainWindowButtons(window, "darwin", true)
+
+    expect(window.setWindowButtonVisibility).toHaveBeenNthCalledWith(1, false)
+    expect(window.setWindowButtonVisibility).toHaveBeenNthCalledWith(2, true)
+  })
+
+  it.each(["win32", "linux"] as const)("在 %s 保留系统窗口按钮", (platform) => {
+    const window = { setWindowButtonVisibility: vi.fn() }
+
+    configureMainWindowButtons(window, platform, false)
+
+    expect(window.setWindowButtonVisibility).not.toHaveBeenCalled()
+  })
+
+  it("只在主应用页面使用自定义窗口按钮", () => {
+    expect(usesCustomWindowControls("magicchat-app://app/index.html")).toBe(true)
+    expect(usesCustomWindowControls("magicchat-app://app/recovery.html")).toBe(false)
+    expect(usesCustomWindowControls("http://localhost:20050/chat", "http://localhost:20050/")).toBe(
+      true,
+    )
+    expect(usesCustomWindowControls("http://localhost:20051/chat", "http://localhost:20050/")).toBe(
+      false,
+    )
+    expect(
+      usesCustomWindowControls(
+        "http://localhost:20050.evil.example/chat",
+        "http://localhost:20050/",
+      ),
+    ).toBe(false)
+    expect(usesCustomWindowControls("not a url", "http://localhost:20050/")).toBe(false)
   })
 
   it.each(["win32", "linux"] as const)("在 %s 使用系统窗口控制键覆盖层", (platform) => {

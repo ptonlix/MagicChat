@@ -104,7 +104,10 @@ export function AppLayout() {
 
   return (
     <div className="flex h-svh min-h-0 bg-background pt-10 text-foreground">
-      <aside className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-3">
+      <aside
+        aria-label="应用菜单"
+        className="-mt-10 flex h-svh w-12 shrink-0 flex-col items-center border-r bg-sidebar pt-[52px] pb-3"
+      >
         <UserAvatarMenu user={me} refreshMe={refreshMe} />
         <nav aria-label="主导航" className="flex flex-1 flex-col gap-2">
           {navItems.map((item) => (
@@ -124,7 +127,9 @@ export function AppLayout() {
           <SidebarSettingsButton />
         </div>
       </aside>
-      <Outlet />
+      <div className="desktop-workspace-main flex min-h-0 min-w-0 flex-1">
+        <Outlet />
+      </div>
     </div>
   )
 }

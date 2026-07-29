@@ -58,6 +58,24 @@ vi.mock("@/lib/client-data-api", () => ({
 }))
 
 describe("AppLayout", () => {
+  it("extends the application menu through the title bar", () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole("complementary", { name: "应用菜单" })).toHaveClass(
+      "-mt-10",
+      "h-svh",
+      "w-12",
+      "pt-[52px]",
+    )
+    const workspace = container.querySelector(".desktop-workspace-main")
+    expect(workspace?.tagName).toBe("DIV")
+    expect(workspace).not.toHaveClass("overflow-hidden", "rounded-l-xl")
+  })
+
   it("keeps profile in the avatar menu and moves settings to the sidebar footer", async () => {
     const user = userEvent.setup()
 

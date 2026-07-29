@@ -140,25 +140,20 @@
 
 @layer components {
   .conversation-panel-header-surface {
-    background: color-mix(in oklch, var(--background) 90%, var(--muted));
-    box-shadow: 0 6px 18px oklch(0 0 0 / 4%);
+    background: color-mix(in oklch, var(--background) 96%, var(--muted));
+    border-bottom: 1px solid color-mix(in oklch, var(--foreground) 8%, var(--border));
     position: relative;
     z-index: 10;
   }
 
   .conversation-panel-composer-surface {
-    background: color-mix(in oklch, var(--background) 94%, var(--muted));
-    box-shadow: 0 -6px 18px oklch(0 0 0 / 4%);
+    background: color-mix(in oklch, var(--muted) 16%, var(--background));
     position: relative;
     z-index: 10;
   }
 
-  .dark .conversation-panel-header-surface {
-    box-shadow: 0 6px 18px oklch(0 0 0 / 20%);
-  }
-
-  .dark .conversation-panel-composer-surface {
-    box-shadow: 0 -6px 18px oklch(0 0 0 / 20%);
+  .conversation-panel-composer-card {
+    box-shadow: 0 4px 14px oklch(0 0 0 / 4%);
   }
 
   .app-green-shell {

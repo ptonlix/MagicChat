@@ -87,14 +87,118 @@ describe("桌面设置服务器管理", () => {
     expect(screen.getByLabelText("服务器地址")).toHaveValue("")
   })
 
-  it("配置页使用应用主题变量且不再绘制突兀圆形装饰", async () => {
+  it("配置页使用应用主题变量和统一圆角且不再绘制突兀圆形装饰", async () => {
     const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
 
     expect(source).not.toContain(".server-setup-hero::after")
     expect(source).toContain(".dark .server-setup")
     expect(source).toMatch(/\.server-setup\s*\{[^}]*align-items:\s*stretch/)
     expect(source).toContain("max-width: none")
-    expect(source).toContain("border-radius: 0")
+    expect(source).toMatch(/\.server-setup-shell\s*\{[^}]*border-radius:\s*12px/)
+  })
+
+  it("顶栏使用侧栏颜色且阴影避开左侧应用菜单", async () => {
+    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+
+    expect(source).toMatch(/\.desktop-titlebar-drag-region\s*\{[^}]*background:\s*var\(--sidebar\)/)
+    expect(source).toMatch(/\.desktop-titlebar-drag-region::after\s*\{[^}]*left:\s*48px/)
+  })
+
+  it("在 macOS 使用侧栏内的紧凑窗口按钮", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "关闭窗口" }))
+    await user.click(screen.getByRole("button", { name: "最小化窗口" }))
+    await user.click(screen.getByRole("button", { name: "放大或还原窗口" }))
+
+    expect(bridge.windowControls.close).toHaveBeenCalledOnce()
+    expect(bridge.windowControls.minimize).toHaveBeenCalledOnce()
+    expect(bridge.windowControls.toggleMaximize).toHaveBeenCalledOnce()
+  })
+
+  it("紧凑窗口按钮完整落在 48px 侧栏内", async () => {
+    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+
+    expect(source).toMatch(/\.desktop-window-controls\s*\{[^}]*gap:\s*1px/)
+    expect(source).toMatch(/\.desktop-window-controls\s*\{[^}]*left:\s*2px/)
+    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*height:\s*20px/)
+    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*width:\s*14px/)
+    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*cursor:\s*pointer/)
+    expect(source).toMatch(/\.desktop-window-control::before\s*\{[^}]*height:\s*10px/)
+    expect(source).toMatch(/\.desktop-window-control::before\s*\{[^}]*width:\s*10px/)
+  })
+
+  it("桌面窗口和工作区面板使用统一圆角", async () => {
+    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+
+    expect(source).toMatch(/html,\s*body,\s*#root\s*\{[^}]*overflow:\s*clip/)
+    expect(source).toMatch(/\.desktop-frame\s*\{[^}]*border-radius:\s*12px/)
+    expect(source).not.toMatch(/\.desktop-frame\s*\{[^}]*overflow:\s*hidden/)
+    expect(source).not.toMatch(/\.desktop-content\s*\{[^}]*overflow:\s*hidden/)
+    expect(source).toMatch(/\.desktop-workspace-main\s*\{[^}]*padding:\s*0/)
+    expect(source).toMatch(
+      /\.desktop-workspace-main > \[data-slot="sidebar-wrapper"\]\s*\{[^}]*gap:\s*3px/,
+    )
+    expect(source).toMatch(
+      /\.desktop-workspace-main > \[data-slot="sidebar-wrapper"\] > \[data-slot="sidebar"\]\s*\{[^}]*border-radius:\s*0 10px 10px 0/,
+    )
+    expect(source).toMatch(
+      /\.desktop-workspace-main > \[data-slot="sidebar-wrapper"\] > main\s*\{[^}]*border-radius:\s*10px 0 0 10px/,
+    )
+    expect(source).toMatch(/\.desktop-frame\s*\{[^}]*border:\s*1px solid/)
+    expect(source).toMatch(/\.desktop-titlebar-drag-region\s*\{[^}]*top:\s*1px/)
+    expect(source).toMatch(/\.desktop-titlebar-drag-region\s*\{[^}]*left:\s*1px/)
+    expect(source).toMatch(/\.desktop-titlebar-drag-region\s*\{[^}]*right:\s*1px/)
+    expect(source).toContain("border-top-color: color-mix")
+  })
+
+  it("聊天页使用连续双栏工作区和整行会话列表", async () => {
+    const [chatPage, conversationSidebar, composer, desktopStyles, applicationStyles] =
+      await Promise.all([
+        readFile(path.resolve(process.cwd(), "src/renderer/pages/chat-page.tsx"), "utf8"),
+        readFile(
+          path.resolve(
+            process.cwd(),
+            "src/renderer/components/conversation/conversation-sidebar.tsx",
+          ),
+          "utf8",
+        ),
+        readFile(
+          path.resolve(
+            process.cwd(),
+            "src/renderer/components/conversation/conversation-panel-composer.tsx",
+          ),
+          "utf8",
+        ),
+        readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8"),
+        readFile(path.resolve(process.cwd(), "src/renderer/styles/index.css"), "utf8"),
+      ])
+
+    expect(chatPage).toContain('className="desktop-chat-workspace min-h-0 min-w-0 flex-1"')
+    expect(chatPage).toContain('"--sidebar-width": "clamp(17rem, 24vw, 20rem)"')
+    expect(conversationSidebar).toContain("desktop-conversation-list-item")
+    expect(conversationSidebar).toContain("desktop-conversation-list flex flex-col gap-0 px-0")
+    expect(composer).toContain("conversation-panel-composer-card")
+    expect(desktopStyles).toMatch(
+      /\.desktop-workspace-main > \.desktop-chat-workspace\s*\{[^}]*gap:\s*4px/,
+    )
+    expect(desktopStyles).toMatch(
+      /\.desktop-workspace-main > \.desktop-chat-workspace > \[data-slot="sidebar"\][\s\S]*?border-radius:\s*8px/,
+    )
+    expect(desktopStyles).toMatch(
+      /\.desktop-workspace-main > \.desktop-chat-workspace > main\s*\{[^}]*border-radius:\s*8px/,
+    )
+    expect(applicationStyles).toMatch(
+      /\.conversation-panel-header-surface\s*\{[^}]*border-bottom:\s*1px solid/,
+    )
+    expect(applicationStyles).toMatch(/\.conversation-panel-composer-card\s*\{[^}]*box-shadow:/)
   })
 
   it("移除失败时保留设置并显示错误", async () => {
@@ -560,6 +664,7 @@ function createDesktopBridge(
   }
   return {
     app: {
+      platform: "darwin",
       info: vi.fn().mockResolvedValue({
         arch: "arm64",
         build: "test",
@@ -632,6 +737,11 @@ function createDesktopBridge(
         if (subscriptionState) listener(subscriptionState)
         return unsubscribe
       }),
+    },
+    windowControls: {
+      close: vi.fn().mockResolvedValue(undefined),
+      minimize: vi.fn().mockResolvedValue(undefined),
+      toggleMaximize: vi.fn().mockResolvedValue(undefined),
     },
     version: 1,
   }
