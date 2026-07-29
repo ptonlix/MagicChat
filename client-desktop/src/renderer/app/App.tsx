@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { Navigate, Route, Routes } from "react-router"
 
 import { AppLayout } from "@/components/app-layout"
@@ -13,7 +14,7 @@ import { ContactsPage } from "@/pages/contacts-page"
 import { LoginPage } from "@/pages/login-page"
 import { ProjectsPage } from "@/pages/projects-page"
 
-export function App() {
+export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
   return (
     <AppInfoProvider>
       <ClientBrandMetadata />
@@ -35,7 +36,7 @@ export function App() {
                 <ClientRealtimeProvider>
                   <ClientConversationRealtimeSync />
                   <ClientMessageNotificationSync />
-                  <AppLayout />
+                  <AppLayout footerAction={updatePrompt} />
                 </ClientRealtimeProvider>
               </ClientDataProvider>
             </>

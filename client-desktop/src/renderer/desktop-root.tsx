@@ -22,7 +22,7 @@ import { configureDesktopHost } from "@/lib/desktop-host"
 import { RealtimeClient } from "@/lib/realtime-client"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import App from "@/app/App"
 import type { AuthenticatedTarget } from "@shared/client-contract"
@@ -101,7 +101,6 @@ function DesktopRootContent() {
 
   return (
     <>
-      <DesktopUpdatePrompt state={updater} onStateChange={setUpdater} />
       {loading ? (
         <StatusPage text="正在启动即应" />
       ) : selected ? (
@@ -151,8 +150,10 @@ function DesktopWorkspace({
           messageSoundEnabled={messageSoundEnabled}
           profile={profile}
           target={target}
+          updater={updater}
           onAuthenticated={setUserId}
           onOpenSettings={openSettings}
+          onUpdaterChange={onUpdaterChange}
         />
       </BrowserRouter>
       {settingsOpen && (
@@ -274,28 +275,37 @@ function DesktopUpdatePrompt({
         : state.status === "downloading" || state.status === "installing"
           ? RefreshCw
           : Download
+  const label = updatePromptLabel(state)
 
   return (
-    <button
-      aria-live="polite"
-      className="desktop-update-prompt"
-      data-platform={state.installationSource === "mac_app" ? "darwin" : undefined}
-      disabled={actionPending || state.status === "downloading" || state.status === "installing"}
-      onClick={handleUpdateAction}
-      title={state.targetVersion ? `即应 ${state.targetVersion}` : "即应新版本"}
-      type="button"
-    >
-      <Icon
-        aria-hidden="true"
-        className={
-          state.status === "downloading" || state.status === "installing"
-            ? "motion-safe:animate-spin"
-            : ""
-        }
-        size={14}
-      />
-      <span>{updatePromptLabel(state)}</span>
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={label}
+          aria-live="polite"
+          className="desktop-update-prompt"
+          disabled={
+            actionPending || state.status === "downloading" || state.status === "installing"
+          }
+          onClick={handleUpdateAction}
+          title={state.targetVersion ? `${label} · 即应 ${state.targetVersion}` : label}
+          type="button"
+        >
+          <Icon
+            aria-hidden="true"
+            className={
+              state.status === "downloading" || state.status === "installing"
+                ? "motion-safe:animate-spin"
+                : ""
+            }
+            size={16}
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={6}>
+        {state.targetVersion ? `${label} · ${state.targetVersion}` : label}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -303,14 +313,18 @@ function DesktopHostedApp({
   messageSoundEnabled,
   profile,
   target,
+  updater,
   onAuthenticated,
   onOpenSettings,
+  onUpdaterChange,
 }: {
   messageSoundEnabled: boolean
   profile: ServerProfile
   target: AuthenticatedTarget
+  updater: UpdaterState
   onAuthenticated(userId: string): void
   onOpenSettings(): void
+  onUpdaterChange(state: UpdaterState): void
 }) {
   const [ready, setReady] = useState(false)
   const messageSoundEnabledRef = useRef(messageSoundEnabled)
@@ -390,7 +404,11 @@ function DesktopHostedApp({
     }
   }, [onAuthenticated, onOpenSettings, profile, target])
 
-  return ready ? <App /> : <StatusPage detail={profile.displayName} text="正在连接工作空间" />
+  return ready ? (
+    <App updatePrompt={<DesktopUpdatePrompt state={updater} onStateChange={onUpdaterChange} />} />
+  ) : (
+    <StatusPage detail={profile.displayName} text="正在连接工作空间" />
+  )
 }
 
 function DesktopSettingsPanel({

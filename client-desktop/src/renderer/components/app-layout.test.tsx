@@ -58,6 +58,17 @@ vi.mock("@/lib/client-data-api", () => ({
 }))
 
 describe("AppLayout", () => {
+  it("renders the desktop update action in the sidebar footer", () => {
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout footerAction={<button>新版本</button>} />
+      </MemoryRouter>,
+    )
+
+    const sidebar = screen.getByRole("complementary")
+    expect(within(sidebar).getByRole("button", { name: "新版本" })).toBeInTheDocument()
+  })
+
   it("keeps profile in the avatar menu and moves settings to the sidebar footer", async () => {
     const user = userEvent.setup()
 

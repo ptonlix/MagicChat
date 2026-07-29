@@ -10,7 +10,7 @@ import {
   SunMoon,
   UserRound,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { NavLink, Outlet, useMatch, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -64,7 +64,7 @@ const themeItems = [
 
 type ThemeValue = (typeof themeItems)[number]["value"]
 
-export function AppLayout() {
+export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
   const { conversations, me, refreshMe } = useClientData()
   const totalUnreadCount = getTotalUnreadCount(conversations)
   const notifiableUnreadCount = getNotifiableUnreadCount(conversations)
@@ -119,6 +119,7 @@ export function AppLayout() {
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2">
+          {footerAction}
           <GithubLink />
           <ThemeSwitcher />
           <SidebarSettingsButton />

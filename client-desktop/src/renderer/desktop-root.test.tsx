@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DesktopRoot } from "./desktop-root"
@@ -24,7 +25,12 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/app/App", () => ({
-  default: () => <button onClick={() => mocks.openSettings?.()}>打开设置</button>,
+  default: ({ updatePrompt }: { updatePrompt?: ReactNode }) => (
+    <div>
+      <aside aria-label="应用侧边栏">{updatePrompt}</aside>
+      <button onClick={() => mocks.openSettings?.()}>打开设置</button>
+    </div>
+  ),
 }))
 
 vi.mock("@/lib/desktop-host", () => ({
@@ -151,7 +157,7 @@ describe("桌面设置服务器管理", () => {
     expect(mocks.messageNotificationSoundEnabled?.()).toBe(true)
   })
 
-  it("发现 OTA 新版本后在右上角提供下载入口", async () => {
+  it("发现 OTA 新版本后在左侧栏底部提供图标下载入口", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
       installMode: "ota",
@@ -168,13 +174,15 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     const updateButton = await screen.findByRole("button", { name: "新版本" })
-    expect(updateButton).toHaveAttribute("title", "即应 1.1.0")
+    expect(updateButton).toHaveAttribute("title", "新版本 · 即应 1.1.0")
+    expect(updateButton).toHaveTextContent("")
+    expect(updateButton.closest("aside")).toHaveAccessibleName("应用侧边栏")
     await user.click(updateButton)
 
     expect(bridge.updater.download).toHaveBeenCalledOnce()
   })
 
-  it("未配置服务器时仍订阅并展示可用更新", async () => {
+  it("未配置服务器时仍订阅更新但不展示入口", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
       installMode: "ota",
@@ -192,10 +200,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     expect(await screen.findByRole("heading", { name: "开始使用即应" })).toBeInTheDocument()
-    expect(await screen.findByRole("button", { name: "新版本" })).toHaveAttribute(
-      "title",
-      "即应 1.1.0",
-    )
+    expect(screen.queryByRole("button", { name: "新版本" })).not.toBeInTheDocument()
     expect(bridge.updater.subscribe).toHaveBeenCalledOnce()
     expect(bridge.updater.getState).toHaveBeenCalledOnce()
   })
@@ -243,7 +248,7 @@ describe("桌面设置服务器管理", () => {
     expect(await screen.findByText("更新操作失败，请稍后重试")).toBeInTheDocument()
   })
 
-  it("手动升级来源从顶部入口打开匹配的安装包", async () => {
+  it("手动升级来源从左下角入口打开匹配的安装包", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
       installMode: "manual",
@@ -266,7 +271,7 @@ describe("桌面设置服务器管理", () => {
     expect(bridge.updater.download).not.toHaveBeenCalled()
   })
 
-  it("更新下载完成后在右上角执行重启安装", async () => {
+  it("更新下载完成后从左下角执行重启安装", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
       installMode: "ota",
@@ -315,7 +320,7 @@ describe("桌面设置服务器管理", () => {
     expect(await screen.findByText("仍有文件正在传输，请完成或取消传输后重试")).toBeInTheDocument()
   })
 
-  it("可重试错误从顶部入口重新检查更新", async () => {
+  it("可重试错误从左下角入口重新检查更新", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
       errorCode: "network",
@@ -347,7 +352,7 @@ describe("桌面设置服务器管理", () => {
     )
   })
 
-  it("直接根据安装来源定位 macOS 更新入口", async () => {
+  it("macOS 更新入口同样位于左侧栏底部", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",
       installMode: "ota",
@@ -362,14 +367,13 @@ describe("桌面设置服务器管理", () => {
     })
     render(<DesktopRoot />)
 
-    expect(await screen.findByRole("button", { name: "新版本" })).toHaveAttribute(
-      "data-platform",
-      "darwin",
-    )
+    expect(
+      (await screen.findByRole("button", { name: "新版本" })).closest("aside"),
+    ).toHaveAccessibleName("应用侧边栏")
     expect(bridge.app.info).not.toHaveBeenCalled()
   })
 
-  it("没有新版本时不显示右上角更新入口", async () => {
+  it("没有新版本时不显示左下角更新入口", async () => {
     render(<DesktopRoot />)
 
     await screen.findByRole("button", { name: "打开设置" })
