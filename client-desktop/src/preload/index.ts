@@ -10,10 +10,7 @@ import type { RealtimeEnvelope } from "@shared/client-contract"
 
 const bridge: DesktopBridge = {
   version: BRIDGE_VERSION,
-  app: {
-    platform: process.platform,
-    info: () => ipcRenderer.invoke(IPC.appInfo),
-  },
+  app: { info: () => ipcRenderer.invoke(IPC.appInfo) },
   appearance: {
     setThemeSource: (source) => ipcRenderer.invoke(IPC.appearanceThemeSet, source),
   },
@@ -81,11 +78,6 @@ const bridge: DesktopBridge = {
     openManualDownload: () => ipcRenderer.invoke(IPC.updaterOpenManual),
     openReleasePage: () => ipcRenderer.invoke(IPC.updaterOpenRelease),
     subscribe: (listener) => subscribe<UpdaterState>(IPC.updaterState, listener),
-  },
-  windowControls: {
-    close: () => ipcRenderer.invoke(IPC.windowClose),
-    minimize: () => ipcRenderer.invoke(IPC.windowMinimize),
-    toggleMaximize: () => ipcRenderer.invoke(IPC.windowToggleMaximize),
   },
 }
 

@@ -103,44 +103,6 @@ describe("桌面设置服务器管理", () => {
     expect(source).toContain("border-radius: 0")
   })
 
-  it("在 macOS 展示并调用关闭、最小化和放大按钮", async () => {
-    const bridge = createDesktopBridge()
-    Object.defineProperty(window, "desktop", {
-      configurable: true,
-      value: bridge,
-    })
-    const user = userEvent.setup()
-    render(<DesktopRoot />)
-
-    await user.click(screen.getByRole("button", { name: "关闭窗口" }))
-    await user.click(screen.getByRole("button", { name: "最小化窗口" }))
-    await user.click(screen.getByRole("button", { name: "放大或还原窗口" }))
-
-    expect(bridge.windowControls.close).toHaveBeenCalledOnce()
-    expect(bridge.windowControls.minimize).toHaveBeenCalledOnce()
-    expect(bridge.windowControls.toggleMaximize).toHaveBeenCalledOnce()
-  })
-
-  it("窗口按钮完整落在 48px 左侧区域内", async () => {
-    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
-
-    expect(source).toMatch(/\.desktop-window-controls\s*\{[^}]*gap:\s*1px/)
-    expect(source).toMatch(/\.desktop-window-controls\s*\{[^}]*left:\s*2px/)
-    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*height:\s*20px/)
-    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*width:\s*14px/)
-  })
-
-  it("Windows 和 Linux 不重复渲染自定义窗口按钮", () => {
-    Object.defineProperty(window, "desktop", {
-      configurable: true,
-      value: createDesktopBridge(undefined, undefined, "win32"),
-    })
-
-    render(<DesktopRoot />)
-
-    expect(screen.queryByRole("group", { name: "窗口控制" })).not.toBeInTheDocument()
-  })
-
   it("移除失败时保留设置并显示错误", async () => {
     mocks.remove.mockRejectedValueOnce(new Error("本地配置写入失败"))
     const user = userEvent.setup()
@@ -213,7 +175,7 @@ describe("桌面设置服务器管理", () => {
 
     const updateButton = await screen.findByRole("button", { name: "新版本" })
     expect(updateButton).toHaveAttribute("title", "新版本 · 即应 1.1.0")
-    expect(updateButton).toHaveTextContent("")
+    expect(updateButton.textContent).toBe("")
     expect(updateButton.closest("aside")).toHaveAccessibleName("应用侧边栏")
     await user.click(updateButton)
 
@@ -256,12 +218,17 @@ describe("桌面设置服务器管理", () => {
         targetVersion: "1.1.0",
       }),
     })
+    const user = userEvent.setup()
     render(<DesktopRoot />)
 
     const updateButton = await screen.findByRole("button", { name: "下载中 42%" })
     expect(updateButton).toBeDisabled()
     expect(updateButton.querySelector("svg")).toHaveClass("motion-safe:animate-spin")
     expect(updateButton.querySelector("svg")).not.toHaveClass("animate-spin")
+    const tooltipTrigger = updateButton.closest(".desktop-update-tooltip-trigger")
+    if (!tooltipTrigger) throw new Error("更新 Tooltip 触发区域不存在")
+    await user.hover(tooltipTrigger)
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("下载中 42% · 1.1.0")
   })
 
   it("下载调用失败时展示可恢复提示", async () => {
@@ -584,7 +551,6 @@ describe("发布通道显示", () => {
 function createDesktopBridge(
   updaterState?: UpdaterState,
   subscriptionState?: UpdaterState,
-  platform = "darwin",
 ): DesktopBridge {
   const unsubscribe = () => undefined
   const initialUpdaterState: UpdaterState = updaterState ?? {
@@ -603,7 +569,6 @@ function createDesktopBridge(
   }
   return {
     app: {
-      platform,
       info: vi.fn().mockResolvedValue({
         arch: "arm64",
         build: "test",
@@ -676,11 +641,6 @@ function createDesktopBridge(
         if (subscriptionState) listener(subscriptionState)
         return unsubscribe
       }),
-    },
-    windowControls: {
-      close: vi.fn().mockResolvedValue(undefined),
-      minimize: vi.fn().mockResolvedValue(undefined),
-      toggleMaximize: vi.fn().mockResolvedValue(undefined),
     },
     version: 1,
   }

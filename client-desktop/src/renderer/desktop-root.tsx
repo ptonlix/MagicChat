@@ -7,9 +7,7 @@ import {
   ExternalLink,
   HardDriveDownload,
   LockKeyhole,
-  Maximize2,
   MessageCircleMore,
-  Minus,
   MonitorCog,
   RefreshCw,
   Server,
@@ -49,7 +47,6 @@ export function DesktopRoot() {
       <TooltipProvider>
         <div className="desktop-frame">
           <div aria-hidden="true" className="desktop-titlebar-drag-region" />
-          <DesktopWindowControls />
           <div className="desktop-content">
             <DesktopRootContent />
           </div>
@@ -57,42 +54,6 @@ export function DesktopRoot() {
         <Toaster position="top-center" />
       </TooltipProvider>
     </ThemeProvider>
-  )
-}
-
-function DesktopWindowControls() {
-  if (window.desktop.app.platform !== "darwin") return null
-
-  return (
-    <div aria-label="窗口控制" className="desktop-window-controls" role="group">
-      <button
-        aria-label="关闭窗口"
-        className="desktop-window-control desktop-window-control-close"
-        onClick={() => void window.desktop.windowControls.close()}
-        title="关闭"
-        type="button"
-      >
-        <XIcon aria-hidden="true" />
-      </button>
-      <button
-        aria-label="最小化窗口"
-        className="desktop-window-control desktop-window-control-minimize"
-        onClick={() => void window.desktop.windowControls.minimize()}
-        title="最小化"
-        type="button"
-      >
-        <Minus aria-hidden="true" />
-      </button>
-      <button
-        aria-label="放大或还原窗口"
-        className="desktop-window-control desktop-window-control-maximize"
-        onClick={() => void window.desktop.windowControls.toggleMaximize()}
-        title="放大或还原"
-        type="button"
-      >
-        <Maximize2 aria-hidden="true" />
-      </button>
-    </div>
   )
 }
 
@@ -319,27 +280,29 @@ function DesktopUpdatePrompt({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          aria-label={label}
-          aria-live="polite"
-          className="desktop-update-prompt"
-          disabled={
-            actionPending || state.status === "downloading" || state.status === "installing"
-          }
-          onClick={handleUpdateAction}
-          title={state.targetVersion ? `${label} · 即应 ${state.targetVersion}` : label}
-          type="button"
-        >
-          <Icon
-            aria-hidden="true"
-            className={
-              state.status === "downloading" || state.status === "installing"
-                ? "motion-safe:animate-spin"
-                : ""
+        <span className="desktop-update-tooltip-trigger">
+          <button
+            aria-label={label}
+            aria-live="polite"
+            className="desktop-update-prompt"
+            disabled={
+              actionPending || state.status === "downloading" || state.status === "installing"
             }
-            size={16}
-          />
-        </button>
+            onClick={handleUpdateAction}
+            title={state.targetVersion ? `${label} · 即应 ${state.targetVersion}` : label}
+            type="button"
+          >
+            <Icon
+              aria-hidden="true"
+              className={
+                state.status === "downloading" || state.status === "installing"
+                  ? "motion-safe:animate-spin"
+                  : ""
+              }
+              size={16}
+            />
+          </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="right" sideOffset={6}>
         {state.targetVersion ? `${label} · ${state.targetVersion}` : label}
