@@ -26,6 +26,7 @@ import { assertTrustedIpcSender } from "@main/ipc-security"
 import { parseDesktopSettingsPatch } from "@main/settings-validation"
 import { registerRuntimeDiagnosticsIpc } from "@main/runtime-diagnostics-ipc"
 import { parseTrayMessages } from "@main/tray-message-validation"
+import { registerWindowControlIpc } from "@main/window-controls-ipc"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -70,6 +71,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
     platform: process.platform,
     version: app.getVersion(),
   }))
+  registerWindowControlIpc(register)
   register(IPC.appearanceThemeSet, (_event, source) =>
     deps.system.setThemeSource(themeSource(source)),
   )

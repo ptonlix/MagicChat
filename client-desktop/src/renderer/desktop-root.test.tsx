@@ -103,6 +103,44 @@ describe("桌面设置服务器管理", () => {
     expect(source).toContain("border-radius: 0")
   })
 
+  it("在 macOS 展示并调用关闭、最小化和放大按钮", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(screen.getByRole("button", { name: "关闭窗口" }))
+    await user.click(screen.getByRole("button", { name: "最小化窗口" }))
+    await user.click(screen.getByRole("button", { name: "放大或还原窗口" }))
+
+    expect(bridge.windowControls.close).toHaveBeenCalledOnce()
+    expect(bridge.windowControls.minimize).toHaveBeenCalledOnce()
+    expect(bridge.windowControls.toggleMaximize).toHaveBeenCalledOnce()
+  })
+
+  it("窗口按钮完整落在 48px 左侧区域内", async () => {
+    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+
+    expect(source).toMatch(/\.desktop-window-controls\s*\{[^}]*gap:\s*1px/)
+    expect(source).toMatch(/\.desktop-window-controls\s*\{[^}]*left:\s*2px/)
+    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*height:\s*20px/)
+    expect(source).toMatch(/\.desktop-window-control\s*\{[^}]*width:\s*14px/)
+  })
+
+  it("Windows 和 Linux 不重复渲染自定义窗口按钮", () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge(undefined, undefined, "win32"),
+    })
+
+    render(<DesktopRoot />)
+
+    expect(screen.queryByRole("group", { name: "窗口控制" })).not.toBeInTheDocument()
+  })
+
   it("移除失败时保留设置并显示错误", async () => {
     mocks.remove.mockRejectedValueOnce(new Error("本地配置写入失败"))
     const user = userEvent.setup()
@@ -546,6 +584,7 @@ describe("发布通道显示", () => {
 function createDesktopBridge(
   updaterState?: UpdaterState,
   subscriptionState?: UpdaterState,
+  platform = "darwin",
 ): DesktopBridge {
   const unsubscribe = () => undefined
   const initialUpdaterState: UpdaterState = updaterState ?? {
@@ -564,6 +603,7 @@ function createDesktopBridge(
   }
   return {
     app: {
+      platform,
       info: vi.fn().mockResolvedValue({
         arch: "arm64",
         build: "test",
@@ -636,6 +676,11 @@ function createDesktopBridge(
         if (subscriptionState) listener(subscriptionState)
         return unsubscribe
       }),
+    },
+    windowControls: {
+      close: vi.fn().mockResolvedValue(undefined),
+      minimize: vi.fn().mockResolvedValue(undefined),
+      toggleMaximize: vi.fn().mockResolvedValue(undefined),
     },
     version: 1,
   }

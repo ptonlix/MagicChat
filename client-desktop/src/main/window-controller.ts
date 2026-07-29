@@ -49,12 +49,25 @@ export class WindowController {
       if (!startHidden) window.show()
     })
     window.on("close", (event) => this.handleClose(event))
+    const developmentUrl = process.env.ELECTRON_RENDERER_URL
+    window.webContents.on("did-finish-load", () => {
+      configureMainWindowButtons(
+        window,
+        process.platform,
+        !usesCustomWindowControls(window.webContents.getURL(), developmentUrl),
+      )
+    })
+    window.webContents.on("did-fail-load", (_event, _code, _description, _url, isMainFrame) => {
+      if (isMainFrame) configureMainWindowButtons(window, process.platform, true)
+    })
     window.webContents.on("render-process-gone", (_event, details) => {
       void this.diagnostics.record("renderer", details.reason)
-      if (!this.quitting) void window.loadURL("magicchat-app://app/recovery.html")
+      if (!this.quitting) {
+        configureMainWindowButtons(window, process.platform, true)
+        void window.loadURL("magicchat-app://app/recovery.html")
+      }
     })
     monitorWindowResponsiveness(window, this.diagnostics)
-    const developmentUrl = process.env.ELECTRON_RENDERER_URL
     if (!app.isPackaged && developmentUrl) void window.loadURL(developmentUrl)
     else void window.loadURL("magicchat-app://app/index.html")
     return window
@@ -138,14 +151,11 @@ export class WindowController {
 
 export function getMainWindowTitleBarOptions(
   platform: NodeJS.Platform,
-): Pick<
-  BrowserWindowConstructorOptions,
-  "titleBarOverlay" | "titleBarStyle" | "trafficLightPosition"
-> {
+): Pick<BrowserWindowConstructorOptions, "roundedCorners" | "titleBarOverlay" | "titleBarStyle"> {
   if (platform === "darwin") {
     return {
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 14, y: 13 },
+      roundedCorners: true,
+      titleBarStyle: "hidden",
     }
   }
 
@@ -156,6 +166,29 @@ export function getMainWindowTitleBarOptions(
       symbolColor: "#18181b",
     },
     titleBarStyle: "hidden",
+  }
+}
+
+export function configureMainWindowButtons(
+  window: Pick<BrowserWindow, "setWindowButtonVisibility">,
+  platform: NodeJS.Platform,
+  visible: boolean,
+): void {
+  if (platform === "darwin") window.setWindowButtonVisibility(visible)
+}
+
+export function usesCustomWindowControls(rawUrl: string, developmentUrl?: string): boolean {
+  try {
+    const url = new URL(rawUrl)
+    if (
+      url.protocol === "magicchat-app:" &&
+      url.hostname === "app" &&
+      url.pathname === "/index.html"
+    )
+      return true
+    return Boolean(developmentUrl && url.origin === new URL(developmentUrl).origin)
+  } catch {
+    return false
   }
 }
 
