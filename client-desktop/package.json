@@ -24,7 +24,6 @@
     "release:prepare-assets": "node scripts/prepare-release-assets.mjs",
     "release:publish": "node scripts/publish-release.mjs",
     "verify:build": "node scripts/verify-build.mjs",
-    "verify:message-cache": "node scripts/message-cache-electron-smoke.mjs",
     "verify:boundaries": "node scripts/verify-renderer-boundaries.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "verify:workflow": "node scripts/verify-release-workflow.mjs",
