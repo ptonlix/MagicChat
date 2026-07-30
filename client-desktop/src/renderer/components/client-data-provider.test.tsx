@@ -1195,7 +1195,11 @@ function createMessageCacheMock() {
     clearUser: vi.fn().mockResolvedValue(undefined),
     clearConversation: vi.fn().mockResolvedValue({ ...generation, conversation: 1 }),
     commitBefore: vi.fn(),
-    commitLatest: vi.fn(),
+    commitLatest: vi.fn().mockResolvedValue({
+      committed: true,
+      committedSeq: 21,
+      generation,
+    }),
     getSyncState: vi.fn().mockResolvedValue({
       conversationId: "conversation-1",
       generation,

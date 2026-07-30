@@ -37,6 +37,7 @@ export class MessageManager {
   private readonly conversationEpochs = new Map<string, number>()
   private readonly inactiveConversations = new Set<string>()
   private scopeBarrier: Promise<void> = Promise.resolve()
+  private persistentCacheDisabled = false
   private scopeActive = true
   private scopeEpoch = 0
 
@@ -56,10 +57,12 @@ export class MessageManager {
     const token = {
       conversationEpoch: this.conversationEpochs.get(conversationId) ?? 0,
       conversationId,
-      generation: barrier
-        .then(() => this.repository.getSyncState(conversationId))
-        .then((state) => state.generation)
-        .catch(() => null),
+      generation: this.persistentCacheDisabled
+        ? Promise.resolve(null)
+        : barrier
+            .then(() => this.repository.getSyncState(conversationId))
+            .then((state) => state.generation)
+            .catch(() => null),
       scopeEpoch: this.scopeEpoch,
     }
     this.assertOperationCurrent(token)
@@ -93,6 +96,7 @@ export class MessageManager {
   async hydrateRecent(token: MessageOperationToken, limit: number): Promise<ClientMessage[]> {
     await this.awaitScopeBarrier(token)
     this.assertOperationCurrent(token)
+    if (this.persistentCacheDisabled) throw new Error("本进程已切换为内存消息模式")
     const { conversationId } = token
     const page = await this.repository.readRecent(conversationId, limit)
     this.assertOperationCurrent(token)
@@ -115,6 +119,7 @@ export class MessageManager {
   ): Promise<{ hasMoreBefore: boolean; hit: boolean; messages: ClientMessage[] }> {
     await this.awaitScopeBarrier(token)
     this.assertOperationCurrent(token)
+    if (this.persistentCacheDisabled) throw new Error("本进程已切换为内存消息模式")
     const { conversationId } = token
     const page = await this.repository.readBefore(conversationId, beforeSeq, limit)
     this.assertOperationCurrent(token)
@@ -141,6 +146,9 @@ export class MessageManager {
     await this.awaitScopeBarrier(token)
     const { conversationId } = token
     this.assertOperationCurrent(token)
+    if (this.persistentCacheDisabled) {
+      return this.memoryCursors.get(conversationId) ?? fallback
+    }
     try {
       const state = await this.repository.getSyncState(conversationId)
       this.assertOperationCurrent(token)
@@ -153,6 +161,7 @@ export class MessageManager {
 
   async listSyncStates() {
     await this.scopeBarrier
+    if (this.persistentCacheDisabled) return []
     return this.repository.listSyncStates()
   }
 
@@ -176,6 +185,7 @@ export class MessageManager {
       )
       const next = this.workingSet.merge(conversationId, acceptedMessages)
       this.publish({ conversationId, kind: "messages-changed", messages: next })
+      if (this.persistentCacheDisabled) return next
       try {
         const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
@@ -187,7 +197,7 @@ export class MessageManager {
         this.assertOperationCurrent(token)
       } catch {
         this.assertOperationCurrent(token)
-        this.publish({ conversationId, errorCode: "cache", kind: "sync-error" })
+        this.disablePersistentCache(conversationId)
       }
       return next
     })
@@ -202,7 +212,7 @@ export class MessageManager {
       const acceptedMessages = messages.filter(
         (message) => !this.tombstones.has(conversationId, message.id),
       )
-      if (acceptedMessages.length === 0) return
+      if (acceptedMessages.length === 0 || this.persistentCacheDisabled) return
       try {
         const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
@@ -219,7 +229,7 @@ export class MessageManager {
         this.assertOperationCurrent(token)
       } catch {
         this.assertOperationCurrent(token)
-        this.publish({ conversationId, errorCode: "cache", kind: "sync-error" })
+        this.disablePersistentCache(conversationId)
       }
     })
   }
@@ -239,6 +249,13 @@ export class MessageManager {
         this.tombstones.has(conversationId, message.id),
       )
       this.publish({ conversationId, kind: "messages-changed", messages: next })
+      const latestSeq = messages.reduce((maximum, message) => Math.max(maximum, message.seq), 0)
+      if (this.persistentCacheDisabled) {
+        if (!this.memoryCursors.has(conversationId)) {
+          this.memoryCursors.set(conversationId, latestSeq)
+        }
+        return next
+      }
       let persistedCursor: number | undefined
       try {
         const state = await this.repository.getSyncState(conversationId)
@@ -255,12 +272,11 @@ export class MessageManager {
         this.memoryCursors.set(conversationId, committed.committedSeq)
       } catch {
         this.assertOperationCurrent(token)
-        const latestSeq = messages.reduce((maximum, message) => Math.max(maximum, message.seq), 0)
         this.memoryCursors.set(
           conversationId,
           persistedCursor === undefined || persistedCursor === 0 ? latestSeq : persistedCursor,
         )
-        this.publish({ conversationId, errorCode: "cache", kind: "sync-error" })
+        this.disablePersistentCache(conversationId)
       }
       return next
     })
@@ -278,6 +294,7 @@ export class MessageManager {
         this.tombstones.has(conversationId, message.id),
       )
       this.publish({ conversationId, kind: "messages-changed", messages: next })
+      if (this.persistentCacheDisabled) return next
       try {
         const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
@@ -291,7 +308,7 @@ export class MessageManager {
         this.assertOperationCurrent(token)
       } catch {
         this.assertOperationCurrent(token)
-        this.publish({ conversationId, errorCode: "cache", kind: "sync-error" })
+        this.disablePersistentCache(conversationId)
       }
       return next
     })
@@ -318,8 +335,6 @@ export class MessageManager {
         },
         commit: async (result, requestAfterSeq) => {
           this.assertOperationCurrent(token)
-          const generation = await this.operationGeneration(token)
-          this.assertOperationCurrent(token)
           const visible = await this.enqueue(token, async () => {
             const next = this.workingSet.merge(conversationId, result.messages, (message) =>
               this.tombstones.has(conversationId, message.id),
@@ -331,7 +346,17 @@ export class MessageManager {
           const pageMessages = visible.filter((message) =>
             result.messages.some((candidate) => candidate.id === message.id),
           )
+          const memoryCursor = pageMessages.reduce(
+            (maximum, message) => Math.max(maximum, message.seq),
+            requestAfterSeq,
+          )
+          if (this.persistentCacheDisabled) {
+            this.memoryCursors.set(conversationId, memoryCursor)
+            return memoryCursor
+          }
           try {
+            const generation = await this.operationGeneration(token)
+            this.assertOperationCurrent(token)
             const committed = await this.repository.commitAfter(
               conversationId,
               requestAfterSeq,
@@ -344,13 +369,9 @@ export class MessageManager {
             return committed.committedSeq
           } catch {
             this.assertOperationCurrent(token)
-            const cursor = pageMessages.reduce(
-              (maximum, message) => Math.max(maximum, message.seq),
-              requestAfterSeq,
-            )
-            this.memoryCursors.set(conversationId, cursor)
-            this.publish({ conversationId, errorCode: "cache", kind: "sync-error" })
-            return cursor
+            this.memoryCursors.set(conversationId, memoryCursor)
+            this.disablePersistentCache(conversationId)
+            return memoryCursor
           }
         },
       })
@@ -407,10 +428,16 @@ export class MessageManager {
     await this.enqueue(token, async () => {
       const next = this.workingSet.remove(conversationId, messageId)
       this.publish({ conversationId, kind: "messages-changed", messages: next })
-      const generation = await this.operationGeneration(token)
-      this.assertOperationCurrent(token)
-      await this.repository.remove(conversationId, messageId, generation)
-      this.assertOperationCurrent(token)
+      if (this.persistentCacheDisabled) return
+      try {
+        const generation = await this.operationGeneration(token)
+        this.assertOperationCurrent(token)
+        await this.repository.remove(conversationId, messageId, generation)
+        this.assertOperationCurrent(token)
+      } catch {
+        this.assertOperationCurrent(token)
+        this.disablePersistentCache(conversationId)
+      }
     })
   }
 
@@ -463,16 +490,31 @@ export class MessageManager {
       const inMemory = this.workingSet
         .get(conversationId)
         .find((message) => message.id === messageId)
-      const current = inMemory ?? (await this.repository.getById(conversationId, messageId))
+      let current = inMemory
+      if (!current && !this.persistentCacheDisabled) {
+        try {
+          current = (await this.repository.getById(conversationId, messageId)) ?? undefined
+        } catch {
+          this.assertOperationCurrent(token)
+          this.disablePersistentCache(conversationId)
+          return
+        }
+      }
       this.assertOperationCurrent(token)
       if (!current || this.tombstones.has(conversationId, messageId)) return
       const nextMessage = updater(current)
       const next = this.workingSet.update(conversationId, messageId, () => nextMessage)
       if (inMemory) this.publish({ conversationId, kind: "messages-changed", messages: next })
-      const generation = await this.operationGeneration(token)
-      this.assertOperationCurrent(token)
-      await this.repository.upsert(conversationId, [nextMessage], generation)
-      this.assertOperationCurrent(token)
+      if (this.persistentCacheDisabled) return
+      try {
+        const generation = await this.operationGeneration(token)
+        this.assertOperationCurrent(token)
+        await this.repository.upsert(conversationId, [nextMessage], generation)
+        this.assertOperationCurrent(token)
+      } catch {
+        this.assertOperationCurrent(token)
+        this.disablePersistentCache(conversationId)
+      }
     })
   }
 
@@ -508,6 +550,12 @@ export class MessageManager {
     this.assertOperationCurrent(token)
     if (!generation) throw new Error("消息缓存 generation 不可用")
     return generation
+  }
+
+  private disablePersistentCache(conversationId: string): void {
+    if (this.persistentCacheDisabled) return
+    this.persistentCacheDisabled = true
+    this.publish({ conversationId, errorCode: "cache", kind: "sync-error" })
   }
 
   private publish(event: MessageManagerEvent): void {

@@ -98,6 +98,50 @@ describe("MessageManager", () => {
     expect(await manager.getSyncCursor(operation, 106)).toBe(100)
   })
 
+  it("持久写入失败后本进程固定使用内存模式且不再访问缓存", async () => {
+    const repository = new FakeRepository([])
+    const manager = new MessageManager(repository)
+    repository.failLatestCommit = true
+
+    await manager.commitLatest(
+      manager.beginConversationOperation("conversation-1"),
+      [message(100)],
+      page(),
+    )
+    repository.failLatestCommit = false
+    await manager.ingest("realtime", [message(101)])
+
+    expect(manager.getMessages("conversation-1").map(({ seq }) => seq)).toEqual([100, 101])
+    expect(repository.records).toEqual([])
+    expect(repository.upsertCalls).toBe(0)
+    expect(await manager.listSyncStates()).toEqual([])
+    await expect(
+      manager.hydrateRecent(manager.beginConversationOperation("conversation-1"), 20),
+    ).rejects.toThrow("本进程已切换为内存消息模式")
+    expect(repository.readRecentCalls).toBe(0)
+  })
+
+  it("追赶时 generation 不可用仍展示消息并切换为内存模式", async () => {
+    const repository = new FakeRepository([])
+    repository.failSyncState = true
+    const manager = new MessageManager(repository)
+    const events: string[] = []
+    manager.subscribe((event) => events.push(event.kind))
+
+    const cursor = await manager.catchUp(
+      manager.beginConversationOperation("conversation-1"),
+      0,
+      async () => ({ messages: [message(1)], page: page() }),
+    )
+    repository.failSyncState = false
+    await manager.ingest("local", [message(2)])
+
+    expect(cursor).toBe(1)
+    expect(manager.getMessages("conversation-1").map(({ seq }) => seq)).toEqual([1, 2])
+    expect(repository.records).toEqual([])
+    expect(events).toContain("sync-error")
+  })
+
   it("会话清理使挂起的追赶响应失效且不会复活 UI、缓存或游标", async () => {
     const repository = new FakeRepository([])
     const manager = new MessageManager(repository)
@@ -255,8 +299,11 @@ class FakeRepository implements MessageRepository {
   clearConversationCalls = 0
   clearOverride?: () => Promise<void>
   failLatestCommit = false
+  failSyncState = false
   getByIdOverride?: () => Promise<ClientMessage | null>
+  readRecentCalls = 0
   records: ClientMessage[]
+  upsertCalls = 0
   private syncState: MessageCacheSyncState = {
     conversationId: "conversation-1",
     generation,
@@ -341,6 +388,7 @@ class FakeRepository implements MessageRepository {
     }
   }
   async getSyncState() {
+    if (this.failSyncState) throw new Error("cache unavailable")
     return this.syncState
   }
   async listSyncStates() {
@@ -351,6 +399,7 @@ class FakeRepository implements MessageRepository {
     return cachePage(this.records.filter((record) => record.seq < beforeSeq))
   }
   async readRecent() {
+    this.readRecentCalls += 1
     return cachePage(this.records)
   }
   async remove(_id: string, messageId: string, expectedGeneration: MessageCacheGeneration) {
@@ -362,6 +411,7 @@ class FakeRepository implements MessageRepository {
     records: ReadonlyArray<ClientMessage>,
     expectedGeneration: MessageCacheGeneration,
   ) {
+    this.upsertCalls += 1
     this.assertGeneration(expectedGeneration)
     this.records = merge(this.records, records)
   }
