@@ -212,6 +212,32 @@ export function ChatPage() {
 
   const activeConversationId = activeConversation?.id ?? ""
   const activeConversationType = activeConversation?.type
+  const compactActiveConversationMessages = React.useCallback(() => {
+    compactConversationMessages?.(activeConversationId)
+  }, [activeConversationId, compactConversationMessages])
+  const openTopicDrawer = React.useCallback(
+    (nextConversationId: string) => {
+      setTopicDrawerConversationId(nextConversationId)
+      setForegroundConversationId?.(nextConversationId)
+    },
+    [setForegroundConversationId],
+  )
+  const closeTopicDrawer = React.useCallback(() => {
+    setTopicDrawerConversationId("")
+    setForegroundConversationId?.("")
+  }, [setForegroundConversationId])
+  const requestCreateTopic = React.useCallback(
+    (message: ConversationPanelMessage) => {
+      if (!activeConversationId || activeConversationType === "topic") {
+        return
+      }
+      setCreateTopicOperation({
+        conversationId: activeConversationId,
+        message,
+      })
+    },
+    [activeConversationId, activeConversationType],
+  )
   const messageSelection = useMessageSelection(activeConversationId)
   const {
     maxSelectedMessages,
@@ -939,16 +965,6 @@ export function ChatPage() {
     navigate(`/chat/${encodeURIComponent(conversation.id)}`)
   }
 
-  function requestCreateTopic(message: ConversationPanelMessage) {
-    if (!activeConversation || activeConversation.type === "topic") {
-      return
-    }
-    setCreateTopicOperation({
-      conversationId: activeConversation.id,
-      message,
-    })
-  }
-
   async function confirmCreateTopic() {
     if (!createTopicOperation || creatingTopic) {
       return
@@ -970,16 +986,6 @@ export function ChatPage() {
     } finally {
       setCreatingTopic(false)
     }
-  }
-
-  function openTopicDrawer(conversationId: string) {
-    setTopicDrawerConversationId(conversationId)
-    setForegroundConversationId?.(conversationId)
-  }
-
-  function closeTopicDrawer() {
-    setTopicDrawerConversationId("")
-    setForegroundConversationId?.("")
   }
 
   async function selectDirectoryItem(item: DirectorySearchItem) {
@@ -1066,7 +1072,7 @@ export function ChatPage() {
         messageSelection={visibleMessageSelection}
         onCancelMessageSelection={messageSelection.cancel}
         onCancelReply={clearReplyTarget}
-        onCompactMessages={() => compactConversationMessages?.(activeConversationId)}
+        onCompactMessages={compactActiveConversationMessages}
         onRegisterMessageView={registerConversationMessageView}
         onDraftBlur={flushDrafts}
         onDraftChange={setDraft}

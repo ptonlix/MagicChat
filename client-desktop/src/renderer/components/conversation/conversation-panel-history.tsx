@@ -25,8 +25,8 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
   mentionLabelResolver,
   messages,
   messageSelection,
-  onCompactMessages = () => undefined,
-  onRegisterMessageView = () => () => undefined,
+  onCompactMessages = noop,
+  onRegisterMessageView = noopRegistration,
   onForwardMessage,
   onCreateTopic,
   onLoadBeforeMessages,
@@ -446,6 +446,12 @@ function isMessageAvailable(message: ConversationPanelMessage) {
 
 const messageTimeMarkerThresholdMs = 60 * 60 * 1000
 const historyRetentionMs = 3 * 60 * 1000
+
+function noop() {}
+
+function noopRegistration() {
+  return noop
+}
 
 function shouldShowMessageTimeMarker(
   previousMessage: ConversationPanelMessage | undefined,

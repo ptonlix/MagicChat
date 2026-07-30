@@ -460,12 +460,7 @@ function DesktopSettingsPanel({
   }, [target])
 
   async function clearMessageCache() {
-    if (
-      !window.confirm(
-        "清理当前账户的本地消息缓存？服务端消息、登录状态、草稿、设置和下载不会被删除。",
-      )
-    )
-      return
+    if (!window.confirm("清理当前账户的本地消息缓存？")) return
     setCacheClearing(true)
     setSettingsError("")
     try {
@@ -569,31 +564,6 @@ function DesktopSettingsPanel({
             />
             <section className="desktop-setting-section">
               <div className="desktop-setting-section-heading">
-                <HardDriveDownload size={17} />
-                <div>
-                  <h3>本地消息缓存</h3>
-                  <p>最近消息的本机恢复数据</p>
-                </div>
-              </div>
-              <div className="desktop-setting-card">
-                <span>
-                  <strong>{formatCacheSize(cacheStats?.payloadBytes ?? 0)}</strong>
-                  <small>{cacheStatusText(cacheStats?.status)}</small>
-                </span>
-                <button
-                  aria-label="清理本地消息缓存"
-                  className="desktop-icon-action"
-                  disabled={cacheClearing}
-                  onClick={() => void clearMessageCache()}
-                  title="清理本地消息缓存"
-                  type="button"
-                >
-                  <Trash2 size={17} />
-                </button>
-              </div>
-            </section>
-            <section className="desktop-setting-section">
-              <div className="desktop-setting-section-heading">
                 <MonitorCog size={17} />
                 <div>
                   <h3>应用行为</h3>
@@ -670,6 +640,31 @@ function DesktopSettingsPanel({
                   }
                 />
               </label>
+            </section>
+            <section className="desktop-setting-section">
+              <div className="desktop-setting-section-heading">
+                <HardDriveDownload size={17} />
+                <div>
+                  <h3>本地消息缓存</h3>
+                  <p>最近消息的本机恢复数据</p>
+                </div>
+              </div>
+              <div className="desktop-setting-card">
+                <span>
+                  <strong>{formatCacheSize(cacheStats?.payloadBytes ?? 0)}</strong>
+                  <small>{cacheStatusText(cacheStats?.status)}</small>
+                </span>
+                <button
+                  aria-label="清理本地消息缓存"
+                  className="desktop-icon-action"
+                  disabled={cacheClearing}
+                  onClick={() => void clearMessageCache()}
+                  title="清理本地消息缓存"
+                  type="button"
+                >
+                  <Trash2 size={17} />
+                </button>
+              </div>
             </section>
             <section className="desktop-setting-section">
               <div className="desktop-setting-section-heading">

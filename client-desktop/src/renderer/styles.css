@@ -628,6 +628,7 @@ body,
 .desktop-icon-action {
   border: 0 !important;
   height: 32px;
+  justify-self: end;
   min-height: 32px !important;
   padding: 0 !important;
   width: 32px;
