@@ -36,6 +36,7 @@ export class MessageManager {
   private readonly memoryCursors = new Map<string, number>()
   private readonly conversationEpochs = new Map<string, number>()
   private readonly inactiveConversations = new Set<string>()
+  private scopeBarrier: Promise<void> = Promise.resolve()
   private scopeActive = true
   private scopeEpoch = 0
 
@@ -85,6 +86,7 @@ export class MessageManager {
   }
 
   async hydrateRecent(token: MessageOperationToken, limit: number): Promise<ClientMessage[]> {
+    await this.awaitScopeBarrier(token)
     this.assertOperationCurrent(token)
     const { conversationId } = token
     const page = await this.repository.readRecent(conversationId, limit)
@@ -106,6 +108,7 @@ export class MessageManager {
     beforeSeq: number,
     limit: number,
   ): Promise<{ hasMoreBefore: boolean; hit: boolean; messages: ClientMessage[] }> {
+    await this.awaitScopeBarrier(token)
     this.assertOperationCurrent(token)
     const { conversationId } = token
     const page = await this.repository.readBefore(conversationId, beforeSeq, limit)
@@ -130,6 +133,7 @@ export class MessageManager {
   }
 
   async getSyncCursor(token: MessageOperationToken, fallback = 0): Promise<number> {
+    await this.awaitScopeBarrier(token)
     const { conversationId } = token
     this.assertOperationCurrent(token)
     try {
@@ -142,7 +146,8 @@ export class MessageManager {
     }
   }
 
-  listSyncStates() {
+  async listSyncStates() {
+    await this.scopeBarrier
     return this.repository.listSyncStates()
   }
 
@@ -294,8 +299,9 @@ export class MessageManager {
     const { conversationId } = token
     this.assertOperationCurrent(token)
     const flightKey = `${conversationId}:${token.scopeEpoch}:${token.conversationEpoch}`
-    return this.singleFlight.run(flightKey, () =>
-      catchUpConversationMessages({
+    return this.singleFlight.run(flightKey, async () => {
+      await this.awaitScopeBarrier(token)
+      return catchUpConversationMessages({
         afterSeq,
         conversationId,
         fetchPage: async (cursor) => {
@@ -341,8 +347,8 @@ export class MessageManager {
             return cursor
           }
         },
-      }),
-    )
+      })
+    })
   }
 
   async applyReaction(event: MessageReactionsUpdatedEvent, currentUserId: string): Promise<void> {
@@ -422,7 +428,23 @@ export class MessageManager {
     this.publish({ kind: "scope-cleared" })
     await Promise.allSettled([...this.queues.values()])
     this.queues.clear()
+    await this.scopeBarrier
     await this.repository.clear()
+  }
+
+  clearPersistentCache(): Promise<void> {
+    this.scopeEpoch += 1
+    this.memoryCursors.clear()
+    const pendingQueues = [...this.queues.values()]
+    const clearResult = this.scopeBarrier.then(async () => {
+      await Promise.allSettled(pendingQueues)
+      await this.repository.clear()
+    })
+    this.scopeBarrier = clearResult.then(
+      () => undefined,
+      () => undefined,
+    )
+    return clearResult
   }
 
   private async updatePersisted(
@@ -452,7 +474,9 @@ export class MessageManager {
     this.assertOperationCurrent(token)
     const { conversationId } = token
     const previous = this.queues.get(conversationId) ?? Promise.resolve()
-    const run = () => {
+    const barrier = this.scopeBarrier
+    const run = async () => {
+      await barrier
       this.assertOperationCurrent(token)
       return operation()
     }
@@ -465,6 +489,12 @@ export class MessageManager {
     return result.finally(() => {
       if (this.queues.get(conversationId) === settled) this.queues.delete(conversationId)
     })
+  }
+
+  private async awaitScopeBarrier(token: MessageOperationToken): Promise<void> {
+    const barrier = this.scopeBarrier
+    await barrier
+    this.assertOperationCurrent(token)
   }
 
   private publish(event: MessageManagerEvent): void {

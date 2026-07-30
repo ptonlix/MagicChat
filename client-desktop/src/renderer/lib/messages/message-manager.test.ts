@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ClientMessage } from "@/lib/client-data-api"
 import type {
   MessageCacheGeneration,
@@ -185,11 +185,63 @@ describe("MessageManager", () => {
     )
     expect(repository.records).toEqual([])
   })
+
+  it("设置清理保留工作集、使旧操作失效并让新写入等待清理完成", async () => {
+    const repository = new FakeRepository([])
+    const manager = new MessageManager(repository)
+    await manager.ingest("local", [message(1)])
+    const oldOperation = manager.beginConversationOperation("conversation-1")
+    const clearGate = deferred<void>()
+    repository.clearOverride = () => clearGate.promise
+
+    const clearing = manager.clearPersistentCache()
+    const ingesting = manager.ingest("local", [message(2)])
+
+    await expect(manager.commitLatest(oldOperation, [message(3)], page())).rejects.toBeInstanceOf(
+      MessageOperationCancelledError,
+    )
+    expect(manager.getMessages("conversation-1").map(({ seq }) => seq)).toEqual([1])
+    expect(repository.records.map(({ seq }) => seq)).toEqual([1])
+
+    clearGate.resolve()
+    await clearing
+    await ingesting
+
+    expect(repository.clearCalls).toBe(1)
+    expect(manager.getMessages("conversation-1").map(({ seq }) => seq)).toEqual([1, 2])
+    expect(repository.records.map(({ seq }) => seq)).toEqual([2])
+  })
+
+  it("设置清理期间启动的新追赶等待清理完成", async () => {
+    const repository = new FakeRepository([])
+    const manager = new MessageManager(repository)
+    const clearGate = deferred<void>()
+    repository.clearOverride = () => clearGate.promise
+    const clearing = manager.clearPersistentCache()
+    const fetchPage = vi.fn().mockResolvedValue({ messages: [message(1)], page: page() })
+
+    const catchUp = manager.catchUp(
+      manager.beginConversationOperation("conversation-1"),
+      0,
+      fetchPage,
+    )
+    await Promise.resolve()
+    expect(fetchPage).not.toHaveBeenCalled()
+
+    clearGate.resolve()
+    await clearing
+    await catchUp
+
+    expect(fetchPage).toHaveBeenCalledOnce()
+    expect(repository.records.map(({ seq }) => seq)).toEqual([1])
+  })
 })
 
 class FakeRepository implements MessageRepository {
   beforePageOverride?: MessageCachePage
+  clearCalls = 0
   clearConversationCalls = 0
+  clearOverride?: () => Promise<void>
   failLatestCommit = false
   getByIdOverride?: () => Promise<ClientMessage | null>
   records: ClientMessage[]
@@ -206,6 +258,8 @@ class FakeRepository implements MessageRepository {
   }
 
   async clear() {
+    this.clearCalls += 1
+    await this.clearOverride?.()
     this.records = []
   }
   async clearConversation() {

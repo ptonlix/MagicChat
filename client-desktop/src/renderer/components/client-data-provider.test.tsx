@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ClientDataProvider } from "@/components/client-data-provider"
 import { useClientData } from "@/lib/client-data-context"
-import { configureMessageCacheTarget } from "@/lib/messages"
+import { clearManagedMessageCache, configureMessageCacheTarget } from "@/lib/messages"
 
 describe("ClientDataProvider", () => {
   afterEach(() => {
@@ -419,6 +419,214 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("lifecycle-state")).toHaveTextContent("1:0")
   })
 
+  it("为设置页注册保留当前工作集的 Manager 缓存清理", async () => {
+    vi.useFakeTimers()
+    const messageCache = createMessageCacheMock()
+    vi.stubGlobal("desktop", { messageCache })
+    const target = {
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    }
+    const restoreTarget = configureMessageCacheTarget(target)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === "/api/client/me")
+          return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+        if (url === "/api/client/contacts")
+          return Promise.resolve(jsonResponse(createContactsResponse()))
+        if (url === "/api/client/conversations")
+          return Promise.resolve(jsonResponse(createConversationsResponse([])))
+        if (url === "/api/client/projects?limit=100")
+          return Promise.resolve(jsonResponse(createProjectsResponse()))
+        return Promise.reject(new Error(`unexpected request: ${url}`))
+      }),
+    )
+
+    const view = render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <div>ready</div>
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    await expect(clearManagedMessageCache(target)).resolves.toBe(true)
+    expect(messageCache.clearUser).toHaveBeenCalledWith(target)
+
+    view.unmount()
+    restoreTarget()
+  })
+
+  it("清理持久缓存后保留当前消息并从 Server 加载更早历史", async () => {
+    vi.useFakeTimers()
+    const messageCache = createMessageCacheMock()
+    messageCache.readBefore.mockResolvedValue({
+      complete: false,
+      hasMoreBefore: true,
+      messages: [],
+      newestSeq: 0,
+      oldestSeq: 0,
+    })
+    vi.stubGlobal("desktop", { messageCache })
+    const target = {
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    }
+    const restoreTarget = configureMessageCacheTarget(target)
+    let beforeRequestCount = 0
+    let latestRequestCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === "/api/client/me")
+          return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+        if (url === "/api/client/contacts")
+          return Promise.resolve(jsonResponse(createContactsResponse()))
+        if (url === "/api/client/conversations")
+          return Promise.resolve(
+            jsonResponse(
+              createConversationsResponse([createConversationResponse("conversation-1")]),
+            ),
+          )
+        if (url === "/api/client/projects?limit=100")
+          return Promise.resolve(jsonResponse(createProjectsResponse()))
+        if (url === "/api/client/conversations/conversation-1/messages?limit=20") {
+          latestRequestCount += 1
+          return Promise.resolve(jsonResponse(createMessagesResponse(21, true)))
+        }
+        if (url === "/api/client/conversations/conversation-1/messages?limit=20&before_seq=21") {
+          beforeRequestCount += 1
+          return Promise.resolve(jsonResponse(createMessagesResponse(1, false)))
+        }
+        return Promise.reject(new Error(`unexpected request: ${url}`))
+      }),
+    )
+
+    const view = render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <MessagePaginationProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("1:more")
+
+    await act(async () => {
+      await clearManagedMessageCache(target)
+    })
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("1:more")
+
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(latestRequestCount).toBe(2)
+    expect(messageCache.commitLatest).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(latestRequestCount).toBe(2)
+
+    await act(async () => {
+      screen.getByRole("button", { name: "load older messages" }).click()
+    })
+    expect(beforeRequestCount).toBe(1)
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("2:end")
+
+    view.unmount()
+    restoreTarget()
+  })
+
+  it("清理后的 Server 校准失败时保留当前消息并在下次进入重试", async () => {
+    vi.useFakeTimers()
+    const messageCache = createMessageCacheMock()
+    vi.stubGlobal("desktop", { messageCache })
+    const target = {
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    }
+    const restoreTarget = configureMessageCacheTarget(target)
+    let latestRequestCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === "/api/client/me")
+          return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+        if (url === "/api/client/contacts")
+          return Promise.resolve(jsonResponse(createContactsResponse()))
+        if (url === "/api/client/conversations")
+          return Promise.resolve(
+            jsonResponse(
+              createConversationsResponse([createConversationResponse("conversation-1")]),
+            ),
+          )
+        if (url === "/api/client/projects?limit=100")
+          return Promise.resolve(jsonResponse(createProjectsResponse()))
+        if (url === "/api/client/conversations/conversation-1/messages?limit=20") {
+          latestRequestCount += 1
+          if (latestRequestCount === 2) return Promise.reject(new Error("network unavailable"))
+          return Promise.resolve(
+            jsonResponse(createMessagesResponse(latestRequestCount === 1 ? 1 : 2, true)),
+          )
+        }
+        return Promise.reject(new Error(`unexpected request: ${url}`))
+      }),
+    )
+
+    const view = render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <MessagePaginationProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("1:more")
+
+    await act(async () => {
+      await clearManagedMessageCache(target)
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(latestRequestCount).toBe(2)
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("1:more")
+    expect(screen.getByTestId("pagination-load-state")).toHaveTextContent("loaded:idle")
+
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(latestRequestCount).toBe(3)
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("2:more")
+
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    expect(latestRequestCount).toBe(3)
+
+    view.unmount()
+    restoreTarget()
+  })
+
   it("会话移除后忽略更早发出的消息响应", async () => {
     vi.useFakeTimers()
     const messagesResponse = createDeferred<Response>()
@@ -759,6 +967,36 @@ function ConversationLifecycleProbe() {
   )
 }
 
+function MessagePaginationProbe() {
+  const {
+    ensureConversationMessages,
+    getConversationMessageState,
+    loadBeforeConversationMessages,
+  } = useClientData()
+  const state = getConversationMessageState("conversation-1")
+
+  return (
+    <>
+      <button
+        aria-label="load paged messages"
+        onClick={() => ensureConversationMessages("conversation-1")}
+        type="button"
+      />
+      <button
+        aria-label="load older messages"
+        onClick={() => loadBeforeConversationMessages("conversation-1")}
+        type="button"
+      />
+      <div data-testid="pagination-state">
+        {state.messages.length}:{state.page?.hasMoreBefore ? "more" : "end"}
+      </div>
+      <div data-testid="pagination-load-state">
+        {state.loaded ? "loaded" : "unloaded"}:{state.loading ? "loading" : "idle"}
+      </div>
+    </>
+  )
+}
+
 function GroupRealtimeMessageProbe() {
   const { conversations, getConversationMessageState, handleIncomingConversationMessage } =
     useClientData()
@@ -834,7 +1072,9 @@ function createDeferred<T>() {
 function createMessageCacheMock() {
   const generation = { conversation: 0, global: 0, server: 0, user: 0 }
   return {
+    clearUser: vi.fn().mockResolvedValue(undefined),
     clearConversation: vi.fn().mockResolvedValue({ ...generation, conversation: 1 }),
+    commitBefore: vi.fn(),
     commitLatest: vi.fn(),
     getSyncState: vi.fn().mockResolvedValue({
       conversationId: "conversation-1",
@@ -850,6 +1090,7 @@ function createMessageCacheMock() {
       newestSeq: 0,
       oldestSeq: 0,
     }),
+    readBefore: vi.fn(),
   }
 }
 
@@ -922,28 +1163,28 @@ function createProjectsResponse() {
   }
 }
 
-function createMessagesResponse() {
+function createMessagesResponse(seq = 1, hasMoreBefore = false) {
   return {
     data: {
       messages: [
         {
-          body: { content: "hello", type: "text" },
-          client_message_id: "client-message-1",
+          body: { content: `hello ${seq}`, type: "text" },
+          client_message_id: `client-message-${seq}`,
           conversation_id: "conversation-1",
           created_at: "2026-07-21T00:00:00Z",
-          id: "message-1",
+          id: `message-${seq}`,
           reaction_version: 1,
           reactions: [],
           sender: { id: "user-2", type: "user" },
-          seq: 1,
+          seq,
         },
       ],
       page: {
         has_more_after: false,
-        has_more_before: false,
+        has_more_before: hasMoreBefore,
         limit: 20,
-        newest_seq: 1,
-        oldest_seq: 1,
+        newest_seq: seq,
+        oldest_seq: seq,
       },
     },
     success: true,

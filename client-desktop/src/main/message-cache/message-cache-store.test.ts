@@ -22,6 +22,17 @@ afterEach(async () => {
 })
 
 describe("SQLite 消息缓存事务", () => {
+  it("没有同步状态时历史空页必须标记为缓存未命中", async () => {
+    const store = await createStore()
+
+    expect(store.readBefore(scope, 100, 20)).toMatchObject({
+      complete: false,
+      hasMoreBefore: true,
+      messages: [],
+    })
+    store.close()
+  })
+
   it("latest 初始化游标，realtime 不推进，after 只按 CAS 连续推进", async () => {
     const store = await createStore()
     expect(

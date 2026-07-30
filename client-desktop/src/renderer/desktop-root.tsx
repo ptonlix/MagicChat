@@ -41,7 +41,7 @@ import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
 import { startRuntimeDiagnostics } from "@/lib/runtime-diagnostics"
 import { releaseChannelLabel } from "@/release-channel"
 import { BrandLoadingScreen } from "@/components/brand-loading-screen"
-import { configureMessageCacheTarget } from "@/lib/messages"
+import { clearManagedMessageCache, configureMessageCacheTarget } from "@/lib/messages"
 import type { MessageCacheStats } from "@shared/message-cache-contract"
 
 export function DesktopRoot() {
@@ -464,7 +464,8 @@ function DesktopSettingsPanel({
     setCacheClearing(true)
     setSettingsError("")
     try {
-      await window.desktop.messageCache.clearUser(target)
+      const managed = await clearManagedMessageCache(target)
+      if (!managed) await window.desktop.messageCache.clearUser(target)
       setCacheStats(await window.desktop.messageCache.getStats(target))
     } catch {
       setSettingsError("本地消息缓存清理失败，请重试")

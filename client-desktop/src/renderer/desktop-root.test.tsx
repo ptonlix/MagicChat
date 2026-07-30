@@ -154,6 +154,27 @@ describe("桌面设置服务器管理", () => {
     expect(source).toMatch(/\.desktop-icon-action\s*\{[^}]*justify-self:\s*end/)
   })
 
+  it("确认后清理当前账户缓存并刷新统计", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "清理本地消息缓存" }))
+
+    await waitFor(() => expect(bridge.messageCache.clearUser).toHaveBeenCalledOnce())
+    expect(bridge.messageCache.clearUser).toHaveBeenCalledWith({
+      id: profile.id,
+      normalizedUrl: profile.normalizedUrl,
+      userId: profile.lastUserId ?? "anonymous",
+    })
+    expect(bridge.messageCache.getStats).toHaveBeenCalledTimes(2)
+  })
+
   it("设置保存失败时保留原值并显示错误", async () => {
     const bridge = createDesktopBridge()
     vi.mocked(bridge.settings.set).mockRejectedValueOnce(

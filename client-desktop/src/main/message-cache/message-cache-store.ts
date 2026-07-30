@@ -106,11 +106,11 @@ export class MessageCacheStore {
   readBefore(scope: MessageCacheScope, beforeSeq: number, limit: number): MessageCachePage {
     const key = columns(scope)
     const state = this.syncRow(key)
-    if (!state) return this.page(scope, [])
+    if (!state) return cacheMissPage()
     if (state.oldest_cached_seq !== null && beforeSeq <= state.oldest_cached_seq) {
       return this.page(scope, [])
     }
-    if (beforeSeq > state.http_synced_through_seq + 1) return this.page(scope, [])
+    if (beforeSeq > state.http_synced_through_seq + 1) return cacheMissPage()
     const rows = this.database
       .prepare(
         `SELECT conversation_id, message_id, seq, reaction_version,
@@ -697,6 +697,16 @@ function columns(scope: MessageCacheScope): ScopeColumns {
     conversationId: scope.conversationId,
     serverKey: createServerKey(scope.target),
     userId: scope.target.userId,
+  }
+}
+
+function cacheMissPage(): MessageCachePage {
+  return {
+    complete: false,
+    hasMoreBefore: true,
+    messages: [],
+    newestSeq: 0,
+    oldestSeq: 0,
   }
 }
 

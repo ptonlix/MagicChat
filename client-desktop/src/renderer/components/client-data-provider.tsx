@@ -71,8 +71,10 @@ import {
   catchUpConversationMessages,
   getMessageCacheTarget,
   isMessageOperationCancelled,
+  messageCacheTargetKey,
   MessageManager,
   prioritizeConversationSyncs,
+  registerMessageCacheClearHandler,
   type MessageOperationToken,
 } from "@/lib/messages"
 
@@ -119,6 +121,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const conversationsRef = useRef(conversations)
   const mountedRef = useRef(true)
   const loadingConversationOperationsRef = useRef<Map<string, symbol>>(new Map())
+  const conversationsNeedingServerRefreshRef = useRef<Set<string>>(new Set())
   const syncingAfterConversationOperationsRef = useRef<Map<string, symbol>>(new Map())
   const refreshingReactionSnapshotKeysRef = useRef<Set<string>>(new Set())
   const reactionSnapshotMinimumVersionsRef = useRef<Map<string, number>>(new Map())
@@ -128,9 +131,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const { applyConversationMessageRetention, registerConversationMessageView } =
     useConversationMessageRetention()
   const cacheTarget = getMessageCacheTarget()
-  const cacheTargetKey = cacheTarget
-    ? `${cacheTarget.id}:${cacheTarget.normalizedUrl}:${cacheTarget.userId}`
-    : ""
+  const cacheTargetKey = cacheTarget ? messageCacheTargetKey(cacheTarget) : ""
   if (
     cacheTarget &&
     cacheTarget.userId !== "anonymous" &&
@@ -142,6 +143,22 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     }
   }
   const messageManager = messageManagerRef.current?.manager ?? null
+
+  useEffect(() => {
+    if (!cacheTarget || !messageManager) return
+    return registerMessageCacheClearHandler(cacheTarget, async () => {
+      await messageManager.clearPersistentCache()
+      const conversationsNeedingServerRefresh = conversationsNeedingServerRefreshRef.current
+      conversationsNeedingServerRefresh.clear()
+      for (const [conversationId, state] of Object.entries(conversationMessageStatesRef.current)) {
+        if (state.loaded) conversationsNeedingServerRefresh.add(conversationId)
+      }
+    })
+  }, [cacheTarget, messageManager])
+
+  useEffect(() => {
+    conversationsNeedingServerRefreshRef.current.clear()
+  }, [cacheTargetKey])
 
   useEffect(() => {
     conversationMessageStatesRef.current = conversationMessageStates
@@ -381,10 +398,12 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     if (!messageManager) return
     return messageManager.subscribe((event) => {
       if (event.kind === "scope-cleared") {
+        conversationsNeedingServerRefreshRef.current.clear()
         setConversationMessageStates({})
         return
       }
       if (event.kind === "conversation-cleared") {
+        conversationsNeedingServerRefreshRef.current.delete(event.conversationId)
         setConversationMessageStates((currentStates) => {
           if (!(event.conversationId in currentStates)) return currentStates
           const nextStates = { ...currentStates }
@@ -1076,13 +1095,15 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       }
 
       const state = conversationMessageStatesRef.current[conversationId]
+      const needsServerRefresh = conversationsNeedingServerRefreshRef.current.has(conversationId)
       if (
-        state?.loaded ||
+        (state?.loaded && !needsServerRefresh) ||
         state?.loading ||
         loadingConversationOperationsRef.current.has(conversationId)
       ) {
         return
       }
+      const wasLoaded = state?.loaded === true
 
       let operation: MessageOperationToken | undefined
       try {
@@ -1128,6 +1149,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
                 result.messages,
               )
           if (operation) messageManager?.assertOperationCurrent(operation)
+          conversationsNeedingServerRefreshRef.current.delete(conversationId)
           updateConversationMessageState(conversationId, (currentState) => ({
             ...currentState,
             error: null,
@@ -1146,10 +1168,10 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           updateConversationMessageState(conversationId, (currentState) => ({
             ...currentState,
             error: message,
-            loaded: restoredFromCache,
+            loaded: wasLoaded || restoredFromCache,
             loading: false,
           }))
-          if (!restoredFromCache) toast.error(message)
+          if (!wasLoaded && !restoredFromCache) toast.error(message)
         } finally {
           if (loadingConversationOperationsRef.current.get(conversationId) === loadingOperation) {
             loadingConversationOperationsRef.current.delete(conversationId)
@@ -1451,6 +1473,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     navigate,
     onConversationsMutated: markConversationsMutated,
     onConversationRemoved: (conversationId) => {
+      conversationsNeedingServerRefreshRef.current.delete(conversationId)
       loadingConversationOperationsRef.current.delete(conversationId)
       syncingAfterConversationOperationsRef.current.delete(conversationId)
       void messageManager?.clearConversation(conversationId).catch(() => undefined)

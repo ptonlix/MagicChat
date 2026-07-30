@@ -5,6 +5,11 @@ export {
 } from "./message-cache-client"
 export { MessageManager } from "./message-manager"
 export {
+  clearManagedMessageCache,
+  messageCacheTargetKey,
+  registerMessageCacheClearHandler,
+} from "./message-cache-control"
+export {
   isMessageOperationCancelled,
   MessageOperationCancelledError,
   type MessageOperationToken,
