@@ -1,13 +1,35 @@
 import { existsSync, readdirSync, renameSync, unlinkSync } from "node:fs"
 import path from "node:path"
 
-const databaseExtensions = ["", "-wal", "-shm"] as const
+const databaseExtensions = ["-wal", "-shm", ""] as const
 
-export function isolateDatabaseFiles(databasePath: string): void {
+export function isolateDatabaseFiles(
+  databasePath: string,
+  renameFile: (source: string, target: string) => void = renameSync,
+): void {
   const suffix = `.isolated-${Date.now()}`
-  for (const extension of databaseExtensions) {
-    const source = `${databasePath}${extension}`
-    if (existsSync(source)) renameSync(source, `${source}${suffix}`)
+  const moved: Array<Readonly<{ source: string; target: string }>> = []
+  try {
+    for (const extension of databaseExtensions) {
+      const source = `${databasePath}${extension}`
+      if (!existsSync(source)) continue
+      const target = `${source}${suffix}`
+      renameFile(source, target)
+      moved.push({ source, target })
+    }
+  } catch (error) {
+    const rollbackErrors: unknown[] = []
+    for (const { source, target } of moved.reverse()) {
+      try {
+        renameFile(target, source)
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError)
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError([error, ...rollbackErrors], "数据库隔离回滚失败")
+    }
+    throw error
   }
 }
 

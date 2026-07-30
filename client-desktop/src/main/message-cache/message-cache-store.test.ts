@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { renameSync } from "node:fs"
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -7,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { MessageCacheGeneration, MessageCacheScope } from "@shared/message-cache-contract"
 import { MessageCacheStore } from "./message-cache-store"
 import { openMessageCacheStore } from "./message-cache-database"
+import { isolateDatabaseFiles } from "./message-cache-isolation"
 
 const directories: string[] = []
 const generation: MessageCacheGeneration = { conversation: 0, global: 0, server: 0, user: 0 }
@@ -247,9 +249,54 @@ describe("SQLite 消息缓存事务", () => {
     store.database
       .prepare("UPDATE cached_messages SET payload_json = 'invalid' WHERE seq = 1")
       .run()
-    expect(store.readRecent(scope, 20).messages.map((item) => item.seq)).toEqual([2])
+    const page = store.readRecent(scope, 20)
+    expect(page.messages.map((item) => item.seq)).toEqual([2])
+    expect(page.complete).toBe(false)
     expect(store.getStats(scope.target).messageCount).toBe(1)
     store.close()
+  })
+
+  it.each([2, 3])("隔离第 %i 次重命名失败时回滚全部已移动文件", async (failureAt) => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-message-cache-"))
+    directories.push(directory)
+    const databasePath = path.join(directory, "messages.sqlite3")
+    await Promise.all(
+      ["", "-wal", "-shm"].map((extension) => writeFile(`${databasePath}${extension}`, "cache")),
+    )
+    let renameCount = 0
+
+    expect(() =>
+      isolateDatabaseFiles(databasePath, (source, target) => {
+        renameCount += 1
+        if (renameCount === failureAt) throw new Error("rename failed")
+        renameSync(source, target)
+      }),
+    ).toThrow("rename failed")
+
+    expect((await readdir(directory)).sort()).toEqual(
+      ["messages.sqlite3", "messages.sqlite3-shm", "messages.sqlite3-wal"].sort(),
+    )
+  })
+
+  it("隔离时先移动 WAL 和 SHM，最后移动主数据库", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-message-cache-"))
+    directories.push(directory)
+    const databasePath = path.join(directory, "messages.sqlite3")
+    await Promise.all(
+      ["", "-wal", "-shm"].map((extension) => writeFile(`${databasePath}${extension}`, "cache")),
+    )
+    const movedSources: string[] = []
+
+    isolateDatabaseFiles(databasePath, (source, target) => {
+      movedSources.push(path.basename(source))
+      renameSync(source, target)
+    })
+
+    expect(movedSources).toEqual([
+      "messages.sqlite3-wal",
+      "messages.sqlite3-shm",
+      "messages.sqlite3",
+    ])
   })
 
   it("每会话超过 3000 条时裁剪最旧消息并恢复服务端历史边界", async () => {

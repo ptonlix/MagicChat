@@ -101,16 +101,27 @@ POC 不启用远程崩溃遥测，`crashReporter.uploadToServer=false`，也不�
 消息缓存位于 Electron `userData/message-cache/messages-v1.sqlite3`，由 Main 管理的专用
 Worker 使用 Node.js 内置 `node:sqlite` 独占访问。Renderer 只能通过版本化的
 `DesktopBridge.messageCache` 执行有界分页、事务提交、状态查询和定向清理，不能获得
-数据库路径、SQL、Worker 或 Node.js 能力。数据库使用 WAL、SQLite `user_version` 迁移、
+数据库路径、SQL、Worker 或 Node.js 能力。数据库使用 WAL 和从首版建立的连续
+`user_version` 迁移注册表，
 按 Server/用户/会话隔离和 generation 防迟到写入；POSIX 目录与文件权限分别限制为
 `0700`、`0600`，Windows 依赖当前用户的 `userData` ACL。
 
-数据库无法打开、schema 过高或迁移失败时，Worker 会先关闭失败连接，将数据库、WAL
-和 SHM 临时改名，为同一路径的新库让位。临时隔离文件不作为恢复源、诊断产物或备份：
+空数据库与旧版本数据库使用同一条逐级迁移路径。迁移注册表必须从版本 1 连续登记到当前
+支持版本；重复、缺失、乱序或目标版本未登记会在修改数据库前失败。所有待执行迁移、逐级
+`user_version` 更新和 payload schema 校准位于同一个独占事务中，失败时整体回滚；已经发布
+的旧迁移不得改写，只能追加更高版本。
+
+数据库无法打开、schema 过高或迁移失败时，Worker 会先关闭失败连接，按 WAL、SHM、
+主数据库的顺序临时改名，为同一路径的新库让位；任一步失败都会逆序恢复本轮已移动文件。
+临时隔离文件不作为恢复源、诊断产物或备份：
 新库完成 schema 初始化和权限设置后立即删除；Worker 每次启动及会话、用户、Server、
 孤立 Server 和全量消息缓存清理时也会清扫旧版本或异常中断遗留文件。清扫只匹配固定
 数据库 basename 和纯数字时间戳，不能访问任意路径或误删其他业务文件。恢复成功后若
 仍无法删除临时文件，缓存进入内存降级，不得在保留明文副本时报告可用。
+
+历史缓存页同时携带完整性状态。Main 删除无法解析的记录或 Renderer 拒绝核心结构不一致的
+记录后，可以保留同页其他有效消息用于展示，但该页不能作为完整缓存命中，必须从原始
+`beforeSeq` 回源 Server 补齐，避免损坏记录形成永久历史缺口。
 
 与 Mobile 普通 `expo-sqlite` 缓存一致，消息 SQLite 不使用 SQLCipher 或应用级静态加密，
 正文在本机以明文数据库形式存在。其保护边界是操作系统账户、应用数据目录权限和系统磁盘

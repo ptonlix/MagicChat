@@ -54,6 +54,7 @@ export type MessageCacheRecord = Readonly<{
 }>
 
 export type MessageCachePage = Readonly<{
+  complete: boolean
   hasMoreBefore: boolean
   messages: ReadonlyArray<MessageCacheRecord>
   newestSeq: number

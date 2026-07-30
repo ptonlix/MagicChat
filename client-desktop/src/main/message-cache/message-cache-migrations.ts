@@ -3,19 +3,44 @@ import {
   MESSAGE_CACHE_PAYLOAD_SCHEMA_VERSION,
   MESSAGE_CACHE_SCHEMA_VERSION,
 } from "@shared/message-cache-contract"
-import { MESSAGE_CACHE_INITIAL_SCHEMA } from "./message-cache-schema"
+import { MESSAGE_CACHE_SCHEMA_V1, MESSAGE_CACHE_SCHEMA_V2 } from "./message-cache-schema"
 
-export function migrateMessageCache(database: DatabaseSync): void {
+export type MessageCacheMigration = Readonly<{
+  migrate(database: DatabaseSync): void
+  version: number
+}>
+
+export const MESSAGE_CACHE_MIGRATIONS: ReadonlyArray<MessageCacheMigration> = [
+  { migrate: (database) => database.exec(MESSAGE_CACHE_SCHEMA_V1), version: 1 },
+  { migrate: (database) => database.exec(MESSAGE_CACHE_SCHEMA_V2), version: 2 },
+]
+
+type MessageCacheMigrationOptions = Readonly<{
+  migrations?: ReadonlyArray<MessageCacheMigration>
+  supportedVersion?: number
+}>
+
+export function migrateMessageCache(
+  database: DatabaseSync,
+  options: MessageCacheMigrationOptions = {},
+): void {
+  const migrations = options.migrations ?? MESSAGE_CACHE_MIGRATIONS
+  const supportedVersion = options.supportedVersion ?? MESSAGE_CACHE_SCHEMA_VERSION
+  validateMessageCacheMigrations(migrations, supportedVersion)
   const row = database.prepare("PRAGMA user_version").get() as
     | Readonly<{ user_version: number }>
     | undefined
   const previousVersion = row?.user_version ?? 0
-  if (previousVersion > MESSAGE_CACHE_SCHEMA_VERSION) {
+  if (previousVersion > supportedVersion) {
     throw new Error("cache schema is newer than this application")
   }
   database.exec("BEGIN EXCLUSIVE")
   try {
-    database.exec(MESSAGE_CACHE_INITIAL_SCHEMA)
+    for (const migration of migrations) {
+      if (migration.version <= previousVersion) continue
+      migration.migrate(database)
+      database.exec(`PRAGMA user_version = ${migration.version}`)
+    }
     const payloadRow = database
       .prepare("SELECT value FROM message_cache_metadata WHERE key = 'payload_schema_version'")
       .get() as Readonly<{ value: number }> | undefined
@@ -33,10 +58,24 @@ export function migrateMessageCache(database: DatabaseSync): void {
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       )
       .run(MESSAGE_CACHE_PAYLOAD_SCHEMA_VERSION)
-    database.exec(`PRAGMA user_version = ${MESSAGE_CACHE_SCHEMA_VERSION}`)
     database.exec("COMMIT")
   } catch (error) {
     database.exec("ROLLBACK")
     throw error
   }
+}
+
+export function validateMessageCacheMigrations(
+  migrations: ReadonlyArray<MessageCacheMigration>,
+  supportedVersion: number,
+): void {
+  if (!Number.isSafeInteger(supportedVersion) || supportedVersion < 1) invalidMigrationRegistry()
+  if (migrations.length !== supportedVersion) invalidMigrationRegistry()
+  for (let index = 0; index < migrations.length; index += 1) {
+    if (migrations[index]?.version !== index + 1) invalidMigrationRegistry()
+  }
+}
+
+function invalidMigrationRegistry(): never {
+  throw new Error("cache migration registry is invalid")
 }

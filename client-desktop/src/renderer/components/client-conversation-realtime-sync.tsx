@@ -35,8 +35,10 @@ export function ClientConversationRealtimeSync() {
     updateConversationPinned,
     updateMessageTopic,
   } = useClientData()
-  const hasSeenRealtimeReadyRef = React.useRef(realtimeReady)
-  const previousRealtimeReadyRef = React.useRef(realtimeReady)
+  // 子组件只会在 Realtime 已 ready 后首次挂载，因此不能用当前 ready 值
+  // 初始化 previous，否则首次挂载会被误判为一次已经处理过的 ready 边沿。
+  const hasSeenRealtimeReadyRef = React.useRef(false)
+  const previousRealtimeReadyRef = React.useRef<boolean | null>(null)
   const activeConversationId = React.useMemo(
     () => matchPath("/chat/:conversationId", location.pathname)?.params.conversationId ?? "",
     [location.pathname],

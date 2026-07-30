@@ -177,11 +177,13 @@ async function start(): Promise<void> {
     event.preventDefault()
     void Promise.all([files.cleanup(), messageCache.close()]).finally(() => {
       updater.dispose()
-      unregisterIpc()
       app.quit()
     })
   })
-  app.once("will-quit", () => updater.dispose())
+  app.once("will-quit", () => {
+    unregisterIpc()
+    updater.dispose()
+  })
   process.on("uncaughtException", (error) => void diagnostics.record("main", error.name))
   process.on("unhandledRejection", () => void diagnostics.record("main", "unhandled-rejection"))
   app.on("child-process-gone", (_event, details) => {

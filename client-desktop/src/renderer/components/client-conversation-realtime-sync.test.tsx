@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const callbacks = new Map<string, (payload: unknown) => void>()
 const updateConversationMuted = vi.fn()
 const refreshConversations = vi.fn().mockResolvedValue(undefined)
+const syncLoadedConversationMessages = vi.fn()
 
 vi.mock("@/lib/realtime-context", () => ({
   useRealtime: () => ({
@@ -24,7 +25,7 @@ vi.mock("@/lib/client-data-context", () => ({
     handleIncomingMessageReactionsUpdate: vi.fn(),
     refreshConversations,
     removeConversation: vi.fn(),
-    syncLoadedConversationMessages: vi.fn(),
+    syncLoadedConversationMessages,
     updateConversationLastMentionedSeq: vi.fn(),
     updateConversationMuted,
     updateConversationPinned: vi.fn(),
@@ -38,7 +39,19 @@ describe("ClientConversationRealtimeSync", () => {
   beforeEach(() => {
     callbacks.clear()
     refreshConversations.mockClear()
+    syncLoadedConversationMessages.mockClear()
     updateConversationMuted.mockClear()
+  })
+
+  it("首次以 ready 状态挂载时也会触发已知会话追赶", () => {
+    render(
+      <MemoryRouter initialEntries={["/chat/conversation-1"]}>
+        <ClientConversationRealtimeSync />
+      </MemoryRouter>,
+    )
+
+    expect(syncLoadedConversationMessages).toHaveBeenCalledOnce()
+    expect(refreshConversations).not.toHaveBeenCalled()
   })
 
   it("applies conversation mute realtime events", () => {

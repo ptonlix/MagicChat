@@ -416,6 +416,7 @@ export class MessageCacheStore {
     }
     const state = this.syncRow(columns(scope))
     return {
+      complete: corruptIds.length === 0,
       hasMoreBefore: Boolean(state?.has_more_before),
       messages,
       newestSeq: messages.at(-1)?.seq ?? 0,

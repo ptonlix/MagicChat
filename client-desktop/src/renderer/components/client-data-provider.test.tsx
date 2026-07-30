@@ -844,6 +844,7 @@ function createMessageCacheMock() {
       lastAccessedAt: 0,
     }),
     readRecent: vi.fn().mockResolvedValue({
+      complete: true,
       hasMoreBefore: true,
       messages: [],
       newestSeq: 0,

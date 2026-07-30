@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { ClientMessage } from "@/lib/client-data-api"
 import type {
   MessageCacheGeneration,
+  MessageCachePage,
   MessageCacheRecord,
   MessageCacheSyncState,
 } from "@shared/message-cache-contract"
@@ -50,6 +51,28 @@ describe("MessageManager", () => {
       "user-1",
     )
     expect(repository.records[0]).toMatchObject({ reactionVersion: 1 })
+  })
+
+  it("历史缓存页包含结构损坏记录时保留有效消息但要求回源", async () => {
+    const repository = new FakeRepository([message(1), message(2)])
+    const valid = serializeMessage(message(1))
+    repository.beforePageOverride = {
+      complete: true,
+      hasMoreBefore: false,
+      messages: [valid, { ...serializeMessage(message(2)), payloadJson: "{}" }],
+      newestSeq: 2,
+      oldestSeq: 1,
+    }
+    const manager = new MessageManager(repository)
+
+    const result = await manager.hydrateBefore(
+      manager.beginConversationOperation("conversation-1"),
+      3,
+      20,
+    )
+
+    expect(result.hit).toBe(false)
+    expect(result.messages.map(({ id }) => id)).toEqual(["message-1"])
   })
 
   it("两个 manager 的工作集互不共享", async () => {
@@ -165,6 +188,7 @@ describe("MessageManager", () => {
 })
 
 class FakeRepository implements MessageRepository {
+  beforePageOverride?: MessageCachePage
   clearConversationCalls = 0
   failLatestCommit = false
   getByIdOverride?: () => Promise<ClientMessage | null>
@@ -225,6 +249,7 @@ class FakeRepository implements MessageRepository {
     return [this.syncState]
   }
   async readBefore(_id: string, beforeSeq: number) {
+    if (this.beforePageOverride) return this.beforePageOverride
     return cachePage(this.records.filter((record) => record.seq < beforeSeq))
   }
   async readRecent() {
@@ -241,6 +266,7 @@ class FakeRepository implements MessageRepository {
 function cachePage(messages: ClientMessage[]) {
   const records = messages.map(serializeMessage)
   return {
+    complete: true,
     hasMoreBefore: false,
     messages: records as MessageCacheRecord[],
     newestSeq: messages.at(-1)?.seq ?? 0,

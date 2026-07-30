@@ -113,6 +113,7 @@ export class MessageManager {
     const cached = page.messages
       .map(deserializeMessage)
       .filter((message): message is ClientMessage => message !== null)
+    const complete = page.complete && cached.length === page.messages.length
     const messages = await this.enqueue(token, async () => {
       const next = this.workingSet.merge(conversationId, cached, (message) =>
         this.tombstones.has(conversationId, message.id),
@@ -123,7 +124,7 @@ export class MessageManager {
     })
     return {
       hasMoreBefore: page.hasMoreBefore,
-      hit: cached.length > 0 || !page.hasMoreBefore,
+      hit: complete && (cached.length > 0 || !page.hasMoreBefore),
       messages,
     }
   }
