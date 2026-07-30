@@ -47,13 +47,6 @@ export default defineConfig({
       externalizeDeps: true,
       rollupOptions: {
         external: ["electron", "electron-log", "electron-updater", "https-proxy-agent", "ws"],
-        input: {
-          index: path.resolve(__dirname, "src/main/index.ts"),
-          "message-cache-worker": path.resolve(
-            __dirname,
-            "src/main/message-cache/message-cache-worker.ts",
-          ),
-        },
       },
     },
     define: {

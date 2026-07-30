@@ -19,7 +19,7 @@
       "ws": ["./node_modules/@types/ws/index.d.ts"],
       "*": ["./node_modules/*"]
     },
-    "types": ["node", "react", "react-dom", "vite/client", "ws"]
+    "types": ["electron-vite/node", "node", "react", "react-dom", "vite/client", "ws"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "electron.vite.config.ts"]
 }

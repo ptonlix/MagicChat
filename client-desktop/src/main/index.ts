@@ -22,6 +22,7 @@ import { StreamingUploadController } from "@main/streaming-upload"
 import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
+import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
 registerPrivilegedSchemes()
 
@@ -53,7 +54,7 @@ async function start(): Promise<void> {
   const profiles = new ServerProfiles(store)
   const messageCache = new MessageCacheService(
     app.getPath("userData"),
-    path.resolve(__dirname, "message-cache-worker.js"),
+    messageCacheWorkerPath,
     profiles,
   )
   await messageCache.initialize().catch(() => undefined)
