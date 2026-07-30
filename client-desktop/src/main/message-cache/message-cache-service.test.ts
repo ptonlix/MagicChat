@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ServerProfiles } from "@main/server-profiles"
 import {
   MessageCacheError,
@@ -23,6 +23,9 @@ const available: MessageCacheStats = {
 }
 
 describe("MessageCacheService 故障恢复", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
   it("可用性故障进入有上限退避，恢复前不重复访问 Worker", async () => {
     let now = 0
     const client = new FakeWorkerClient()
@@ -55,6 +58,43 @@ describe("MessageCacheService 故障恢复", () => {
     })
     expect(await service.status()).toMatchObject({ status: "available" })
   })
+
+  it("Server 缓存清理故障后后台重试且不依赖已删除 Profile", async () => {
+    vi.useFakeTimers()
+    let now = 0
+    let profileAvailable = true
+    const client = new FakeWorkerClient()
+    const profiles = {
+      list() {
+        return profileAvailable ? [target] : []
+      },
+      require(id: string) {
+        if (!profileAvailable || id !== target.id) throw new Error("missing profile")
+        return target
+      },
+    } as unknown as ServerProfiles
+    const service = new MessageCacheService("/unused", "/unused-worker.js", profiles, {
+      client,
+      now: () => now,
+    })
+    await service.initialize()
+    client.failure = new MessageCacheError("cache_disk_full")
+
+    expect(() => service.clearServerBestEffort(target)).not.toThrow()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await service.status()).toMatchObject({ status: "degraded" })
+    expect(client.requests).toContain("clearServer")
+
+    profileAvailable = false
+    client.failure = null
+    now = 1_000
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(client.recoveries).toBe(1)
+    expect(client.requests.slice(-2)).toEqual(["health", "clearServer"])
+    expect(await service.status()).toMatchObject({ status: "available" })
+    await service.close()
+  })
 })
 
 class FakeWorkerClient {
@@ -79,6 +119,9 @@ class FakeWorkerClient {
 
 function createService(client: FakeWorkerClient, now: () => number) {
   const profiles = {
+    list() {
+      return [target]
+    },
     require(id: string) {
       if (id !== target.id) throw new Error("missing profile")
       return target

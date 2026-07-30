@@ -259,10 +259,27 @@ export class MessageCacheStore {
   clearServer(target: Pick<AuthenticatedTarget, "id" | "normalizedUrl">): void {
     const serverKey = createServerKey(target)
     this.transaction(() => {
-      this.bumpGeneration(serverGenerationKey(serverKey))
-      this.database.prepare("DELETE FROM cached_messages WHERE server_key = ?").run(serverKey)
-      this.database.prepare("DELETE FROM message_sync_state WHERE server_key = ?").run(serverKey)
-      this.database.prepare("DELETE FROM message_cache_stats WHERE server_key = ?").run(serverKey)
+      this.clearServerKey(serverKey)
+    })
+  }
+
+  clearOrphanedServers(
+    targets: ReadonlyArray<Pick<AuthenticatedTarget, "id" | "normalizedUrl">>,
+  ): void {
+    const activeServerKeys = new Set(targets.map(createServerKey))
+    const cachedServerKeys = this.database
+      .prepare(
+        `SELECT server_key FROM cached_messages
+         UNION SELECT server_key FROM message_sync_state
+         UNION SELECT server_key FROM message_cache_stats`,
+      )
+      .all() as Array<Readonly<{ server_key: string }>>
+    const orphanedServerKeys = cachedServerKeys
+      .map((row) => row.server_key)
+      .filter((serverKey) => !activeServerKeys.has(serverKey))
+    if (orphanedServerKeys.length === 0) return
+    this.transaction(() => {
+      for (const serverKey of orphanedServerKeys) this.clearServerKey(serverKey)
     })
   }
 
@@ -638,6 +655,13 @@ export class MessageCacheStore {
       this.database.exec("ROLLBACK")
       throw error
     }
+  }
+
+  private clearServerKey(serverKey: string): void {
+    this.bumpGeneration(serverGenerationKey(serverKey))
+    this.database.prepare("DELETE FROM cached_messages WHERE server_key = ?").run(serverKey)
+    this.database.prepare("DELETE FROM message_sync_state WHERE server_key = ?").run(serverKey)
+    this.database.prepare("DELETE FROM message_cache_stats WHERE server_key = ?").run(serverKey)
   }
 }
 

@@ -10,6 +10,10 @@ export type MessageCacheWorkerOperation =
   | Readonly<{ kind: "clearAll" }>
   | Readonly<{ kind: "clearConversation"; scope: MessageCacheScope }>
   | Readonly<{
+      kind: "clearOrphanedServers"
+      targets: ReadonlyArray<Pick<AuthenticatedTarget, "id" | "normalizedUrl">>
+    }>
+  | Readonly<{
       kind: "clearServer"
       target: Pick<AuthenticatedTarget, "id" | "normalizedUrl">
     }>

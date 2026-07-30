@@ -27,6 +27,7 @@ import { assertTrustedIpcSender } from "@main/ipc-security"
 import { parseDesktopSettingsPatch } from "@main/settings-validation"
 import { registerRuntimeDiagnosticsIpc } from "@main/runtime-diagnostics-ipc"
 import { parseTrayMessages } from "@main/tray-message-validation"
+import { removeServerResources } from "@main/server-removal"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -104,15 +105,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.serversRemove, async (_event, rawId) => {
     const id = asId(rawId)
     const profile = deps.profiles.require(id)
-    deps.realtime.closeServer(id)
-    deps.uploads.cleanupServer(id)
-    await deps.messageCache.clearServer(profile)
-    await Promise.all([
-      deps.files.cleanupServer(id),
-      deps.sessions.remove(profile),
-      deps.credentials.removeServer(id),
-    ])
-    await deps.store.removeServer(id)
+    await removeServerResources(deps, id, profile)
   })
   register(IPC.settingsGet, () => deps.store.getSettings())
   register(IPC.settingsSet, async (_event, rawPatch) => {

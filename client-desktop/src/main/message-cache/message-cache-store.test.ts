@@ -102,6 +102,26 @@ describe("SQLite 消息缓存事务", () => {
     store.close()
   })
 
+  it("启动清扫只删除已经没有 Profile 的 Server 缓存", async () => {
+    const store = await createStore()
+    const orphanedScope = {
+      ...scope,
+      target: {
+        id: "server-removed",
+        normalizedUrl: "https://removed.example.com",
+        userId: "user-2",
+      },
+    }
+    store.upsert(scope, [record(1)], generation)
+    store.upsert(orphanedScope, [record(2)], generation)
+
+    store.clearOrphanedServers([scope.target])
+
+    expect(store.readRecent(scope, 20).messages).toHaveLength(1)
+    expect(store.readRecent(orphanedScope, 20).messages).toEqual([])
+    store.close()
+  })
+
   it("页面事务失败时同时回滚消息和游标", async () => {
     const store = await createStore()
     expect(() =>

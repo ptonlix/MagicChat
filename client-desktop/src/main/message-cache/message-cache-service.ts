@@ -18,8 +18,15 @@ import {
 export class MessageCacheService {
   private readonly client: MessageCacheWorkerPort
   private readonly now: () => number
+  private readonly pendingServerClears = new Map<
+    string,
+    Readonly<{ id: string; normalizedUrl: string }>
+  >()
+  private closed = false
   private nextRecoveryAt = 0
   private recoveryAttempts = 0
+  private serverClearRetry: ReturnType<typeof setTimeout> | undefined
+  private serverClearRun: Promise<void> | undefined
   private statusValue: MessageCacheStats = {
     conversationCount: 0,
     messageCount: 0,
@@ -47,12 +54,19 @@ export class MessageCacheService {
 
   async initialize(): Promise<void> {
     await this.run(async () => {
+      await this.client.request({
+        kind: "clearOrphanedServers",
+        targets: this.profiles.list().map(({ id, normalizedUrl }) => ({ id, normalizedUrl })),
+      })
       this.statusValue = await this.client.request({ kind: "health" })
     })
   }
 
-  close(): Promise<void> {
-    return this.client.close()
+  async close(): Promise<void> {
+    this.closed = true
+    if (this.serverClearRetry !== undefined) clearTimeout(this.serverClearRetry)
+    await this.serverClearRun?.catch(() => undefined)
+    await this.client.close()
   }
 
   clearAll(): Promise<void> {
@@ -68,6 +82,17 @@ export class MessageCacheService {
     const target = parseMessageCacheServerTarget(rawTarget)
     this.requireProfile(target)
     return this.run(() => this.client.request({ kind: "clearServer", target }))
+  }
+
+  clearServerBestEffort(rawTarget: unknown): void {
+    try {
+      const target = parseMessageCacheServerTarget(rawTarget)
+      this.requireProfile(target)
+      this.pendingServerClears.set(serverClearKey(target), target)
+      this.startPendingServerClears()
+    } catch {
+      // Server 移除是安全强制路径，缓存校验或调度失败不得阻止它。
+    }
   }
 
   clearUser(rawTarget: unknown): Promise<void> {
@@ -208,6 +233,39 @@ export class MessageCacheService {
     this.nextRecoveryAt = this.now() + delay
     this.statusValue = { ...this.statusValue, status: "degraded" }
   }
+
+  private startPendingServerClears(): void {
+    if (this.closed || this.serverClearRun || this.pendingServerClears.size === 0) return
+    if (this.serverClearRetry !== undefined) {
+      clearTimeout(this.serverClearRetry)
+      this.serverClearRetry = undefined
+    }
+    this.serverClearRun = this.flushPendingServerClears().finally(() => {
+      this.serverClearRun = undefined
+      if (!this.closed && this.pendingServerClears.size > 0) this.schedulePendingServerClears()
+    })
+  }
+
+  private async flushPendingServerClears(): Promise<void> {
+    for (const [key, target] of [...this.pendingServerClears]) {
+      try {
+        await this.run(() => this.client.request({ kind: "clearServer", target }))
+        if (this.pendingServerClears.get(key) === target) this.pendingServerClears.delete(key)
+      } catch {
+        return
+      }
+    }
+  }
+
+  private schedulePendingServerClears(): void {
+    if (this.closed || this.serverClearRetry !== undefined) return
+    const delay = Math.max(1_000, Math.min(60_000, this.nextRecoveryAt - this.now()))
+    this.serverClearRetry = setTimeout(() => {
+      this.serverClearRetry = undefined
+      this.startPendingServerClears()
+    }, delay)
+    this.serverClearRetry.unref?.()
+  }
 }
 
 interface MessageCacheWorkerPort {
@@ -226,4 +284,8 @@ function isAvailabilityFailure(code: MessageCacheError["code"]): boolean {
 
 function invalidCommit(): never {
   throw new MessageCacheError("cache_invalid_input", "本地消息缓存请求无效")
+}
+
+function serverClearKey(target: Readonly<{ id: string; normalizedUrl: string }>): string {
+  return `${target.id}\u0000${target.normalizedUrl}`
 }

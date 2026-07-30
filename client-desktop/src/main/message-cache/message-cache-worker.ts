@@ -27,6 +27,8 @@ function execute(operation: MessageCacheWorkerOperation): unknown {
       return store.clearAll()
     case "clearConversation":
       return store.clearConversation(operation.scope)
+    case "clearOrphanedServers":
+      return store.clearOrphanedServers(operation.targets)
     case "clearServer":
       return store.clearServer(operation.target)
     case "clearUser":
