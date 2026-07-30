@@ -116,6 +116,18 @@ describe("MessageManager", () => {
     expect(events).toEqual(["conversation-cleared"])
   })
 
+  it("操作启动时捕获 generation，Main 清理后的迟到响应不能重新落盘", async () => {
+    const repository = new FakeRepository([])
+    const manager = new MessageManager(repository)
+    const operation = manager.beginConversationOperation("conversation-1")
+    await operation.generation
+
+    await repository.clear()
+    await manager.commitLatest(operation, [message(1)], page())
+
+    expect(repository.records).toEqual([])
+  })
+
   it("会话清理使请求前捕获的 latest token 失效", async () => {
     const repository = new FakeRepository([])
     const manager = new MessageManager(repository)
@@ -261,28 +273,60 @@ class FakeRepository implements MessageRepository {
     this.clearCalls += 1
     await this.clearOverride?.()
     this.records = []
+    this.syncState = {
+      ...this.syncState,
+      generation: {
+        ...this.syncState.generation,
+        global: this.syncState.generation.global + 1,
+      },
+      httpSyncedThroughSeq: 0,
+    }
   }
   async clearConversation() {
     this.clearConversationCalls += 1
     this.records = []
     return generation
   }
-  async commitAfter(_id: string, _seq: number, records: ReadonlyArray<ClientMessage>) {
+  async commitAfter(
+    _id: string,
+    _seq: number,
+    records: ReadonlyArray<ClientMessage>,
+    _hasMoreBefore: boolean,
+    expectedGeneration: MessageCacheGeneration,
+  ) {
+    this.assertGeneration(expectedGeneration)
     this.records = merge(this.records, records)
     const committedSeq = this.records.at(-1)?.seq ?? 0
     this.syncState = { ...this.syncState, httpSyncedThroughSeq: committedSeq }
-    return { committed: true, committedSeq, generation }
+    return { committed: true, committedSeq, generation: this.syncState.generation }
   }
-  async commitBefore(_id: string, _seq: number, records: ReadonlyArray<ClientMessage>) {
+  async commitBefore(
+    _id: string,
+    _seq: number,
+    records: ReadonlyArray<ClientMessage>,
+    _hasMoreBefore: boolean,
+    expectedGeneration: MessageCacheGeneration,
+  ) {
+    this.assertGeneration(expectedGeneration)
     this.records = merge(this.records, records)
-    return { committed: true, committedSeq: this.syncState.httpSyncedThroughSeq, generation }
+    return {
+      committed: true,
+      committedSeq: this.syncState.httpSyncedThroughSeq,
+      generation: this.syncState.generation,
+    }
   }
-  async commitLatest(_id: string, records: ReadonlyArray<ClientMessage>) {
+  async commitLatest(
+    _id: string,
+    records: ReadonlyArray<ClientMessage>,
+    _hasMoreBefore: boolean,
+    expectedGeneration: MessageCacheGeneration,
+  ) {
+    this.assertGeneration(expectedGeneration)
     if (this.failLatestCommit) throw new Error("cache unavailable")
     this.records = merge(this.records, records)
     const committedSeq = this.records.at(-1)?.seq ?? 0
     this.syncState = { ...this.syncState, httpSyncedThroughSeq: committedSeq }
-    return { committed: true, committedSeq, generation }
+    return { committed: true, committedSeq, generation: this.syncState.generation }
   }
   async getById(_conversationId: string, messageId: string) {
     if (this.getByIdOverride) return this.getByIdOverride()
@@ -309,11 +353,23 @@ class FakeRepository implements MessageRepository {
   async readRecent() {
     return cachePage(this.records)
   }
-  async remove(_id: string, messageId: string) {
+  async remove(_id: string, messageId: string, expectedGeneration: MessageCacheGeneration) {
+    this.assertGeneration(expectedGeneration)
     this.records = this.records.filter((record) => record.id !== messageId)
   }
-  async upsert(_id: string, records: ReadonlyArray<ClientMessage>) {
+  async upsert(
+    _id: string,
+    records: ReadonlyArray<ClientMessage>,
+    expectedGeneration: MessageCacheGeneration,
+  ) {
+    this.assertGeneration(expectedGeneration)
     this.records = merge(this.records, records)
+  }
+
+  private assertGeneration(expected: MessageCacheGeneration) {
+    if (JSON.stringify(expected) !== JSON.stringify(this.syncState.generation)) {
+      throw new Error("cache generation is stale")
+    }
   }
 }
 

@@ -444,6 +444,10 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     [messageManager],
   )
 
+  const clearMessageScope = useCallback(() => {
+    void messageManager?.clear().catch(() => undefined)
+  }, [messageManager])
+
   const applyConversationMessageToList = useCallback(
     (message: ClientMessage, options: { countUnread?: boolean } = {}) => {
       const conversationExists = conversationsRef.current.some(
@@ -1640,6 +1644,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     createGroupConversation,
     createProject,
     compactConversationMessages,
+    clearMessageScope,
     dissolveGroupConversation,
     dismissConversation,
     ensureConversationMessages,

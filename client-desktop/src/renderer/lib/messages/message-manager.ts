@@ -52,9 +52,14 @@ export class MessageManager {
   }
 
   beginConversationOperation(conversationId: string): MessageOperationToken {
+    const barrier = this.scopeBarrier
     const token = {
       conversationEpoch: this.conversationEpochs.get(conversationId) ?? 0,
       conversationId,
+      generation: barrier
+        .then(() => this.repository.getSyncState(conversationId))
+        .then((state) => state.generation)
+        .catch(() => null),
       scopeEpoch: this.scopeEpoch,
     }
     this.assertOperationCurrent(token)
@@ -172,13 +177,13 @@ export class MessageManager {
       const next = this.workingSet.merge(conversationId, acceptedMessages)
       this.publish({ conversationId, kind: "messages-changed", messages: next })
       try {
-        const state = await this.repository.getSyncState(conversationId)
+        const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
         const mergedRecords = acceptedMessages
           .map((message) => next.find((candidate) => candidate.id === message.id))
           .filter((message): message is ClientMessage => message !== undefined)
         if (mergedRecords.length > 0)
-          await this.repository.upsert(conversationId, mergedRecords, state.generation)
+          await this.repository.upsert(conversationId, mergedRecords, generation)
         this.assertOperationCurrent(token)
       } catch {
         this.assertOperationCurrent(token)
@@ -199,7 +204,7 @@ export class MessageManager {
       )
       if (acceptedMessages.length === 0) return
       try {
-        const state = await this.repository.getSyncState(conversationId)
+        const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
         const mergedRecords = await Promise.all(
           acceptedMessages.map(async (message) =>
@@ -210,7 +215,7 @@ export class MessageManager {
           ),
         )
         this.assertOperationCurrent(token)
-        await this.repository.upsert(conversationId, mergedRecords, state.generation)
+        await this.repository.upsert(conversationId, mergedRecords, generation)
         this.assertOperationCurrent(token)
       } catch {
         this.assertOperationCurrent(token)
@@ -237,13 +242,14 @@ export class MessageManager {
       let persistedCursor: number | undefined
       try {
         const state = await this.repository.getSyncState(conversationId)
+        const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
         persistedCursor = state.httpSyncedThroughSeq
         const committed = await this.repository.commitLatest(
           conversationId,
           next.filter((message) => messages.some((candidate) => candidate.id === message.id)),
           page.hasMoreBefore,
-          state.generation,
+          generation,
         )
         this.assertOperationCurrent(token)
         this.memoryCursors.set(conversationId, committed.committedSeq)
@@ -273,14 +279,14 @@ export class MessageManager {
       )
       this.publish({ conversationId, kind: "messages-changed", messages: next })
       try {
-        const state = await this.repository.getSyncState(conversationId)
+        const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
         await this.repository.commitBefore(
           conversationId,
           beforeSeq,
           messages,
           page.hasMoreBefore,
-          state.generation,
+          generation,
         )
         this.assertOperationCurrent(token)
       } catch {
@@ -312,7 +318,7 @@ export class MessageManager {
         },
         commit: async (result, requestAfterSeq) => {
           this.assertOperationCurrent(token)
-          const state = await this.repository.getSyncState(conversationId)
+          const generation = await this.operationGeneration(token)
           this.assertOperationCurrent(token)
           const visible = await this.enqueue(token, async () => {
             const next = this.workingSet.merge(conversationId, result.messages, (message) =>
@@ -331,7 +337,7 @@ export class MessageManager {
               requestAfterSeq,
               pageMessages,
               result.page.hasMoreBefore,
-              state.generation,
+              generation,
             )
             this.assertOperationCurrent(token)
             this.memoryCursors.set(conversationId, committed.committedSeq)
@@ -401,9 +407,9 @@ export class MessageManager {
     await this.enqueue(token, async () => {
       const next = this.workingSet.remove(conversationId, messageId)
       this.publish({ conversationId, kind: "messages-changed", messages: next })
-      const state = await this.repository.getSyncState(conversationId)
+      const generation = await this.operationGeneration(token)
       this.assertOperationCurrent(token)
-      await this.repository.remove(conversationId, messageId, state.generation)
+      await this.repository.remove(conversationId, messageId, generation)
       this.assertOperationCurrent(token)
     })
   }
@@ -463,9 +469,9 @@ export class MessageManager {
       const nextMessage = updater(current)
       const next = this.workingSet.update(conversationId, messageId, () => nextMessage)
       if (inMemory) this.publish({ conversationId, kind: "messages-changed", messages: next })
-      const state = await this.repository.getSyncState(conversationId)
+      const generation = await this.operationGeneration(token)
       this.assertOperationCurrent(token)
-      await this.repository.upsert(conversationId, [nextMessage], state.generation)
+      await this.repository.upsert(conversationId, [nextMessage], generation)
       this.assertOperationCurrent(token)
     })
   }
@@ -495,6 +501,13 @@ export class MessageManager {
     const barrier = this.scopeBarrier
     await barrier
     this.assertOperationCurrent(token)
+  }
+
+  private async operationGeneration(token: MessageOperationToken) {
+    const generation = await token.generation
+    this.assertOperationCurrent(token)
+    if (!generation) throw new Error("消息缓存 generation 不可用")
+    return generation
   }
 
   private publish(event: MessageManagerEvent): void {

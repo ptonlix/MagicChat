@@ -7,6 +7,7 @@ import { createDesktopRealtimeClient } from "@/lib/desktop-host"
 import { RealtimeContext, type RealtimeContextValue } from "@/lib/realtime-context"
 import { ClientLoadingPage } from "@/components/client-loading-page"
 import { useAppInfo } from "@/lib/app-info-context"
+import { useClientData } from "@/lib/client-data-context"
 
 export function ClientRealtimeProvider({
   children,
@@ -17,12 +18,14 @@ export function ClientRealtimeProvider({
 }) {
   const navigate = useNavigate()
   const { setAuthenticated } = useAppInfo()
+  const { clearMessageScope } = useClientData()
   const [client] = useState(
     () =>
       providedClient ??
       createDesktopRealtimeClient({
         authCheck: checkClientSession,
         onUnauthorized: () => {
+          clearMessageScope()
           setAuthenticated(false)
           navigate("/login", { replace: true })
         },

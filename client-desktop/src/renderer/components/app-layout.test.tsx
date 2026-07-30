@@ -12,6 +12,7 @@ import { configureDesktopHost } from "@/lib/desktop-host"
 
 const mocks = vi.hoisted(() => ({
   clientData: {
+    clearMessageScope: vi.fn(),
     conversations: [] as Array<{ unreadCount: number }>,
     me: {
       avatar: "",
@@ -161,6 +162,10 @@ describe("AppLayout", () => {
     expect(await screen.findByRole("heading", { name: "即应 智能协作平台" })).toBeInTheDocument()
     expect(screen.queryByTestId("init-page")).not.toBeInTheDocument()
     expect(mocks.clientLogout).toHaveBeenCalledTimes(1)
+    expect(mocks.clientData.clearMessageScope).toHaveBeenCalledTimes(1)
+    expect(mocks.clientData.clearMessageScope.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.clientLogout.mock.invocationCallOrder[0],
+    )
   })
 
   it("远端退出失败时仍结束本地会话", async () => {
@@ -176,6 +181,7 @@ describe("AppLayout", () => {
 
     expect(await screen.findByRole("heading", { name: "即应 智能协作平台" })).toBeInTheDocument()
     expect(mocks.clientLogout).toHaveBeenCalledTimes(1)
+    expect(mocks.clientData.clearMessageScope).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -74,6 +74,7 @@ export type ClientDataContextValue = {
   dismissConversation: (conversationId: string) => Promise<void>
   ensureConversationMessages: (conversationId: string) => void
   compactConversationMessages?: (conversationId: string) => void
+  clearMessageScope: () => void
   registerConversationMessageView?: (conversationId: string) => () => void
   getConversation: (conversationId: string) => ClientConversation | null
   getConversationMessageState: (conversationId: string) => ClientConversationMessageState

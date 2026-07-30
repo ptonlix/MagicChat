@@ -65,7 +65,7 @@ const themeItems = [
 type ThemeValue = (typeof themeItems)[number]["value"]
 
 export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
-  const { conversations, me, refreshMe } = useClientData()
+  const { clearMessageScope, conversations, me, refreshMe } = useClientData()
   const totalUnreadCount = getTotalUnreadCount(conversations)
   const notifiableUnreadCount = getNotifiableUnreadCount(conversations)
   const hasUnreadMessages = totalUnreadCount > 0
@@ -105,7 +105,7 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
   return (
     <div className="flex h-svh min-h-0 bg-background pt-10 text-foreground">
       <aside className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-3">
-        <UserAvatarMenu user={me} refreshMe={refreshMe} />
+        <UserAvatarMenu clearMessageScope={clearMessageScope} user={me} refreshMe={refreshMe} />
         <nav aria-label="主导航" className="flex flex-1 flex-col gap-2">
           {navItems.map((item) => (
             <MainNavItem
@@ -130,7 +130,15 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
   )
 }
 
-function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; user: ClientUser }) {
+function UserAvatarMenu({
+  clearMessageScope,
+  refreshMe,
+  user,
+}: {
+  clearMessageScope: () => void
+  refreshMe: () => Promise<void>
+  user: ClientUser
+}) {
   const navigate = useNavigate()
   const { setAuthenticated } = useAppInfo()
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
@@ -140,6 +148,7 @@ function UserAvatarMenu({ refreshMe, user }: { refreshMe: () => Promise<void>; u
 
   async function handleLogout() {
     setLogoutPending(true)
+    clearMessageScope()
 
     try {
       await clientLogout()

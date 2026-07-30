@@ -113,6 +113,7 @@ function createClientDataContextValue(
   const conversation = createGroupConversation()
 
   return {
+    clearMessageScope: vi.fn(),
     contactApps: [],
     contactGroups: [],
     contacts: [],

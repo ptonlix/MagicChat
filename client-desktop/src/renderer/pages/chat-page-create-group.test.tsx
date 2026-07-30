@@ -332,6 +332,7 @@ function createClientDataValue(overrides: Partial<ClientDataContextValue>): Clie
   }
 
   return {
+    clearMessageScope: vi.fn(),
     contactApps: [
       {
         avatar: "/assets/apps/assistant.webp",

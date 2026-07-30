@@ -109,6 +109,7 @@ function createClientDataContextValue(
   }
 
   return {
+    clearMessageScope: vi.fn(),
     contactApps: [
       {
         avatar: "/assets/apps/assistant.webp",

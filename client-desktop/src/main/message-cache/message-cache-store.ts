@@ -318,23 +318,31 @@ export class MessageCacheStore {
   ): MessageCacheCommitResult {
     let committed = false
     let committedSeq = 0
+    let accepted = false
     this.transaction(() => {
       this.assertGeneration(key, commit.generation)
       const previous = this.syncRow(key)
-      this.upsertRecords(key, commit.records)
       const newest = maximumSeq(commit.records)
       const oldest = minimumSeq(commit.records)
       const now = Date.now()
 
       if (kind === "latest" && !previous) {
+        accepted = true
         committed = true
         committedSeq = newest
+        this.upsertRecords(key, commit.records)
         this.writeSyncState(key, newest, oldest, commit.hasMoreBefore, now)
+      } else if (kind === "latest" && previous) {
+        accepted = true
+        committedSeq = previous.http_synced_through_seq
+        this.upsertRecords(key, commit.records)
       } else if (kind === "after" && previous) {
         committedSeq = previous.http_synced_through_seq
         if (commit.requestAfterSeq === previous.http_synced_through_seq) {
+          accepted = true
           committed = true
           committedSeq = Math.max(previous.http_synced_through_seq, newest)
+          this.upsertRecords(key, commit.records)
           this.writeSyncState(
             key,
             committedSeq,
@@ -346,7 +354,9 @@ export class MessageCacheStore {
       } else if (kind === "before" && previous) {
         committedSeq = previous.http_synced_through_seq
         if (commit.requestBeforeSeq === previous.oldest_cached_seq) {
+          accepted = true
           committed = true
+          this.upsertRecords(key, commit.records)
           this.writeSyncState(
             key,
             previous.http_synced_through_seq,
@@ -357,10 +367,11 @@ export class MessageCacheStore {
         }
       } else {
         committedSeq = previous?.http_synced_through_seq ?? 0
-        this.ensureSyncState(key)
       }
-      this.trimConversation(key)
-      this.rebuildStats(key)
+      if (accepted) {
+        this.trimConversation(key)
+        this.rebuildStats(key)
+      }
     })
     this.maintainIfDue()
     return { committed, committedSeq, generation: this.generation(key) }

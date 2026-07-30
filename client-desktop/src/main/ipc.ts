@@ -28,6 +28,7 @@ import { parseDesktopSettingsPatch } from "@main/settings-validation"
 import { registerRuntimeDiagnosticsIpc } from "@main/runtime-diagnostics-ipc"
 import { parseTrayMessages } from "@main/tray-message-validation"
 import { removeServerResources } from "@main/server-removal"
+import { handleUnauthorizedCacheLifecycle } from "@main/authentication-cache-lifecycle"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -52,9 +53,10 @@ export function registerIpc(deps: IpcDependencies): () => void {
       if (!window.isDestroyed()) window.webContents.send(channel, payload)
   }
   const markUnauthorized = (authTarget: AuthenticatedTarget) => {
-    deps.realtime.close(authTarget)
-    void deps.messageCache.clearUser(authTarget).finally(() => {
-      broadcast(IPC.realtimeUnauthorized, authTarget)
+    handleUnauthorizedCacheLifecycle(authTarget, {
+      broadcastUnauthorized: (target) => broadcast(IPC.realtimeUnauthorized, target),
+      clearUser: (target) => deps.messageCache.clearUser(target),
+      closeRealtime: (target) => deps.realtime.close(target),
     })
   }
   const register = (
@@ -125,7 +127,13 @@ export function registerIpc(deps: IpcDependencies): () => void {
       if (response.status === 401) markUnauthorized(authTarget)
       return response
     } finally {
-      if (isLogout) await deps.messageCache.clearUser(authTarget).catch(() => undefined)
+      if (isLogout) {
+        try {
+          await deps.messageCache.clearUser(authTarget)
+        } catch {
+          // Renderer 已先失效消息 scope，缓存故障不能覆盖远端退出结果。
+        }
+      }
     }
   })
   register(IPC.transportCancel, (event, requestId) =>

@@ -1,6 +1,9 @@
+import type { MessageCacheGeneration } from "@shared/message-cache-contract"
+
 export type MessageOperationToken = Readonly<{
   conversationEpoch: number
   conversationId: string
+  generation: Promise<MessageCacheGeneration | null>
   scopeEpoch: number
 }>
 

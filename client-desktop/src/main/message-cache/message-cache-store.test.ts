@@ -62,6 +62,30 @@ describe("SQLite 消息缓存事务", () => {
         requestAfterSeq: 10,
       }),
     ).toMatchObject({ committed: false, committedSeq: 12 })
+    expect(store.readRecent(scope, 20).messages.map((item) => item.seq)).toEqual([
+      9, 10, 11, 12, 15,
+    ])
+    store.close()
+  })
+
+  it("不连续 before 页面不得写入 SQLite 形成稀疏缓存命中", async () => {
+    const store = await createStore()
+    store.commitLatest(scope, {
+      generation,
+      hasMoreBefore: true,
+      records: [record(101), record(120)],
+    })
+
+    expect(
+      store.commitBefore(scope, {
+        generation,
+        hasMoreBefore: true,
+        records: [record(61), record(80)],
+        requestBeforeSeq: 81,
+      }),
+    ).toMatchObject({ committed: false, committedSeq: 120 })
+    expect(store.readRecent(scope, 20).messages.map((item) => item.seq)).toEqual([101, 120])
+    expect(store.getSyncState(scope)).toMatchObject({ oldestCachedSeq: 101 })
     store.close()
   })
 
