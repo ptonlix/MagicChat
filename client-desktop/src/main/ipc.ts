@@ -196,12 +196,8 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.updaterOpenManual, () => deps.updater.openManualDownload())
   register(IPC.updaterOpenRelease, () => deps.updater.openReleasePage())
   register(IPC.diagnosticsExport, () => deps.diagnostics.export())
-  register(IPC.messageCacheClearAll, () => deps.messageCache.clearAll())
   register(IPC.messageCacheClearConversation, (_event, scope) =>
     deps.messageCache.clearConversation(scope),
-  )
-  register(IPC.messageCacheClearServer, (_event, cacheTarget) =>
-    deps.messageCache.clearServer(cacheTarget),
   )
   register(IPC.messageCacheClearUser, (_event, cacheTarget) =>
     deps.messageCache.clearUser(cacheTarget),
@@ -234,7 +230,6 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.messageCacheRemoveMessage, (_event, scope, messageId, generation) =>
     deps.messageCache.removeMessage(scope, messageId, generation),
   )
-  register(IPC.messageCacheStatus, () => deps.messageCache.status())
   register(IPC.messageCacheUpsert, (_event, scope, records, generation) =>
     deps.messageCache.upsert(scope, records, generation),
   )

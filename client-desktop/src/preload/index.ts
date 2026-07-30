@@ -36,9 +36,7 @@ const bridge: DesktopBridge = {
     upload: (target, path, fileId) => ipcRenderer.invoke(IPC.filesUpload, target, path, fileId),
   },
   messageCache: {
-    clearAll: () => ipcRenderer.invoke(IPC.messageCacheClearAll),
     clearConversation: (scope) => ipcRenderer.invoke(IPC.messageCacheClearConversation, scope),
-    clearServer: (target) => ipcRenderer.invoke(IPC.messageCacheClearServer, target),
     clearUser: (target) => ipcRenderer.invoke(IPC.messageCacheClearUser, target),
     commitAfter: (scope, input) => ipcRenderer.invoke(IPC.messageCacheCommitAfter, scope, input),
     commitBefore: (scope, input) => ipcRenderer.invoke(IPC.messageCacheCommitBefore, scope, input),
@@ -52,7 +50,6 @@ const bridge: DesktopBridge = {
     readRecent: (scope, limit) => ipcRenderer.invoke(IPC.messageCacheReadRecent, scope, limit),
     removeMessage: (scope, messageId, generation) =>
       ipcRenderer.invoke(IPC.messageCacheRemoveMessage, scope, messageId, generation),
-    status: () => ipcRenderer.invoke(IPC.messageCacheStatus),
     upsert: (scope, records, generation) =>
       ipcRenderer.invoke(IPC.messageCacheUpsert, scope, records, generation),
   },

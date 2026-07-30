@@ -14,6 +14,7 @@ const target = {
   normalizedUrl: "https://chat.example.com",
   userId: "user-1",
 }
+const profile = { ...target, lastUserId: target.userId }
 const scope = { conversationId: "conversation-1", target }
 const available: MessageCacheStats = {
   conversationCount: 0,
@@ -22,7 +23,7 @@ const available: MessageCacheStats = {
   status: "available",
 }
 
-describe("MessageCacheService 故障恢复", () => {
+describe("MessageCacheService", () => {
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -59,6 +60,25 @@ describe("MessageCacheService 故障恢复", () => {
     expect(await service.status()).toMatchObject({ status: "available" })
   })
 
+  it("拒绝访问不属于当前 Profile 用户的缓存资源", async () => {
+    const client = new FakeWorkerClient()
+    const service = createService(client, () => 0)
+    await service.initialize()
+    const requestCount = client.requests.length
+    const otherTarget = { ...target, userId: "user-2" }
+
+    expect(() => service.getStats(otherTarget)).toThrow(
+      expect.objectContaining({ code: "cache_permission_denied" }),
+    )
+    expect(() => service.clearUser(otherTarget)).toThrow(
+      expect.objectContaining({ code: "cache_permission_denied" }),
+    )
+    expect(() =>
+      service.readRecent({ conversationId: scope.conversationId, target: otherTarget }, 20),
+    ).toThrow(expect.objectContaining({ code: "cache_permission_denied" }))
+    expect(client.requests).toHaveLength(requestCount)
+  })
+
   it("Server 缓存清理故障后后台重试且不依赖已删除 Profile", async () => {
     vi.useFakeTimers()
     let now = 0
@@ -66,11 +86,11 @@ describe("MessageCacheService 故障恢复", () => {
     const client = new FakeWorkerClient()
     const profiles = {
       list() {
-        return profileAvailable ? [target] : []
+        return profileAvailable ? [profile] : []
       },
       require(id: string) {
         if (!profileAvailable || id !== target.id) throw new Error("missing profile")
-        return target
+        return profile
       },
     } as unknown as ServerProfiles
     const service = new MessageCacheService("/unused", "/unused-worker.js", profiles, {
@@ -144,11 +164,11 @@ class FakeWorkerClient {
 function createService(client: FakeWorkerClient, now: () => number) {
   const profiles = {
     list() {
-      return [target]
+      return [profile]
     },
     require(id: string) {
       if (id !== target.id) throw new Error("missing profile")
-      return target
+      return profile
     },
   } as unknown as ServerProfiles
   return new MessageCacheService("/unused", "/unused-worker.js", profiles, { client, now })

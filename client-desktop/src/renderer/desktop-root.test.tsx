@@ -683,9 +683,7 @@ function createDesktopBridge(
       upload: vi.fn(),
     },
     messageCache: {
-      clearAll: vi.fn(),
       clearConversation: vi.fn(),
-      clearServer: vi.fn(),
       clearUser: vi.fn(),
       commitAfter: vi.fn(),
       commitBefore: vi.fn(),
@@ -702,7 +700,6 @@ function createDesktopBridge(
       readBefore: vi.fn(),
       readRecent: vi.fn(),
       removeMessage: vi.fn(),
-      status: vi.fn(),
       upsert: vi.fn(),
     },
     navigation: {

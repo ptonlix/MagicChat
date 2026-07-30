@@ -135,8 +135,8 @@ export class MessageCacheService {
     return this.run(() => this.client.request({ kind: "getById", messageId, scope }))
   }
 
-  getStats(rawTarget?: unknown): Promise<MessageCacheStats> {
-    const target = rawTarget === undefined ? undefined : this.target(rawTarget)
+  getStats(rawTarget: unknown): Promise<MessageCacheStats> {
+    const target = this.target(rawTarget)
     return this.run(async () => {
       const stats = await this.client.request<MessageCacheStats>({ kind: "getStats", target })
       this.statusValue = stats
@@ -189,14 +189,21 @@ export class MessageCacheService {
 
   private scope(value: unknown) {
     const scope = parseMessageCacheScope(value)
-    this.requireProfile(scope.target)
+    this.requireUser(scope.target)
     return scope
   }
 
   private target(value: unknown) {
     const target = parseMessageCacheTarget(value)
-    this.requireProfile(target)
+    this.requireUser(target)
     return target
+  }
+
+  private requireUser(target: ReturnType<typeof parseMessageCacheTarget>): void {
+    const profile = this.requireProfile(target)
+    if (profile.lastUserId !== target.userId) {
+      throw new MessageCacheError("cache_permission_denied", "本地消息缓存请求无权访问")
+    }
   }
 
   private requireProfile(
@@ -206,6 +213,7 @@ export class MessageCacheService {
     if (profile.normalizedUrl !== target.normalizedUrl) {
       throw new MessageCacheError("cache_invalid_input", "本地消息缓存请求无效")
     }
+    return profile
   }
 
   private async run<T>(operation: () => Promise<T>): Promise<T> {

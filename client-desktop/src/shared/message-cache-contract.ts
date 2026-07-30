@@ -93,9 +93,7 @@ export type MessageCacheCommitResult = Readonly<{
 }>
 
 export interface MessageCacheBridge {
-  clearAll(): Promise<void>
   clearConversation(scope: MessageCacheScope): Promise<MessageCacheGeneration>
-  clearServer(target: Pick<AuthenticatedTarget, "id" | "normalizedUrl">): Promise<void>
   clearUser(target: AuthenticatedTarget): Promise<void>
   commitAfter(
     scope: MessageCacheScope,
@@ -110,7 +108,7 @@ export interface MessageCacheBridge {
     input: MessageCacheCommit,
   ): Promise<MessageCacheCommitResult>
   getById(scope: MessageCacheScope, messageId: string): Promise<MessageCacheRecord | null>
-  getStats(target?: AuthenticatedTarget): Promise<MessageCacheStats>
+  getStats(target: AuthenticatedTarget): Promise<MessageCacheStats>
   getSyncState(scope: MessageCacheScope): Promise<MessageCacheSyncState>
   listSyncStates(target: AuthenticatedTarget): Promise<ReadonlyArray<MessageCacheSyncState>>
   readBefore(scope: MessageCacheScope, beforeSeq: number, limit: number): Promise<MessageCachePage>
@@ -120,7 +118,6 @@ export interface MessageCacheBridge {
     messageId: string,
     generation: MessageCacheGeneration,
   ): Promise<void>
-  status(): Promise<MessageCacheStats>
   upsert(
     scope: MessageCacheScope,
     records: ReadonlyArray<MessageCacheRecord>,
