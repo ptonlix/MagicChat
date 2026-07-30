@@ -95,20 +95,44 @@ describe("MessageCacheService 故障恢复", () => {
     expect(await service.status()).toMatchObject({ status: "available" })
     await service.close()
   })
+
+  it("升级安装回滚后重开 Worker 并重新执行初始化检查", async () => {
+    const client = new FakeWorkerClient()
+    const service = createService(client, () => 0)
+    await service.initialize()
+    await service.close()
+
+    await service.reopen()
+
+    expect(client.reopenings).toBe(1)
+    expect(client.requests.slice(-2)).toEqual(["clearOrphanedServers", "health"])
+    expect(await service.status()).toMatchObject({ status: "available" })
+    await service.close()
+  })
 })
 
 class FakeWorkerClient {
+  closed = false
   failure: MessageCacheError | null = null
+  reopenings = 0
   recoveries = 0
   requests: string[] = []
 
-  async close() {}
+  async close() {
+    this.closed = true
+  }
+
+  async reopen() {
+    this.closed = false
+    this.reopenings += 1
+  }
 
   async recover() {
     this.recoveries += 1
   }
 
   async request<T>(operation: MessageCacheWorkerOperation): Promise<T> {
+    if (this.closed) throw new MessageCacheError("cache_closed")
     this.requests.push(operation.kind)
     if (operation.kind !== "health" && this.failure) throw this.failure
     if (operation.kind === "health" || operation.kind === "getStats") return available as T

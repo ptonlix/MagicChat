@@ -46,6 +46,14 @@ export class MessageCacheWorkerClient {
     return this.recoveryPromise
   }
 
+  reopen(): Promise<void> {
+    if (this.accepting && this.worker) return Promise.resolve()
+    this.accepting = true
+    this.recoveryAttempts = 0
+    if (!this.worker) this.worker = this.createWorker()
+    return Promise.resolve()
+  }
+
   private createWorker(): Worker {
     const worker = new Worker(this.workerPath, { workerData: { databasePath: this.databasePath } })
     worker.on("message", (response: MessageCacheWorkerResponse) => {

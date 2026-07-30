@@ -19,6 +19,7 @@ import { SessionController } from "@main/session-controller"
 import { runtimeIconPath, runtimeTrayIconPath, SystemIntegration } from "@main/system-integration"
 import { UpdaterService } from "@main/updater-service"
 import { StreamingUploadController } from "@main/streaming-upload"
+import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
 
@@ -104,10 +105,7 @@ async function start(): Promise<void> {
   const uploads = new StreamingUploadController(profiles, sessions)
   const updater = new UpdaterService({
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
-    prepareInstall: async () => {
-      windows.prepareToQuit()
-      return () => windows.cancelPrepareToQuit()
-    },
+    prepareInstall: () => prepareUpdateInstall({ messageCache, windows }),
   })
   const unregisterIpc = registerIpc({
     auth,

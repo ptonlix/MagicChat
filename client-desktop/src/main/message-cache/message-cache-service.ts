@@ -69,6 +69,15 @@ export class MessageCacheService {
     await this.client.close()
   }
 
+  async reopen(): Promise<void> {
+    if (!this.closed) return
+    await this.client.reopen()
+    this.closed = false
+    this.statusValue = { ...this.statusValue, status: "rebuilding" }
+    await this.initialize()
+    this.startPendingServerClears()
+  }
+
   clearAll(): Promise<void> {
     return this.run(() => this.client.request({ kind: "clearAll" }))
   }
@@ -271,6 +280,7 @@ export class MessageCacheService {
 interface MessageCacheWorkerPort {
   close(): Promise<void>
   recover(): Promise<void>
+  reopen(): Promise<void>
   request<T>(operation: MessageCacheWorkerOperation): Promise<T>
 }
 
