@@ -148,15 +148,16 @@ function UserAvatarMenu({
 
   async function handleLogout() {
     setLogoutPending(true)
-    clearMessageScope()
 
     try {
       await clientLogout()
-    } catch (error) {
-      toast.error(getLogoutErrorMessage(error))
-    } finally {
+      clearMessageScope()
       setAuthenticated(false)
       navigate("/login", { replace: true })
+    } catch (error) {
+      setLogoutConfirmOpen(false)
+      toast.error(getLogoutErrorMessage(error))
+    } finally {
       setLogoutPending(false)
     }
   }

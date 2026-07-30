@@ -121,16 +121,20 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.transportRequest, async (event, rawTarget, rawRequest) => {
     const authTarget = target(rawTarget)
     const clientRequest = request(rawRequest)
-    const isLogout = clientRequest.path.startsWith("/api/client/auth/logout")
-    try {
-      const response = await deps.http.request(event.sender.id, authTarget, clientRequest)
-      if (response.status === 401) markUnauthorized(authTarget)
-      return response
-    } finally {
-      if (isLogout) {
-        deps.messageCache.clearUserBestEffort(authTarget)
-      }
+    const isLogout =
+      clientRequest.method === "POST" &&
+      clientRequest.path.split("?", 1)[0] === "/api/client/auth/logout"
+    const response = await deps.http.request(event.sender.id, authTarget, clientRequest)
+    if (response.status === 401) markUnauthorized(authTarget)
+    const failedEnvelope =
+      response.body !== null &&
+      typeof response.body === "object" &&
+      "success" in response.body &&
+      response.body.success === false
+    if (isLogout && response.status >= 200 && response.status < 300 && !failedEnvelope) {
+      deps.messageCache.clearUserBestEffort(authTarget)
     }
+    return response
   })
   register(IPC.transportCancel, (event, requestId) =>
     deps.http.cancel(asRequestId(requestId), event.sender.id),
