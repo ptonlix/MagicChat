@@ -55,7 +55,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   const markUnauthorized = (authTarget: AuthenticatedTarget) => {
     handleUnauthorizedCacheLifecycle(authTarget, {
       broadcastUnauthorized: (target) => broadcast(IPC.realtimeUnauthorized, target),
-      clearUser: (target) => deps.messageCache.clearUser(target),
+      clearUserBestEffort: (target) => deps.messageCache.clearUserBestEffort(target),
       closeRealtime: (target) => deps.realtime.close(target),
     })
   }
@@ -128,11 +128,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
       return response
     } finally {
       if (isLogout) {
-        try {
-          await deps.messageCache.clearUser(authTarget)
-        } catch {
-          // Renderer 已先失效消息 scope，缓存故障不能覆盖远端退出结果。
-        }
+        deps.messageCache.clearUserBestEffort(authTarget)
       }
     }
   })

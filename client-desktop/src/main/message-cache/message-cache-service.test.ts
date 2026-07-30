@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ServerProfiles } from "@main/server-profiles"
+import type { ServerProfile } from "@shared/bridge"
 import {
   MessageCacheError,
   type MessageCacheStats,
@@ -14,7 +15,13 @@ const target = {
   normalizedUrl: "https://chat.example.com",
   userId: "user-1",
 }
-const profile = { ...target, lastUserId: target.userId }
+const profile: ServerProfile = {
+  createdAt: "2026-07-30T00:00:00Z",
+  displayName: "工作区",
+  id: target.id,
+  lastUserId: target.userId,
+  normalizedUrl: target.normalizedUrl,
+}
 const scope = { conversationId: "conversation-1", target }
 const available: MessageCacheStats = {
   conversationCount: 0,
@@ -92,6 +99,7 @@ describe("MessageCacheService", () => {
         if (!profileAvailable || id !== target.id) throw new Error("missing profile")
         return profile
       },
+      async revokeUser() {},
     } as unknown as ServerProfiles
     const service = new MessageCacheService("/unused", "/unused-worker.js", profiles, {
       client,
@@ -113,6 +121,39 @@ describe("MessageCacheService", () => {
     expect(client.recoveries).toBe(1)
     expect(client.requests.slice(-2)).toEqual(["health", "clearServer"])
     expect(await service.status()).toMatchObject({ status: "available" })
+    await service.close()
+  })
+
+  it("用户缓存清理失败后仍立即并持久撤销访问", async () => {
+    vi.useFakeTimers()
+    let now = 0
+    const client = new FakeWorkerClient()
+    const profiles = new FakeProfiles()
+    const service = new MessageCacheService("/unused", "/unused-worker.js", profiles, {
+      client,
+      now: () => now,
+    })
+    await service.initialize()
+    client.failure = new MessageCacheError("cache_disk_full")
+
+    service.clearUserBestEffort(target)
+    expect(() => service.readRecent(scope, 20)).toThrow(
+      expect.objectContaining({ code: "cache_permission_denied" }),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(profiles.require(target.id).lastUserId).toBeUndefined()
+    expect(await service.status()).toMatchObject({ status: "degraded" })
+    expect(client.requests.filter((kind) => kind === "clearUser")).toHaveLength(1)
+
+    client.failure = null
+    now = 1_000
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(client.recoveries).toBe(0)
+    expect(client.requests.filter((kind) => kind === "clearUser")).toHaveLength(1)
+    expect(() => service.readRecent(scope, 20)).toThrow(
+      expect.objectContaining({ code: "cache_permission_denied" }),
+    )
     await service.close()
   })
 
@@ -161,17 +202,37 @@ class FakeWorkerClient {
   }
 }
 
+class FakeProfiles {
+  private readonly profileValue: {
+    createdAt: string
+    displayName: string
+    id: string
+    lastUserId?: string
+    normalizedUrl: string
+  } = { ...profile }
+
+  list() {
+    return [this.profileValue]
+  }
+
+  require(id: string) {
+    if (id !== this.profileValue.id) throw new Error("missing profile")
+    return this.profileValue
+  }
+
+  async revokeUser(cacheTarget: typeof target) {
+    if (cacheTarget.id !== this.profileValue.id) throw new Error("missing profile")
+    if (this.profileValue.lastUserId === cacheTarget.userId) {
+      this.profileValue.lastUserId = undefined
+    }
+  }
+}
+
 function createService(client: FakeWorkerClient, now: () => number) {
-  const profiles = {
-    list() {
-      return [profile]
-    },
-    require(id: string) {
-      if (id !== target.id) throw new Error("missing profile")
-      return profile
-    },
-  } as unknown as ServerProfiles
-  return new MessageCacheService("/unused", "/unused-worker.js", profiles, { client, now })
+  return new MessageCacheService("/unused", "/unused-worker.js", new FakeProfiles(), {
+    client,
+    now,
+  })
 }
 
 function syncState(): MessageCacheSyncState {

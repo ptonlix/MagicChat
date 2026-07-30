@@ -125,6 +125,22 @@ export class ConfigStore {
     })
   }
 
+  async revokeUser(id: string, userId: string): Promise<void> {
+    await this.enqueueOperation(async () => {
+      const index = this.config.servers.findIndex((item) => item.id === id)
+      if (index < 0) throw new Error("服务器不存在")
+      const current = this.config.servers[index]
+      if (current.lastUserId !== userId) return
+      const profile: ServerProfile = { ...current, lastUserId: undefined }
+      const servers = this.config.servers.map((item, itemIndex) =>
+        itemIndex === index ? profile : item,
+      )
+      const nextConfig = { ...this.config, servers }
+      await this.persist(nextConfig)
+      this.config = nextConfig
+    })
+  }
+
   async removeServer(id: string): Promise<void> {
     await this.enqueueOperation(async () => {
       const servers = this.config.servers.filter((item) => item.id !== id)

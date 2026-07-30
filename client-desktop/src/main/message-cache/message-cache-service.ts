@@ -15,6 +15,8 @@ import {
   parseMessageCacheTarget,
 } from "./message-cache-validation"
 
+type MessageCacheProfiles = Pick<ServerProfiles, "list" | "require" | "revokeUser">
+
 export class MessageCacheService {
   private readonly client: MessageCacheWorkerPort
   private readonly now: () => number
@@ -22,6 +24,8 @@ export class MessageCacheService {
     string,
     Readonly<{ id: string; normalizedUrl: string }>
   >()
+  private readonly revokedUsers = new Set<string>()
+  private readonly userRevocationRuns = new Set<Promise<void>>()
   private closed = false
   private nextRecoveryAt = 0
   private recoveryAttempts = 0
@@ -37,7 +41,7 @@ export class MessageCacheService {
   constructor(
     userDataPath: string,
     workerPath: string,
-    private readonly profiles: ServerProfiles,
+    private readonly profiles: MessageCacheProfiles,
     options: Readonly<{
       client?: MessageCacheWorkerPort
       now?: () => number
@@ -65,7 +69,10 @@ export class MessageCacheService {
   async close(): Promise<void> {
     this.closed = true
     if (this.serverClearRetry !== undefined) clearTimeout(this.serverClearRetry)
-    await this.serverClearRun?.catch(() => undefined)
+    await Promise.all([
+      this.serverClearRun?.catch(() => undefined),
+      ...[...this.userRevocationRuns].map((run) => run.catch(() => undefined)),
+    ])
     await this.client.close()
   }
 
@@ -107,6 +114,28 @@ export class MessageCacheService {
   clearUser(rawTarget: unknown): Promise<void> {
     const target = this.target(rawTarget)
     return this.run(() => this.client.request({ kind: "clearUser", target }))
+  }
+
+  clearUserBestEffort(rawTarget: unknown): void {
+    try {
+      const target = parseMessageCacheTarget(rawTarget)
+      const profile = this.requireProfile(target)
+      const key = userClearKey(target)
+      if (profile.lastUserId !== target.userId && !this.revokedUsers.has(key)) {
+        throw new MessageCacheError("cache_permission_denied", "本地消息缓存请求无权访问")
+      }
+      this.revokedUsers.add(key)
+      const run = Promise.allSettled([
+        this.profiles.revokeUser(target),
+        this.run(() => this.client.request({ kind: "clearUser", target })),
+      ]).then(([revocation]) => {
+        if (revocation.status === "fulfilled") this.revokedUsers.delete(key)
+      })
+      this.userRevocationRuns.add(run)
+      void run.finally(() => this.userRevocationRuns.delete(run))
+    } catch {
+      // 注销是安全强制路径，缓存校验或调度失败不得阻止认证状态切换。
+    }
   }
 
   commitAfter(rawScope: unknown, rawCommit: unknown) {
@@ -201,7 +230,7 @@ export class MessageCacheService {
 
   private requireUser(target: ReturnType<typeof parseMessageCacheTarget>): void {
     const profile = this.requireProfile(target)
-    if (profile.lastUserId !== target.userId) {
+    if (this.revokedUsers.has(userClearKey(target)) || profile.lastUserId !== target.userId) {
       throw new MessageCacheError("cache_permission_denied", "本地消息缓存请求无权访问")
     }
   }
@@ -306,4 +335,10 @@ function invalidCommit(): never {
 
 function serverClearKey(target: Readonly<{ id: string; normalizedUrl: string }>): string {
   return `${target.id}\u0000${target.normalizedUrl}`
+}
+
+function userClearKey(
+  target: Readonly<{ id: string; normalizedUrl: string; userId: string }>,
+): string {
+  return `${serverClearKey(target)}\u0000${target.userId}`
 }

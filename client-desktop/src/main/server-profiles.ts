@@ -1,5 +1,5 @@
 import { app, session } from "electron"
-import { normalizeServerUrl } from "@shared/client-contract"
+import { normalizeServerUrl, type AuthenticatedTarget } from "@shared/client-contract"
 import type { ServerProfile } from "@shared/bridge"
 import { ConfigStore } from "@main/config-store"
 
@@ -43,6 +43,12 @@ export class ServerProfiles {
   recordUser(id: string, userId: string): Promise<ServerProfile> {
     this.require(id)
     return this.store.updateServer(id, { lastUserId: userId })
+  }
+
+  async revokeUser(target: AuthenticatedTarget): Promise<void> {
+    const profile = this.require(target.id)
+    if (profile.normalizedUrl !== target.normalizedUrl) throw new Error("认证目标已失效")
+    await this.store.revokeUser(target.id, target.userId)
   }
 }
 
