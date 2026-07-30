@@ -48,10 +48,33 @@ describe("消息缓存 IPC 输入校验", () => {
     ).toThrow("请求无效")
     expect(
       parseMessageCacheCommit(
-        { generation: { conversation: 0, server: 0, user: 0 }, hasMoreBefore: true, records: [] },
+        {
+          generation: { conversation: 0, global: 0, server: 0, user: 0 },
+          hasMoreBefore: true,
+          records: [],
+        },
         scope,
       ).requestAfterSeq,
     ).toBeUndefined()
+  })
+
+  it("generation 必须包含显式 global 层级", () => {
+    expect(() =>
+      parseMessageCacheCommit(
+        { generation: { conversation: 0, server: 0, user: 0 }, hasMoreBefore: true, records: [] },
+        scope,
+      ),
+    ).toThrow("请求无效")
+    expect(
+      parseMessageCacheCommit(
+        {
+          generation: { conversation: 0, global: 0, server: 0, user: 0 },
+          hasMoreBefore: true,
+          records: [],
+        },
+        scope,
+      ).generation,
+    ).toEqual({ conversation: 0, global: 0, server: 0, user: 0 })
   })
 })
 

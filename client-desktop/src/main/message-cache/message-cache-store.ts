@@ -13,6 +13,7 @@ import {
   type MessageCacheSyncState,
 } from "@shared/message-cache-contract"
 import type { AuthenticatedTarget } from "@shared/client-contract"
+import { removeIsolatedDatabaseFiles } from "./message-cache-isolation"
 import { migrateMessageCache } from "./message-cache-migrations"
 
 type ScopeColumns = Readonly<{
@@ -42,13 +43,14 @@ type SyncRow = Readonly<{
 }>
 
 const rowOverheadBytes = 256
+const globalGenerationKey = "global"
 
 export class MessageCacheStore {
   readonly database: DatabaseSync
   private lastMaintenanceAt = 0
 
   constructor(
-    databasePath: string,
+    private readonly databasePath: string,
     private readonly limits: Readonly<{
       globalBytes: number
       maintenanceIntervalMs: number
@@ -60,11 +62,20 @@ export class MessageCacheStore {
     },
   ) {
     this.database = new DatabaseSync(databasePath)
-    this.database.exec("PRAGMA journal_mode = WAL")
-    this.database.exec("PRAGMA foreign_keys = ON")
-    this.database.exec("PRAGMA busy_timeout = 5000")
-    this.database.exec("PRAGMA synchronous = NORMAL")
-    migrateMessageCache(this.database)
+    try {
+      this.database.exec("PRAGMA journal_mode = WAL")
+      this.database.exec("PRAGMA foreign_keys = ON")
+      this.database.exec("PRAGMA busy_timeout = 5000")
+      this.database.exec("PRAGMA synchronous = NORMAL")
+      migrateMessageCache(this.database)
+    } catch (error) {
+      try {
+        this.database.close()
+      } catch {
+        // 初始化错误优先，关闭失败不应掩盖数据库无法打开或迁移的原因。
+      }
+      throw error
+    }
   }
 
   close(): void {
@@ -237,6 +248,7 @@ export class MessageCacheStore {
       this.bumpGeneration(conversationGenerationKey(key))
       this.deleteConversation(key)
     })
+    removeIsolatedDatabaseFiles(this.databasePath)
     return this.generation(key)
   }
 
@@ -254,6 +266,7 @@ export class MessageCacheStore {
         .prepare("DELETE FROM message_cache_stats WHERE server_key = ? AND user_id = ?")
         .run(serverKey, target.userId)
     })
+    removeIsolatedDatabaseFiles(this.databasePath)
   }
 
   clearServer(target: Pick<AuthenticatedTarget, "id" | "normalizedUrl">): void {
@@ -261,6 +274,7 @@ export class MessageCacheStore {
     this.transaction(() => {
       this.clearServerKey(serverKey)
     })
+    removeIsolatedDatabaseFiles(this.databasePath)
   }
 
   clearOrphanedServers(
@@ -277,21 +291,24 @@ export class MessageCacheStore {
     const orphanedServerKeys = cachedServerKeys
       .map((row) => row.server_key)
       .filter((serverKey) => !activeServerKeys.has(serverKey))
-    if (orphanedServerKeys.length === 0) return
-    this.transaction(() => {
-      for (const serverKey of orphanedServerKeys) this.clearServerKey(serverKey)
-    })
+    if (orphanedServerKeys.length > 0) {
+      this.transaction(() => {
+        for (const serverKey of orphanedServerKeys) this.clearServerKey(serverKey)
+      })
+    }
+    removeIsolatedDatabaseFiles(this.databasePath)
   }
 
   clearAll(): void {
     this.transaction(() => {
+      this.bumpGeneration(globalGenerationKey)
       this.database.exec(`
         DELETE FROM cached_messages;
         DELETE FROM message_sync_state;
         DELETE FROM message_cache_stats;
-        UPDATE message_cache_generations SET generation = generation + 1;
       `)
     })
+    removeIsolatedDatabaseFiles(this.databasePath)
   }
 
   private commit(
@@ -602,6 +619,7 @@ export class MessageCacheStore {
   private generation(key: ScopeColumns): MessageCacheGeneration {
     return {
       conversation: this.generationValue(conversationGenerationKey(key)),
+      global: this.generationValue(globalGenerationKey),
       server: this.generationValue(serverGenerationKey(key.serverKey)),
       user: this.generationValue(userGenerationKey(key.serverKey, key.userId)),
     }
@@ -610,6 +628,7 @@ export class MessageCacheStore {
   private assertGeneration(key: ScopeColumns, expected: MessageCacheGeneration): void {
     const current = this.generation(key)
     if (
+      current.global !== expected.global ||
       current.server !== expected.server ||
       current.user !== expected.user ||
       current.conversation !== expected.conversation
@@ -617,6 +636,7 @@ export class MessageCacheStore {
       throw new Error("cache generation is stale")
     }
     for (const scopeKey of [
+      globalGenerationKey,
       serverGenerationKey(key.serverKey),
       userGenerationKey(key.serverKey, key.userId),
       conversationGenerationKey(key),

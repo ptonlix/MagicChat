@@ -10,7 +10,7 @@ import { MessageOperationCancelledError } from "./message-operation"
 import type { MessageRepository } from "./message-repository"
 import { serializeMessage } from "./message-serializer"
 
-const generation: MessageCacheGeneration = { conversation: 0, server: 0, user: 0 }
+const generation: MessageCacheGeneration = { conversation: 0, global: 0, server: 0, user: 0 }
 
 describe("MessageManager", () => {
   it("缓存、HTTP 和实时乱序到达时保持唯一并保护新版状态", async () => {

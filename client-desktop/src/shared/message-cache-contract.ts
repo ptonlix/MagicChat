@@ -37,6 +37,7 @@ export type MessageCacheScope = Readonly<{
 
 export type MessageCacheGeneration = Readonly<{
   conversation: number
+  global: number
   server: number
   user: number
 }>

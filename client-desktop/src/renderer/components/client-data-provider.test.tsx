@@ -832,7 +832,7 @@ function createDeferred<T>() {
 }
 
 function createMessageCacheMock() {
-  const generation = { conversation: 0, server: 0, user: 0 }
+  const generation = { conversation: 0, global: 0, server: 0, user: 0 }
   return {
     clearConversation: vi.fn().mockResolvedValue({ ...generation, conversation: 1 }),
     commitLatest: vi.fn(),

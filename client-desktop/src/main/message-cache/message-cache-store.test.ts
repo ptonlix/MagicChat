@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtemp, readdir, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -9,7 +9,7 @@ import { MessageCacheStore } from "./message-cache-store"
 import { openMessageCacheStore } from "./message-cache-database"
 
 const directories: string[] = []
-const generation: MessageCacheGeneration = { conversation: 0, server: 0, user: 0 }
+const generation: MessageCacheGeneration = { conversation: 0, global: 0, server: 0, user: 0 }
 const scope: MessageCacheScope = {
   conversationId: "conversation-1",
   target: { id: "server-1", normalizedUrl: "https://chat.example.com", userId: "user-1" },
@@ -83,6 +83,89 @@ describe("SQLite 消息缓存事务", () => {
     store.close()
   })
 
+  it("全量清理使未登记作用域的旧 generation 失效并允许新 generation 写入", async () => {
+    const store = await createStore()
+    const staleGeneration = store.getSyncState(scope).generation
+    expect(staleGeneration).toEqual(generation)
+
+    store.clearAll()
+
+    expect(() => store.upsert(scope, [record(1)], staleGeneration)).toThrow("generation")
+    expect(store.readRecent(scope, 20).messages).toEqual([])
+    const currentGeneration = store.getSyncState(scope).generation
+    expect(currentGeneration).toEqual({ ...generation, global: 1 })
+    store.upsert(scope, [record(1)], currentGeneration)
+    expect(store.readRecent(scope, 20).messages.map((item) => item.seq)).toEqual([1])
+    store.close()
+  })
+
+  it("连续全量清理递增 global generation 并使所有作用域旧写入失效", async () => {
+    const store = await createStore()
+    const otherScope = {
+      ...scope,
+      conversationId: "conversation-2",
+      target: {
+        id: "server-2",
+        normalizedUrl: "https://other.example.com",
+        userId: "user-2",
+      },
+    }
+    const firstGeneration = store.getSyncState(scope).generation
+    const otherGeneration = store.getSyncState(otherScope).generation
+    store.upsert(scope, [record(1)], firstGeneration)
+    store.upsert(
+      otherScope,
+      [{ ...record(2), conversationId: otherScope.conversationId }],
+      otherGeneration,
+    )
+
+    store.clearAll()
+    expect(store.readRecent(scope, 20).messages).toEqual([])
+    expect(store.readRecent(otherScope, 20).messages).toEqual([])
+    const secondGeneration = store.getSyncState(scope).generation
+    expect(secondGeneration.global).toBe(1)
+    store.clearAll()
+
+    expect(store.getSyncState(scope).generation.global).toBe(2)
+    expect(() => store.upsert(scope, [record(1)], firstGeneration)).toThrow("generation")
+    expect(() =>
+      store.upsert(
+        otherScope,
+        [{ ...record(2), conversationId: otherScope.conversationId }],
+        otherGeneration,
+      ),
+    ).toThrow("generation")
+    expect(() => store.upsert(scope, [record(3)], secondGeneration)).toThrow("generation")
+    store.close()
+  })
+
+  it("global generation 跨数据库重启持久化", async () => {
+    const { databasePath, store } = await createStoreWithPath()
+    const staleGeneration = store.getSyncState(scope).generation
+    store.clearAll()
+    store.close()
+
+    const reopened = new MessageCacheStore(databasePath)
+    const currentGeneration = reopened.getSyncState(scope).generation
+    expect(currentGeneration.global).toBe(1)
+    expect(() => reopened.upsert(scope, [record(1)], staleGeneration)).toThrow("generation")
+    reopened.upsert(scope, [record(1)], currentGeneration)
+    expect(reopened.readRecent(scope, 20).messages).toHaveLength(1)
+    reopened.close()
+  })
+
+  it("局部清理只递增对应作用域 generation，不改变 global generation", async () => {
+    const store = await createStore()
+
+    const afterConversation = store.clearConversation(scope)
+    expect(afterConversation).toMatchObject({ conversation: 1, global: 0, server: 0, user: 0 })
+    store.clearUser(scope.target)
+    expect(store.getSyncState(scope).generation).toMatchObject({ global: 0, server: 0, user: 1 })
+    store.clearServer(scope.target)
+    expect(store.getSyncState(scope).generation).toMatchObject({ global: 0, server: 1, user: 1 })
+    store.close()
+  })
+
   it("用户和 Server 清理隔离其他作用域并拒绝各自迟到写入", async () => {
     const store = await createStore()
     const otherUserScope = {
@@ -119,6 +202,24 @@ describe("SQLite 消息缓存事务", () => {
 
     expect(store.readRecent(scope, 20).messages).toHaveLength(1)
     expect(store.readRecent(orphanedScope, 20).messages).toEqual([])
+    store.close()
+  })
+
+  it("所有隐私清理路径都会删除无法归属的隔离文件", async () => {
+    const { databasePath, store } = await createStoreWithPath()
+    const clearOperations = [
+      () => store.clearConversation(scope),
+      () => store.clearUser(scope.target),
+      () => store.clearServer(scope.target),
+      () => store.clearOrphanedServers([scope.target]),
+      () => store.clearAll(),
+    ]
+
+    for (const clear of clearOperations) {
+      await createIsolatedFiles(databasePath)
+      clear()
+      expect(await isolatedFiles(databasePath)).toEqual([])
+    }
     store.close()
   })
 
@@ -214,7 +315,26 @@ describe("SQLite 消息缓存事务", () => {
     migrated.close()
   })
 
-  it("未知高版本 schema 被隔离并创建新库", async () => {
+  it("启动时只清扫合法隔离文件并保留相似文件和目录", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-message-cache-"))
+    directories.push(directory)
+    const databasePath = path.join(directory, "messages.sqlite3")
+    await createIsolatedFiles(databasePath)
+    await writeFile(`${databasePath}.isolated-invalid`, "keep")
+    await writeFile(`${databasePath}.backup.isolated-123`, "keep")
+    await mkdir(`${databasePath}.isolated-456`)
+
+    const store = openMessageCacheStore(databasePath)
+    store.close()
+
+    const files = await readdir(directory)
+    expect(files).toContain("messages.sqlite3.isolated-invalid")
+    expect(files).toContain("messages.sqlite3.backup.isolated-123")
+    expect(files).toContain("messages.sqlite3.isolated-456")
+    expect(await isolatedFiles(databasePath)).toEqual([])
+  })
+
+  it("未知高版本 schema 临时让位并在新库成功后零保留", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-message-cache-"))
     directories.push(directory)
     const databasePath = path.join(directory, "messages.sqlite3")
@@ -225,7 +345,7 @@ describe("SQLite 消息缓存事务", () => {
     const rebuilt = openMessageCacheStore(databasePath)
     expect(rebuilt.health().status).toBe("available")
     rebuilt.close()
-    expect((await readdir(directory)).some((name) => name.includes(".isolated-"))).toBe(true)
+    expect(await isolatedFiles(databasePath)).toEqual([])
   })
 })
 
@@ -251,4 +371,23 @@ function record(seq: number) {
     reactionVersion: 0,
     seq,
   }
+}
+
+async function createIsolatedFiles(databasePath: string): Promise<void> {
+  await Promise.all(
+    ["", "-wal", "-shm"].map((extension) =>
+      writeFile(`${databasePath}${extension}.isolated-123`, "isolated"),
+    ),
+  )
+}
+
+async function isolatedFiles(databasePath: string): Promise<string[]> {
+  const basename = path.basename(databasePath)
+  return (await readdir(path.dirname(databasePath), { withFileTypes: true }))
+    .filter(
+      (entry) =>
+        (entry.isFile() || entry.isSymbolicLink()) &&
+        new RegExp(`^${basename}(?:-wal|-shm)?\\.isolated-\\d+$`).test(entry.name),
+    )
+    .map((entry) => entry.name)
 }

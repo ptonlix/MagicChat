@@ -157,7 +157,7 @@ function createService(client: FakeWorkerClient, now: () => number) {
 function syncState(): MessageCacheSyncState {
   return {
     conversationId: scope.conversationId,
-    generation: { conversation: 0, server: 0, user: 0 },
+    generation: { conversation: 0, global: 0, server: 0, user: 0 },
     hasMoreBefore: true,
     httpSyncedThroughSeq: 0,
     lastAccessedAt: 0,

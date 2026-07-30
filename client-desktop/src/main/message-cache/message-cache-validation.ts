@@ -54,6 +54,7 @@ export function parseMessageCacheGeneration(value: unknown): MessageCacheGenerat
   if (!isObject(value)) invalid()
   return {
     conversation: parseGenerationValue(value.conversation),
+    global: parseGenerationValue(value.global),
     server: parseGenerationValue(value.server),
     user: parseGenerationValue(value.user),
   }

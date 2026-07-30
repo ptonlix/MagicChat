@@ -1,29 +1,32 @@
-import { chmodSync, existsSync, mkdirSync, renameSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync } from "node:fs"
 import path from "node:path"
+import { isolateDatabaseFiles, removeIsolatedDatabaseFiles } from "./message-cache-isolation"
 import { MessageCacheStore } from "./message-cache-store"
 
 export function openMessageCacheStore(databasePath: string): MessageCacheStore {
   const directory = path.dirname(databasePath)
   mkdirSync(directory, { mode: 0o700, recursive: true })
   if (process.platform !== "win32") chmodSync(directory, 0o700)
+  removeIsolatedDatabaseFiles(databasePath)
 
+  let store: MessageCacheStore
   try {
-    const store = new MessageCacheStore(databasePath)
-    secureDatabaseFiles(databasePath)
-    return store
+    store = new MessageCacheStore(databasePath)
   } catch {
-    isolateDatabase(databasePath)
-    const store = new MessageCacheStore(databasePath)
-    secureDatabaseFiles(databasePath)
-    return store
+    isolateDatabaseFiles(databasePath)
+    store = new MessageCacheStore(databasePath)
   }
-}
-
-function isolateDatabase(databasePath: string): void {
-  const suffix = `.isolated-${Date.now()}`
-  for (const extension of ["", "-wal", "-shm"]) {
-    const source = `${databasePath}${extension}`
-    if (existsSync(source)) renameSync(source, `${source}${suffix}`)
+  try {
+    secureDatabaseFiles(databasePath)
+    removeIsolatedDatabaseFiles(databasePath)
+    return store
+  } catch (error) {
+    try {
+      store.close()
+    } catch {
+      // 清理失败时保留原始错误，由 Worker 进入稳定降级流程。
+    }
+    throw error
   }
 }
 
