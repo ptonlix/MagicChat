@@ -68,6 +68,32 @@ describe("SQLite 消息缓存事务", () => {
     store.close()
   })
 
+  it("realtime 先落盘时 latest 仍初始化 HTTP 游标和缓存边界", async () => {
+    const store = await createStore()
+    store.upsert(scope, [record(15)], generation)
+    expect(store.getSyncState(scope)).toMatchObject({
+      httpSyncedThroughSeq: 0,
+      lastSyncedAt: undefined,
+      oldestCachedSeq: undefined,
+    })
+
+    expect(
+      store.commitLatest(scope, {
+        generation,
+        hasMoreBefore: true,
+        records: [record(9), record(10)],
+      }),
+    ).toMatchObject({ committed: true, committedSeq: 10 })
+    expect(store.getSyncState(scope)).toMatchObject({
+      hasMoreBefore: true,
+      httpSyncedThroughSeq: 10,
+      lastSyncedAt: expect.any(Number),
+      oldestCachedSeq: 9,
+    })
+    expect(store.readRecent(scope, 20).messages.map((item) => item.seq)).toEqual([9, 10, 15])
+    store.close()
+  })
+
   it("不连续 before 页面不得写入 SQLite 形成稀疏缓存命中", async () => {
     const store = await createStore()
     store.commitLatest(scope, {

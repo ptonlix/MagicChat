@@ -85,6 +85,7 @@ const refreshIntervalMs = 15_000
 const reactionSnapshotBatchSize = 100
 const choiceSnapshotBatchSize = 100
 const maxReactionSnapshotCatchUpAttempts = 3
+const messageCacheFallbackNotice = "本地消息缓存暂时不可用，已从服务器加载"
 
 export function ClientDataProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
@@ -1127,19 +1128,25 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
 
       void (async () => {
         let restoredFromCache = false
+        let cacheReadFailed = false
         try {
           if (messageManager) {
-            const cached = await messageManager.hydrateRecent(operation!, messagePageLimit)
-            if (cached.length > 0) {
-              restoredFromCache = true
-              updateConversationMessageState(conversationId, (currentState) => ({
-                ...currentState,
-                error: null,
-                loaded: true,
-                loading: true,
-                messages: cached,
-                page: updatePageWithMessage(currentState.page, cached),
-              }))
+            try {
+              const cached = await messageManager.hydrateRecent(operation!, messagePageLimit)
+              if (cached.length > 0) {
+                restoredFromCache = true
+                updateConversationMessageState(conversationId, (currentState) => ({
+                  ...currentState,
+                  error: null,
+                  loaded: true,
+                  loading: true,
+                  messages: cached,
+                  page: updatePageWithMessage(currentState.page, cached),
+                }))
+              }
+            } catch (error) {
+              if (isMessageOperationCancelled(error)) throw error
+              cacheReadFailed = true
             }
           }
 
@@ -1156,7 +1163,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           conversationsNeedingServerRefreshRef.current.delete(conversationId)
           updateConversationMessageState(conversationId, (currentState) => ({
             ...currentState,
-            error: null,
+            error: cacheReadFailed ? messageCacheFallbackNotice : null,
             loaded: true,
             loading: false,
             messages,
@@ -1208,29 +1215,35 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
       }))
 
       void (async () => {
+        let cacheReadFailed = false
         try {
           if (messageManager) {
-            const cached = await messageManager.hydrateBefore(
-              operation!,
-              beforeSeq,
-              messagePageLimit,
-            )
-            if (cached.hit) {
-              updateConversationMessageState(conversationId, (currentState) => ({
-                ...currentState,
-                error: null,
-                loaded: true,
-                loadingBefore: false,
-                messages: cached.messages,
-                page: {
-                  hasMoreAfter: currentState.page?.hasMoreAfter ?? false,
-                  hasMoreBefore: cached.hasMoreBefore,
-                  limit: currentState.page?.limit ?? messagePageLimit,
-                  newestSeq: cached.messages.at(-1)?.seq ?? 0,
-                  oldestSeq: cached.messages[0]?.seq ?? 0,
-                },
-              }))
-              return
+            try {
+              const cached = await messageManager.hydrateBefore(
+                operation!,
+                beforeSeq,
+                messagePageLimit,
+              )
+              if (cached.hit) {
+                updateConversationMessageState(conversationId, (currentState) => ({
+                  ...currentState,
+                  error: null,
+                  loaded: true,
+                  loadingBefore: false,
+                  messages: cached.messages,
+                  page: {
+                    hasMoreAfter: currentState.page?.hasMoreAfter ?? false,
+                    hasMoreBefore: cached.hasMoreBefore,
+                    limit: currentState.page?.limit ?? messagePageLimit,
+                    newestSeq: cached.messages.at(-1)?.seq ?? 0,
+                    oldestSeq: cached.messages[0]?.seq ?? 0,
+                  },
+                }))
+                return
+              }
+            } catch (error) {
+              if (isMessageOperationCancelled(error)) throw error
+              cacheReadFailed = true
             }
           }
 
@@ -1247,7 +1260,7 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
           if (operation) messageManager?.assertOperationCurrent(operation)
           updateConversationMessageState(conversationId, (currentState) => ({
             ...currentState,
-            error: null,
+            error: cacheReadFailed ? messageCacheFallbackNotice : null,
             loaded: true,
             loadingBefore: false,
             messages,

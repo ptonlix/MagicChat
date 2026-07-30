@@ -326,7 +326,7 @@ export class MessageCacheStore {
       const oldest = minimumSeq(commit.records)
       const now = Date.now()
 
-      if (kind === "latest" && !previous) {
+      if (kind === "latest" && (!previous || previous.last_synced_at === null)) {
         accepted = true
         committed = true
         committedSeq = newest

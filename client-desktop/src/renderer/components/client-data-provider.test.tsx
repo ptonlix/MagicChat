@@ -551,6 +551,125 @@ describe("ClientDataProvider", () => {
     restoreTarget()
   })
 
+  it("最近消息缓存读取失败时提示降级并继续从 Server 加载", async () => {
+    vi.useFakeTimers()
+    const messageCache = createMessageCacheMock()
+    messageCache.readRecent.mockRejectedValue(new Error("cache unavailable"))
+    vi.stubGlobal("desktop", { messageCache })
+    const restoreTarget = configureMessageCacheTarget({
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    })
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/client/me")
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      if (url === "/api/client/contacts")
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      if (url === "/api/client/conversations")
+        return Promise.resolve(
+          jsonResponse(createConversationsResponse([createConversationResponse("conversation-1")])),
+        )
+      if (url === "/api/client/projects?limit=100")
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      if (url === "/api/client/conversations/conversation-1/messages?limit=20")
+        return Promise.resolve(jsonResponse(createMessagesResponse(1, true)))
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const view = render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <MessagePaginationProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("1:more")
+    expect(screen.getByTestId("pagination-load-state")).toHaveTextContent("loaded:idle")
+    expect(screen.getByTestId("pagination-error")).toHaveTextContent(
+      "本地消息缓存暂时不可用，已从服务器加载",
+    )
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+      "/api/client/conversations/conversation-1/messages?limit=20",
+    )
+
+    view.unmount()
+    restoreTarget()
+  })
+
+  it("历史消息缓存读取失败时提示降级并继续从 Server 加载", async () => {
+    vi.useFakeTimers()
+    const messageCache = createMessageCacheMock()
+    messageCache.readBefore.mockRejectedValue(new Error("cache unavailable"))
+    vi.stubGlobal("desktop", { messageCache })
+    const restoreTarget = configureMessageCacheTarget({
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    })
+    let beforeRequestCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === "/api/client/me")
+          return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+        if (url === "/api/client/contacts")
+          return Promise.resolve(jsonResponse(createContactsResponse()))
+        if (url === "/api/client/conversations")
+          return Promise.resolve(
+            jsonResponse(
+              createConversationsResponse([createConversationResponse("conversation-1")]),
+            ),
+          )
+        if (url === "/api/client/projects?limit=100")
+          return Promise.resolve(jsonResponse(createProjectsResponse()))
+        if (url === "/api/client/conversations/conversation-1/messages?limit=20")
+          return Promise.resolve(jsonResponse(createMessagesResponse(21, true)))
+        if (url === "/api/client/conversations/conversation-1/messages?limit=20&before_seq=21") {
+          beforeRequestCount += 1
+          return Promise.resolve(jsonResponse(createMessagesResponse(1, false)))
+        }
+        return Promise.reject(new Error(`unexpected request: ${url}`))
+      }),
+    )
+
+    const view = render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <MessagePaginationProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "load paged messages" }).click()
+    })
+    await act(async () => {
+      screen.getByRole("button", { name: "load older messages" }).click()
+    })
+
+    expect(beforeRequestCount).toBe(1)
+    expect(screen.getByTestId("pagination-state")).toHaveTextContent("2:end")
+    expect(screen.getByTestId("pagination-error")).toHaveTextContent(
+      "本地消息缓存暂时不可用，已从服务器加载",
+    )
+
+    view.unmount()
+    restoreTarget()
+  })
+
   it("清理后的 Server 校准失败时保留当前消息并在下次进入重试", async () => {
     vi.useFakeTimers()
     const messageCache = createMessageCacheMock()
@@ -993,6 +1112,7 @@ function MessagePaginationProbe() {
       <div data-testid="pagination-load-state">
         {state.loaded ? "loaded" : "unloaded"}:{state.loading ? "loading" : "idle"}
       </div>
+      <div data-testid="pagination-error">{state.error ?? "none"}</div>
     </>
   )
 }
