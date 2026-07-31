@@ -39,6 +39,16 @@ export function registerPrivilegedSchemes(): void {
         stream: true,
       },
     },
+    {
+      scheme: "magicchat-capture",
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true,
+      },
+    },
   ])
 }
 

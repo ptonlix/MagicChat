@@ -1,5 +1,5 @@
 import path from "node:path"
-import { app, dialog, powerMonitor } from "electron"
+import { app, dialog, globalShortcut, powerMonitor, screen } from "electron"
 import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
@@ -23,6 +23,8 @@ import { StreamingUploadController } from "@main/streaming-upload"
 import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
+import { ScreenshotController } from "@main/screenshot-controller"
+import type { ScreenshotErrorCode } from "@shared/screenshot-contract"
 import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
 registerPrivilegedSchemes()
@@ -71,6 +73,18 @@ async function start(): Promise<void> {
     path.resolve(__dirname, "../preload/index.cjs"),
     iconPath,
   )
+  const captureRendererUrl =
+    !app.isPackaged && process.env.ELECTRON_RENDERER_URL
+      ? new URL("capture.html", process.env.ELECTRON_RENDERER_URL).toString()
+      : "magicchat-app://app/capture.html"
+  const screenshots = new ScreenshotController({
+    capturePreloadPath: path.resolve(__dirname, "../preload/index.cjs"),
+    captureUrl: captureRendererUrl,
+    getMainWindow: () => windows.current(),
+    onConversationResult: (result) => windows.send(IPC.screenshotCompleted, result),
+  })
+  screenshots.installProtocol()
+  const unregisterScreenshotIpc = screenshots.registerIpc()
   const system = new SystemIntegration(store, windows)
   const proxyAuth = new ProxyAuthPrompt(windows, iconPath)
   const realtime = new RealtimeController(profiles, sessions, proxyAuth)
@@ -130,6 +144,34 @@ async function start(): Promise<void> {
 
   const hidden = process.argv.includes("--hidden") && store.getSettings().autoLaunch
   const mainWindow = windows.create(hidden)
+  const screenshotShortcut = "CommandOrControl+Shift+A"
+  const screenshotShortcutRegistered = globalShortcut.register(screenshotShortcut, () => {
+    void screenshots
+      .start({})
+      .then(async (result) => {
+        if (result.status !== "error") return
+        windows.show()
+        await dialog.showMessageBox(mainWindow, {
+          detail: screenshotErrorDetail(result.code),
+          message: "无法完成屏幕截图",
+          type: "warning",
+        })
+      })
+      .catch(async (error: unknown) => {
+        windows.show()
+        await dialog.showMessageBox(mainWindow, {
+          detail: error instanceof Error ? error.message : "截图服务不可用",
+          message: "无法完成屏幕截图",
+          type: "warning",
+        })
+      })
+  })
+  if (!screenshotShortcutRegistered)
+    void diagnostics.record("main", "screenshot-shortcut-unavailable")
+  const cancelScreenshotForDisplayChange = () => screenshots.cancelActive()
+  screen.on("display-added", cancelScreenshotForDisplayChange)
+  screen.on("display-removed", cancelScreenshotForDisplayChange)
+  screen.on("display-metrics-changed", cancelScreenshotForDisplayChange)
   mainWindow.webContents.once("did-finish-load", () => void startupHealth.markHealthy())
   powerMonitor.on("suspend", () => asr.closeAll())
   powerMonitor.on("resume", () => realtime.reconnectAll())
@@ -157,6 +199,7 @@ async function start(): Promise<void> {
   let transferExitConfirmed = false
   app.on("before-quit", (event) => {
     if (updater.isInstallIntent()) {
+      screenshots.dispose()
       http.cancelAll()
       asr.closeAll()
       auth.dispose()
@@ -178,6 +221,7 @@ async function start(): Promise<void> {
       transferExitConfirmed = true
     }
     cleanupStarted = true
+    screenshots.dispose()
     windows.prepareToQuit()
     http.cancelAll()
     asr.closeAll()
@@ -191,6 +235,12 @@ async function start(): Promise<void> {
   })
   app.once("will-quit", () => {
     unregisterIpc()
+    unregisterScreenshotIpc()
+    globalShortcut.unregister(screenshotShortcut)
+    screen.removeListener("display-added", cancelScreenshotForDisplayChange)
+    screen.removeListener("display-removed", cancelScreenshotForDisplayChange)
+    screen.removeListener("display-metrics-changed", cancelScreenshotForDisplayChange)
+    screenshots.dispose()
     updater.dispose()
   })
   process.on("uncaughtException", (error) => void diagnostics.record("main", error.name))
@@ -234,4 +284,12 @@ function registerProtocolClient(): void {
   if (process.defaultApp && process.argv[1])
     app.setAsDefaultProtocolClient("magicchat", process.execPath, [path.resolve(process.argv[1])])
   else app.setAsDefaultProtocolClient("magicchat")
+}
+
+function screenshotErrorDetail(code: ScreenshotErrorCode): string {
+  if (code === "permission_denied") return "请在系统设置中允许 MagicChat 录制屏幕。"
+  if (code === "capture_timeout") return "屏幕截图响应超时，请重试。"
+  if (code === "unsupported_multi_display") return "当前桌面环境暂不支持多显示器截图。"
+  if (code === "capture_unavailable") return "当前没有可用的屏幕截图来源。"
+  return "截图服务暂时不可用，请重试。"
 }

@@ -1,6 +1,17 @@
 import * as React from "react"
-import { ImageIcon, LoaderCircle, Mic, Paperclip, Send, Smile, UsersRound, X } from "lucide-react"
+import {
+  ImageIcon,
+  LoaderCircle,
+  Mic,
+  Paperclip,
+  ScanLine,
+  Send,
+  Smile,
+  UsersRound,
+  X,
+} from "lucide-react"
 import { toast } from "sonner"
+import type { ScreenshotConversationResult, ScreenshotErrorCode } from "@shared/screenshot-contract"
 import { getAvatarInitial } from "@/lib/avatar"
 import { cn } from "@/lib/utils"
 import {
@@ -44,6 +55,11 @@ import type {
   ConversationPanelReplyTarget,
 } from "@/lib/conversation-panel-types"
 import { getFileMessageUploadError } from "@/lib/file-message"
+
+type ScreenshotImportState = Readonly<{
+  controller: AbortController
+  id: number
+}>
 
 export const ConversationPanelComposer = React.forwardRef<
   ConversationPanelComposerHandle,
@@ -97,11 +113,16 @@ export const ConversationPanelComposer = React.forwardRef<
   const [imageDialogOpen, setImageDialogOpen] = React.useState(false)
   const [imagePreparing, setImagePreparing] = React.useState(false)
   const [voiceDialogOpen, setVoiceDialogOpen] = React.useState(false)
+  const [screenshotStarting, setScreenshotStarting] = React.useState(false)
   const [mentionTrigger, setMentionTrigger] = React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
   const [imageCaption, setImageCaption] = React.useState("")
+  const screenshotImportRef = React.useRef<ScreenshotImportState | undefined>(undefined)
+  const screenshotImportIdRef = React.useRef(0)
+  const imagePreparationIdRef = React.useRef(0)
+  const currentConversationIdRef = React.useRef(conversation.id)
   const mentionCandidates = React.useMemo(
     () =>
       conversation.type === "group" || conversation.topic?.parentConversationType === "group"
@@ -113,6 +134,65 @@ export const ConversationPanelComposer = React.forwardRef<
     () => filterMentionCandidates(mentionCandidates, mentionTrigger?.query ?? ""),
     [mentionCandidates, mentionTrigger?.query],
   )
+
+  const handleScreenshotCompleted = React.useEffectEvent((result: ScreenshotConversationResult) => {
+    if (result.conversationId !== conversation.id) return
+    screenshotImportRef.current?.controller.abort()
+    const importState = {
+      controller: new AbortController(),
+      id: ++screenshotImportIdRef.current,
+    }
+    screenshotImportRef.current = importState
+    void fetch(result.resourceUrl, { signal: importState.controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("截图结果已过期")
+        const blob = await response.blob()
+        if (blob.type !== "image/png" || blob.size === 0) throw new Error("截图结果无效")
+        if (!isCurrentScreenshotImport(importState, result.conversationId)) return
+        await prepareSelectedImage(
+          new File([blob], result.fileName, { lastModified: Date.now(), type: "image/png" }),
+          { conversationId: result.conversationId, importState },
+        )
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return
+        if (!isCurrentScreenshotImport(importState, result.conversationId)) return
+        toast.error(error instanceof Error ? error.message : "无法添加截图")
+      })
+      .finally(() => {
+        if (screenshotImportRef.current?.id === importState.id)
+          screenshotImportRef.current = undefined
+      })
+  })
+
+  React.useEffect(() => {
+    currentConversationIdRef.current = conversation.id
+    screenshotImportRef.current?.controller.abort()
+    screenshotImportRef.current = undefined
+    imagePreparationIdRef.current += 1
+    setImagePreparing(false)
+    const screenshot = window.desktop?.screenshot
+    return screenshot ? screenshot.subscribeCompleted(handleScreenshotCompleted) : undefined
+  }, [conversation.id])
+
+  React.useEffect(
+    () => () => {
+      screenshotImportRef.current?.controller.abort()
+      imagePreparationIdRef.current += 1
+    },
+    [],
+  )
+
+  function isCurrentScreenshotImport(
+    importState: ScreenshotImportState,
+    conversationId: string,
+  ): boolean {
+    return (
+      !importState.controller.signal.aborted &&
+      screenshotImportRef.current?.id === importState.id &&
+      currentConversationIdRef.current === conversationId
+    )
+  }
 
   React.useImperativeHandle(ref, () => ({
     focus() {
@@ -382,6 +462,24 @@ export const ConversationPanelComposer = React.forwardRef<
     imageInputRef.current?.click()
   }
 
+  async function handleScreenshotButtonClick() {
+    if (sending || imagePreparing || screenshotStarting) return
+    const screenshot = window.desktop?.screenshot
+    if (!screenshot) {
+      toast.error("当前版本不支持屏幕截图")
+      return
+    }
+    setScreenshotStarting(true)
+    try {
+      const result = await screenshot.start({ conversationId: conversation.id })
+      if (result.status === "error") toast.error(screenshotErrorMessage(result.code))
+    } catch {
+      toast.error("无法启动截图")
+    } finally {
+      setScreenshotStarting(false)
+    }
+  }
+
   function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null
 
@@ -430,10 +528,18 @@ export const ConversationPanelComposer = React.forwardRef<
     void prepareSelectedImage(image)
   }
 
-  async function prepareSelectedImage(image: File) {
-    if (sending || imagePreparing) {
+  async function prepareSelectedImage(
+    image: File,
+    screenshotImport?: Readonly<{
+      conversationId: string
+      importState: ScreenshotImportState
+    }>,
+  ) {
+    if (sending || (imagePreparing && !screenshotImport)) {
       return
     }
+
+    const preparationId = ++imagePreparationIdRef.current
 
     setImagePreparing(true)
     setSelectedImage(null)
@@ -443,6 +549,13 @@ export const ConversationPanelComposer = React.forwardRef<
     try {
       const compressedImage = await compressImageForMessage(image)
 
+      if (preparationId !== imagePreparationIdRef.current) return
+      if (
+        screenshotImport &&
+        !isCurrentScreenshotImport(screenshotImport.importState, screenshotImport.conversationId)
+      )
+        return
+
       if (compressedImage.size > imageMessageMaxBytes) {
         toast.error("图片大于 2MB，无法上传")
         return
@@ -451,9 +564,15 @@ export const ConversationPanelComposer = React.forwardRef<
       setSelectedImage(compressedImage)
       setImageDialogOpen(true)
     } catch (error) {
+      if (preparationId !== imagePreparationIdRef.current) return
+      if (
+        screenshotImport &&
+        !isCurrentScreenshotImport(screenshotImport.importState, screenshotImport.conversationId)
+      )
+        return
       toast.error(error instanceof Error ? error.message : "读取图片失败")
     } finally {
-      setImagePreparing(false)
+      if (preparationId === imagePreparationIdRef.current) setImagePreparing(false)
     }
   }
 
@@ -666,6 +785,21 @@ export const ConversationPanelComposer = React.forwardRef<
                 <ImageIcon className="size-4" />
               )}
             </Button>
+            <Button
+              aria-label="截取屏幕"
+              disabled={sending || imagePreparing || screenshotStarting}
+              onClick={() => void handleScreenshotButtonClick()}
+              size="icon-sm"
+              title="截取屏幕"
+              type="button"
+              variant="ghost"
+            >
+              {screenshotStarting ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <ScanLine className="size-4" />
+              )}
+            </Button>
             <Toggle
               aria-label="支持 markdown"
               className="size-8 p-0"
@@ -737,3 +871,11 @@ export const ConversationPanelComposer = React.forwardRef<
     </footer>
   )
 })
+
+function screenshotErrorMessage(code: ScreenshotErrorCode): string {
+  if (code === "permission_denied") return "请在系统设置中允许 MagicChat 录制屏幕"
+  if (code === "capture_timeout") return "屏幕截图响应超时，请重试"
+  if (code === "unsupported_multi_display") return "当前桌面环境暂不支持多显示器截图"
+  if (code === "capture_unavailable") return "当前没有可用的屏幕截图来源"
+  return "无法完成屏幕截图"
+}

@@ -8,6 +8,14 @@ import {
 } from "@shared/bridge"
 import type { ASREvent } from "@shared/asr-contract"
 import type { RealtimeEnvelope } from "@shared/client-contract"
+import {
+  CAPTURE_BRIDGE_VERSION,
+  type CaptureBridge,
+  type CaptureResultFinish,
+  type CaptureSessionMetadata,
+  type ScreenshotConversationResult,
+  type ScreenshotStartResult,
+} from "@shared/screenshot-contract"
 
 const bridge: DesktopBridge = {
   version: BRIDGE_VERSION,
@@ -78,6 +86,12 @@ const bridge: DesktopBridge = {
     subscribe: (listener) => subscribe<RealtimeEnvelope>(IPC.realtimeEvent, listener),
     subscribeUnauthorized: (listener) => subscribe(IPC.realtimeUnauthorized, listener),
   },
+  screenshot: {
+    start: (input): Promise<ScreenshotStartResult> =>
+      ipcRenderer.invoke(IPC.screenshotStart, input),
+    subscribeCompleted: (listener) =>
+      subscribe<ScreenshotConversationResult>(IPC.screenshotCompleted, listener),
+  },
   servers: {
     add: (url, name) => ipcRenderer.invoke(IPC.serversAdd, url, name),
     list: () => ipcRenderer.invoke(IPC.serversList),
@@ -109,7 +123,18 @@ const bridge: DesktopBridge = {
   },
 }
 
-if (process.argv.includes("--magicchat-proxy-auth")) {
+if (process.argv.includes("--magicchat-capture")) {
+  const captureBridge: CaptureBridge = {
+    version: CAPTURE_BRIDGE_VERSION,
+    cancel: () => ipcRenderer.invoke(IPC.screenshotCancel),
+    getMetadata: (): Promise<CaptureSessionMetadata> => ipcRenderer.invoke(IPC.screenshotMetadata),
+    resultChunk: (index, bytes) => ipcRenderer.invoke(IPC.screenshotResultChunk, index, bytes),
+    resultFinish: (): Promise<CaptureResultFinish> =>
+      ipcRenderer.invoke(IPC.screenshotResultFinish),
+    resultStart: (input) => ipcRenderer.invoke(IPC.screenshotResultStart, input),
+  }
+  contextBridge.exposeInMainWorld("capture", Object.freeze(captureBridge))
+} else if (process.argv.includes("--magicchat-proxy-auth")) {
   contextBridge.exposeInMainWorld(
     "proxyAuth",
     Object.freeze({

@@ -723,6 +723,10 @@ function createDesktopBridge(
       subscribe: vi.fn().mockReturnValue(unsubscribe),
       subscribeUnauthorized: vi.fn().mockReturnValue(unsubscribe),
     },
+    screenshot: {
+      start: vi.fn(),
+      subscribeCompleted: vi.fn().mockReturnValue(unsubscribe),
+    },
     servers: {
       add: vi.fn(),
       list: vi.fn().mockResolvedValue([profile]),

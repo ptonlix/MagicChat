@@ -8,6 +8,7 @@ import type {
 } from "@shared/client-contract"
 import type { MessageCacheBridge } from "@shared/message-cache-contract"
 import type { ASRBridge } from "@shared/asr-contract"
+import type { ScreenshotBridge } from "@shared/screenshot-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
@@ -57,6 +58,13 @@ export const IPC = {
   realtimeEvent: "desktop:v1:realtime-event",
   realtimeSend: "desktop:v1:realtime-send",
   realtimeUnauthorized: "desktop:v1:realtime-unauthorized",
+  screenshotCancel: "desktop:v1:screenshot-cancel",
+  screenshotCompleted: "desktop:v1:screenshot-completed",
+  screenshotMetadata: "desktop:v1:screenshot-metadata",
+  screenshotResultChunk: "desktop:v1:screenshot-result-chunk",
+  screenshotResultFinish: "desktop:v1:screenshot-result-finish",
+  screenshotResultStart: "desktop:v1:screenshot-result-start",
+  screenshotStart: "desktop:v1:screenshot-start",
   serversAdd: "desktop:v1:servers-add",
   serversList: "desktop:v1:servers-list",
   serversRemove: "desktop:v1:servers-remove",
@@ -232,6 +240,7 @@ export interface DesktopBridge {
     subscribe(listener: (envelope: RealtimeEnvelope) => void): () => void
     subscribeUnauthorized(listener: (target: AuthenticatedTarget) => void): () => void
   }
+  screenshot: ScreenshotBridge
   servers: {
     add(url: string, displayName?: string): Promise<ServerProfile>
     list(): Promise<ReadonlyArray<ServerProfile>>
