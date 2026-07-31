@@ -60,8 +60,6 @@ const electronMocks = vi.hoisted(() => {
   }
 })
 
-const securityMocks = vi.hoisted(() => ({ assertTrustedIpcSender: vi.fn() }))
-
 vi.mock("electron", () => ({
   app: { isPackaged: false },
   BrowserWindow: electronMocks.browserWindow,
@@ -88,14 +86,13 @@ vi.mock("electron", () => ({
   systemPreferences: { getMediaAccessStatus: () => "granted" },
 }))
 
-vi.mock("@main/ipc-security", () => securityMocks)
-
 import { ScreenshotController } from "@main/screenshot-controller"
 
 const pngSignature = [
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 70, 0, 0, 0, 60, 8, 6, 0,
   0, 0, 0, 0, 0, 0,
 ]
+const conversationId = "550e8400-e29b-41d4-a716-446655440000"
 
 describe("ScreenshotController", () => {
   beforeEach(() => {
@@ -107,18 +104,65 @@ describe("ScreenshotController", () => {
     electronMocks.showSaveDialog.mockResolvedValue({ canceled: true })
   })
 
-  it("只允许可信主窗口启动，并拒绝未注册浮层读取会话", async () => {
+  it("只允许主窗口启动，并拒绝未注册浮层读取会话", async () => {
     const { controller } = createController()
     controller.registerIpc()
 
     await expect(invoke(IPC.screenshotStart, 99, {})).rejects.toThrow("截图启动来源无效")
-    expect(securityMocks.assertTrustedIpcSender).toHaveBeenCalledOnce()
 
     await expect(invoke(IPC.screenshotStart, 1, {})).resolves.toMatchObject({ status: "started" })
     await expect(invoke(IPC.screenshotMetadata, 999)).rejects.toThrow("截图会话无效或已过期")
     await expect(
       invoke(IPC.screenshotMetadata, electronMocks.windows[0].webContents.id),
     ).resolves.toMatchObject({ defaultOutput: "copy" })
+  })
+
+  it("所有截图 IPC 都拒绝不可信来源", async () => {
+    const { controller } = createController()
+    controller.registerIpc()
+    await invoke(IPC.screenshotStart, 1, {})
+    const senderId = electronMocks.windows[0].webContents.id
+
+    for (const url of ["https://evil.example/", "http://192.168.1.2:20050/"]) {
+      for (const channel of [
+        IPC.screenshotStart,
+        IPC.screenshotMetadata,
+        IPC.screenshotCancel,
+        IPC.screenshotResultStart,
+        IPC.screenshotResultChunk,
+        IPC.screenshotResultFinish,
+      ]) {
+        await expect(invokeFrom(channel, senderId, url)).rejects.toThrow("IPC 调用来源不受信任")
+      }
+    }
+  })
+
+  it("开发环境允许 localhost 主窗口启动截图", async () => {
+    const { controller } = createController()
+    controller.registerIpc()
+
+    await expect(
+      invokeFrom(IPC.screenshotStart, 1, "http://localhost:20050/", {}),
+    ).resolves.toMatchObject({ status: "started" })
+  })
+
+  it("拒绝非 UUID 对话标识，并规范化有效 UUID", async () => {
+    const { controller, onConversationResult } = createController()
+    controller.registerIpc()
+
+    await expect(
+      invoke(IPC.screenshotStart, 1, { conversationId: "conversation-1" }),
+    ).rejects.toThrow("截图对话标识无效")
+    expect(electronMocks.windows).toHaveLength(0)
+
+    await invoke(IPC.screenshotStart, 1, {
+      conversationId: `  ${conversationId.toUpperCase()}  `,
+    })
+    const senderId = electronMocks.windows[0].webContents.id
+    await submitPng(senderId, "conversation")
+    await invoke(IPC.screenshotResultFinish, senderId)
+
+    expect(onConversationResult).toHaveBeenCalledWith(expect.objectContaining({ conversationId }))
   })
 
   it("乱序结果会清除组装状态，并允许重新提交", async () => {
@@ -248,7 +292,7 @@ describe("ScreenshotController", () => {
     const { controller, onConversationResult } = createController()
     controller.installProtocol()
     controller.registerIpc()
-    await invoke(IPC.screenshotStart, 1, { conversationId: "conversation-1" })
+    await invoke(IPC.screenshotStart, 1, { conversationId })
     const senderId = electronMocks.windows[0].webContents.id
 
     await submitPng(senderId, "conversation")
@@ -256,9 +300,7 @@ describe("ScreenshotController", () => {
       status: "completed",
     })
 
-    expect(onConversationResult).toHaveBeenCalledWith(
-      expect.objectContaining({ conversationId: "conversation-1" }),
-    )
+    expect(onConversationResult).toHaveBeenCalledWith(expect.objectContaining({ conversationId }))
     const resourceUrl = onConversationResult.mock.calls[0][0].resourceUrl
     const protocolHandler = electronMocks.protocolHandlers.get("magicchat-capture")
     expect(protocolHandler).toBeDefined()
@@ -274,7 +316,7 @@ describe("ScreenshotController", () => {
     const { controller } = createController()
     controller.installProtocol()
     controller.registerIpc()
-    await invoke(IPC.screenshotStart, 1, { conversationId: "conversation-1" })
+    await invoke(IPC.screenshotStart, 1, { conversationId })
     const senderId = electronMocks.windows[0].webContents.id
     await submitPng(senderId, "conversation")
     await invoke(IPC.screenshotResultFinish, senderId)
@@ -393,9 +435,13 @@ function capturedDisplay(id = "7"): CapturedDisplay {
 }
 
 async function invoke(channel: string, senderId: number, ...args: unknown[]) {
+  return invokeFrom(channel, senderId, "magicchat-app://app/index.html", ...args)
+}
+
+async function invokeFrom(channel: string, senderId: number, url: string, ...args: unknown[]) {
   const handler = electronMocks.handlers.get(channel)
   if (!handler) throw new Error(`IPC handler missing: ${channel}`)
-  return handler({ sender: { id: senderId } } as IpcMainInvokeEvent, ...args)
+  return handler({ sender: { id: senderId }, senderFrame: { url } } as IpcMainInvokeEvent, ...args)
 }
 
 async function submitPng(senderId: number, action: "conversation" | "copy" | "save") {

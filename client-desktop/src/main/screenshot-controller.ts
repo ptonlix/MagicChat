@@ -98,10 +98,13 @@ export class ScreenshotController {
     const register = (
       channel: string,
       handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown,
-    ) => ipcMain.handle(channel, handler)
+    ) =>
+      ipcMain.handle(channel, async (event, ...args) => {
+        assertTrustedIpcSender(event)
+        return handler(event, ...args)
+      })
 
     register(IPC.screenshotStart, (event, input) => {
-      assertTrustedIpcSender(event)
       this.assertMainSender(event)
       return this.start(parseStartInput(input))
     })
@@ -492,13 +495,10 @@ function parseStartInput(value: unknown): ScreenshotStartInput {
   if (!value || typeof value !== "object") return {}
   const conversationId = (value as { conversationId?: unknown }).conversationId
   if (conversationId === undefined) return {}
-  if (
-    typeof conversationId !== "string" ||
-    conversationId.length === 0 ||
-    conversationId.length > 256
-  )
-    throw new Error("截图对话标识无效")
-  return { conversationId }
+  if (typeof conversationId !== "string") throw new Error("截图对话标识无效")
+  const normalizedConversationId = conversationId.trim().toLowerCase()
+  if (!canonicalUuidPattern.test(normalizedConversationId)) throw new Error("截图对话标识无效")
+  return { conversationId: normalizedConversationId }
 }
 
 function parseResultStart(value: unknown): CaptureResultStart {
@@ -574,6 +574,8 @@ function cleanupCaptureAttempt(
 function secureToken(): string {
   return randomBytes(24).toString("hex")
 }
+
+const canonicalUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function pngResponse(buffer: Buffer): Response {
   return new Response(new Uint8Array(buffer), {
