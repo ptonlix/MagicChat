@@ -14,6 +14,7 @@ import {
   type CaptureResultFinish,
   type CaptureSessionMetadata,
   type ScreenshotConversationResult,
+  type ScreenshotStartFailure,
   type ScreenshotStartResult,
 } from "@shared/screenshot-contract"
 
@@ -94,6 +95,8 @@ const bridge: DesktopBridge = {
       ipcRenderer.invoke(IPC.screenshotStart, input),
     subscribeCompleted: (listener) =>
       subscribe<ScreenshotConversationResult>(IPC.screenshotCompleted, listener),
+    subscribeStartFailed: (listener) =>
+      subscribe<ScreenshotStartFailure>(IPC.screenshotStartFailed, listener),
   },
   servers: {
     add: (url, name) => ipcRenderer.invoke(IPC.serversAdd, url, name),

@@ -51,6 +51,10 @@ export type ScreenshotConversationResult = Readonly<{
   sessionId: string
 }>
 
+export type ScreenshotStartFailure = Readonly<{
+  code: ScreenshotErrorCode
+}>
+
 export type CaptureSessionMetadata = Readonly<{
   defaultOutput: ScreenshotOutputAction
   display: ScreenshotDisplay
@@ -80,4 +84,5 @@ export interface CaptureBridge {
 export interface ScreenshotBridge {
   start(input: ScreenshotStartInput): Promise<ScreenshotStartResult>
   subscribeCompleted(listener: (result: ScreenshotConversationResult) => void): () => void
+  subscribeStartFailed(listener: (failure: ScreenshotStartFailure) => void): () => void
 }

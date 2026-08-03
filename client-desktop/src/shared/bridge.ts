@@ -63,6 +63,7 @@ export const IPC = {
   realtimeUnauthorized: "desktop:v1:realtime-unauthorized",
   screenshotCancel: "desktop:v1:screenshot-cancel",
   screenshotCompleted: "desktop:v1:screenshot-completed",
+  screenshotStartFailed: "desktop:v1:screenshot-start-failed",
   screenshotMetadata: "desktop:v1:screenshot-metadata",
   screenshotResultChunk: "desktop:v1:screenshot-result-chunk",
   screenshotResultFinish: "desktop:v1:screenshot-result-finish",

@@ -87,7 +87,7 @@ export class WindowController {
     if (window && process.platform !== "darwin") {
       window.setTitleBarOverlay({
         color: "#00000000",
-        height: 40,
+        height: DESKTOP_TITLEBAR_HEIGHT,
         symbolColor: dark ? "#fafafa" : "#18181b",
       })
     }

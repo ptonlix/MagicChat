@@ -24,7 +24,6 @@ import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
 import { ScreenshotController } from "@main/screenshot-controller"
-import type { ScreenshotErrorCode } from "@shared/screenshot-contract"
 import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
 registerPrivilegedSchemes()
@@ -148,22 +147,14 @@ async function start(): Promise<void> {
   const screenshotShortcutRegistered = globalShortcut.register(screenshotShortcut, () => {
     void screenshots
       .start({})
-      .then(async (result) => {
+      .then((result) => {
         if (result.status !== "error") return
         windows.show()
-        await dialog.showMessageBox(mainWindow, {
-          detail: screenshotErrorDetail(result.code),
-          message: "无法完成屏幕截图",
-          type: "warning",
-        })
+        windows.send(IPC.screenshotStartFailed, { code: result.code })
       })
-      .catch(async (error: unknown) => {
+      .catch(() => {
         windows.show()
-        await dialog.showMessageBox(mainWindow, {
-          detail: error instanceof Error ? error.message : "截图服务不可用",
-          message: "无法完成屏幕截图",
-          type: "warning",
-        })
+        windows.send(IPC.screenshotStartFailed, { code: "capture_failed" })
       })
   })
   if (!screenshotShortcutRegistered)
@@ -284,12 +275,4 @@ function registerProtocolClient(): void {
   if (process.defaultApp && process.argv[1])
     app.setAsDefaultProtocolClient("magicchat", process.execPath, [path.resolve(process.argv[1])])
   else app.setAsDefaultProtocolClient("magicchat")
-}
-
-function screenshotErrorDetail(code: ScreenshotErrorCode): string {
-  if (code === "permission_denied") return "请在系统设置中允许 MagicChat 录制屏幕。"
-  if (code === "capture_timeout") return "屏幕截图响应超时，请重试。"
-  if (code === "unsupported_multi_display") return "当前桌面环境暂不支持多显示器截图。"
-  if (code === "capture_unavailable") return "当前没有可用的屏幕截图来源。"
-  return "截图服务暂时不可用，请重试。"
 }

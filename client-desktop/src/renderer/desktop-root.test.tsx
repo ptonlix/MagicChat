@@ -13,6 +13,7 @@ import {
   type ServerProfile,
   type UpdaterState,
 } from "@shared/bridge"
+import type { ScreenshotStartFailure } from "@shared/screenshot-contract"
 
 const profile: ServerProfile = {
   createdAt: "2026-07-23T00:00:00.000Z",
@@ -27,6 +28,11 @@ const mocks = vi.hoisted(() => ({
   openSettings: undefined as (() => void) | undefined,
   messageNotificationSoundEnabled: undefined as (() => boolean) | undefined,
   remove: vi.fn(),
+  screenshotStartFailureSubscriber: undefined as
+    | ((failure: ScreenshotStartFailure) => void)
+    | undefined,
+  screenshotStartFailureUnsubscribe: vi.fn(),
+  showScreenshotStartError: vi.fn(),
 }))
 
 vi.mock("@/app/App", () => ({
@@ -61,6 +67,10 @@ vi.mock("@/lib/desktop-resource-url", () => ({
   resolveDesktopResourceUrl: (_profile: ServerProfile, url: string) => url,
 }))
 
+vi.mock("@/lib/screenshot-start-error", () => ({
+  showScreenshotStartError: mocks.showScreenshotStartError,
+}))
+
 vi.mock("./desktop-transport", () => ({
   DesktopWebSocket: class DesktopWebSocket {},
   installDesktopFetch: () => () => undefined,
@@ -70,6 +80,9 @@ describe("桌面设置服务器管理", () => {
   beforeEach(() => {
     mocks.openSettings = undefined
     mocks.messageNotificationSoundEnabled = undefined
+    mocks.screenshotStartFailureSubscriber = undefined
+    mocks.screenshotStartFailureUnsubscribe.mockReset()
+    mocks.showScreenshotStartError.mockReset()
     mocks.openManual.mockReset().mockResolvedValue(undefined)
     mocks.openRelease.mockReset().mockResolvedValue(undefined)
     mocks.remove.mockResolvedValue(undefined)
@@ -82,6 +95,19 @@ describe("桌面设置服务器管理", () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it("全局截图快捷键权限失败时展示 Renderer 权限提示并清理订阅", async () => {
+    const view = render(<DesktopRoot />)
+
+    await waitFor(() => expect(mocks.screenshotStartFailureSubscriber).toBeTypeOf("function"))
+    act(() => {
+      mocks.screenshotStartFailureSubscriber?.({ code: "permission_denied" })
+    })
+
+    expect(mocks.showScreenshotStartError).toHaveBeenCalledWith("permission_denied")
+    view.unmount()
+    expect(mocks.screenshotStartFailureUnsubscribe).toHaveBeenCalledOnce()
   })
 
   it("Windows 顶栏展示即应 Logo", async () => {
@@ -805,6 +831,10 @@ function createDesktopBridge(
     screenshot: {
       start: vi.fn(),
       subscribeCompleted: vi.fn().mockReturnValue(unsubscribe),
+      subscribeStartFailed: vi.fn().mockImplementation((listener) => {
+        mocks.screenshotStartFailureSubscriber = listener
+        return mocks.screenshotStartFailureUnsubscribe
+      }),
     },
     servers: {
       add: vi.fn(),

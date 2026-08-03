@@ -30,6 +30,7 @@ export type MessageActionOptions = {
   onMultiSelect?: () => void
   onReply?: () => void
   onRevoke?: () => void
+  showCopy?: boolean
 }
 
 type MessageActionItem = {
@@ -133,9 +134,9 @@ function resolveMessageActions({
   onMultiSelect,
   onReply,
   onRevoke,
+  showCopy = true,
 }: MessageActionOptions): MessageActionItem[] {
   const actions: MessageActionItem[] = [
-    { disabled: copyDisabled, icon: Copy, key: "copy", label: "复制", onSelect: onCopy },
     { disabled: !onReply, icon: Reply, key: "reply", label: "回复", onSelect: onReply },
     { disabled: !onForward, icon: Forward, key: "forward", label: "转发", onSelect: onForward },
     {
@@ -146,6 +147,16 @@ function resolveMessageActions({
       onSelect: onMultiSelect,
     },
   ]
+
+  if (showCopy) {
+    actions.unshift({
+      disabled: copyDisabled,
+      icon: Copy,
+      key: "copy",
+      label: "复制",
+      onSelect: onCopy,
+    })
+  }
 
   if (onCreateTopic) {
     actions.push({

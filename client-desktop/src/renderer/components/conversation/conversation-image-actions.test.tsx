@@ -1,5 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -8,14 +7,7 @@ import type { ClientConversation } from "@/lib/client-data-api"
 import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 
 const mocks = vi.hoisted(() => ({
-  copyTemporaryImageToClipboard: vi.fn(),
   readTemporaryFileURLs: vi.fn(),
-  toastError: vi.fn(),
-  toastSuccess: vi.fn(),
-}))
-
-vi.mock("@/lib/image-clipboard", () => ({
-  copyTemporaryImageToClipboard: mocks.copyTemporaryImageToClipboard,
 }))
 
 vi.mock("@/lib/client-data-api", async (importOriginal) => {
@@ -27,14 +19,7 @@ vi.mock("@/lib/client-data-api", async (importOriginal) => {
   }
 })
 
-vi.mock("sonner", () => ({
-  toast: {
-    error: mocks.toastError,
-    success: mocks.toastSuccess,
-  },
-}))
-
-describe("conversation image copy", () => {
+describe("图片消息操作", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.readTemporaryFileURLs.mockResolvedValue([
@@ -46,36 +31,13 @@ describe("conversation image copy", () => {
     ])
   })
 
-  it("copies an image from the message action menu and reports success", async () => {
-    const user = userEvent.setup()
-    mocks.copyTemporaryImageToClipboard.mockResolvedValue(undefined)
+  it("右键菜单不展示复制操作", async () => {
     renderImageConversation()
 
     await openImageMessageActionMenu()
-    const copyAction = await screen.findByRole("menuitem", { name: "复制" })
-    expect(copyAction).not.toHaveAttribute("data-disabled")
 
-    await user.click(copyAction)
-
-    await waitFor(() => {
-      expect(mocks.copyTemporaryImageToClipboard).toHaveBeenCalledWith("file-1")
-      expect(mocks.toastSuccess).toHaveBeenCalledWith("图片已复制")
-    })
-    expect(mocks.toastError).not.toHaveBeenCalled()
-  })
-
-  it("reports an error when copying the image fails", async () => {
-    const user = userEvent.setup()
-    mocks.copyTemporaryImageToClipboard.mockRejectedValue(new Error("clipboard unavailable"))
-    renderImageConversation()
-
-    await openImageMessageActionMenu()
-    await user.click(await screen.findByRole("menuitem", { name: "复制" }))
-
-    await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith("图片复制失败")
-    })
-    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(await screen.findByRole("menuitem", { name: "回复" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "复制" })).not.toBeInTheDocument()
   })
 })
 
@@ -113,9 +75,7 @@ function renderImageConversation() {
 async function openImageMessageActionMenu() {
   const image = await screen.findByRole("button", { name: "预览图片" })
   const messageActionTrigger = image.closest("[data-message-action-trigger]")
-  if (!messageActionTrigger) {
-    throw new Error("missing message action trigger")
-  }
+  if (!messageActionTrigger) throw new Error("missing message action trigger")
 
   fireEvent.contextMenu(messageActionTrigger)
 }

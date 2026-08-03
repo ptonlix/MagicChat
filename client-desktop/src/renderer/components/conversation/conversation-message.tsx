@@ -2,7 +2,6 @@ import * as React from "react"
 import { Bot, MessagesSquare } from "lucide-react"
 import { toast } from "sonner"
 import { getAvatarInitial } from "@/lib/avatar"
-import { copyTemporaryImageToClipboard } from "@/lib/image-clipboard"
 import { writeHostClipboardText } from "@/lib/desktop-host"
 import { cn } from "@/lib/utils"
 import { formatClientMessageBodySummary, type ClientConversation } from "@/lib/client-data-api"
@@ -182,13 +181,14 @@ export const MessageBubble = React.memo(function MessageBubble({
   const flushImageBubble = message.body.type === "image" && !message.replyTo && !message.topic
   const messageActionOptions: MessageActionOptions = {
     canRevoke: Boolean(onRevoke) && message.canRevoke,
-    copyDisabled: message.body.type !== "image" && !copyText,
+    copyDisabled: !copyText,
     onCopy: handleCopyMessage,
     onCreateTopic: onCreateTopic && !message.topic ? () => onCreateTopic(message) : undefined,
     onForward: onForward && !choiceMessage ? () => onForward(message) : undefined,
     onMultiSelect: onMultiSelect && !choiceMessage ? () => onMultiSelect(message) : undefined,
     onReply: canReply && onReply ? () => onReply(message) : undefined,
     onRevoke: onRevoke ? () => onRevoke(message) : undefined,
+    showCopy: message.body.type !== "image",
   }
 
   const messageBody = (
@@ -482,16 +482,6 @@ async function copyMessageToClipboard(
   messageElement: HTMLElement | null,
   mentionLabelResolver: MentionLabelResolver,
 ) {
-  if (message.body.type === "image") {
-    try {
-      await copyTemporaryImageToClipboard(message.body.fileId)
-      toast.success("图片已复制")
-    } catch {
-      toast.error("图片复制失败")
-    }
-    return
-  }
-
   const text =
     (selectedText.trim() ? selectedText : getSelectedTextWithinElement(messageElement)) ||
     getMessageCopyText(message, mentionLabelResolver)

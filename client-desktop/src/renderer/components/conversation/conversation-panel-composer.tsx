@@ -11,9 +11,13 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
-import type { ScreenshotConversationResult, ScreenshotErrorCode } from "@shared/screenshot-contract"
+import type { ScreenshotConversationResult } from "@shared/screenshot-contract"
 import { getAvatarInitial } from "@/lib/avatar"
 import { cn } from "@/lib/utils"
+import {
+  dismissScreenshotPermissionToast,
+  showScreenshotStartError,
+} from "@/lib/screenshot-start-error"
 import {
   type ClientConversation,
   type ClientMessage,
@@ -60,8 +64,6 @@ type ScreenshotImportState = Readonly<{
   controller: AbortController
   id: number
 }>
-
-const SCREEN_PERMISSION_TOAST_ID = "screenshot-screen-permission-required"
 
 export const ConversationPanelComposer = React.forwardRef<
   ConversationPanelComposerHandle,
@@ -475,13 +477,12 @@ export const ConversationPanelComposer = React.forwardRef<
     try {
       const result = await screenshot.start({ conversationId: conversation.id })
       if (result.status === "error") {
-        if (result.code !== "permission_denied") toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
         showScreenshotStartError(result.code)
       } else {
-        toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
+        dismissScreenshotPermissionToast()
       }
     } catch {
-      toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
+      dismissScreenshotPermissionToast()
       toast.error("无法启动截图")
     } finally {
       screenshotStartingRef.current = false
@@ -875,36 +876,3 @@ export const ConversationPanelComposer = React.forwardRef<
     </footer>
   )
 })
-
-function screenshotErrorMessage(code: ScreenshotErrorCode): string {
-  if (code === "permission_denied")
-    return "截图需要屏幕录制权限，请前往“系统设置 > 隐私与安全性 > 屏幕录制”允许 MagicChat"
-  if (code === "capture_timeout") return "屏幕截图响应超时，请重试"
-  if (code === "unsupported_multi_display") return "当前桌面环境暂不支持多显示器截图"
-  if (code === "capture_unavailable") return "当前没有可用的屏幕截图来源"
-  return "无法完成屏幕截图"
-}
-
-function showScreenshotStartError(code: ScreenshotErrorCode) {
-  const message = screenshotErrorMessage(code)
-  if (code !== "permission_denied") {
-    toast.error(message)
-    return
-  }
-  toast.error(message, {
-    action: {
-      label: "前往设置",
-      onClick: (event) => {
-        event.preventDefault()
-        void window.desktop.permissions.openSettings("screen").then(
-          (opened) => {
-            if (!opened) toast.error("当前系统不支持直接打开屏幕录制设置")
-          },
-          () => toast.error("无法打开系统设置，请手动允许屏幕录制权限"),
-        )
-      },
-    },
-    duration: Infinity,
-    id: SCREEN_PERMISSION_TOAST_ID,
-  })
-}

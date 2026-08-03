@@ -40,6 +40,7 @@ import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
 import { cn } from "@/lib/utils"
 import { startRuntimeDiagnostics } from "@/lib/runtime-diagnostics"
+import { showScreenshotStartError } from "@/lib/screenshot-start-error"
 import { releaseChannelLabel } from "@/release-channel"
 import { BrandLoadingScreen } from "@/components/brand-loading-screen"
 import { clearManagedMessageCache, configureMessageCacheTarget } from "@/lib/messages"
@@ -47,6 +48,14 @@ import type { MessageCacheStats } from "@shared/message-cache-contract"
 
 export function DesktopRoot() {
   const platform = useDesktopPlatform()
+
+  useEffect(
+    () =>
+      window.desktop.screenshot.subscribeStartFailed(({ code }) => {
+        showScreenshotStartError(code)
+      }),
+    [],
+  )
 
   return (
     <ThemeProvider>
