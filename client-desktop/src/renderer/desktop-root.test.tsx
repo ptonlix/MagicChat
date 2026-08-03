@@ -103,15 +103,22 @@ describe("桌面设置服务器管理", () => {
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
   })
 
-  it("设置面板使用左侧收起按钮避免与窗口关闭按钮混淆", async () => {
+  it("设置抽屉位于应用顶栏下方并使用左侧收起按钮", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const settings = screen.getByRole("dialog", { name: "设置" })
     const closeButton = screen.getByRole("button", { name: "收起设置面板" })
     const settingsHeader = closeButton.closest('[data-slot="sheet-header"]')
+    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
+    const styles = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
 
+    expect(settings).toHaveClass("desktop-settings")
+    expect(settingsOverlay).toHaveClass("desktop-settings-overlay")
     expect(settingsHeader?.firstElementChild).toBe(closeButton)
+    expect(styles).toMatch(/\.desktop-settings\s*\{[^}]*height:\s*calc\(100% - 40px\)/)
+    expect(styles).toMatch(/\.desktop-settings-overlay\s*\{[^}]*top:\s*40px/)
     await user.click(closeButton)
     expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument()
   })

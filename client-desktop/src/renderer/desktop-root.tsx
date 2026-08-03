@@ -545,6 +545,7 @@ function DesktopSettingsPanel({
         aria-describedby={undefined}
         aria-label="设置"
         className="desktop-settings"
+        overlayClassName="desktop-settings-overlay"
         side="right"
         showCloseButton={false}
       >

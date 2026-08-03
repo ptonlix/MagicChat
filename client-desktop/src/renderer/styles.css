@@ -365,13 +365,19 @@ body,
 .desktop-settings {
   background: color-mix(in oklch, var(--popover) 93%, transparent);
   border-color: color-mix(in oklch, var(--border) 75%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
   box-sizing: border-box;
   color: var(--popover-foreground);
   gap: 0;
+  height: calc(100% - 40px);
   max-width: none;
   overflow: hidden;
   padding: 0;
+  top: 40px;
   width: min(480px, 100vw);
+}
+.desktop-settings-overlay {
+  top: 40px;
 }
 .desktop-settings-header {
   align-items: center;
