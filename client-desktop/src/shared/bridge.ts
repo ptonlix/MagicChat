@@ -52,6 +52,7 @@ export const IPC = {
   notificationShow: "desktop:v1:notification-show",
   navigate: "desktop:v1:navigate",
   openExternal: "desktop:v1:open-external",
+  permissionsOpenSettings: "desktop:v1:permissions-open-settings",
   permissionsRequest: "desktop:v1:permissions-request",
   realtimeClose: "desktop:v1:realtime-close",
   realtimeConnect: "desktop:v1:realtime-connect",
@@ -232,7 +233,10 @@ export interface DesktopBridge {
     subscribe(listener: (route: string) => void): () => void
     subscribeUnknownServer(listener: (input: { serverId: string }) => void): () => void
   }
-  permissions: { request(kind: "microphone" | "notifications"): Promise<boolean> }
+  permissions: {
+    openSettings(kind: "screen"): Promise<boolean>
+    request(kind: "microphone" | "notifications"): Promise<boolean>
+  }
   realtime: {
     close(target: AuthenticatedTarget): Promise<void>
     connect(target: AuthenticatedTarget): Promise<RealtimeSnapshot>

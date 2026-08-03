@@ -208,6 +208,10 @@ export function registerIpc(deps: IpcDependencies): () => void {
     if (kind !== "microphone" && kind !== "notifications") throw new Error("权限类型无效")
     return deps.system.requestPermission(kind)
   })
+  register(IPC.permissionsOpenSettings, async (_event, kind) => {
+    if (kind !== "screen") throw new Error("权限设置类型无效")
+    return deps.system.openPermissionSettings(kind)
+  })
   register(IPC.updaterCheck, () => deps.updater.check())
   register(IPC.updaterDownload, () => deps.updater.download())
   register(IPC.updaterGetState, () => deps.updater.current())

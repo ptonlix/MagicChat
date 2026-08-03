@@ -1,13 +1,18 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ConfigStore } from "@main/config-store"
 import type { WindowController } from "@main/window-controller"
 import type { TrayMessage } from "@shared/bridge"
+
+const electronMocks = vi.hoisted(() => ({
+  openExternal: vi.fn(),
+}))
 
 vi.mock("electron", () => ({
   app: {},
   Menu: {},
   nativeImage: {},
   session: {},
+  shell: { openExternal: electronMocks.openExternal },
   systemPreferences: {},
   Tray: vi.fn(),
 }))
@@ -42,6 +47,26 @@ describe("prepareTrayImage", () => {
 })
 
 describe("SystemIntegration", () => {
+  beforeEach(() => {
+    electronMocks.openExternal.mockReset().mockResolvedValue(undefined)
+  })
+
+  it("macOS 屏幕录制权限提示只打开固定的系统设置页面", async () => {
+    const system = new SystemIntegration({} as ConfigStore, {} as WindowController)
+
+    await expect(system.openPermissionSettings("screen", "darwin")).resolves.toBe(true)
+    expect(electronMocks.openExternal).toHaveBeenCalledWith(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    )
+  })
+
+  it("非 macOS 平台不尝试打开屏幕录制设置页面", async () => {
+    const system = new SystemIntegration({} as ConfigStore, {} as WindowController)
+
+    await expect(system.openPermissionSettings("screen", "win32")).resolves.toBe(false)
+    expect(electronMocks.openExternal).not.toHaveBeenCalled()
+  })
+
   it("不会从托盘消息切换到未配置的服务器", async () => {
     const store = {
       getSettings: vi.fn(() => ({ notificationPrivacy: "metadata" })),

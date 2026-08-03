@@ -77,7 +77,10 @@ const bridge: DesktopBridge = {
     subscribeUnknownServer: (listener) =>
       subscribe<{ serverId: string }>(IPC.unknownServer, listener),
   },
-  permissions: { request: (kind) => ipcRenderer.invoke(IPC.permissionsRequest, kind) },
+  permissions: {
+    openSettings: (kind) => ipcRenderer.invoke(IPC.permissionsOpenSettings, kind),
+    request: (kind) => ipcRenderer.invoke(IPC.permissionsRequest, kind),
+  },
   realtime: {
     close: (target) => ipcRenderer.invoke(IPC.realtimeClose, target),
     connect: (target) => ipcRenderer.invoke(IPC.realtimeConnect, target),

@@ -7,6 +7,7 @@ import {
   nativeImage,
   nativeTheme,
   session,
+  shell,
   systemPreferences,
   Tray,
   type NativeImage,
@@ -122,6 +123,17 @@ export class SystemIntegration {
       return granted
     }
     this.granted.add(kind)
+    return true
+  }
+
+  async openPermissionSettings(
+    _kind: "screen",
+    platform: NodeJS.Platform = process.platform,
+  ): Promise<boolean> {
+    if (platform !== "darwin") return false
+    await shell.openExternal(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    )
     return true
   }
 

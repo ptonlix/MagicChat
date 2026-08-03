@@ -9,13 +9,17 @@ import type { ClientConversation } from "@/lib/client-data-api"
 
 const mocks = vi.hoisted(() => ({
   compressImage: vi.fn(async (file: File) => file),
+  openPermissionSettings: vi.fn(),
   screenshotStart: vi.fn(),
   screenshotSubscriber: undefined as ((result: ScreenshotConversationResult) => void) | undefined,
+  toastDismiss: vi.fn(),
   toastError: vi.fn(),
   unsubscribe: vi.fn(),
 }))
 
-vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }))
+vi.mock("sonner", () => ({
+  toast: { dismiss: mocks.toastDismiss, error: mocks.toastError },
+}))
 vi.mock("@/lib/image-message", () => ({
   compressImageForMessage: mocks.compressImage,
   imageMessageMaxBytes: 2 * 1024 * 1024,
@@ -47,10 +51,14 @@ describe("ConversationPanelComposer 截图", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.screenshotSubscriber = undefined
+    mocks.openPermissionSettings.mockResolvedValue(true)
     mocks.screenshotStart.mockResolvedValue({ sessionId: "session-1", status: "started" })
     Object.defineProperty(window, "desktop", {
       configurable: true,
       value: {
+        permissions: {
+          openSettings: mocks.openPermissionSettings,
+        },
         screenshot: {
           start: mocks.screenshotStart,
           subscribeCompleted: (listener: (result: ScreenshotConversationResult) => void) => {
@@ -73,6 +81,7 @@ describe("ConversationPanelComposer 截图", () => {
     await user.click(screen.getByRole("button", { name: "截取屏幕" }))
 
     expect(mocks.screenshotStart).toHaveBeenCalledWith({ conversationId: "conversation-1" })
+    expect(mocks.toastDismiss).toHaveBeenCalledWith("screenshot-screen-permission-required")
     expect(mocks.screenshotSubscriber).toBeTypeOf("function")
 
     act(() => {
@@ -107,7 +116,22 @@ describe("ConversationPanelComposer 截图", () => {
 
     await user.click(screen.getByRole("button", { name: "截取屏幕" }))
 
-    expect(mocks.toastError).toHaveBeenCalledWith("请在系统设置中允许 MagicChat 录制屏幕")
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "截图需要屏幕录制权限，请前往“系统设置 > 隐私与安全性 > 屏幕录制”允许 MagicChat",
+      expect.objectContaining({
+        action: expect.objectContaining({ label: "前往设置" }),
+        duration: Infinity,
+        id: "screenshot-screen-permission-required",
+      }),
+    )
+
+    const options = mocks.toastError.mock.calls[0][1] as {
+      action: { onClick(event: { preventDefault(): void }): void }
+    }
+    const preventDefault = vi.fn()
+    options.action.onClick({ preventDefault })
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(mocks.openPermissionSettings).toHaveBeenCalledWith("screen")
   })
 
   it("启动截图期间保持静态截图图标并拦截重复触发", async () => {

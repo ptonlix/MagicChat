@@ -753,7 +753,7 @@ function createDesktopBridge(
       subscribeUnknownServer: vi.fn().mockReturnValue(unsubscribe),
     },
     notifications: { show: vi.fn() },
-    permissions: { request: vi.fn() },
+    permissions: { openSettings: vi.fn(), request: vi.fn() },
     realtime: {
       close: vi.fn(),
       connect: vi.fn(),
