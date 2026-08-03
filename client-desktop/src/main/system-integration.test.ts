@@ -1,11 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ConfigStore } from "@main/config-store"
 import type { WindowController } from "@main/window-controller"
 import type { TrayMessage } from "@shared/bridge"
 
 const electronMocks = vi.hoisted(() => ({
+  createImage: vi.fn(),
   menuTemplates: [] as Array<ReadonlyArray<{ enabled?: boolean; label?: string; type?: string }>>,
   openExternal: vi.fn(),
+  tray: {
+    on: vi.fn(),
+    popUpContextMenu: vi.fn(),
+    setContextMenu: vi.fn(),
+    setTitle: vi.fn(),
+    setToolTip: vi.fn(),
+  },
 }))
 
 vi.mock("electron", () => ({
@@ -18,11 +26,13 @@ vi.mock("electron", () => ({
       },
     ),
   },
-  nativeImage: {},
+  nativeImage: { createFromPath: electronMocks.createImage },
   session: {},
   shell: { openExternal: electronMocks.openExternal },
   systemPreferences: {},
-  Tray: vi.fn(),
+  Tray: vi.fn(function MockTray() {
+    return electronMocks.tray
+  }),
 }))
 
 import { SystemIntegration, prepareTrayImage, runtimeTrayIconPath } from "@main/system-integration"
@@ -56,8 +66,28 @@ describe("prepareTrayImage", () => {
 
 describe("SystemIntegration", () => {
   beforeEach(() => {
+    electronMocks.createImage.mockReset()
     electronMocks.menuTemplates.length = 0
     electronMocks.openExternal.mockReset().mockResolvedValue(undefined)
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it("创建托盘时使用注入的平台处理图标", () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("darwin")
+    const resizedImage = { setTemplateImage: vi.fn() }
+    electronMocks.createImage.mockReturnValue({
+      isEmpty: () => false,
+      resize: () => resizedImage,
+    })
+    const system = new SystemIntegration(
+      { getSettings: vi.fn(() => ({ notificationPrivacy: "metadata" })) } as unknown as ConfigStore,
+      { show: vi.fn() } as unknown as WindowController,
+      "win32",
+    )
+
+    expect(system.createTray("tray.png")).toBe(true)
+    expect(resizedImage.setTemplateImage).not.toHaveBeenCalled()
   })
 
   it("macOS 菜单栏菜单不展示未读消息区", () => {
@@ -96,18 +126,18 @@ describe("SystemIntegration", () => {
   })
 
   it("macOS 屏幕录制权限提示只打开固定的系统设置页面", async () => {
-    const system = new SystemIntegration({} as ConfigStore, {} as WindowController)
+    const system = new SystemIntegration({} as ConfigStore, {} as WindowController, "darwin")
 
-    await expect(system.openPermissionSettings("screen", "darwin")).resolves.toBe(true)
+    await expect(system.openPermissionSettings("screen")).resolves.toBe(true)
     expect(electronMocks.openExternal).toHaveBeenCalledWith(
       "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
     )
   })
 
   it("非 macOS 平台不尝试打开屏幕录制设置页面", async () => {
-    const system = new SystemIntegration({} as ConfigStore, {} as WindowController)
+    const system = new SystemIntegration({} as ConfigStore, {} as WindowController, "win32")
 
-    await expect(system.openPermissionSettings("screen", "win32")).resolves.toBe(false)
+    await expect(system.openPermissionSettings("screen")).resolves.toBe(false)
     expect(electronMocks.openExternal).not.toHaveBeenCalled()
   })
 

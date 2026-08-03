@@ -1,5 +1,5 @@
 import path from "node:path"
-import { app, dialog, globalShortcut, powerMonitor, screen } from "electron"
+import { app, dialog, powerMonitor, screen } from "electron"
 import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
@@ -24,6 +24,7 @@ import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
 import { ScreenshotController } from "@main/screenshot-controller"
+import { registerScreenshotShortcut } from "@main/screenshot-shortcut"
 import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
 registerPrivilegedSchemes()
@@ -144,22 +145,11 @@ async function start(): Promise<void> {
 
   const hidden = process.argv.includes("--hidden") && store.getSettings().autoLaunch
   const mainWindow = windows.create(hidden)
-  const screenshotShortcut = "CommandOrControl+Shift+A"
-  const screenshotShortcutRegistered = globalShortcut.register(screenshotShortcut, () => {
-    void screenshots
-      .start({})
-      .then((result) => {
-        if (result.status !== "error") return
-        windows.show()
-        windows.send(IPC.screenshotStartFailed, { code: result.code })
-      })
-      .catch(() => {
-        windows.show()
-        windows.send(IPC.screenshotStartFailed, { code: "capture_failed" })
-      })
+  const unregisterScreenshotShortcut = registerScreenshotShortcut({
+    diagnostics,
+    screenshots,
+    windows,
   })
-  if (!screenshotShortcutRegistered)
-    void diagnostics.record("main", "screenshot-shortcut-unavailable")
   const cancelScreenshotForDisplayChange = () => screenshots.cancelActive()
   screen.on("display-added", cancelScreenshotForDisplayChange)
   screen.on("display-removed", cancelScreenshotForDisplayChange)
@@ -228,7 +218,7 @@ async function start(): Promise<void> {
   app.once("will-quit", () => {
     unregisterIpc()
     unregisterScreenshotIpc()
-    globalShortcut.unregister(screenshotShortcut)
+    unregisterScreenshotShortcut()
     screen.removeListener("display-added", cancelScreenshotForDisplayChange)
     screen.removeListener("display-removed", cancelScreenshotForDisplayChange)
     screen.removeListener("display-metrics-changed", cancelScreenshotForDisplayChange)

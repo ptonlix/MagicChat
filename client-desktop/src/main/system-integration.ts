@@ -35,7 +35,7 @@ export class SystemIntegration {
     try {
       const image = nativeImage.createFromPath(iconPath)
       if (image.isEmpty()) return false
-      this.tray = new Tray(prepareTrayImage(image, process.platform))
+      this.tray = new Tray(prepareTrayImage(image, this.platform))
       this.tray.setToolTip("即应")
       this.refreshTrayMenu()
       this.tray.on("click", () => this.tray?.popUpContextMenu())
@@ -51,7 +51,7 @@ export class SystemIntegration {
   }
 
   async setAutoLaunch(enabled: boolean): Promise<void> {
-    if (process.platform === "linux") await setLinuxAutoLaunch(enabled)
+    if (this.platform === "linux") await setLinuxAutoLaunch(enabled)
     else
       app.setLoginItemSettings({
         openAtLogin: enabled,
@@ -63,11 +63,11 @@ export class SystemIntegration {
 
   setBadge(count: number): void {
     const normalized = Math.max(0, Math.min(9999, Math.trunc(count)))
-    if (process.platform === "darwin") {
+    if (this.platform === "darwin") {
       const badge = formatUnreadBadge(normalized)
       app.dock?.setBadge(badge)
       this.tray?.setTitle(badge ? ` ${badge}` : "")
-    } else if (process.platform === "linux") app.setBadgeCount(normalized)
+    } else if (this.platform === "linux") app.setBadgeCount(normalized)
     else this.tray?.setToolTip(normalized ? `即应（${normalized} 条未读）` : "即应")
   }
 
@@ -127,7 +127,7 @@ export class SystemIntegration {
   }
 
   async requestPermission(kind: "microphone" | "notifications"): Promise<boolean> {
-    if (kind === "microphone" && process.platform === "darwin") {
+    if (kind === "microphone" && this.platform === "darwin") {
       const granted = await systemPreferences.askForMediaAccess("microphone")
       if (granted) this.granted.add(kind)
       return granted
@@ -136,11 +136,8 @@ export class SystemIntegration {
     return true
   }
 
-  async openPermissionSettings(
-    _kind: "screen",
-    platform: NodeJS.Platform = process.platform,
-  ): Promise<boolean> {
-    if (platform !== "darwin") return false
+  async openPermissionSettings(_kind: "screen"): Promise<boolean> {
+    if (this.platform !== "darwin") return false
     await shell.openExternal(
       "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
     )

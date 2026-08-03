@@ -1,18 +1,23 @@
 // @vitest-environment node
-import { readFile } from "node:fs/promises"
-import path from "node:path"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { IPC } from "@shared/bridge"
+import { IPC, type DesktopBridge } from "@shared/bridge"
 
 const electronMocks = vi.hoisted(() => {
+  const exposed = new Map<string, unknown>()
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   return {
     appOn: vi.fn(),
+    exposeInMainWorld: vi.fn((name: string, value: unknown) => exposed.set(name, value)),
+    exposed,
     handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
     }),
     handlers,
+    invoke: vi.fn(),
     ipcOn: vi.fn(),
+    rendererOn: vi.fn(),
+    rendererRemoveListener: vi.fn(),
+    rendererSend: vi.fn(),
     removeHandler: vi.fn(),
     removeListener: vi.fn(),
   }
@@ -26,11 +31,18 @@ vi.mock("electron", () => ({
   },
   BrowserWindow: { getAllWindows: vi.fn(() => []) },
   clipboard: {},
+  contextBridge: { exposeInMainWorld: electronMocks.exposeInMainWorld },
   ipcMain: {
     handle: electronMocks.handle,
     on: electronMocks.ipcOn,
     removeHandler: electronMocks.removeHandler,
     removeListener: electronMocks.removeListener,
+  },
+  ipcRenderer: {
+    invoke: electronMocks.invoke,
+    on: electronMocks.rendererOn,
+    removeListener: electronMocks.rendererRemoveListener,
+    send: electronMocks.rendererSend,
   },
   nativeImage: {},
   shell: {},
@@ -38,8 +50,7 @@ vi.mock("electron", () => ({
 }))
 
 import { registerIpc, type IpcDependencies } from "@main/ipc"
-
-const root = path.resolve(import.meta.dirname, "..")
+import "@preload/index"
 
 describe("权限设置 Bridge 安全边界", () => {
   beforeEach(() => {
@@ -47,19 +58,15 @@ describe("权限设置 Bridge 安全边界", () => {
     electronMocks.handlers.clear()
   })
 
-  it("Shared、Preload 和 Main 只暴露固定权限设置操作", async () => {
-    const [bridge, preload, mainIpc] = await Promise.all([
-      readFile(path.join(root, "src/shared/bridge.ts"), "utf8"),
-      readFile(path.join(root, "src/preload/index.ts"), "utf8"),
-      readFile(path.join(root, "src/main/ipc.ts"), "utf8"),
-    ])
+  it("Preload 只通过固定 IPC channel 暴露权限设置操作", async () => {
+    const desktop = electronMocks.exposed.get("desktop") as DesktopBridge | undefined
+    expect(desktop).toBeDefined()
+    expect(Object.keys(desktop?.permissions ?? {})).toEqual(["openSettings", "request"])
+    electronMocks.invoke.mockResolvedValueOnce(true)
 
-    expect(bridge).toContain("permissionsOpenSettings")
-    expect(preload).toContain("IPC.permissionsOpenSettings")
-    expect(mainIpc).toContain("IPC.permissionsOpenSettings")
-    expect(bridge).toContain('openSettings(kind: "screen")')
-    expect(mainIpc).toContain('if (kind !== "screen")')
-    expect(preload).not.toContain("x-apple.systempreferences")
+    await expect(desktop?.permissions.openSettings("screen")).resolves.toBe(true)
+
+    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.permissionsOpenSettings, "screen")
   })
 
   it("拒绝不可信发送方和非法权限类型，只转发固定的屏幕权限操作", async () => {

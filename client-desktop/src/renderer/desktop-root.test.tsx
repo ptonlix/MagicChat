@@ -9,6 +9,7 @@ import { DesktopRoot } from "./desktop-root"
 import { releaseChannelLabel } from "@/release-channel"
 import {
   DESKTOP_TITLEBAR_HEIGHT,
+  type DesktopAppInfo,
   type DesktopBridge,
   type ServerProfile,
   type UpdaterState,
@@ -132,6 +133,39 @@ describe("桌面设置服务器管理", () => {
 
     await waitFor(() => expect(bridge.app.info).toHaveBeenCalled())
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
+  })
+
+  it("平台信息返回前不把设置抽屉误判为 Windows 或 Linux 布局", async () => {
+    const bridge = createDesktopBridge()
+    let resolveAppInfo!: (info: DesktopAppInfo) => void
+    const appInfo = new Promise<DesktopAppInfo>((resolve) => {
+      resolveAppInfo = resolve
+    })
+    bridge.app.info = vi.fn(() => appInfo)
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const settings = screen.getByRole("dialog", { name: "设置" })
+    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
+    expect(settings).not.toHaveClass("desktop-settings-below-titlebar")
+    expect(settingsOverlay).not.toHaveClass("desktop-settings-overlay-below-titlebar")
+
+    resolveAppInfo({
+      arch: "x64",
+      build: "test",
+      channel: "test",
+      packaged: false,
+      platform: "win32",
+      version: "0.1.0",
+    })
+
+    await waitFor(() => expect(settings).toHaveClass("desktop-settings-below-titlebar"))
+    expect(settingsOverlay).toHaveClass("desktop-settings-overlay-below-titlebar")
   })
 
   it.each(["win32", "linux"])("%s 设置抽屉和遮罩位于应用顶栏下方", async (platform) => {
