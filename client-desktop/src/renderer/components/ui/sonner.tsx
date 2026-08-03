@@ -33,6 +33,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         closeButtonAriaLabel: "关闭提示",
         classNames: {
+          closeButton: "desktop-toast-close",
           toast: "cn-toast",
         },
       }}

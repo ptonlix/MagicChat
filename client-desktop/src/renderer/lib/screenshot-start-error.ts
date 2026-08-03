@@ -15,7 +15,7 @@ export function showScreenshotStartError(code: ScreenshotErrorCode) {
     return
   }
 
-  toast.error(message, {
+  toast.warning(message, {
     action: {
       label: "前往设置",
       onClick: (event) => {

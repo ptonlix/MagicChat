@@ -66,7 +66,10 @@ export function DesktopRoot() {
             <DesktopRootContent platform={platform} />
           </div>
         </div>
-        <Toaster position="top-center" />
+        <Toaster
+          offset={{ top: "calc(var(--desktop-titlebar-height) + 12px)" }}
+          position="top-center"
+        />
       </TooltipProvider>
     </ThemeProvider>
   )

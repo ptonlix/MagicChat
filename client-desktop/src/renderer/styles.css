@@ -39,6 +39,11 @@ body,
   pointer-events: none;
   width: 22px;
 }
+.cn-toast,
+.desktop-toast-close,
+.cn-toast [data-button] {
+  -webkit-app-region: no-drag;
+}
 .dark .desktop-titlebar-drag-region {
   box-shadow: 0 6px 18px oklch(0 0 0 / 22%);
 }

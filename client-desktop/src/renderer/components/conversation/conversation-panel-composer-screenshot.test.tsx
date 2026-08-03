@@ -14,11 +14,16 @@ const mocks = vi.hoisted(() => ({
   screenshotSubscriber: undefined as ((result: ScreenshotConversationResult) => void) | undefined,
   toastDismiss: vi.fn(),
   toastError: vi.fn(),
+  toastWarning: vi.fn(),
   unsubscribe: vi.fn(),
 }))
 
 vi.mock("sonner", () => ({
-  toast: { dismiss: mocks.toastDismiss, error: mocks.toastError },
+  toast: {
+    dismiss: mocks.toastDismiss,
+    error: mocks.toastError,
+    warning: mocks.toastWarning,
+  },
 }))
 vi.mock("@/lib/image-message", () => ({
   compressImageForMessage: mocks.compressImage,
@@ -116,7 +121,7 @@ describe("ConversationPanelComposer 截图", () => {
 
     await user.click(screen.getByRole("button", { name: "截取屏幕" }))
 
-    expect(mocks.toastError).toHaveBeenCalledWith(
+    expect(mocks.toastWarning).toHaveBeenCalledWith(
       "截图需要屏幕录制权限，请前往“系统设置 > 隐私与安全性 > 屏幕录制”允许 MagicChat",
       expect.objectContaining({
         action: expect.objectContaining({ label: "前往设置" }),
@@ -126,7 +131,7 @@ describe("ConversationPanelComposer 截图", () => {
       }),
     )
 
-    const options = mocks.toastError.mock.calls[0][1] as {
+    const options = mocks.toastWarning.mock.calls[0][1] as {
       action: { onClick(event: { preventDefault(): void }): void }
     }
     const preventDefault = vi.fn()
