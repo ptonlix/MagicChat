@@ -383,9 +383,18 @@ body,
   border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
+  gap: 14px;
+  justify-content: flex-start;
   margin: 0;
   padding: 20px 22px;
+}
+.desktop-settings-close {
+  background: color-mix(in oklch, var(--popover) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  border-radius: 8px;
+  flex: none;
+  height: 42px;
+  width: 42px;
 }
 .desktop-settings-brand {
   align-items: center;

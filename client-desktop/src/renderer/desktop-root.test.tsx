@@ -103,6 +103,19 @@ describe("桌面设置服务器管理", () => {
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
   })
 
+  it("设置面板使用左侧收起按钮避免与窗口关闭按钮混淆", async () => {
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const closeButton = screen.getByRole("button", { name: "收起设置面板" })
+    const settingsHeader = closeButton.closest('[data-slot="sheet-header"]')
+
+    expect(settingsHeader?.firstElementChild).toBe(closeButton)
+    await user.click(closeButton)
+    expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument()
+  })
+
   it("移除成功后回到服务器输入页面", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)

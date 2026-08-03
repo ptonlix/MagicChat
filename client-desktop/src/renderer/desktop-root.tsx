@@ -9,13 +9,13 @@ import {
   LockKeyhole,
   MessageCircleMore,
   MonitorCog,
+  PanelRightClose,
   RefreshCw,
   Server,
   ShieldCheck,
   Sparkles,
   Trash2,
   UsersRound,
-  XIcon,
 } from "lucide-react"
 import { BrowserRouter } from "react-router"
 import { toast } from "sonner"
@@ -549,6 +549,15 @@ function DesktopSettingsPanel({
         showCloseButton={false}
       >
         <SheetHeader className="desktop-settings-header">
+          <button
+            aria-label="收起设置面板"
+            className="desktop-icon-button desktop-settings-close"
+            onClick={() => onOpenChange(false)}
+            title="收起设置面板"
+            type="button"
+          >
+            <PanelRightClose aria-hidden="true" size={18} />
+          </button>
           <div className="desktop-settings-brand">
             <img alt="即应" src="/logo.png" />
             <div>
@@ -556,15 +565,6 @@ function DesktopSettingsPanel({
               <p>让即应更符合你的工作习惯</p>
             </div>
           </div>
-          <button
-            aria-label="关闭设置"
-            className="desktop-icon-button"
-            onClick={() => onOpenChange(false)}
-            title="关闭设置"
-            type="button"
-          >
-            <XIcon size={17} />
-          </button>
         </SheetHeader>
         {!settings ? (
           <div className="desktop-settings-loading">
