@@ -1,7 +1,10 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { ScreenshotConversationResult } from "@shared/screenshot-contract"
+import type {
+  ScreenshotConversationResult,
+  ScreenshotStartResult,
+} from "@shared/screenshot-contract"
 import type { ClientConversation } from "@/lib/client-data-api"
 
 const mocks = vi.hoisted(() => ({
@@ -105,6 +108,32 @@ describe("ConversationPanelComposer 截图", () => {
     await user.click(screen.getByRole("button", { name: "截取屏幕" }))
 
     expect(mocks.toastError).toHaveBeenCalledWith("请在系统设置中允许 MagicChat 录制屏幕")
+  })
+
+  it("启动截图期间保持静态截图图标并拦截重复触发", async () => {
+    let resolveStart!: (result: ScreenshotStartResult) => void
+    mocks.screenshotStart.mockImplementation(
+      () =>
+        new Promise<ScreenshotStartResult>((resolve) => {
+          resolveStart = resolve
+        }),
+    )
+    const user = userEvent.setup()
+    renderComposer()
+    const screenshotButton = screen.getByRole("button", { name: "截取屏幕" })
+
+    await user.click(screenshotButton)
+
+    expect(screenshotButton).toBeEnabled()
+    expect(screenshotButton.querySelector(".lucide-scan-line")).not.toBeNull()
+    expect(screenshotButton.querySelector(".animate-spin")).toBeNull()
+
+    await user.click(screenshotButton)
+    expect(mocks.screenshotStart).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      resolveStart({ sessionId: "session-1", status: "started" })
+    })
   })
 
   it("切换对话时取消未完成的截图读取并忽略旧结果", async () => {

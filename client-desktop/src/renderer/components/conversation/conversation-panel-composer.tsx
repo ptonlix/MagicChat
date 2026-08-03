@@ -113,7 +113,6 @@ export const ConversationPanelComposer = React.forwardRef<
   const [imageDialogOpen, setImageDialogOpen] = React.useState(false)
   const [imagePreparing, setImagePreparing] = React.useState(false)
   const [voiceDialogOpen, setVoiceDialogOpen] = React.useState(false)
-  const [screenshotStarting, setScreenshotStarting] = React.useState(false)
   const [mentionTrigger, setMentionTrigger] = React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
@@ -121,6 +120,7 @@ export const ConversationPanelComposer = React.forwardRef<
   const [imageCaption, setImageCaption] = React.useState("")
   const screenshotImportRef = React.useRef<ScreenshotImportState | undefined>(undefined)
   const screenshotImportIdRef = React.useRef(0)
+  const screenshotStartingRef = React.useRef(false)
   const imagePreparationIdRef = React.useRef(0)
   const currentConversationIdRef = React.useRef(conversation.id)
   const mentionCandidates = React.useMemo(
@@ -463,20 +463,20 @@ export const ConversationPanelComposer = React.forwardRef<
   }
 
   async function handleScreenshotButtonClick() {
-    if (sending || imagePreparing || screenshotStarting) return
+    if (sending || imagePreparing || screenshotStartingRef.current) return
     const screenshot = window.desktop?.screenshot
     if (!screenshot) {
       toast.error("当前版本不支持屏幕截图")
       return
     }
-    setScreenshotStarting(true)
+    screenshotStartingRef.current = true
     try {
       const result = await screenshot.start({ conversationId: conversation.id })
       if (result.status === "error") toast.error(screenshotErrorMessage(result.code))
     } catch {
       toast.error("无法启动截图")
     } finally {
-      setScreenshotStarting(false)
+      screenshotStartingRef.current = false
     }
   }
 
@@ -787,18 +787,14 @@ export const ConversationPanelComposer = React.forwardRef<
             </Button>
             <Button
               aria-label="截取屏幕"
-              disabled={sending || imagePreparing || screenshotStarting}
+              disabled={sending || imagePreparing}
               onClick={() => void handleScreenshotButtonClick()}
               size="icon-sm"
               title="截取屏幕"
               type="button"
               variant="ghost"
             >
-              {screenshotStarting ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <ScanLine className="size-4" />
-              )}
+              <ScanLine className="size-4" />
             </Button>
             <Toggle
               aria-label="支持 markdown"
