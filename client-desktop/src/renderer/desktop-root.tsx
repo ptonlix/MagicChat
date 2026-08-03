@@ -490,7 +490,7 @@ function DesktopSettingsPanel({
   onRemoved(serverId: string): void
   onUpdaterChange(state: UpdaterState): void
 }) {
-  const usesTitleBarOverlay = platform !== undefined && platform !== "darwin"
+  const usesTitleBarOverlay = platform === "win32" || platform === "linux"
   const [settings, setSettings] = useState<DesktopSettings>()
   const [appInfo, setAppInfo] = useState<DesktopAppInfo>()
   const [name, setName] = useState(profile.displayName)
