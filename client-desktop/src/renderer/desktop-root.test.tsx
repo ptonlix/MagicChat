@@ -79,6 +79,30 @@ describe("桌面设置服务器管理", () => {
     vi.restoreAllMocks()
   })
 
+  it("Windows 顶栏展示即应 Logo", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge(undefined, undefined, "win32"),
+    })
+
+    render(<DesktopRoot />)
+
+    expect(await screen.findByRole("img", { name: "即应" })).toBeInTheDocument()
+  })
+
+  it("macOS 顶栏为原生交通灯保留左侧空间", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+
+    render(<DesktopRoot />)
+
+    await waitFor(() => expect(bridge.app.info).toHaveBeenCalled())
+    expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
+  })
+
   it("移除成功后回到服务器输入页面", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
@@ -463,7 +487,7 @@ describe("桌面设置服务器管理", () => {
     expect(
       (await screen.findByRole("button", { name: "新版本" })).closest("aside"),
     ).toHaveAccessibleName("应用侧边栏")
-    expect(bridge.app.info).not.toHaveBeenCalled()
+    expect(bridge.app.info).toHaveBeenCalledOnce()
   })
 
   it("没有新版本时不显示左下角更新入口", async () => {
@@ -639,6 +663,7 @@ describe("发布通道显示", () => {
 function createDesktopBridge(
   updaterState?: UpdaterState,
   subscriptionState?: UpdaterState,
+  platform = "darwin",
 ): DesktopBridge {
   const unsubscribe = () => undefined
   const initialUpdaterState: UpdaterState = updaterState ?? {
@@ -669,7 +694,7 @@ function createDesktopBridge(
         build: "test",
         channel: "test",
         packaged: false,
-        platform: "darwin",
+        platform,
         version: "0.1.0",
       }),
     },

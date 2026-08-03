@@ -49,7 +49,7 @@ export function DesktopRoot() {
     <ThemeProvider>
       <TooltipProvider>
         <div className="desktop-frame">
-          <div aria-hidden="true" className="desktop-titlebar-drag-region" />
+          <DesktopTitlebar />
           <div className="desktop-content">
             <DesktopRootContent />
           </div>
@@ -57,6 +57,33 @@ export function DesktopRoot() {
         <Toaster position="top-center" />
       </TooltipProvider>
     </ThemeProvider>
+  )
+}
+
+function DesktopTitlebar() {
+  const [platform, setPlatform] = useState<string>()
+
+  useEffect(() => {
+    let mounted = true
+    void window.desktop.app.info().then(
+      (info) => {
+        if (mounted) setPlatform(info.platform)
+      },
+      () => undefined,
+    )
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  return (
+    <div className="desktop-titlebar-drag-region">
+      {platform && platform !== "darwin" && (
+        <div className="desktop-titlebar-brand">
+          <img alt="即应" draggable={false} src="/logo.png" />
+        </div>
+      )}
+    </div>
   )
 }
 
