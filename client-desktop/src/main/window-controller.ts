@@ -9,6 +9,7 @@ import { ConfigStore } from "@main/config-store"
 import { Diagnostics } from "@main/diagnostics"
 import { resolveWindowCloseAction } from "@main/window-close-policy"
 import { monitorWindowResponsiveness } from "@main/window-responsiveness"
+import { DESKTOP_TITLEBAR_HEIGHT } from "@shared/bridge"
 
 export class WindowController {
   private mainWindow?: BrowserWindow
@@ -152,7 +153,7 @@ export function getMainWindowTitleBarOptions(
   return {
     titleBarOverlay: {
       color: "#00000000",
-      height: 40,
+      height: DESKTOP_TITLEBAR_HEIGHT,
       symbolColor: "#18181b",
     },
     titleBarStyle: "hidden",

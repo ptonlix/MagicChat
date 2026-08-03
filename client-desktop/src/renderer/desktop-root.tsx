@@ -38,6 +38,7 @@ import type {
 import { DesktopWebSocket, installDesktopFetch } from "./desktop-transport"
 import { resolveDesktopResourceUrl } from "@/lib/desktop-resource-url"
 import { installDesktopLinkNavigation } from "@/lib/desktop-link-navigation"
+import { cn } from "@/lib/utils"
 import { startRuntimeDiagnostics } from "@/lib/runtime-diagnostics"
 import { releaseChannelLabel } from "@/release-channel"
 import { BrandLoadingScreen } from "@/components/brand-loading-screen"
@@ -45,13 +46,15 @@ import { clearManagedMessageCache, configureMessageCacheTarget } from "@/lib/mes
 import type { MessageCacheStats } from "@shared/message-cache-contract"
 
 export function DesktopRoot() {
+  const platform = useDesktopPlatform()
+
   return (
     <ThemeProvider>
       <TooltipProvider>
         <div className="desktop-frame">
-          <DesktopTitlebar />
+          <DesktopTitlebar platform={platform} />
           <div className="desktop-content">
-            <DesktopRootContent />
+            <DesktopRootContent platform={platform} />
           </div>
         </div>
         <Toaster position="top-center" />
@@ -60,7 +63,7 @@ export function DesktopRoot() {
   )
 }
 
-function DesktopTitlebar() {
+function useDesktopPlatform() {
   const [platform, setPlatform] = useState<string>()
 
   useEffect(() => {
@@ -76,6 +79,10 @@ function DesktopTitlebar() {
     }
   }, [])
 
+  return platform
+}
+
+function DesktopTitlebar({ platform }: { platform?: string }) {
   return (
     <div className="desktop-titlebar-drag-region">
       {platform && platform !== "darwin" && (
@@ -87,7 +94,7 @@ function DesktopTitlebar() {
   )
 }
 
-function DesktopRootContent() {
+function DesktopRootContent({ platform }: { platform?: string }) {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [messageSoundEnabled, setMessageSoundEnabled] = useState(true)
@@ -137,6 +144,7 @@ function DesktopRootContent() {
         <DesktopWorkspace
           key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
           messageSoundEnabled={messageSoundEnabled}
+          platform={platform}
           profile={selected}
           updater={updater}
           onMessageSoundEnabledChange={setMessageSoundEnabled}
@@ -152,6 +160,7 @@ function DesktopRootContent() {
 
 function DesktopWorkspace({
   messageSoundEnabled,
+  platform,
   profile,
   updater,
   onMessageSoundEnabledChange,
@@ -159,6 +168,7 @@ function DesktopWorkspace({
   onUpdaterChange,
 }: {
   messageSoundEnabled: boolean
+  platform?: string
   profile: ServerProfile
   updater: UpdaterState
   onMessageSoundEnabledChange(enabled: boolean): void
@@ -188,6 +198,7 @@ function DesktopWorkspace({
       </BrowserRouter>
       {settingsOpen && (
         <DesktopSettingsPanel
+          platform={platform}
           profile={profile}
           target={target}
           updater={updater}
@@ -449,6 +460,7 @@ function DesktopHostedApp({
 }
 
 function DesktopSettingsPanel({
+  platform,
   profile,
   target,
   updater,
@@ -457,6 +469,7 @@ function DesktopSettingsPanel({
   onRemoved,
   onUpdaterChange,
 }: {
+  platform?: string
   profile: ServerProfile
   target: AuthenticatedTarget
   updater: UpdaterState
@@ -465,6 +478,7 @@ function DesktopSettingsPanel({
   onRemoved(serverId: string): void
   onUpdaterChange(state: UpdaterState): void
 }) {
+  const usesTitleBarOverlay = platform !== "darwin"
   const [settings, setSettings] = useState<DesktopSettings>()
   const [appInfo, setAppInfo] = useState<DesktopAppInfo>()
   const [name, setName] = useState(profile.displayName)
@@ -544,8 +558,10 @@ function DesktopSettingsPanel({
       <SheetContent
         aria-describedby={undefined}
         aria-label="设置"
-        className="desktop-settings"
-        overlayClassName="desktop-settings-overlay"
+        className={cn("desktop-settings", usesTitleBarOverlay && "desktop-settings-below-titlebar")}
+        overlayClassName={
+          usesTitleBarOverlay ? "desktop-settings-overlay-below-titlebar" : undefined
+        }
         side="right"
         showCloseButton={false}
       >

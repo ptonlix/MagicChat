@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { getMainWindowTitleBarOptions } from "@main/window-controller"
+import { DESKTOP_TITLEBAR_HEIGHT } from "@shared/bridge"
 
 describe("主窗口标题栏", () => {
   it("在 macOS 使用保留原生交通灯的内容式标题栏", () => {
@@ -14,7 +15,7 @@ describe("主窗口标题栏", () => {
     expect(getMainWindowTitleBarOptions(platform)).toEqual({
       titleBarOverlay: {
         color: "#00000000",
-        height: 40,
+        height: DESKTOP_TITLEBAR_HEIGHT,
         symbolColor: "#18181b",
       },
       titleBarStyle: "hidden",

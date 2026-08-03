@@ -7,7 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DesktopRoot } from "./desktop-root"
 import { releaseChannelLabel } from "@/release-channel"
-import type { DesktopBridge, ServerProfile, UpdaterState } from "@shared/bridge"
+import {
+  DESKTOP_TITLEBAR_HEIGHT,
+  type DesktopBridge,
+  type ServerProfile,
+  type UpdaterState,
+} from "@shared/bridge"
 
 const profile: ServerProfile = {
   createdAt: "2026-07-23T00:00:00.000Z",
@@ -103,22 +108,51 @@ describe("桌面设置服务器管理", () => {
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
   })
 
-  it("设置抽屉位于应用顶栏下方并使用左侧收起按钮", async () => {
+  it.each(["win32", "linux"])("%s 设置抽屉和遮罩位于应用顶栏下方", async (platform) => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge(undefined, undefined, platform),
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await screen.findByRole("img", { name: "即应" })
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const settings = screen.getByRole("dialog", { name: "设置" })
+    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
+    const styles = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+
+    expect(settings).toHaveClass("desktop-settings", "desktop-settings-below-titlebar")
+    expect(settingsOverlay).toHaveClass("desktop-settings-overlay-below-titlebar")
+    expect(styles).toContain(`--desktop-titlebar-height: ${DESKTOP_TITLEBAR_HEIGHT}px`)
+    expect(styles).toMatch(
+      /\.desktop-settings-below-titlebar\s*\{[^}]*height:\s*calc\(100% - var\(--desktop-titlebar-height\)\)/,
+    )
+  })
+
+  it("macOS 设置抽屉保持全高且遮罩覆盖标题栏", async () => {
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await waitFor(() => expect(window.desktop.app.info).toHaveBeenCalled())
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    const settings = screen.getByRole("dialog", { name: "设置" })
+    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
+
+    expect(settings).toHaveClass("desktop-settings")
+    await waitFor(() => expect(settings).not.toHaveClass("desktop-settings-below-titlebar"))
+    expect(settingsOverlay).not.toHaveClass("desktop-settings-overlay-below-titlebar")
+  })
+
+  it("设置面板使用左侧收起按钮", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
-    const settings = screen.getByRole("dialog", { name: "设置" })
     const closeButton = screen.getByRole("button", { name: "收起设置面板" })
     const settingsHeader = closeButton.closest('[data-slot="sheet-header"]')
-    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
-    const styles = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
 
-    expect(settings).toHaveClass("desktop-settings")
-    expect(settingsOverlay).toHaveClass("desktop-settings-overlay")
     expect(settingsHeader?.firstElementChild).toBe(closeButton)
-    expect(styles).toMatch(/\.desktop-settings\s*\{[^}]*height:\s*calc\(100% - 40px\)/)
-    expect(styles).toMatch(/\.desktop-settings-overlay\s*\{[^}]*top:\s*40px/)
     await user.click(closeButton)
     expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument()
   })

@@ -4,6 +4,9 @@ body,
   height: 100%;
   margin: 0;
 }
+:root {
+  --desktop-titlebar-height: 40px;
+}
 .desktop-frame {
   height: 100%;
   position: relative;
@@ -15,7 +18,7 @@ body,
   background: color-mix(in oklch, var(--background) 90%, var(--muted));
   box-shadow: 0 6px 18px oklch(0 0 0 / 5%);
   box-sizing: border-box;
-  height: 40px;
+  height: var(--desktop-titlebar-height);
   left: 0;
   position: fixed;
   right: 0;
@@ -365,19 +368,21 @@ body,
 .desktop-settings {
   background: color-mix(in oklch, var(--popover) 93%, transparent);
   border-color: color-mix(in oklch, var(--border) 75%, transparent);
-  border-top: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
   box-sizing: border-box;
   color: var(--popover-foreground);
   gap: 0;
-  height: calc(100% - 40px);
   max-width: none;
   overflow: hidden;
   padding: 0;
-  top: 40px;
   width: min(480px, 100vw);
 }
-.desktop-settings-overlay {
-  top: 40px;
+.desktop-settings-below-titlebar {
+  border-top: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
+  height: calc(100% - var(--desktop-titlebar-height));
+  top: var(--desktop-titlebar-height);
+}
+.desktop-settings-overlay-below-titlebar {
+  top: var(--desktop-titlebar-height);
 }
 .desktop-settings-header {
   align-items: center;

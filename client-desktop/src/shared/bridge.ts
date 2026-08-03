@@ -12,6 +12,8 @@ import type { ScreenshotBridge } from "@shared/screenshot-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
+export const DESKTOP_TITLEBAR_HEIGHT = 40
+
 export const MAX_TRAY_MESSAGES = 20
 
 export const IPC = {
