@@ -4,12 +4,20 @@ import type { WindowController } from "@main/window-controller"
 import type { TrayMessage } from "@shared/bridge"
 
 const electronMocks = vi.hoisted(() => ({
+  menuTemplates: [] as Array<ReadonlyArray<{ enabled?: boolean; label?: string; type?: string }>>,
   openExternal: vi.fn(),
 }))
 
 vi.mock("electron", () => ({
   app: {},
-  Menu: {},
+  Menu: {
+    buildFromTemplate: vi.fn(
+      (template: ReadonlyArray<{ enabled?: boolean; label?: string; type?: string }>) => {
+        electronMocks.menuTemplates.push(template)
+        return template
+      },
+    ),
+  },
   nativeImage: {},
   session: {},
   shell: { openExternal: electronMocks.openExternal },
@@ -48,7 +56,43 @@ describe("prepareTrayImage", () => {
 
 describe("SystemIntegration", () => {
   beforeEach(() => {
+    electronMocks.menuTemplates.length = 0
     electronMocks.openExternal.mockReset().mockResolvedValue(undefined)
+  })
+
+  it("macOS 菜单栏菜单不展示未读消息区", () => {
+    const store = {
+      getSettings: vi.fn(() => ({ notificationPrivacy: "metadata" })),
+    }
+    const windows = { show: vi.fn() }
+    const setContextMenu = vi.fn()
+    const system = new SystemIntegration(
+      store as unknown as ConfigStore,
+      windows as unknown as WindowController,
+      "darwin",
+    )
+    ;(
+      system as unknown as {
+        tray: { setContextMenu: (menu: unknown) => void }
+      }
+    ).tray = { setContextMenu }
+
+    system.setTrayMessages([
+      {
+        conversationId: "conversation-1",
+        name: "会话",
+        serverId: "server-1",
+        summary: "消息正文",
+        unreadCount: 1,
+      },
+    ])
+
+    expect(electronMocks.menuTemplates.at(-1)?.map((item) => item.label)).toEqual([
+      "打开即应",
+      "关闭即应",
+    ])
+    expect(store.getSettings).not.toHaveBeenCalled()
+    expect(setContextMenu).toHaveBeenCalledOnce()
   })
 
   it("macOS 屏幕录制权限提示只打开固定的系统设置页面", async () => {

@@ -28,6 +28,7 @@ export class SystemIntegration {
   constructor(
     private readonly store: ConfigStore,
     private readonly windows: WindowController,
+    private readonly platform: NodeJS.Platform = process.platform,
   ) {}
 
   createTray(iconPath: string): boolean {
@@ -81,6 +82,15 @@ export class SystemIntegration {
 
   private refreshTrayMenu(): void {
     if (!this.tray) return
+    if (this.platform === "darwin") {
+      this.tray.setContextMenu(
+        Menu.buildFromTemplate([
+          { label: "打开即应", click: () => this.windows.show() },
+          { label: "关闭即应", click: () => app.quit() },
+        ]),
+      )
+      return
+    }
     const privacy = this.store.getSettings().notificationPrivacy
     const messageItems =
       this.trayMessages.length > 0

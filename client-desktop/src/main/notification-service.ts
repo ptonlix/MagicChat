@@ -7,13 +7,19 @@ import {
 import { targetKey } from "@shared/client-contract"
 import type { DesktopSettings, NotificationInput } from "@shared/bridge"
 
+type NotificationServiceOptions = Readonly<{
+  enterpriseMaximum?: DesktopSettings["notificationPrivacy"]
+  iconPath?: string
+  platform?: NodeJS.Platform
+}>
+
 export class NotificationService {
   private readonly shown = new Map<string, number>()
 
   constructor(
     private readonly settings: () => DesktopSettings,
     private readonly onClick: (input: NotificationInput) => Promise<void>,
-    private readonly enterpriseMaximum: DesktopSettings["notificationPrivacy"] = "preview",
+    private readonly options: NotificationServiceOptions = {},
   ) {}
 
   async show(input: NotificationInput): Promise<void> {
@@ -23,7 +29,27 @@ export class NotificationService {
     if (this.shown.has(key)) return
     this.shown.set(key, Date.now())
     const settings = this.settings()
-    const privacy = resolveNotificationPrivacy(settings.notificationPrivacy, this.enterpriseMaximum)
+    const privacy = resolveNotificationPrivacy(
+      settings.notificationPrivacy,
+      this.options.enterpriseMaximum ?? "preview",
+    )
+    if ((this.options.platform ?? process.platform) === "win32") {
+      const sender = cleanNotificationText(input.sender ?? "", 80)
+      const notification = new Notification({
+        title: "即应",
+        body:
+          privacy === "hidden"
+            ? "你收到了一条新消息"
+            : sender
+              ? `【${sender}】发来新消息`
+              : "收到一条新消息",
+        ...(this.options.iconPath ? { icon: this.options.iconPath } : {}),
+        silent: true,
+      })
+      notification.on("click", () => void this.onClick(input))
+      notification.show()
+      return
+    }
     const title =
       privacy === "hidden"
         ? "MagicChat 新消息"

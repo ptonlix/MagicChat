@@ -36,6 +36,7 @@ win:
   signAndEditExecutable: true
   verifyUpdateCodeSignature: false
 nsis:
+  shortcutName: 即应
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

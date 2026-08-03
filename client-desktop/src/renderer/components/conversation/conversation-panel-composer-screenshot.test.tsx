@@ -120,6 +120,7 @@ describe("ConversationPanelComposer 截图", () => {
       "截图需要屏幕录制权限，请前往“系统设置 > 隐私与安全性 > 屏幕录制”允许 MagicChat",
       expect.objectContaining({
         action: expect.objectContaining({ label: "前往设置" }),
+        closeButton: true,
         duration: Infinity,
         id: "screenshot-screen-permission-required",
       }),

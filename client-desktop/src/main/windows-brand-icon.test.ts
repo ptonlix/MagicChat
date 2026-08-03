@@ -67,6 +67,15 @@ describe("Windows 品牌图标", () => {
     expect(builderConfig).toContain("signAndEditExecutable: true")
   })
 
+  it("Windows 快捷方式使用即应名称且不改变安装产品身份", async () => {
+    const builderConfig = normalizeNewlines(
+      await readFile(path.resolve(import.meta.dirname, "../../electron-builder.yml"), "utf8"),
+    )
+
+    expect(builderConfig).toContain("productName: MagicChat")
+    expect(builderConfig).toContain("nsis:\n  shortcutName: 即应")
+  })
+
   it("所有独立窗口都显式使用同一个品牌图标", async () => {
     const windowSources = await Promise.all(
       ["window-controller.ts", "auth-controller.ts", "proxy-auth.ts"].map((fileName) =>

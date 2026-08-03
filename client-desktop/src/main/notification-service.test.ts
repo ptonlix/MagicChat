@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DesktopSettings, NotificationInput } from "@shared/bridge"
 
 const electronMocks = vi.hoisted(() => ({
-  options: [] as Array<{ body?: string; silent?: boolean; title?: string }>,
+  options: [] as Array<{ body?: string; icon?: string; silent?: boolean; title?: string }>,
 }))
 
 vi.mock("electron", () => ({
@@ -12,7 +12,7 @@ vi.mock("electron", () => ({
       return true
     }
 
-    constructor(options: { body?: string; silent?: boolean; title?: string }) {
+    constructor(options: { body?: string; icon?: string; silent?: boolean; title?: string }) {
       electronMocks.options.push(options)
     }
 
@@ -59,13 +59,63 @@ describe("NotificationService", () => {
     expect(electronMocks.options).toHaveLength(1)
     expect(electronMocks.options[0].silent).toBe(true)
   })
+
+  it("Windows 通知使用即应品牌并且只提示发送者", async () => {
+    const service = new NotificationService(() => createSettings(true), vi.fn(), {
+      iconPath: "/path/logo.png",
+      platform: "win32",
+    })
+
+    await service.show(input)
+
+    expect(electronMocks.options).toEqual([
+      {
+        body: "【测试用户】发来新消息",
+        icon: "/path/logo.png",
+        silent: true,
+        title: "即应",
+      },
+    ])
+  })
+
+  it("Windows 完全隐藏通知不会暴露发送者", async () => {
+    const service = new NotificationService(() => createSettings(true, "hidden"), vi.fn(), {
+      iconPath: "/path/logo.png",
+      platform: "win32",
+    })
+
+    await service.show(input)
+
+    expect(electronMocks.options[0]).toMatchObject({
+      body: "你收到了一条新消息",
+      title: "即应",
+    })
+  })
+
+  it("macOS 通知继续按隐私设置展示工作区和消息预览", async () => {
+    const service = new NotificationService(() => createSettings(true, "preview"), vi.fn(), {
+      iconPath: "/path/logo.png",
+      platform: "darwin",
+    })
+
+    await service.show(input)
+
+    expect(electronMocks.options[0]).toEqual({
+      body: "新消息内容",
+      silent: true,
+      title: "测试空间",
+    })
+  })
 })
 
-function createSettings(messageSoundEnabled: boolean): DesktopSettings {
+function createSettings(
+  messageSoundEnabled: boolean,
+  notificationPrivacy: DesktopSettings["notificationPrivacy"] = "metadata",
+): DesktopSettings {
   return {
     autoLaunch: false,
     closeBehavior: "background",
     messageSoundEnabled,
-    notificationPrivacy: "metadata",
+    notificationPrivacy,
   }
 }

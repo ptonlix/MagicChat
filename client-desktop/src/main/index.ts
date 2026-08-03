@@ -116,6 +116,7 @@ async function start(): Promise<void> {
         `/chat/${encodeURIComponent(input.conversationId)}${input.messageId ? `?message=${encodeURIComponent(input.messageId)}` : ""}`,
       )
     },
+    { iconPath, platform: process.platform },
   )
   const http = new HttpTransport(profiles, sessions)
   const uploads = new StreamingUploadController(profiles, sessions)

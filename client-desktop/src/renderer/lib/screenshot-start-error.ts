@@ -28,6 +28,7 @@ export function showScreenshotStartError(code: ScreenshotErrorCode) {
         )
       },
     },
+    closeButton: true,
     duration: Infinity,
     id: SCREEN_PERMISSION_TOAST_ID,
   })
