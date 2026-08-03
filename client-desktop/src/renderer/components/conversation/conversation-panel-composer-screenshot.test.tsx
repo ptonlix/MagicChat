@@ -134,6 +134,28 @@ describe("ConversationPanelComposer 截图", () => {
     expect(mocks.openPermissionSettings).toHaveBeenCalledWith("screen")
   })
 
+  it("权限恢复后遇到其他截图错误时清除旧权限提示", async () => {
+    mocks.screenshotStart.mockResolvedValue({ code: "capture_timeout", status: "error" })
+    const user = userEvent.setup()
+    renderComposer()
+
+    await user.click(screen.getByRole("button", { name: "截取屏幕" }))
+
+    expect(mocks.toastDismiss).toHaveBeenCalledWith("screenshot-screen-permission-required")
+    expect(mocks.toastError).toHaveBeenCalledWith("屏幕截图响应超时，请重试")
+  })
+
+  it("截图启动异常时清除旧权限提示", async () => {
+    mocks.screenshotStart.mockRejectedValue(new Error("IPC failed"))
+    const user = userEvent.setup()
+    renderComposer()
+
+    await user.click(screen.getByRole("button", { name: "截取屏幕" }))
+
+    expect(mocks.toastDismiss).toHaveBeenCalledWith("screenshot-screen-permission-required")
+    expect(mocks.toastError).toHaveBeenCalledWith("无法启动截图")
+  })
+
   it("启动截图期间保持静态截图图标并拦截重复触发", async () => {
     let resolveStart!: (result: ScreenshotStartResult) => void
     mocks.screenshotStart.mockImplementation(

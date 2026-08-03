@@ -474,9 +474,14 @@ export const ConversationPanelComposer = React.forwardRef<
     screenshotStartingRef.current = true
     try {
       const result = await screenshot.start({ conversationId: conversation.id })
-      if (result.status === "error") showScreenshotStartError(result.code)
-      else toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
+      if (result.status === "error") {
+        if (result.code !== "permission_denied") toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
+        showScreenshotStartError(result.code)
+      } else {
+        toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
+      }
     } catch {
+      toast.dismiss(SCREEN_PERMISSION_TOAST_ID)
       toast.error("无法启动截图")
     } finally {
       screenshotStartingRef.current = false
