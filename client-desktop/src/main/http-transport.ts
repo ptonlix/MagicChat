@@ -75,10 +75,12 @@ export class HttpTransport {
     )
     try {
       const requestUrl = `${profile.normalizedUrl}${assertClientPath(request.path)}`
+      const headers = filterHeaders(request.headers)
+      headers.Origin = new URL(profile.normalizedUrl).origin
       const response = await this.sessions.for(profile).fetch(requestUrl, {
         body: encodeBody(request),
         credentials: "same-origin",
-        headers: filterHeaders(request.headers),
+        headers,
         method: request.method,
         redirect: "follow",
         signal: controller.signal,

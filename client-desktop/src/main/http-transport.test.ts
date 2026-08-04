@@ -88,7 +88,7 @@ describe("HttpTransport 取消隔离", () => {
 })
 
 describe("HttpTransport 重定向边界", () => {
-  it("允许同源 client API 重定向并使用同源凭据策略", async () => {
+  it("允许同源 client API 重定向并由 Main 注入可信 Origin", async () => {
     const fetch = vi
       .fn()
       .mockResolvedValue(
@@ -99,11 +99,17 @@ describe("HttpTransport 重定向边界", () => {
       )
     const transport = createTransport(fetch)
 
-    await expect(transport.request(1, target, request)).resolves.toMatchObject({ status: 200 })
+    await expect(
+      transport.request(1, target, {
+        ...request,
+        headers: { origin: "https://attacker.example" },
+      }),
+    ).resolves.toMatchObject({ status: 200 })
     expect(fetch).toHaveBeenCalledWith(
       "https://chat.example.com/api/client/me",
       expect.objectContaining({
         credentials: "same-origin",
+        headers: expect.objectContaining({ Origin: "https://chat.example.com" }),
         redirect: "follow",
       }),
     )
