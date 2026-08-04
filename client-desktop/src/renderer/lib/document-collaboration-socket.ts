@@ -49,7 +49,7 @@ export class DocumentCollaborationSocket {
     void window.desktop.documentCollaboration.connect(target, documentId, this.connectionId).then(
       ({ sessionId }) => {
         if (this.closeRequested) {
-          void window.desktop.documentCollaboration.close(sessionId)
+          void window.desktop.documentCollaboration.close(sessionId).catch(() => undefined)
           this.finishClose(1000, "closed")
           return
         }
@@ -59,6 +59,10 @@ export class DocumentCollaborationSocket {
         for (const event of events) this.receive(event)
       },
       () => {
+        if (this.closeRequested) {
+          this.finishClose(1000, "closed")
+          return
+        }
         this.dispatch("error", new Event("error"))
         this.finishClose(1006, "connection_failed")
       },
@@ -101,11 +105,14 @@ export class DocumentCollaborationSocket {
     if (this.readyState >= DocumentCollaborationSocket.CLOSING) return
     this.closeRequested = true
     this.readyState = DocumentCollaborationSocket.CLOSING
-    if (!this.sessionId) return
+    if (!this.sessionId) {
+      const finish = () => this.finishClose(code, reason)
+      void window.desktop.documentCollaboration.cancel(this.connectionId).then(finish, finish)
+      return
+    }
     const sessionId = this.sessionId
-    void window.desktop.documentCollaboration.close(sessionId).finally(() => {
-      this.finishClose(code, reason)
-    })
+    const finish = () => this.finishClose(code, reason)
+    void window.desktop.documentCollaboration.close(sessionId).then(finish, finish)
   }
 
   private receive(event: DocumentCollaborationEvent): void {

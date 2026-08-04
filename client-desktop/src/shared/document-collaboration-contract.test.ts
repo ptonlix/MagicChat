@@ -12,8 +12,11 @@ import {
 describe("文档协作契约", () => {
   it("固定安全上限", () => {
     expect(DOCUMENT_COLLABORATION_LIMITS).toEqual({
+      connectionHandshakeTimeoutMs: 15_000,
+      connectionPreparationTimeoutMs: 15_000,
       drainIntervalMs: 20,
       maxFrameBytes: 16 * 1024 * 1024,
+      maxOwnerPreparations: 8,
       maxOwnerSessions: 8,
       maxQueueBytes: 32 * 1024 * 1024,
     })

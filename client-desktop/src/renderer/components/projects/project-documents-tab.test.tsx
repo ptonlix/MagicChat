@@ -1,13 +1,21 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
-const mocks = vi.hoisted(() => ({ sensorTypes: [] as unknown[] }))
+const mocks = vi.hoisted(() => ({
+  onDragEnd: undefined as ((event: unknown) => void) | undefined,
+  sensorTypes: [] as unknown[],
+}))
 
 vi.mock("@dnd-kit/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@dnd-kit/core")>()
+  const React = await import("react")
   return {
     ...actual,
+    DndContext(props: React.ComponentProps<typeof actual.DndContext>) {
+      mocks.onDragEnd = props.onDragEnd as (event: unknown) => void
+      return React.createElement(actual.DndContext, props)
+    },
     useSensor(sensor: unknown, options?: unknown) {
       mocks.sensorTypes.push(sensor)
       return actual.useSensor(sensor as never, options as never)
@@ -33,8 +41,17 @@ const base = {
   updated_at: "2026-08-04T09:00:00Z",
   updated_by: { id: "user-1", name: "用户" },
 }
+const second = {
+  ...base,
+  id: "650e8400-e29b-41d4-a716-446655440000",
+  sort_order: 1,
+  title: "技术设计文档",
+}
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  mocks.onDragEnd = undefined
+  vi.unstubAllGlobals()
+})
 
 describe("ProjectDocumentsTab", () => {
   it("注册键盘拖拽传感器", () => {
@@ -68,6 +85,33 @@ describe("ProjectDocumentsTab", () => {
     expect(await screen.findByText("还没有文档")).toBeVisible()
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
   })
+
+  it("拖动提交成功后重新加载权威列表校准位置", async () => {
+    const moved = { ...base, sort_order: 1 }
+    const authoritative = [{ ...second, sort_order: 0 }, moved]
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response([base, second]))
+      .mockResolvedValueOnce(dataResponse(moved))
+      .mockResolvedValueOnce(response(authoritative))
+    vi.stubGlobal("fetch", fetcher)
+    renderTab()
+    await screen.findByRole("link", { name: /产品需求文档/ })
+
+    act(() => {
+      mocks.onDragEnd?.({
+        active: { id: base.id },
+        over: { data: { current: { index: 2, kind: "position", parentId: null } } },
+      })
+    })
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3))
+    expect(fetcher.mock.calls.map((call) => (call[1] as RequestInit).method)).toEqual([
+      "GET",
+      "POST",
+      "GET",
+    ])
+  })
 })
 
 function renderTab() {
@@ -79,7 +123,11 @@ function renderTab() {
 }
 
 function response(documents: unknown[]) {
-  return new Response(JSON.stringify({ data: { documents }, success: true }), {
+  return dataResponse({ documents })
+}
+
+function dataResponse(data: unknown) {
+  return new Response(JSON.stringify({ data, success: true }), {
     headers: { "content-type": "application/json" },
   })
 }

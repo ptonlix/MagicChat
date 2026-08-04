@@ -91,7 +91,9 @@ export class DocumentTitleController {
         this.pendingAfterSave || normalizeDocumentTitle(this.input) !== this.authoritativeTitle
       this.pendingAfterSave = false
       this.emit()
-      if (!this.destroyed && followUp && this.state !== "failed") void this.flush()
+      if (!this.destroyed && followUp && this.state !== "failed") {
+        void this.flush().catch(() => undefined)
+      }
     }
   }
 

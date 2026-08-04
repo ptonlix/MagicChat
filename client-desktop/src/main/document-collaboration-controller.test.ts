@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
       readonly url: URL,
       readonly options: {
         ca?: Buffer[]
+        handshakeTimeout?: number
         headers?: Record<string, string>
         maxPayload?: number
         perMessageDeflate?: boolean
@@ -117,6 +118,7 @@ describe("文档协作 Main Controller", () => {
     const socket = mocks.sockets[0]!
     expect(socket.url.toString()).toBe("wss://chat.example.com/api/client/document/collaboration")
     expect(socket.options).toMatchObject({
+      handshakeTimeout: DOCUMENT_COLLABORATION_LIMITS.connectionHandshakeTimeoutMs,
       headers: { Cookie: "session=secret", Origin: "https://chat.example.com" },
       maxPayload: DOCUMENT_COLLABORATION_LIMITS.maxFrameBytes,
       perMessageDeflate: false,
@@ -203,9 +205,9 @@ describe("文档协作 Main Controller", () => {
     expect(mocks.sockets).toHaveLength(0)
   })
 
-  it("同一文档的并发替换连接在初始化结束前仍占用 owner 配额", async () => {
+  it("同一文档的并发替换仍受底层准备任务上限约束", async () => {
     const cookieRequests = Array.from(
-      { length: DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions },
+      { length: DOCUMENT_COLLABORATION_LIMITS.maxOwnerPreparations },
       () => deferred<ReadonlyArray<{ name: string; value: string }>>(),
     )
     let cookieRequestIndex = 0
@@ -219,12 +221,112 @@ describe("文档协作 Main Controller", () => {
 
     await expect(
       controller.connect(10, target, documentId, indexedConnectionId(9)),
-    ).rejects.toThrow("会话数量超过限制")
-    expect(cookieRequestIndex).toBe(DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions)
+    ).rejects.toThrow("连接准备任务数量超过限制")
+    expect(cookieRequestIndex).toBe(DOCUMENT_COLLABORATION_LIMITS.maxOwnerPreparations)
 
     for (const request of cookieRequests) request.resolve([])
     await expect(Promise.all(connections)).rejects.toThrow("文档协作连接已取消")
     expect(mocks.sockets).toHaveLength(1)
+  })
+
+  it("按 owner 和 connectionId 取消 pending，并立即释放配额", async () => {
+    const cookieRequests = Array.from(
+      { length: DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions + 1 },
+      () => deferred<ReadonlyArray<{ name: string; value: string }>>(),
+    )
+    let cookieRequestIndex = 0
+    const controller = createController({
+      getCookies: vi.fn().mockImplementation(() => cookieRequests[cookieRequestIndex++]!.promise),
+    })
+    const connections = Array.from(
+      { length: DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions },
+      (_, index) =>
+        controller.connect(11, target, indexedDocumentId(index), indexedConnectionId(index)),
+    )
+
+    controller.cancel(12, indexedConnectionId(0))
+    await expect(
+      controller.connect(11, target, indexedDocumentId(9), indexedConnectionId(9)),
+    ).rejects.toThrow("会话数量超过限制")
+
+    controller.cancel(11, indexedConnectionId(0))
+    await expect(
+      controller.connect(11, target, indexedDocumentId(9), indexedConnectionId(9)),
+    ).rejects.toThrow("连接准备任务数量超过限制")
+    cookieRequests[0]?.resolve([])
+
+    await expect(connections[0]).rejects.toThrow("文档协作连接已取消")
+    const replacement = controller.connect(11, target, indexedDocumentId(9), indexedConnectionId(9))
+    for (const request of cookieRequests.slice(1)) request.resolve([])
+    await expect(Promise.all(connections.slice(1))).resolves.toHaveLength(
+      DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions - 1,
+    )
+    await expect(replacement).resolves.toHaveProperty("sessionId")
+  })
+
+  it("连接准备超时后释放 pending 配额且不会创建 socket", async () => {
+    vi.useFakeTimers()
+    const cookies = deferred<ReadonlyArray<{ name: string; value: string }>>()
+    const getCookies = vi
+      .fn()
+      .mockReturnValueOnce(cookies.promise)
+      .mockResolvedValue([{ name: "session", value: "secret" }])
+    const controller = createController({ getCookies })
+    const connection = controller.connect(13, target, documentId, connectionId)
+
+    const rejection = expect(connection).rejects.toThrow("连接准备超时")
+    await vi.advanceTimersByTimeAsync(DOCUMENT_COLLABORATION_LIMITS.connectionPreparationTimeoutMs)
+    await rejection
+    expect(mocks.sockets).toHaveLength(0)
+
+    await expect(
+      controller.connect(13, target, indexedDocumentId(9), indexedConnectionId(9)),
+    ).resolves.toHaveProperty("sessionId")
+  })
+
+  it("已取消但尚未结束的底层准备任务仍受独立上限约束", async () => {
+    const cookieRequests = Array.from(
+      { length: DOCUMENT_COLLABORATION_LIMITS.maxOwnerPreparations },
+      () => deferred<ReadonlyArray<{ name: string; value: string }>>(),
+    )
+    let cookieRequestIndex = 0
+    const controller = createController({
+      getCookies: vi.fn().mockImplementation(() => cookieRequests[cookieRequestIndex++]!.promise),
+    })
+    const connections = cookieRequests.map((_, index) => {
+      const pending = controller.connect(14, target, documentId, indexedConnectionId(index))
+      void pending.catch(() => undefined)
+      return pending
+    })
+
+    await expect(
+      controller.connect(14, target, documentId, indexedConnectionId(9)),
+    ).rejects.toThrow("连接准备任务数量超过限制")
+    expect(cookieRequestIndex).toBe(DOCUMENT_COLLABORATION_LIMITS.maxOwnerPreparations)
+
+    for (const request of cookieRequests) request.resolve([])
+    await expect(Promise.all(connections)).rejects.toThrow("文档协作连接已取消")
+  })
+
+  it("WebSocket 握手超时会关闭 session 并释放 owner 配额", async () => {
+    vi.useFakeTimers()
+    const controller = createController()
+    const sessions = await Promise.all(
+      Array.from({ length: DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions }, (_, index) =>
+        controller.connect(15, target, indexedDocumentId(index), indexedConnectionId(index)),
+      ),
+    )
+
+    await expect(
+      controller.connect(15, target, indexedDocumentId(9), indexedConnectionId(9)),
+    ).rejects.toThrow("会话数量超过限制")
+    await vi.advanceTimersByTimeAsync(DOCUMENT_COLLABORATION_LIMITS.connectionHandshakeTimeoutMs)
+    expect(mocks.sockets.every((socket) => socket.closeCalls.at(-1)?.[0] === 1013)).toBe(true)
+    expect(sessions).toHaveLength(DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions)
+
+    await expect(
+      controller.connect(15, target, indexedDocumentId(9), indexedConnectionId(9)),
+    ).resolves.toHaveProperty("sessionId")
   })
 
   it("应用关闭会取消正在准备的连接且不允许异步恢复后创建 socket", async () => {

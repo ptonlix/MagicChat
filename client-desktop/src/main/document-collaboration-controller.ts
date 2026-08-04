@@ -7,6 +7,7 @@ import { targetKey, type AuthenticatedTarget } from "@shared/client-contract"
 import {
   DOCUMENT_COLLABORATION_LIMITS,
   copyDocumentFrame,
+  parseDocumentConnectionId,
   parseDocumentSessionId,
   parseDocumentUuid,
   type DocumentCollaborationErrorCode,
@@ -23,6 +24,7 @@ import type { SessionController } from "@main/session-controller"
 
 type CollaborationSession = {
   connectionId: string
+  connectTimer?: NodeJS.Timeout
   documentId: string
   flushTimer?: NodeJS.Timeout
   ownerId: number
@@ -36,6 +38,7 @@ type CollaborationSession = {
 
 type PendingCollaborationConnection = {
   cancelled: boolean
+  connectionId: string
   documentId: string
   ownerId: number
   reservationId: string
@@ -44,6 +47,7 @@ type PendingCollaborationConnection = {
 
 export class DocumentCollaborationController extends EventEmitter {
   private accepting = true
+  private readonly ownerPreparationCounts = new Map<number, number>()
   private readonly pendingConnections = new Map<string, PendingCollaborationConnection>()
   private readonly sessions = new Map<string, CollaborationSession>()
 
@@ -66,25 +70,35 @@ export class DocumentCollaborationController extends EventEmitter {
     const connectionId = parseDocumentSessionId(rawConnectionId)
     this.assertTarget(target)
     const immutableTarget = Object.freeze({ ...target })
+    const immutableTargetKey = targetKey(immutableTarget)
     const duplicate = [...this.sessions.values()].find(
       (session) =>
         session.ownerId === ownerId &&
-        targetKey(session.target) === targetKey(immutableTarget) &&
+        targetKey(session.target) === immutableTargetKey &&
         session.documentId === documentId,
     )
-    if (duplicate) this.dispose(duplicate, 1000, "replaced")
-    if (this.ownerConnectionCount(ownerId) >= DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions) {
+    const duplicatePendingCount = [...this.pendingConnections.values()].filter(
+      (pending) =>
+        pending.ownerId === ownerId &&
+        targetKey(pending.target) === immutableTargetKey &&
+        pending.documentId === documentId,
+    ).length
+    const connectionCountAfterReplacement =
+      this.ownerConnectionCount(ownerId) - (duplicate ? 1 : 0) - duplicatePendingCount
+    if (connectionCountAfterReplacement >= DOCUMENT_COLLABORATION_LIMITS.maxOwnerSessions) {
       throw new Error("文档协作会话数量超过限制")
     }
+    this.assertPreparationCapacity(ownerId)
+    if (duplicate) this.dispose(duplicate, 1000, "replaced")
     this.cancelPending(
       (pending) =>
         pending.ownerId === ownerId &&
-        targetKey(pending.target) === targetKey(immutableTarget) &&
+        targetKey(pending.target) === immutableTargetKey &&
         pending.documentId === documentId,
     )
-
     const reservation: PendingCollaborationConnection = {
       cancelled: false,
+      connectionId,
       documentId,
       ownerId,
       reservationId: randomUUID(),
@@ -96,10 +110,18 @@ export class DocumentCollaborationController extends EventEmitter {
       const profile = this.profiles.require(immutableTarget.id)
       const networkSession = this.networkSessions.for(profile)
       const url = buildDocumentCollaborationUrl(profile.normalizedUrl)
-      const [cookies, proxy] = await Promise.all([
-        networkSession.cookies.get({ url: profile.normalizedUrl }),
-        resolveProxy(networkSession, url),
-      ])
+      this.acquirePreparation(ownerId)
+      const preparation = this.trackPreparation(ownerId, () =>
+        Promise.all([
+          networkSession.cookies.get({ url: profile.normalizedUrl }),
+          resolveProxy(networkSession, url),
+        ]),
+      )
+      const [cookies, proxy] = await withTimeout(
+        preparation,
+        DOCUMENT_COLLABORATION_LIMITS.connectionPreparationTimeoutMs,
+        "文档协作连接准备超时",
+      )
       if (
         reservation.cancelled ||
         !this.accepting ||
@@ -122,6 +144,7 @@ export class DocumentCollaborationController extends EventEmitter {
           Origin: new URL(profile.normalizedUrl).origin,
         },
         maxPayload: DOCUMENT_COLLABORATION_LIMITS.maxFrameBytes,
+        handshakeTimeout: DOCUMENT_COLLABORATION_LIMITS.connectionHandshakeTimeoutMs,
         perMessageDeflate: false,
         rejectUnauthorized: true,
       })
@@ -138,8 +161,13 @@ export class DocumentCollaborationController extends EventEmitter {
         target: immutableTarget,
       }
       this.sessions.set(sessionId, session)
+      session.connectTimer = setTimeout(() => {
+        if (!this.isCurrent(session, socket) || session.state !== "connecting") return
+        this.fail(session, "connection_failed", 1013)
+      }, DOCUMENT_COLLABORATION_LIMITS.connectionHandshakeTimeoutMs)
       socket.on("open", () => {
         if (!this.isCurrent(session, socket)) return
+        this.clearConnectTimer(session)
         session.state = "open"
         this.publish(session, { connectionId, sessionId, type: "open" })
         this.flush(session)
@@ -208,6 +236,13 @@ export class DocumentCollaborationController extends EventEmitter {
     this.dispose(session, 1000, "client closed")
   }
 
+  cancel(ownerId: number, rawConnectionId: unknown): void {
+    const connectionId = parseDocumentConnectionId(rawConnectionId)
+    this.cancelPending(
+      (pending) => pending.ownerId === ownerId && pending.connectionId === connectionId,
+    )
+  }
+
   closeOwner(ownerId: number): void {
     this.cancelPending((pending) => pending.ownerId === ownerId)
     for (const session of [...this.sessions.values()]) {
@@ -254,10 +289,43 @@ export class DocumentCollaborationController extends EventEmitter {
   }
 
   private cancelPending(predicate: (pending: PendingCollaborationConnection) => boolean): void {
-    for (const pending of [...this.pendingConnections.values()]) {
+    for (const [reservationId, pending] of [...this.pendingConnections]) {
       if (!predicate(pending)) continue
       pending.cancelled = true
+      this.pendingConnections.delete(reservationId)
     }
+  }
+
+  private acquirePreparation(ownerId: number): void {
+    this.assertPreparationCapacity(ownerId)
+    const count = this.ownerPreparationCounts.get(ownerId) ?? 0
+    this.ownerPreparationCounts.set(ownerId, count + 1)
+  }
+
+  private assertPreparationCapacity(ownerId: number): void {
+    const count = this.ownerPreparationCounts.get(ownerId) ?? 0
+    if (count >= DOCUMENT_COLLABORATION_LIMITS.maxOwnerPreparations) {
+      throw new Error("文档协作连接准备任务数量超过限制")
+    }
+  }
+
+  private trackPreparation<T>(ownerId: number, start: () => Promise<T>): Promise<T> {
+    let preparation: Promise<T>
+    try {
+      preparation = start()
+    } catch (error) {
+      this.releasePreparation(ownerId)
+      throw error
+    }
+    const release = () => this.releasePreparation(ownerId)
+    void preparation.then(release, release)
+    return preparation
+  }
+
+  private releasePreparation(ownerId: number): void {
+    const count = this.ownerPreparationCounts.get(ownerId) ?? 0
+    if (count <= 1) this.ownerPreparationCounts.delete(ownerId)
+    else this.ownerPreparationCounts.set(ownerId, count - 1)
   }
 
   private ownerConnectionCount(ownerId: number): number {
@@ -364,10 +432,16 @@ export class DocumentCollaborationController extends EventEmitter {
   }
 
   private release(session: CollaborationSession): void {
+    this.clearConnectTimer(session)
     if (session.flushTimer) clearTimeout(session.flushTimer)
     session.flushTimer = undefined
     session.queue = []
     session.queuedBytes = 0
+  }
+
+  private clearConnectTimer(session: CollaborationSession): void {
+    if (session.connectTimer) clearTimeout(session.connectTimer)
+    session.connectTimer = undefined
   }
 
   private isCurrent(session: CollaborationSession, socket: WebSocket): boolean {
@@ -407,6 +481,20 @@ function normalizeCloseReason(code: number, reason: string): string {
   if (code === 4401) return "auth_failed"
   if (reason === "frame_too_large" || reason === "backpressure_limit") return reason
   return code === 1000 ? "closed" : "connection_closed"
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 export function frameMatchesDocument(frame: Uint8Array, documentId: string): boolean {

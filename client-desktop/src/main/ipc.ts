@@ -115,6 +115,9 @@ export function registerIpc(deps: IpcDependencies): () => void {
       parseDocumentConnectionId(connectionId),
     ),
   )
+  register(IPC.documentCollaborationCancel, (event, connectionId) =>
+    deps.documentCollaboration.cancel(event.sender.id, parseDocumentConnectionId(connectionId)),
+  )
   register(IPC.documentCollaborationSend, (event, sessionId, frame) =>
     deps.documentCollaboration.send(event.sender.id, parseDocumentSessionId(sessionId), frame),
   )

@@ -206,7 +206,10 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
     if (!location) return
     setMutating(true)
     void moveClientDocument(draggedId, location)
-      .then(() => toast.success("文档位置已更新"))
+      .then(() => {
+        toast.success("文档位置已更新")
+        return loadDocuments()
+      })
       .catch(async (mutationError: unknown) => {
         toast.error(mutationError instanceof Error ? mutationError.message : "移动文档失败")
         await loadDocuments()

@@ -1,9 +1,19 @@
 import type { AuthenticatedTarget } from "@shared/client-contract"
 
 export const DOCUMENT_COLLABORATION_LIMITS = Object.freeze({
+  // WebSocket 创建后等待握手完成的最长时间，超时后主动关闭会话。
+  connectionHandshakeTimeoutMs: 15_000,
+  // 获取 Cookie 和解析代理等连接准备工作的最长等待时间。
+  connectionPreparationTimeoutMs: 15_000,
+  // 发送队列存在积压时，两次尝试排空队列之间的间隔。
   drainIntervalMs: 20,
+  // 单个协作协议二进制帧允许的最大字节数。
   maxFrameBytes: 16 * 1024 * 1024,
+  // 每个 Renderer 同时运行的底层连接准备任务数量上限。
+  maxOwnerPreparations: 8,
+  // 每个 Renderer 的 pending 连接与活动会话总数上限。
   maxOwnerSessions: 8,
+  // 单个会话发送队列或 Renderer 待处理事件允许占用的最大字节数。
   maxQueueBytes: 32 * 1024 * 1024,
 })
 
@@ -32,6 +42,7 @@ export type DocumentCollaborationEvent = Readonly<
 >
 
 export interface DocumentCollaborationBridge {
+  cancel(connectionId: string): Promise<void>
   close(sessionId: string): Promise<void>
   connect(
     target: AuthenticatedTarget,

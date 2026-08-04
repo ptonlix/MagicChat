@@ -13,12 +13,14 @@ const sessionId = "550e8400-e29b-41d4-a716-446655440000"
 const connectionId = "650e8400-e29b-41d4-a716-446655440000"
 
 let listener: ((event: DocumentCollaborationEvent) => void) | undefined
+const cancel = vi.fn(async () => undefined)
 const close = vi.fn(async () => undefined)
 const send = vi.fn(async () => undefined)
 let connectMock: ReturnType<typeof vi.fn>
 
 afterEach(() => {
   listener = undefined
+  cancel.mockClear()
   close.mockClear()
   send.mockClear()
   connectMock?.mockClear()
@@ -64,7 +66,7 @@ describe("DocumentCollaborationSocket", () => {
     expect([...new Uint8Array(message ?? new ArrayBuffer(0))]).toEqual([1, 2])
   })
 
-  it("连接完成前 close 会关闭随后返回的 session", async () => {
+  it("连接完成前 close 会取消 pending 并关闭随后返回的 session", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue(connectionId)
     let resolveConnect: ((value: { sessionId: string }) => void) | undefined
     installBridge(
@@ -74,9 +76,39 @@ describe("DocumentCollaborationSocket", () => {
     )
     const socket = new DocumentCollaborationSocket("ignored", target, documentId)
     socket.close()
+    await Promise.resolve()
+    expect(cancel).toHaveBeenCalledWith(connectionId)
     resolveConnect?.({ sessionId })
     await Promise.resolve()
     expect(close).toHaveBeenCalledWith(sessionId)
+  })
+
+  it("取消 pending 的 IPC 失败时仍正常关闭且不拒绝 Promise", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(connectionId)
+    installBridge(new Promise(() => undefined))
+    cancel.mockRejectedValueOnce(new Error("ipc unavailable"))
+    const socket = new DocumentCollaborationSocket("ignored", target, documentId)
+    const closed = vi.fn()
+    socket.addEventListener("close", closed)
+
+    socket.close()
+    await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce())
+    expect(socket.readyState).toBe(DocumentCollaborationSocket.CLOSED)
+  })
+
+  it("关闭已建立 session 的 IPC 失败时仍正常关闭", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(connectionId)
+    installBridge()
+    const socket = new DocumentCollaborationSocket("ignored", target, documentId)
+    await Promise.resolve()
+    listener?.({ connectionId, sessionId, type: "open" })
+    close.mockRejectedValueOnce(new Error("ipc unavailable"))
+    const closed = vi.fn()
+    socket.addEventListener("close", closed)
+
+    socket.close()
+    await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce())
+    expect(socket.readyState).toBe(DocumentCollaborationSocket.CLOSED)
   })
 
   it("只发送二进制并丢弃其他 session 的陈旧事件", async () => {
@@ -148,6 +180,7 @@ function installBridge(connectPromise = Promise.resolve({ sessionId })) {
     configurable: true,
     value: {
       documentCollaboration: {
+        cancel,
         close,
         connect: connectMock,
         send,

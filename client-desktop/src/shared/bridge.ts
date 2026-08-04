@@ -35,6 +35,7 @@ export const IPC = {
   clipboardWriteText: "desktop:v1:clipboard-write-text",
   diagnosticsExport: "desktop:v1:diagnostics-export",
   diagnosticsRuntime: "desktop:v1:diagnostics-runtime",
+  documentCollaborationCancel: "desktop:v1:document-collaboration-cancel",
   documentCollaborationClose: "desktop:v1:document-collaboration-close",
   documentCollaborationConnect: "desktop:v1:document-collaboration-connect",
   documentCollaborationEvent: "desktop:v1:document-collaboration-event",

@@ -48,6 +48,7 @@ const bridge: DesktopBridge = {
     reportRuntime: (snapshot) => ipcRenderer.send(IPC.diagnosticsRuntime, snapshot),
   },
   documentCollaboration: {
+    cancel: (connectionId) => ipcRenderer.invoke(IPC.documentCollaborationCancel, connectionId),
     close: (sessionId) => ipcRenderer.invoke(IPC.documentCollaborationClose, sessionId),
     connect: (target, documentId, connectionId) =>
       ipcRenderer.invoke(IPC.documentCollaborationConnect, target, documentId, connectionId),

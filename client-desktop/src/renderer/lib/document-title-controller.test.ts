@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { DocumentTitleController, limitDocumentTitle } from "./document-title-controller"
+
+let unhandledRejectionListener: ((reason: unknown) => void) | undefined
+
+afterEach(() => {
+  if (unhandledRejectionListener) process.off("unhandledRejection", unhandledRejectionListener)
+  unhandledRejectionListener = undefined
+})
 
 describe("DocumentTitleController", () => {
   it("按 Unicode 码点限制标题为 500 个字符", () => {
@@ -56,6 +63,33 @@ describe("DocumentTitleController", () => {
     await first
 
     expect(save).toHaveBeenCalledTimes(1)
+  })
+
+  it("追赶保存失败会进入失败状态且不产生未处理拒绝", async () => {
+    const unhandled = vi.fn()
+    unhandledRejectionListener = unhandled
+    process.on("unhandledRejection", unhandledRejectionListener)
+    let release: ((value: string) => void) | undefined
+    const save = vi
+      .fn<(title: string) => Promise<string>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            release = resolve
+          }),
+      )
+      .mockRejectedValueOnce(new Error("network failed"))
+    const controller = new DocumentTitleController("初始", save)
+    controller.change("第一版")
+    const first = controller.flush()
+    controller.change("第二版")
+
+    release?.("第一版")
+    await first
+    await vi.waitFor(() => expect(controller.value.state).toBe("failed"))
+    expect(save).toHaveBeenCalledTimes(2)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(unhandled).not.toHaveBeenCalled()
   })
 
   it("dirty 时不覆盖远端标题，干净时直接采用且不保存", () => {

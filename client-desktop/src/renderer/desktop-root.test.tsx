@@ -1186,6 +1186,7 @@ function createDesktopBridge(
     clipboard: { writePng: vi.fn(), writeText: vi.fn() },
     diagnostics: { export: vi.fn(), reportRuntime: vi.fn() },
     documentCollaboration: {
+      cancel: vi.fn(),
       close: vi.fn(),
       connect: vi.fn(),
       send: vi.fn(),
