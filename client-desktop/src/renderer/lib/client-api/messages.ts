@@ -286,7 +286,7 @@ export async function listConversationMessages(
   if (options.beforeSeq !== undefined) {
     searchParams.set("before_seq", String(options.beforeSeq))
   }
-  if (options.afterSeq !== undefined) {
+  if (options.afterSeq !== undefined && options.afterSeq > 0) {
     searchParams.set("after_seq", String(options.afterSeq))
   }
 

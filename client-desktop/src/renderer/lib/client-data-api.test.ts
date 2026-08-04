@@ -705,6 +705,41 @@ describe("client data API", () => {
     )
   })
 
+  it("首次同步游标为零时省略服务端不接受的 after_seq 参数", async () => {
+    const fetcher = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              messages: [],
+              page: {
+                has_more_after: false,
+                has_more_before: false,
+                limit: 20,
+                newest_seq: 0,
+                oldest_seq: 0,
+              },
+            },
+            success: true,
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 },
+        ),
+      ),
+    )
+
+    await listConversationMessages("conversation-1", { afterSeq: 0, limit: 20 }, fetcher)
+    expect(fetcher).toHaveBeenLastCalledWith(
+      "/api/client/conversations/conversation-1/messages?limit=20",
+      { credentials: "include", method: "GET" },
+    )
+
+    await listConversationMessages("conversation-1", { afterSeq: 12, limit: 20 }, fetcher)
+    expect(fetcher).toHaveBeenLastCalledWith(
+      "/api/client/conversations/conversation-1/messages?limit=20&after_seq=12",
+      { credentials: "include", method: "GET" },
+    )
+  })
+
   it("sends reply references for all conversation message create APIs", async () => {
     const fetcher = vi.fn().mockImplementation(() =>
       Promise.resolve(
