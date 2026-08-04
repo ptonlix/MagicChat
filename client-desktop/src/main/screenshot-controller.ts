@@ -204,7 +204,7 @@ export class ScreenshotController {
       this.active = session
       await Promise.all(overlays.map((overlay) => overlay.window.loadURL(this.options.captureUrl)))
       if (this.active?.id !== currentSessionId) throw new ScreenshotCaptureError("capture_failed")
-      for (const overlay of overlays) overlay.window.show()
+      for (const overlay of overlays) this.showOverlay(overlay)
       this.focusActiveOverlay()
       return { sessionId: currentSessionId, status: "started" }
     } catch (error) {
@@ -219,13 +219,12 @@ export class ScreenshotController {
 
   private createOverlay(sessionId: string, capture: CapturedDisplay): Overlay {
     const bounds = capture.display.bounds
-    const fullscreen = this.platform === "win32"
     const window = new BrowserWindow({
       acceptFirstMouse: true,
       alwaysOnTop: true,
       backgroundColor: "#000000",
       frame: false,
-      fullscreenable: fullscreen,
+      fullscreenable: false,
       hasShadow: false,
       height: Math.round(bounds.height),
       maximizable: false,
@@ -235,6 +234,7 @@ export class ScreenshotController {
       roundedCorners: false,
       show: false,
       skipTaskbar: true,
+      thickFrame: this.platform === "win32" ? false : undefined,
       title: "即应截图",
       type: overlayWindowType(this.platform),
       webPreferences: {
@@ -252,7 +252,6 @@ export class ScreenshotController {
       y: Math.round(bounds.y),
     })
     window.removeMenu()
-    if (fullscreen) window.setFullScreen(true)
     window.setAlwaysOnTop(true, "screen-saver")
     if (this.platform !== "win32")
       window.setVisibleOnAllWorkspaces(true, {
@@ -266,6 +265,12 @@ export class ScreenshotController {
       if (!this.active?.disposing) this.disposeSession(sessionId)
     })
     return { capture, token: secureToken(), window }
+  }
+
+  private showOverlay(overlay: Overlay): void {
+    overlay.window.show()
+    if (this.platform === "win32")
+      overlay.window.setBounds(roundedBounds(overlay.capture.display.bounds), false)
   }
 
   private metadata(senderId: number): CaptureSessionMetadata {
@@ -453,7 +458,7 @@ export class ScreenshotController {
       session.overlays.find((candidate) => candidate.capture.display.id === displayId) ??
       session.overlays[0]
     if (!overlay || overlay.window.isDestroyed()) return
-    overlay.window.show()
+    this.showOverlay(overlay)
     overlay.window.focus()
   }
 
@@ -492,8 +497,16 @@ export class ScreenshotController {
 
 function overlayWindowType(platform: NodeJS.Platform): BrowserWindowConstructorOptions["type"] {
   if (platform === "darwin") return "panel"
-  if (platform === "win32") return "toolbar"
   return undefined
+}
+
+function roundedBounds(bounds: CapturedDisplay["display"]["bounds"]): Electron.Rectangle {
+  return {
+    height: Math.round(bounds.height),
+    width: Math.round(bounds.width),
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+  }
 }
 
 function parseStartInput(value: unknown): ScreenshotStartInput {

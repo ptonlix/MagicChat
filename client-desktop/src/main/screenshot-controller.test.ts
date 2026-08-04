@@ -29,8 +29,8 @@ const electronMocks = vi.hoisted(() => {
         windowHandlers.set(event, listener),
       ),
       removeMenu: vi.fn(),
+      setBounds: vi.fn(),
       setAlwaysOnTop: vi.fn(),
-      setFullScreen: vi.fn(),
       setVisibleOnAllWorkspaces: vi.fn(),
       show: vi.fn(),
       webContents,
@@ -118,26 +118,33 @@ describe("ScreenshotController", () => {
     ).resolves.toMatchObject({ defaultOutput: "copy" })
   })
 
-  it("Windows 截图浮层使用全屏窗口覆盖任务栏，避免压缩整屏图像", async () => {
+  it("Windows 截图浮层使用完整屏幕边界覆盖任务栏，避免压缩整屏图像", async () => {
     const { controller } = createController(capturedDisplay(), undefined, "win32")
 
     await expect(controller.start({})).resolves.toMatchObject({ status: "started" })
 
     expect(electronMocks.browserWindow).toHaveBeenCalledWith(
       expect.objectContaining({
-        fullscreenable: true,
+        fullscreenable: false,
         height: 900,
-        type: "toolbar",
+        thickFrame: false,
+        type: undefined,
         width: 1440,
         x: 0,
         y: 0,
       }),
     )
-    expect(electronMocks.windows[0].setFullScreen).toHaveBeenCalledWith(true)
+    expect(electronMocks.windows[0].setBounds).toHaveBeenCalledWith(
+      { height: 900, width: 1440, x: 0, y: 0 },
+      false,
+    )
+    expect(electronMocks.windows[0].show.mock.invocationCallOrder[0]).toBeLessThan(
+      electronMocks.windows[0].setBounds.mock.invocationCallOrder[0],
+    )
     expect(electronMocks.windows[0].setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
   })
 
-  it("Windows 多显示器浮层在进入全屏前保留各自的屏幕坐标", async () => {
+  it("Windows 多显示器浮层显示后保留各自的完整屏幕边界", async () => {
     const primary = display()
     const secondary = display(9, { height: 1080, width: 1920, x: -1920, y: -120 })
     const captures = [capturedDisplay("7", primary.bounds), capturedDisplay("9", secondary.bounds)]
@@ -155,8 +162,8 @@ describe("ScreenshotController", () => {
       2,
       expect.objectContaining({ height: 1080, width: 1920, x: -1920, y: -120 }),
     )
-    expect(electronMocks.windows[0].setFullScreen).toHaveBeenCalledWith(true)
-    expect(electronMocks.windows[1].setFullScreen).toHaveBeenCalledWith(true)
+    expect(electronMocks.windows[0].setBounds).toHaveBeenCalledWith(primary.bounds, false)
+    expect(electronMocks.windows[1].setBounds).toHaveBeenCalledWith(secondary.bounds, false)
   })
 
   it("所有截图 IPC 都拒绝不可信来源", async () => {
