@@ -28,6 +28,7 @@ body,
 .desktop-titlebar-brand {
   align-items: center;
   display: flex;
+  gap: 8px;
   height: 100%;
   padding-left: 12px;
   width: max-content;
@@ -38,6 +39,13 @@ body,
   object-fit: cover;
   pointer-events: none;
   width: 22px;
+}
+.desktop-titlebar-brand span {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .cn-toast,
 .desktop-toast-close,

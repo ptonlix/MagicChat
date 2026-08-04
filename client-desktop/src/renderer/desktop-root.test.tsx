@@ -129,7 +129,7 @@ describe("桌面设置服务器管理", () => {
     expect(mocks.screenshotStartFailureUnsubscribe).toHaveBeenCalledOnce()
   })
 
-  it("Windows 顶栏展示即应 Logo", async () => {
+  it("Windows 顶栏在 Logo 右侧展示即应名称", async () => {
     Object.defineProperty(window, "desktop", {
       configurable: true,
       value: createDesktopBridge(undefined, undefined, "win32"),
@@ -137,7 +137,20 @@ describe("桌面设置服务器管理", () => {
 
     render(<DesktopRoot />)
 
+    expect(await screen.findByText("即应")).toBeInTheDocument()
+    expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
+  })
+
+  it("Linux 顶栏保留 Logo 且不展示 Windows 名称", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge(undefined, undefined, "linux"),
+    })
+
+    render(<DesktopRoot />)
+
     expect(await screen.findByRole("img", { name: "即应" })).toBeInTheDocument()
+    expect(screen.queryByText("即应")).not.toBeInTheDocument()
   })
 
   it("macOS 顶栏为原生交通灯保留左侧空间", async () => {
@@ -191,7 +204,8 @@ describe("桌面设置服务器管理", () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
 
-    await screen.findByRole("img", { name: "即应" })
+    if (platform === "win32") await screen.findByText("即应")
+    else await screen.findByRole("img", { name: "即应" })
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     const settings = screen.getByRole("dialog", { name: "设置" })
     const styles = await readFile(

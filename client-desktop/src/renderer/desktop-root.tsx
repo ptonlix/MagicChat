@@ -86,7 +86,8 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
     <div className="desktop-titlebar-drag-region">
       {platform && platform !== "darwin" && (
         <div className="desktop-titlebar-brand">
-          <img alt="即应" draggable={false} src="/logo.png" />
+          <img alt={platform === "win32" ? "" : "即应"} draggable={false} src="/logo.png" />
+          {platform === "win32" && <span>即应</span>}
         </div>
       )}
     </div>

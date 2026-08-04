@@ -70,10 +70,12 @@ type ScreenshotControllerOptions = Readonly<{
   captureUrl: string
   getMainWindow: () => BrowserWindow | undefined
   onConversationResult: (result: ScreenshotConversationResult) => void
+  platform?: NodeJS.Platform
 }>
 
 export class ScreenshotController {
   private readonly backend: CaptureBackend
+  private readonly platform: NodeJS.Platform
   private active?: ActiveSession
   private disposed = false
   private lifecycleVersion = 0
@@ -86,6 +88,7 @@ export class ScreenshotController {
 
   constructor(private readonly options: ScreenshotControllerOptions) {
     this.backend = options.backend ?? new ElectronDesktopCapturerBackend()
+    this.platform = options.platform ?? process.platform
   }
 
   installProtocol(): void {
@@ -216,12 +219,13 @@ export class ScreenshotController {
 
   private createOverlay(sessionId: string, capture: CapturedDisplay): Overlay {
     const bounds = capture.display.bounds
+    const fullscreen = this.platform === "win32"
     const window = new BrowserWindow({
       acceptFirstMouse: true,
       alwaysOnTop: true,
       backgroundColor: "#000000",
       frame: false,
-      fullscreenable: false,
+      fullscreenable: fullscreen,
       hasShadow: false,
       height: Math.round(bounds.height),
       maximizable: false,
@@ -232,7 +236,7 @@ export class ScreenshotController {
       show: false,
       skipTaskbar: true,
       title: "即应截图",
-      type: overlayWindowType(process.platform),
+      type: overlayWindowType(this.platform),
       webPreferences: {
         additionalArguments: ["--magicchat-capture"],
         backgroundThrottling: false,
@@ -248,8 +252,9 @@ export class ScreenshotController {
       y: Math.round(bounds.y),
     })
     window.removeMenu()
+    if (fullscreen) window.setFullScreen(true)
     window.setAlwaysOnTop(true, "screen-saver")
-    if (process.platform !== "win32")
+    if (this.platform !== "win32")
       window.setVisibleOnAllWorkspaces(true, {
         skipTransformProcessType: true,
         visibleOnFullScreen: true,
