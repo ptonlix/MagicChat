@@ -9,6 +9,7 @@ import type {
 import type { MessageCacheBridge } from "@shared/message-cache-contract"
 import type { ASRBridge } from "@shared/asr-contract"
 import type { ScreenshotBridge } from "@shared/screenshot-contract"
+import type { ShortcutBridge } from "@shared/shortcut-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
@@ -69,6 +70,10 @@ export const IPC = {
   screenshotResultFinish: "desktop:v1:screenshot-result-finish",
   screenshotResultStart: "desktop:v1:screenshot-result-start",
   screenshotStart: "desktop:v1:screenshot-start",
+  shortcutRecordingBegin: "desktop:v1:shortcut-recording-begin",
+  shortcutRecordingCancel: "desktop:v1:shortcut-recording-cancel",
+  shortcutScreenshotSet: "desktop:v1:shortcut-screenshot-set",
+  shortcutsGetState: "desktop:v1:shortcuts-get-state",
   serversAdd: "desktop:v1:servers-add",
   serversList: "desktop:v1:servers-list",
   serversRemove: "desktop:v1:servers-remove",
@@ -106,10 +111,13 @@ export type DesktopSettings = Readonly<{
   closeBehavior: "background" | "quit"
   messageSoundEnabled: boolean
   notificationPrivacy: "hidden" | "metadata" | "preview"
+  screenshotShortcut: string | null
   selectedServerId?: string
 }>
 
-export type DesktopSettingsPatch = Partial<Omit<DesktopSettings, "selectedServerId">>
+export type DesktopSettingsPatch = Partial<
+  Omit<DesktopSettings, "screenshotShortcut" | "selectedServerId">
+>
 
 export type DesktopAppInfo = Readonly<{
   arch: string
@@ -248,6 +256,7 @@ export interface DesktopBridge {
     subscribeUnauthorized(listener: (target: AuthenticatedTarget) => void): () => void
   }
   screenshot: ScreenshotBridge
+  shortcuts: ShortcutBridge
   servers: {
     add(url: string, displayName?: string): Promise<ServerProfile>
     list(): Promise<ReadonlyArray<ServerProfile>>

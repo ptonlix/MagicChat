@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -12,6 +12,47 @@ afterEach(async () => {
 })
 
 describe("桌面配置存储", () => {
+  it("为旧配置补充默认截图快捷键", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    await writeFile(
+      path.join(directory, "desktop-config.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        servers: [],
+        settings: {
+          autoLaunch: false,
+          closeBehavior: "background",
+          messageSoundEnabled: true,
+          notificationPrivacy: "metadata",
+        },
+      }),
+    )
+
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    expect(store.getSettings().screenshotShortcut).toBe("CommandOrControl+Shift+A")
+  })
+
+  it("持久化修改和禁用的截图快捷键", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await store.setSettings({ screenshotShortcut: "Control+Alt+S" })
+    const reopened = new ConfigStore(directory)
+    await reopened.load()
+    expect(reopened.getSettings().screenshotShortcut).toBe("Control+Alt+S")
+
+    await reopened.setSettings({ screenshotShortcut: null })
+    const persisted = JSON.parse(
+      await readFile(path.join(directory, "desktop-config.json"), "utf8"),
+    ) as { settings: { screenshotShortcut?: unknown } }
+    expect(persisted.settings.screenshotShortcut).toBeNull()
+  })
+
   it("持久撤销已注销用户", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
     directories.push(directory)

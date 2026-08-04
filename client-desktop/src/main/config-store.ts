@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto"
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { DesktopSettings, ServerProfile } from "@shared/bridge"
+import {
+  DEFAULT_SCREENSHOT_SHORTCUT,
+  normalizeShortcutAccelerator,
+} from "@shared/shortcut-contract"
 
 const CURRENT_SCHEMA = 1
 
@@ -22,6 +26,7 @@ const defaultSettings: DesktopSettings = {
   closeBehavior: "background",
   messageSoundEnabled: true,
   notificationPrivacy: "metadata",
+  screenshotShortcut: DEFAULT_SCREENSHOT_SHORTCUT,
 }
 
 export class ConfigStore {
@@ -74,6 +79,9 @@ export class ConfigStore {
       if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
       if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
         throw new Error("通知隐私无效")
+      if (next.screenshotShortcut !== null) {
+        next.screenshotShortcut = normalizeShortcutAccelerator(next.screenshotShortcut)
+      }
       const nextConfig = { ...this.config, settings: next }
       await this.persist(nextConfig)
       this.config = nextConfig
@@ -208,7 +216,17 @@ function normalizeSettings(value: unknown, servers: ServerProfile[]): DesktopSet
       input.notificationPrivacy === "preview"
         ? input.notificationPrivacy
         : defaultSettings.notificationPrivacy,
+    screenshotShortcut:
+      input.screenshotShortcut === null ? null : normalizeStoredShortcut(input.screenshotShortcut),
     ...(selectedServerId ? { selectedServerId } : {}),
+  }
+}
+
+function normalizeStoredShortcut(value: unknown): string {
+  try {
+    return normalizeShortcutAccelerator(value)
+  } catch {
+    return DEFAULT_SCREENSHOT_SHORTCUT
   }
 }
 

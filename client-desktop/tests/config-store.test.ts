@@ -23,6 +23,7 @@ describe("桌面配置迁移", () => {
       closeBehavior: "background",
       messageSoundEnabled: true,
       notificationPrivacy: "metadata",
+      screenshotShortcut: "CommandOrControl+Shift+A",
     })
     await store.load()
     const persisted = JSON.parse(
@@ -93,6 +94,7 @@ describe("桌面配置迁移", () => {
       closeBehavior: "background",
       messageSoundEnabled: true,
       notificationPrivacy: "metadata",
+      screenshotShortcut: "CommandOrControl+Shift+A",
     })
   })
 

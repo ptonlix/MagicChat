@@ -44,6 +44,9 @@ body,
 .cn-toast [data-button] {
   -webkit-app-region: no-drag;
 }
+[data-sonner-toaster] {
+  pointer-events: auto !important;
+}
 .dark .desktop-titlebar-drag-region {
   box-shadow: 0 6px 18px oklch(0 0 0 / 22%);
 }

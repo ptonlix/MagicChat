@@ -33,6 +33,7 @@ import { handleUnauthorizedCacheLifecycle } from "@main/authentication-cache-lif
 import type { ASRController } from "@main/asr-controller"
 import type { ASREvent } from "@shared/asr-contract"
 import { parseExternalWebLink } from "@shared/external-link"
+import type { ScreenshotShortcutManager } from "@main/screenshot-shortcut"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -46,6 +47,7 @@ export type IpcDependencies = {
   profiles: ServerProfiles
   realtime: RealtimeController
   sessions: SessionController
+  shortcuts: ScreenshotShortcutManager
   store: ConfigStore
   system: SystemIntegration
   uploads: StreamingUploadController
@@ -137,6 +139,12 @@ export function registerIpc(deps: IpcDependencies): () => void {
     if (remaining.notificationPrivacy !== undefined) deps.system.refreshTray()
     return settings
   })
+  register(IPC.shortcutsGetState, () => deps.shortcuts.getState())
+  register(IPC.shortcutRecordingBegin, (event) => deps.shortcuts.beginRecording(event.sender.id))
+  register(IPC.shortcutRecordingCancel, (event) => deps.shortcuts.cancelRecording(event.sender.id))
+  register(IPC.shortcutScreenshotSet, (event, accelerator) =>
+    deps.shortcuts.setScreenshot(event.sender.id, accelerator),
+  )
   register(IPC.transportRequest, async (event, rawTarget, rawRequest) => {
     const authTarget = target(rawTarget)
     const clientRequest = request(rawRequest)
@@ -279,6 +287,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
       deps.http.cancelOwner(contents.id)
       deps.asr.closeOwner(contents.id)
       deps.files.releaseOwner(contents.id)
+      deps.shortcuts.releaseOwner(contents.id)
       deps.uploads.releaseOwner(contents.id)
     }),
   )

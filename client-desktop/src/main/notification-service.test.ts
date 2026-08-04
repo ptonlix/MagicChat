@@ -117,5 +117,6 @@ function createSettings(
     closeBehavior: "background",
     messageSoundEnabled,
     notificationPrivacy,
+    screenshotShortcut: "CommandOrControl+Shift+A",
   }
 }

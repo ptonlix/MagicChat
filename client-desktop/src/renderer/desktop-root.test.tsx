@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -153,7 +153,7 @@ describe("桌面设置服务器管理", () => {
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
   })
 
-  it("平台信息返回前不把设置抽屉误判为 Windows 或 Linux 布局", async () => {
+  it("平台信息返回前不把设置中心误判为 Windows 或 Linux 布局", async () => {
     const bridge = createDesktopBridge()
     let resolveAppInfo!: (info: DesktopAppInfo) => void
     const appInfo = new Promise<DesktopAppInfo>((resolve) => {
@@ -169,9 +169,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     const settings = screen.getByRole("dialog", { name: "设置" })
-    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
-    expect(settings).not.toHaveClass("desktop-settings-below-titlebar")
-    expect(settingsOverlay).not.toHaveClass("desktop-settings-overlay-below-titlebar")
+    expect(settings).not.toHaveClass("settings-center-below-titlebar")
 
     resolveAppInfo({
       arch: "x64",
@@ -182,11 +180,10 @@ describe("桌面设置服务器管理", () => {
       version: "0.1.0",
     })
 
-    await waitFor(() => expect(settings).toHaveClass("desktop-settings-below-titlebar"))
-    expect(settingsOverlay).toHaveClass("desktop-settings-overlay-below-titlebar")
+    await waitFor(() => expect(settings).toHaveClass("settings-center-below-titlebar"))
   })
 
-  it.each(["win32", "linux"])("%s 设置抽屉和遮罩位于应用顶栏下方", async (platform) => {
+  it.each(["win32", "linux"])("%s 设置中心位于应用顶栏下方", async (platform) => {
     Object.defineProperty(window, "desktop", {
       configurable: true,
       value: createDesktopBridge(undefined, undefined, platform),
@@ -197,40 +194,45 @@ describe("桌面设置服务器管理", () => {
     await screen.findByRole("img", { name: "即应" })
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     const settings = screen.getByRole("dialog", { name: "设置" })
-    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
-    const styles = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+    const styles = await readFile(
+      path.resolve(process.cwd(), "src/renderer/settings-center.css"),
+      "utf8",
+    )
 
-    expect(settings).toHaveClass("desktop-settings", "desktop-settings-below-titlebar")
-    expect(settingsOverlay).toHaveClass("desktop-settings-overlay-below-titlebar")
-    expect(styles).toContain(`--desktop-titlebar-height: ${DESKTOP_TITLEBAR_HEIGHT}px`)
+    expect(settings).toHaveClass("settings-center", "settings-center-below-titlebar")
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass(
+      "settings-center-overlay-below-titlebar",
+    )
+    expect(DESKTOP_TITLEBAR_HEIGHT).toBeGreaterThan(0)
     expect(styles).toMatch(
-      /\.desktop-settings-below-titlebar\s*\{[^}]*height:\s*calc\(100% - var\(--desktop-titlebar-height\)\)/,
+      /\.settings-center-below-titlebar\s*\{[^}]*height:\s*min\(620px, calc\(100vh - var\(--desktop-titlebar-height\) - 32px\)\)/,
+    )
+    expect(styles).toMatch(
+      /\.settings-center-overlay-below-titlebar\s*\{[^}]*top:\s*var\(--desktop-titlebar-height\)/,
     )
   })
 
-  it("macOS 设置抽屉保持全高且遮罩覆盖标题栏", async () => {
+  it("macOS 设置中心保持主窗口内的大尺寸布局", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
 
     await waitFor(() => expect(window.desktop.app.info).toHaveBeenCalled())
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     const settings = screen.getByRole("dialog", { name: "设置" })
-    const settingsOverlay = document.querySelector('[data-slot="sheet-overlay"]')
 
-    expect(settings).toHaveClass("desktop-settings")
-    await waitFor(() => expect(settings).not.toHaveClass("desktop-settings-below-titlebar"))
-    expect(settingsOverlay).not.toHaveClass("desktop-settings-overlay-below-titlebar")
+    expect(settings).toHaveClass("settings-center")
+    await waitFor(() => expect(settings).not.toHaveClass("settings-center-below-titlebar"))
   })
 
-  it("设置面板使用左侧收起按钮", async () => {
+  it("设置中心使用右上角关闭按钮", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
-    const closeButton = screen.getByRole("button", { name: "收起设置面板" })
-    const settingsHeader = closeButton.closest('[data-slot="sheet-header"]')
+    const closeButton = screen.getByRole("button", { name: "关闭设置" })
+    const settingsHeader = closeButton.closest("header")
 
-    expect(settingsHeader?.firstElementChild).toBe(closeButton)
+    expect(settingsHeader?.lastElementChild).toBe(closeButton)
     await user.click(closeButton)
     expect(screen.queryByRole("dialog", { name: "设置" })).not.toBeInTheDocument()
   })
@@ -240,6 +242,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "工作空间" }))
     await user.click(await screen.findByRole("button", { name: "移除服务器" }))
 
     expect(await screen.findByRole("heading", { name: "开始使用即应" })).toBeInTheDocument()
@@ -294,10 +297,75 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "工作空间" }))
     await user.click(await screen.findByRole("button", { name: "移除服务器" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("本地配置写入失败")
-    expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeInTheDocument()
+  })
+
+  it("设置读取失败后提供重试并恢复内容", async () => {
+    const bridge = createDesktopBridge()
+    const initialSettings = await bridge.settings.get()
+    vi.mocked(bridge.settings.get)
+      .mockReset()
+      .mockResolvedValueOnce(initialSettings)
+      .mockRejectedValueOnce(new Error("IPC unavailable"))
+      .mockResolvedValueOnce(initialSettings)
+    Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("设置读取失败，请重试")
+
+    await user.click(screen.getByRole("button", { name: "重试" }))
+    expect(await screen.findByText("开机自动启动")).toBeInTheDocument()
+  })
+
+  it("工作空间重命名失败时保留输入并展示反馈", async () => {
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.servers.rename).mockRejectedValueOnce(new Error("persist failed"))
+    Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "工作空间" }))
+    const nameInput = screen.getByRole("textbox")
+    await user.clear(nameInput)
+    await user.type(nameInput, "新的工作空间")
+    await user.click(screen.getByRole("button", { name: "保存" }))
+
+    expect(await screen.findByText("工作空间名称保存失败，请重试")).toBeInTheDocument()
+    expect(nameInput).toHaveValue("新的工作空间")
+  })
+
+  it("工作空间移除操作位于服务器地址行右侧", async () => {
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "工作空间" }))
+    const removeButton = screen.getByRole("button", { name: "移除服务器" })
+    const addressRow = screen.getByText(profile.normalizedUrl).closest(".settings-row")
+
+    expect(addressRow).not.toBeNull()
+    expect(addressRow).toContainElement(removeButton)
+    expect(removeButton).toHaveClass("settings-danger-button")
+  })
+
+  it("设置窗口使用紧凑尺寸且选中分类沿用应用主色", async () => {
+    const styles = await readFile(
+      path.resolve(process.cwd(), "src/renderer/settings-center.css"),
+      "utf8",
+    )
+
+    expect(styles).toMatch(/\.settings-center\s*\{[^}]*height:\s*min\(640px,/)
+    expect(styles).toMatch(/\.settings-center\s*\{[^}]*width:\s*min\(920px,/)
+    expect(styles).toMatch(
+      /\.settings-center-nav-item\[aria-current="page"\]\s*\{[^}]*color:\s*var\(--primary\)/,
+    )
   })
 
   it("展示并保存新消息提示音开关", async () => {
@@ -310,6 +378,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "新消息通知" }))
     const soundToggle = screen.getByRole("checkbox", { name: "新消息提示音" })
     expect(soundToggle).toBeChecked()
 
@@ -320,23 +389,219 @@ describe("桌面设置服务器管理", () => {
     await waitFor(() => expect(mocks.messageNotificationSoundEnabled?.()).toBe(false))
   })
 
-  it("将本地消息缓存展示在通知与隐私下方并右对齐清理按钮", async () => {
+  it("展示八类设置导航并让存储空间独立可达", async () => {
     const user = userEvent.setup()
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
 
-    const notificationHeading = screen.getByRole("heading", { name: "通知与隐私" })
-    const cacheHeading = screen.getByRole("heading", { name: "本地消息缓存" })
-    expect(
-      notificationHeading.compareDocumentPosition(cacheHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    for (const label of [
+      "通用",
+      "新消息通知",
+      "外观与布局",
+      "存储空间",
+      "快捷键",
+      "软件更新",
+      "工作空间",
+      "关于即应",
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
+    }
+    await user.click(screen.getByRole("button", { name: "存储空间" }))
+    expect(screen.getByRole("heading", { name: "本地消息缓存" })).toBeInTheDocument()
 
     const cacheButton = screen.getByRole("button", { name: "清理本地消息缓存" })
-    expect(cacheButton).toHaveClass("desktop-icon-action")
+    expect(cacheButton).toHaveClass("settings-secondary-button")
 
-    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
-    expect(source).toMatch(/\.desktop-icon-action\s*\{[^}]*justify-self:\s*end/)
+    const source = await readFile(
+      path.resolve(process.cwd(), "src/renderer/settings-center.css"),
+      "utf8",
+    )
+    expect(source).toMatch(/\.settings-secondary-button\s*\{[^}]*justify-self:\s*end/)
+  })
+
+  it("八个分类完整保留全部现有设置能力", async () => {
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    expect(screen.getByText("开机自动启动")).toBeInTheDocument()
+    expect(screen.getByText("关闭窗口")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "新消息通知" }))
+    expect(screen.getByText("新消息提示音")).toBeInTheDocument()
+    expect(screen.getByText("通知内容")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "外观与布局" }))
+    expect(screen.getByRole("radio", { name: "跟随系统" })).toBeInTheDocument()
+    expect(screen.getByRole("radio", { name: "浅色" })).toBeInTheDocument()
+    expect(screen.getByRole("radio", { name: "深色" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "存储空间" }))
+    expect(screen.getByRole("button", { name: "清理本地消息缓存" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+    expect(screen.getByText("截图")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "修改截图快捷键" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "软件更新" }))
+    expect(screen.getByRole("button", { name: "检查更新" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "工作空间" }))
+    expect(screen.getByDisplayValue(profile.displayName)).toBeInTheDocument()
+    expect(screen.getByText(profile.normalizedUrl)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "移除服务器" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "关于即应" }))
+    expect(screen.getByText(/0\.1\.0 · darwin arm64/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "导出脱敏诊断" })).toBeInTheDocument()
+  })
+
+  it("录制并立即保存新的截图快捷键", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
+
+    await user.click(recorder)
+    await waitFor(() => expect(recorder).toHaveAttribute("aria-pressed", "true"))
+    fireEvent.keyDown(recorder, { code: "KeyS", key: "s", metaKey: true, shiftKey: true })
+
+    await waitFor(() =>
+      expect(bridge.shortcuts.setScreenshot).toHaveBeenCalledWith("Command+Shift+S"),
+    )
+    expect(recorder).toHaveTextContent("⌘⇧S")
+  })
+
+  it("快捷键冲突时显示错误并恢复原组合", async () => {
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.shortcuts.setScreenshot).mockResolvedValueOnce({
+      state: {
+        accelerator: "CommandOrControl+Shift+A",
+        recording: false,
+        registered: true,
+      },
+      status: "conflict",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
+    await user.click(recorder)
+    fireEvent.keyDown(recorder, { code: "KeyS", key: "s", metaKey: true, shiftKey: true })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("该快捷键已被系统或其他应用占用")
+    expect(recorder).toHaveTextContent("⌘⇧A")
+  })
+
+  it("原快捷键恢复失败时展示准确提示", async () => {
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.shortcuts.setScreenshot).mockResolvedValueOnce({
+      state: {
+        accelerator: "CommandOrControl+Shift+A",
+        recording: false,
+        registered: false,
+      },
+      status: "restore_failed",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
+    await user.click(recorder)
+    fireEvent.keyDown(recorder, { code: "KeyS", key: "s", metaKey: true, shiftKey: true })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "快捷键设置失败，原快捷键也未能恢复，请重新设置",
+    )
+  })
+
+  it("录制开始请求未返回时关闭设置仍会恢复原快捷键", async () => {
+    const bridge = createDesktopBridge()
+    const begin = deferred<Awaited<ReturnType<DesktopBridge["shortcuts"]["beginRecording"]>>>()
+    vi.mocked(bridge.shortcuts.beginRecording).mockReturnValueOnce(begin.promise)
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
+    await user.click(recorder)
+    await user.click(screen.getByRole("button", { name: "关闭设置" }))
+
+    expect(bridge.shortcuts.cancelRecording).toHaveBeenCalledOnce()
+    await act(async () =>
+      begin.resolve({
+        accelerator: "CommandOrControl+Shift+A",
+        recording: true,
+        registered: false,
+      }),
+    )
+    await waitFor(() => expect(bridge.shortcuts.cancelRecording).toHaveBeenCalledTimes(2))
+  })
+
+  it("支持禁用、恢复默认以及取消快捷键录制", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
+
+    await user.click(screen.getByRole("button", { name: "禁用截图快捷键" }))
+    await waitFor(() => expect(bridge.shortcuts.setScreenshot).toHaveBeenCalledWith(null))
+    expect(recorder).toHaveTextContent("未设置")
+
+    await user.click(screen.getByRole("button", { name: "恢复默认截图快捷键" }))
+    await waitFor(() =>
+      expect(bridge.shortcuts.setScreenshot).toHaveBeenCalledWith("CommandOrControl+Shift+A"),
+    )
+    expect(recorder).toHaveTextContent("⌘⇧A")
+
+    await user.click(recorder)
+    fireEvent.keyDown(recorder, { code: "Escape", key: "Escape" })
+    await waitFor(() => expect(bridge.shortcuts.cancelRecording).toHaveBeenCalledOnce())
+    await waitFor(() => expect(recorder).toBeEnabled())
+
+    await user.click(recorder)
+    await waitFor(() => expect(recorder).toHaveAttribute("aria-pressed", "true"))
+    recorder.focus()
+    expect(recorder).toHaveFocus()
+    fireEvent.focusOut(recorder)
+    await waitFor(() => expect(bridge.shortcuts.cancelRecording).toHaveBeenCalledTimes(2))
   })
 
   it("确认后清理当前账户缓存并刷新统计", async () => {
@@ -349,6 +614,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "存储空间" }))
     await user.click(screen.getByRole("button", { name: "清理本地消息缓存" }))
 
     await waitFor(() => expect(bridge.messageCache.clearUser).toHaveBeenCalledOnce())
@@ -373,6 +639,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "新消息通知" }))
     const soundToggle = screen.getByRole("checkbox", { name: "新消息提示音" })
     await user.click(soundToggle)
 
@@ -677,13 +944,8 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "软件更新" }))
     expect(await screen.findByText("目标版本：1.1.0")).toBeInTheDocument()
-    expect(
-      screen
-        .getByRole("heading", { name: "关于即应" })
-        .compareDocumentPosition(screen.getByRole("heading", { name: "应用行为" })) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
     expect(bridge.updater.getState).toHaveBeenCalledOnce()
     expect(screen.getByText("安装来源：Linux deb")).toBeInTheDocument()
     expect(screen.queryByLabelText("更新说明")).not.toBeInTheDocument()
@@ -693,6 +955,9 @@ describe("桌面设置服务器管理", () => {
     await user.click(screen.getByRole("button", { name: "查看发布内容" }))
     expect(mocks.openRelease).toHaveBeenCalledOnce()
     const manual = screen.getByRole("button", { name: "下载 deb" })
+    const check = screen.getByRole("button", { name: "检查更新" })
+    expect(manual.parentElement).toBe(check.parentElement)
+    expect(manual.compareDocumentPosition(check) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     manual.focus()
     await user.keyboard("{Enter}")
     expect(mocks.openManual).toHaveBeenCalledOnce()
@@ -713,6 +978,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "软件更新" }))
     const checkButton = await screen.findByRole("button", { name: "检查更新" })
     await user.click(checkButton)
 
@@ -748,6 +1014,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "软件更新" }))
 
     expect(await screen.findByText("目标版本：1.2.0")).toBeInTheDocument()
     expect(screen.getByText("发现 1.2.0")).toBeInTheDocument()
@@ -774,6 +1041,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "软件更新" }))
 
     expect(
       await screen.findByText("自动安装受 macOS 安全策略限制，请使用安装包手动更新"),
@@ -803,6 +1071,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "软件更新" }))
     await user.click(screen.getByRole("button", { name: "安装并重启" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -868,6 +1137,7 @@ function createDesktopBridge(
     closeBehavior: "background" as const,
     messageSoundEnabled: true,
     notificationPrivacy: "metadata" as const,
+    screenshotShortcut: "CommandOrControl+Shift+A",
     selectedServerId: profile.id,
   }
   return {
@@ -945,6 +1215,27 @@ function createDesktopBridge(
         mocks.screenshotStartFailureSubscriber = listener
         return mocks.screenshotStartFailureUnsubscribe
       }),
+    },
+    shortcuts: {
+      beginRecording: vi.fn().mockResolvedValue({
+        accelerator: "CommandOrControl+Shift+A",
+        recording: true,
+        registered: false,
+      }),
+      cancelRecording: vi.fn().mockResolvedValue({
+        accelerator: "CommandOrControl+Shift+A",
+        recording: false,
+        registered: true,
+      }),
+      getState: vi.fn().mockResolvedValue({
+        accelerator: "CommandOrControl+Shift+A",
+        recording: false,
+        registered: true,
+      }),
+      setScreenshot: vi.fn().mockImplementation(async (accelerator) => ({
+        state: { accelerator, recording: false, registered: accelerator !== null },
+        status: "updated",
+      })),
     },
     servers: {
       add: vi.fn(),

@@ -24,7 +24,7 @@ import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
 import { ScreenshotController } from "@main/screenshot-controller"
-import { registerScreenshotShortcut } from "@main/screenshot-shortcut"
+import { ScreenshotShortcutManager } from "@main/screenshot-shortcut"
 import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
 registerPrivilegedSchemes()
@@ -125,6 +125,12 @@ async function start(): Promise<void> {
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
     prepareInstall: () => prepareUpdateInstall({ messageCache, windows }),
   })
+  const shortcuts = new ScreenshotShortcutManager({
+    diagnostics,
+    screenshots,
+    store,
+    windows,
+  })
   const unregisterIpc = registerIpc({
     auth,
     asr,
@@ -137,6 +143,7 @@ async function start(): Promise<void> {
     profiles,
     realtime,
     sessions,
+    shortcuts,
     store,
     system,
     updater,
@@ -145,11 +152,7 @@ async function start(): Promise<void> {
 
   const hidden = process.argv.includes("--hidden") && store.getSettings().autoLaunch
   const mainWindow = windows.create(hidden)
-  const unregisterScreenshotShortcut = registerScreenshotShortcut({
-    diagnostics,
-    screenshots,
-    windows,
-  })
+  shortcuts.start()
   const cancelScreenshotForDisplayChange = () => screenshots.cancelActive()
   screen.on("display-added", cancelScreenshotForDisplayChange)
   screen.on("display-removed", cancelScreenshotForDisplayChange)
@@ -218,7 +221,7 @@ async function start(): Promise<void> {
   app.once("will-quit", () => {
     unregisterIpc()
     unregisterScreenshotIpc()
-    unregisterScreenshotShortcut()
+    shortcuts.dispose()
     screen.removeListener("display-added", cancelScreenshotForDisplayChange)
     screen.removeListener("display-removed", cancelScreenshotForDisplayChange)
     screen.removeListener("display-metrics-changed", cancelScreenshotForDisplayChange)
