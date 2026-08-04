@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import {
   BellRing,
   CircleHelp,
@@ -46,6 +46,22 @@ export function SettingsCenter({
   const usesTitleBarOverlay = platform === "win32" || platform === "linux"
   const currentSection =
     settingsSections.find((section) => section.id === activeSection) ?? settingsSections[0]
+
+  useEffect(() => {
+    const applicationFrame = document.querySelector<HTMLElement>(".desktop-frame")
+    if (!applicationFrame) return
+
+    const wasInert = applicationFrame.hasAttribute("inert")
+    const previousAriaHidden = applicationFrame.getAttribute("aria-hidden")
+    applicationFrame.setAttribute("inert", "")
+    applicationFrame.setAttribute("aria-hidden", "true")
+
+    return () => {
+      if (!wasInert) applicationFrame.removeAttribute("inert")
+      if (previousAriaHidden === null) applicationFrame.removeAttribute("aria-hidden")
+      else applicationFrame.setAttribute("aria-hidden", previousAriaHidden)
+    }
+  }, [])
 
   return (
     <Dialog modal={false} open onOpenChange={onOpenChange}>

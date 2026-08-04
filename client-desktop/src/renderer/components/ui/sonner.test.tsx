@@ -51,8 +51,11 @@ describe("Toaster", () => {
         permissions: { openSettings, request: vi.fn() },
       } satisfies Pick<DesktopBridge, "permissions">,
     })
-    render(
+    const view = render(
       <>
+        <div className="desktop-frame">
+          <button type="button">背景操作</button>
+        </div>
         <SettingsCenter
           activeSection="general"
           profile={profile}
@@ -67,6 +70,11 @@ describe("Toaster", () => {
 
     act(() => showScreenshotStartError("permission_denied"))
 
+    const applicationFrame = document.querySelector<HTMLElement>(".desktop-frame")
+    expect(applicationFrame).toHaveAttribute("inert")
+    expect(applicationFrame).toHaveAttribute("aria-hidden", "true")
+    expect(applicationFrame).not.toContainElement(screen.getByRole("dialog", { name: "设置" }))
+
     fireEvent.click(await screen.findByRole("button", { name: "前往设置" }))
     expect(openSettings).toHaveBeenCalledWith("screen")
     expect(screen.getByRole("dialog", { name: "设置" })).toBeInTheDocument()
@@ -76,5 +84,16 @@ describe("Toaster", () => {
 
     const styles = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
     expect(styles).toMatch(/\[data-sonner-toaster\]\s*\{[^}]*pointer-events:\s*auto !important/)
+
+    view.rerender(
+      <>
+        <div className="desktop-frame">
+          <button type="button">背景操作</button>
+        </div>
+        <Toaster />
+      </>,
+    )
+    expect(document.querySelector(".desktop-frame")).not.toHaveAttribute("inert")
+    expect(document.querySelector(".desktop-frame")).not.toHaveAttribute("aria-hidden")
   })
 })

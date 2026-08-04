@@ -366,6 +366,9 @@ describe("桌面设置服务器管理", () => {
     expect(styles).toMatch(
       /\.settings-center-nav-item\[aria-current="page"\]\s*\{[^}]*color:\s*var\(--primary\)/,
     )
+    expect(styles).toMatch(
+      /button:not\([\s\S]*\.settings-release-link[\s\S]*\)\s*\{[\s\S]*background:\s*var\(--background\)/,
+    )
   })
 
   it("展示并保存新消息提示音开关", async () => {
