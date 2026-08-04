@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   CircleUserRound,
+  Globe2,
   Loader2Icon,
   LogOut,
   MessageCircleMore,
@@ -31,6 +32,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { NotificationDot } from "@/components/ui/notification-dot"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -120,6 +122,7 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
         </nav>
         <div className="flex flex-col items-center gap-2">
           {footerAction}
+          <ProductWebsiteLink />
           <GithubLink />
           <ThemeSwitcher />
           <SidebarSettingsButton />
@@ -127,6 +130,33 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
       </aside>
       <Outlet />
     </div>
+  )
+}
+
+function ProductWebsiteLink() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            asChild
+            className="rounded-md hover:bg-transparent hover:text-teal-500 dark:hover:bg-transparent"
+            size="icon-sm"
+            variant="ghost"
+          >
+            <a
+              aria-label="打开即应官网"
+              href="https://jiying.chat/"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <Globe2 aria-hidden="true" className="size-4" />
+            </a>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">即应官网</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 

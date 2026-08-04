@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useState, type SubmitEvent } from "react"
 import { Camera, Loader2Icon, X } from "lucide-react"
 
 import { AvatarPickerDialog } from "@/components/avatar-picker-dialog"
@@ -71,7 +71,7 @@ function ProfileSettingsDialogContent({
   const trimmedNickname = nickname.trim()
   const nicknameChanged = trimmedNickname !== savedNickname
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     void handleNicknameSave()
   }

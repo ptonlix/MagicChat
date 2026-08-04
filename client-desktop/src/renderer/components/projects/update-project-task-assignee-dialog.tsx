@@ -88,7 +88,7 @@ export function UpdateProjectTaskAssigneeDialog({
     onOpenChange(nextOpen)
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (saving || loading || unchanged) {
       return

@@ -75,6 +75,7 @@ describe("权限设置 Bridge 安全边界", () => {
     const deps = {
       asr: { off: vi.fn(), on: vi.fn() },
       diagnostics: {},
+      documentCollaboration: { off: vi.fn(), on: vi.fn() },
       realtime: { off: vi.fn(), on: vi.fn() },
       system: { openPermissionSettings },
       updater: { subscribe: vi.fn(() => unsubscribeUpdater) },

@@ -32,6 +32,13 @@ import { removeServerResources } from "@main/server-removal"
 import { handleUnauthorizedCacheLifecycle } from "@main/authentication-cache-lifecycle"
 import type { ASRController } from "@main/asr-controller"
 import type { ASREvent } from "@shared/asr-contract"
+import type { DocumentCollaborationEvent } from "@shared/document-collaboration-contract"
+import {
+  parseDocumentConnectionId,
+  parseDocumentSessionId,
+  parseDocumentUuid,
+} from "@shared/document-collaboration-contract"
+import type { DocumentCollaborationController } from "@main/document-collaboration-controller"
 import { parseExternalWebLink } from "@shared/external-link"
 import type { ScreenshotShortcutManager } from "@main/screenshot-shortcut"
 
@@ -40,6 +47,7 @@ export type IpcDependencies = {
   asr: ASRController
   credentials: CredentialStore
   diagnostics: Diagnostics
+  documentCollaboration: DocumentCollaborationController
   files: FileService
   http: HttpTransport
   messageCache: MessageCacheService
@@ -61,6 +69,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   }
   const markUnauthorized = (authTarget: AuthenticatedTarget) => {
     deps.asr.closeTarget(authTarget)
+    deps.documentCollaboration.closeTarget(authTarget)
     handleUnauthorizedCacheLifecycle(authTarget, {
       broadcastUnauthorized: (target) => broadcast(IPC.realtimeUnauthorized, target),
       clearUserBestEffort: (target) => deps.messageCache.clearUserBestEffort(target),
@@ -97,6 +106,20 @@ export function registerIpc(deps: IpcDependencies): () => void {
   )
   register(IPC.asrClose, (event, sessionId) =>
     deps.asr.close(event.sender.id, asString(sessionId, 128)),
+  )
+  register(IPC.documentCollaborationConnect, (event, rawTarget, documentId, connectionId) =>
+    deps.documentCollaboration.connect(
+      event.sender.id,
+      target(rawTarget),
+      parseDocumentUuid(documentId),
+      parseDocumentConnectionId(connectionId),
+    ),
+  )
+  register(IPC.documentCollaborationSend, (event, sessionId, frame) =>
+    deps.documentCollaboration.send(event.sender.id, parseDocumentSessionId(sessionId), frame),
+  )
+  register(IPC.documentCollaborationClose, (event, sessionId) =>
+    deps.documentCollaboration.close(event.sender.id, parseDocumentSessionId(sessionId)),
   )
   register(IPC.appearanceThemeSet, (_event, source) =>
     deps.system.setThemeSource(themeSource(source)),
@@ -160,6 +183,9 @@ export function registerIpc(deps: IpcDependencies): () => void {
       response.body.success === false
     if (isLogout && response.status >= 200 && response.status < 300 && !failedEnvelope) {
       deps.http.cancelTarget(authTarget)
+      deps.asr.closeTarget(authTarget)
+      deps.documentCollaboration.closeTarget(authTarget)
+      deps.realtime.close(authTarget)
       deps.messageCache.clearUserBestEffort(authTarget)
     }
     return response
@@ -276,16 +302,26 @@ export function registerIpc(deps: IpcDependencies): () => void {
     const owner = webContents.fromId(ownerId)
     if (owner && !owner.isDestroyed()) owner.send(IPC.asrEvent, event)
   }
+  const documentCollaborationListener = (ownerId: number, event: DocumentCollaborationEvent) => {
+    const owner = webContents.fromId(ownerId)
+    if (!owner || owner.isDestroyed()) return
+    owner.send(
+      IPC.documentCollaborationEvent,
+      event.type === "message" ? { ...event, data: Uint8Array.from(event.data) } : event,
+    )
+  }
   const unauthorizedListener = (authTarget: AuthenticatedTarget) => markUnauthorized(authTarget)
   const updaterUnsubscribe = deps.updater.subscribe((state) => broadcast(IPC.updaterState, state))
   deps.realtime.on("envelope", envelopeListener)
   deps.realtime.on("unauthorized", unauthorizedListener)
   deps.asr.on("event", asrListener)
+  deps.documentCollaboration.on("event", documentCollaborationListener)
 
   app.on("web-contents-created", (_event, contents) =>
     contents.once("destroyed", () => {
       deps.http.cancelOwner(contents.id)
       deps.asr.closeOwner(contents.id)
+      deps.documentCollaboration.closeOwner(contents.id)
       deps.files.releaseOwner(contents.id)
       deps.shortcuts.releaseOwner(contents.id)
       deps.uploads.releaseOwner(contents.id)
@@ -297,6 +333,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
     deps.realtime.off("envelope", envelopeListener)
     deps.realtime.off("unauthorized", unauthorizedListener)
     deps.asr.off("event", asrListener)
+    deps.documentCollaboration.off("event", documentCollaborationListener)
     updaterUnsubscribe()
     unregisterRuntimeDiagnostics()
   }

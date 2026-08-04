@@ -1185,6 +1185,12 @@ function createDesktopBridge(
     tray: { setMessages: vi.fn() },
     clipboard: { writePng: vi.fn(), writeText: vi.fn() },
     diagnostics: { export: vi.fn(), reportRuntime: vi.fn() },
+    documentCollaboration: {
+      close: vi.fn(),
+      connect: vi.fn(),
+      send: vi.fn(),
+      subscribe: vi.fn().mockReturnValue(unsubscribe),
+    },
     files: {
       download: vi.fn(),
       openLocation: vi.fn(),

@@ -2,6 +2,7 @@ import type { ServerProfile } from "@shared/bridge"
 
 export type ServerRemovalDependencies = {
   asr: { closeServer(id: string): void }
+  documentCollaboration: { closeServer(id: string): void }
   credentials: { removeServer(id: string): Promise<void> }
   files: { cleanupServer(id: string): Promise<void> }
   http: { cancelServer(id: string): void }
@@ -19,6 +20,7 @@ export async function removeServerResources(
 ): Promise<void> {
   deps.http.cancelServer(id)
   deps.asr.closeServer(id)
+  deps.documentCollaboration.closeServer(id)
   deps.realtime.closeServer(id)
   deps.uploads.cleanupServer(id)
   try {

@@ -145,6 +145,21 @@ describe("AppLayout", () => {
     })
   })
 
+  it("通过统一外链入口打开固定官网", () => {
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole("link", { name: "打开即应官网" })).toMatchObject({
+      href: "https://jiying.chat/",
+      rel: "noopener noreferrer",
+      target: "_blank",
+    })
+    expect(screen.queryByRole("button", { name: "下载客户端" })).not.toBeInTheDocument()
+  })
+
   it("stays on the login page after logout", async () => {
     const user = userEvent.setup()
     mocks.clientLogout.mockResolvedValue(undefined)

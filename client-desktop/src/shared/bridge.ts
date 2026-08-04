@@ -10,6 +10,7 @@ import type { MessageCacheBridge } from "@shared/message-cache-contract"
 import type { ASRBridge } from "@shared/asr-contract"
 import type { ScreenshotBridge } from "@shared/screenshot-contract"
 import type { ShortcutBridge } from "@shared/shortcut-contract"
+import type { DocumentCollaborationBridge } from "@shared/document-collaboration-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
@@ -34,6 +35,10 @@ export const IPC = {
   clipboardWriteText: "desktop:v1:clipboard-write-text",
   diagnosticsExport: "desktop:v1:diagnostics-export",
   diagnosticsRuntime: "desktop:v1:diagnostics-runtime",
+  documentCollaborationClose: "desktop:v1:document-collaboration-close",
+  documentCollaborationConnect: "desktop:v1:document-collaboration-connect",
+  documentCollaborationEvent: "desktop:v1:document-collaboration-event",
+  documentCollaborationSend: "desktop:v1:document-collaboration-send",
   filesDownload: "desktop:v1:files-download",
   filesOpenLocation: "desktop:v1:files-open-location",
   filesPick: "desktop:v1:files-pick",
@@ -226,6 +231,7 @@ export interface DesktopBridge {
     export(): Promise<{ path?: string }>
     reportRuntime(snapshot: RendererRuntimeSnapshot): void
   }
+  documentCollaboration: DocumentCollaborationBridge
   files: {
     download(
       target: AuthenticatedTarget,

@@ -1,5 +1,5 @@
-import type { ReactNode } from "react"
-import { Navigate, Route, Routes } from "react-router"
+import { lazy, Suspense, type ReactNode } from "react"
+import { Navigate, Outlet, Route, Routes } from "react-router"
 
 import { AppLayout } from "@/components/app-layout"
 import { ClientConversationRealtimeSync } from "@/components/client-conversation-realtime-sync"
@@ -13,6 +13,8 @@ import { ChatPage } from "@/pages/chat-page"
 import { ContactsPage } from "@/pages/contacts-page"
 import { LoginPage } from "@/pages/login-page"
 import { ProjectsPage } from "@/pages/projects-page"
+
+const DocumentPage = lazy(() => import("@/pages/document-page"))
 
 export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
   return (
@@ -29,59 +31,77 @@ export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
             </>
           }
         />
-        <Route
-          element={
-            <>
-              <ClientDataProvider>
-                <ClientRealtimeProvider>
-                  <ClientConversationRealtimeSync />
-                  <ClientMessageNotificationSync />
-                  <AppLayout footerAction={updatePrompt} />
-                </ClientRealtimeProvider>
-              </ClientDataProvider>
-            </>
-          }
-        >
+        <Route element={<AuthenticatedProviderShell />}>
+          <Route element={<AppLayout footerAction={updatePrompt} />}>
+            <Route
+              path="/init"
+              element={
+                <>
+                  <ClientDocumentTitle title="正在加载" disableMessageAlert />
+                  <InitPage />
+                </>
+              }
+            />
+            <Route
+              path="/chat/:conversationId?"
+              element={
+                <>
+                  <ClientDocumentTitle />
+                  <ChatPage />
+                </>
+              }
+            />
+            <Route
+              path="/contacts/:directoryType?/:directoryId?"
+              element={
+                <>
+                  <ClientDocumentTitle title="联系人" />
+                  <ContactsPage />
+                </>
+              }
+            />
+            <Route
+              path="/projects/:projectId?"
+              element={
+                <>
+                  <ClientDocumentTitle title="项目" />
+                  <ProjectsPage />
+                </>
+              }
+            />
+          </Route>
           <Route
-            path="/init"
+            path="/documents/document/:documentId"
             element={
-              <>
-                <ClientDocumentTitle title="正在加载" disableMessageAlert />
-                <InitPage />
-              </>
-            }
-          />
-          <Route
-            path="/chat/:conversationId?"
-            element={
-              <>
-                <ClientDocumentTitle />
-                <ChatPage />
-              </>
-            }
-          />
-          <Route
-            path="/contacts/:directoryType?/:directoryId?"
-            element={
-              <>
-                <ClientDocumentTitle title="联系人" />
-                <ContactsPage />
-              </>
-            }
-          />
-          <Route
-            path="/projects/:projectId?"
-            element={
-              <>
-                <ClientDocumentTitle title="项目" />
-                <ProjectsPage />
-              </>
+              <Suspense fallback={<DocumentRouteLoading />}>
+                <DocumentPage />
+              </Suspense>
             }
           />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AppInfoProvider>
+  )
+}
+
+function AuthenticatedProviderShell() {
+  return (
+    <ClientDataProvider>
+      <ClientRealtimeProvider>
+        <ClientConversationRealtimeSync />
+        <ClientMessageNotificationSync />
+        <Outlet />
+      </ClientRealtimeProvider>
+    </ClientDataProvider>
+  )
+}
+
+function DocumentRouteLoading() {
+  return (
+    <main className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+      正在加载文档工作区
+    </main>
   )
 }
 

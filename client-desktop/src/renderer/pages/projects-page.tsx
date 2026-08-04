@@ -464,7 +464,7 @@ function ProjectPanel({
           <ProjectTopicsTab />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="documents">
-          <ProjectDocumentsTab />
+          <ProjectDocumentsTab key={project.id} projectId={project.id} />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="members">
           <ProjectMembersTab key={`${project.id}-${project.updatedAt}`} projectId={project.id} />
@@ -536,7 +536,7 @@ function CreateProjectDialog({
     })
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!canCreate) {

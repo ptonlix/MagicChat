@@ -3,6 +3,7 @@ import { app, dialog, powerMonitor, screen } from "electron"
 import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
+import { DocumentCollaborationController } from "@main/document-collaboration-controller"
 import { ConfigStore } from "@main/config-store"
 import { CredentialStore } from "@main/credential-store"
 import { Diagnostics } from "@main/diagnostics"
@@ -89,6 +90,7 @@ async function start(): Promise<void> {
   const proxyAuth = new ProxyAuthPrompt(windows, iconPath)
   const realtime = new RealtimeController(profiles, sessions, proxyAuth)
   const asr = new ASRController(profiles, sessions, proxyAuth)
+  const documentCollaboration = new DocumentCollaborationController(profiles, sessions, proxyAuth)
   const trayAvailable = system.createTray(trayIconPath)
   if (
     !trayAvailable &&
@@ -136,6 +138,7 @@ async function start(): Promise<void> {
     asr,
     credentials,
     diagnostics,
+    documentCollaboration,
     files,
     http,
     messageCache,
@@ -158,7 +161,10 @@ async function start(): Promise<void> {
   screen.on("display-removed", cancelScreenshotForDisplayChange)
   screen.on("display-metrics-changed", cancelScreenshotForDisplayChange)
   mainWindow.webContents.once("did-finish-load", () => void startupHealth.markHealthy())
-  powerMonitor.on("suspend", () => asr.closeAll())
+  powerMonitor.on("suspend", () => {
+    asr.closeAll()
+    documentCollaboration.closeAll()
+  })
   powerMonitor.on("resume", () => realtime.reconnectAll())
   powerMonitor.on("unlock-screen", () => realtime.reconnectAll())
   app.on("activate", () => windows.show())
@@ -187,6 +193,7 @@ async function start(): Promise<void> {
       screenshots.dispose()
       http.cancelAll()
       asr.closeAll()
+      documentCollaboration.shutdown()
       auth.dispose()
       realtime.closeAll()
       void files.cleanup()
@@ -210,6 +217,7 @@ async function start(): Promise<void> {
     windows.prepareToQuit()
     http.cancelAll()
     asr.closeAll()
+    documentCollaboration.shutdown()
     auth.dispose()
     realtime.closeAll()
     event.preventDefault()

@@ -267,6 +267,7 @@ function createIpcDependencies(shortcuts: { releaseOwner: ReturnType<typeof vi.f
   const unsubscribeUpdater = vi.fn()
   return {
     asr: { closeOwner: vi.fn(), off: vi.fn(), on: vi.fn() },
+    documentCollaboration: { closeOwner: vi.fn(), off: vi.fn(), on: vi.fn() },
     files: { releaseOwner: vi.fn() },
     http: { cancelOwner: vi.fn() },
     realtime: { off: vi.fn(), on: vi.fn() },

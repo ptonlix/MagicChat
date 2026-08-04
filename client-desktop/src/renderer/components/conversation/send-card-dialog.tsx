@@ -59,7 +59,7 @@ export function SendCardDialog({
     onOpenChange(nextOpen)
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedConversationId || submitting) {
       return

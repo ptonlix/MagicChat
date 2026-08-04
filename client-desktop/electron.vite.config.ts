@@ -7,6 +7,16 @@ const sharedRendererDependencies = [
   "@base-ui/react",
   "@dnd-kit/core",
   "@fontsource/jetbrains-mono",
+  "@hocuspocus/provider",
+  "@tiptap/extension-collaboration",
+  "@tiptap/extension-drag-handle-react",
+  "@tiptap/extension-placeholder",
+  "@tiptap/extension-task-item",
+  "@tiptap/extension-task-list",
+  "@tiptap/extension-text-align",
+  "@tiptap/extension-text-style",
+  "@tiptap/react",
+  "@tiptap/starter-kit",
   "class-variance-authority",
   "clsx",
   "date-fns",
@@ -29,6 +39,7 @@ const sharedRendererDependencies = [
   "shiki",
   "sonner",
   "tailwind-merge",
+  "yjs",
 ]
 
 const processAliases = {

@@ -15,6 +15,14 @@ const messageCacheWorkerName = messageCacheWorkerNames.find((name) => main.inclu
 assert(messageCacheWorkerName, "Main 未引用消息缓存 Worker 产物")
 const messageCacheWorker = await readFile(path.join(mainOutput, messageCacheWorkerName), "utf8")
 const rendererAssets = path.join(root, "out/renderer/assets")
+const rendererAssetNames = await readdir(rendererAssets)
+const documentChunkNames = rendererAssetNames.filter((name) => /^document-page-.+\.js$/.test(name))
+assert(documentChunkNames.length === 1, "文档路由 chunk 缺失或重复")
+const documentChunkName = documentChunkNames[0]
+const documentChunk = await readFile(path.join(rendererAssets, documentChunkName), "utf8")
+const indexScriptName = html.match(/src="\.\/assets\/([^"]+\.js)"/)?.[1]
+assert(indexScriptName, "Renderer 主入口脚本缺失")
+const indexScript = await readFile(path.join(rendererAssets, indexScriptName), "utf8")
 const rendererCssNames = [...html.matchAll(/href="\.\/assets\/([^"]+\.css)"/g)].map(
   (match) => match[1],
 )
@@ -26,6 +34,16 @@ const rendererCss = (
 ).join("\n")
 
 assert(html.includes("Content-Security-Policy"), "Renderer 缺少 CSP")
+assert(
+  html.includes("connect-src 'self' magicchat-media: magicchat-capture:"),
+  "Renderer CSP connect-src 被放宽",
+)
+assert(!html.includes(documentChunkName), "Renderer HTML 静态加载了文档路由 chunk")
+assert(indexScript.includes(documentChunkName), "Renderer 主入口未按路由引用文档 chunk")
+assert(documentChunk.includes("desktop://document-collaboration"), "文档 chunk 缺少协作适配器")
+for (const forbidden of ["client-web/src", "client-web/public", 'require("electron")']) {
+  assert(!documentChunk.includes(forbidden), `文档 chunk 包含禁止内容 ${forbidden}`)
+}
 assert(captureHtml.includes("Content-Security-Policy"), "截图 Renderer 缺少 CSP")
 assert(captureHtml.includes("magicchat-capture:"), "截图 Renderer CSP 未允许截图资源协议")
 assert(!html.includes("http://localhost"), "生产 Renderer 包含开发服务器地址")
@@ -61,7 +79,15 @@ for (const className of [".bg-background", ".flex", ".min-h-svh", ".text-muted-f
 }
 
 console.log(
-  JSON.stringify({ arch: process.arch, platform: process.platform, rendererCss: rendererCssNames }),
+  JSON.stringify({
+    arch: process.arch,
+    documentChunk: {
+      bytes: (await stat(path.join(rendererAssets, documentChunkName))).size,
+      name: documentChunkName,
+    },
+    platform: process.platform,
+    rendererCss: rendererCssNames,
+  }),
 )
 
 function assert(condition, message) {

@@ -34,6 +34,9 @@ vi.mock("@/pages/chat-page", () => ({ ChatPage: () => <div>聊天页面</div> })
 vi.mock("@/pages/contacts-page", () => ({ ContactsPage: () => null }))
 vi.mock("@/pages/login-page", () => ({ LoginPage: () => <div>登录页面</div> }))
 vi.mock("@/pages/projects-page", () => ({ ProjectsPage: () => null }))
+vi.mock("@/pages/document-page", () => ({
+  default: () => <main>文档工作区</main>,
+}))
 
 describe("桌面更新入口路由边界", () => {
   it("登录页不展示更新入口", () => {
@@ -50,6 +53,14 @@ describe("桌面更新入口路由边界", () => {
     expect(screen.getByRole("button", { name: "新版本" }).closest("aside")).toHaveAccessibleName(
       "应用侧边栏",
     )
+  })
+
+  it("文档路由懒加载全屏工作区且不经过普通布局", async () => {
+    renderApp("/documents/document/550e8400-e29b-41d4-a716-446655440000")
+
+    expect(await screen.findByText("文档工作区")).toBeInTheDocument()
+    expect(screen.queryByRole("complementary", { name: "应用侧边栏" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "新版本" })).not.toBeInTheDocument()
   })
 })
 

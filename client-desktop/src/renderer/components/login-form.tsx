@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode, type SubmitEvent } from "react"
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -88,7 +88,7 @@ export function LoginForm({
     return () => window.clearTimeout(timer)
   }, [retryCodeAfter])
 
-  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handlePasswordSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
 
     setPasswordLoginPending(true)
@@ -129,7 +129,7 @@ export function LoginForm({
     }
   }
 
-  async function handleEmailCodeSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleEmailCodeSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
 
     setEmailCodeLoginPending(true)

@@ -1,0 +1,98 @@
+.document-editor {
+  position: relative;
+  overflow-wrap: anywhere;
+}
+.document-block-handle {
+  display: flex;
+  align-items: center;
+  padding-right: 0.5rem;
+}
+.document-editor .tiptap {
+  min-height: 58vh;
+  color: var(--foreground);
+  outline: none;
+}
+.document-editor .tiptap > * + * {
+  margin-top: 0.8em;
+}
+.document-editor .tiptap h1,
+.document-editor .tiptap h2,
+.document-editor .tiptap h3 {
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.document-editor .tiptap h1 {
+  margin-top: 1.7em;
+  font-size: 2rem;
+}
+.document-editor .tiptap h2 {
+  margin-top: 1.5em;
+  font-size: 1.5rem;
+}
+.document-editor .tiptap h3 {
+  margin-top: 1.35em;
+  font-size: 1.2rem;
+}
+.document-editor .tiptap p {
+  line-height: 1.6;
+}
+.document-editor .tiptap ul,
+.document-editor .tiptap ol {
+  padding-left: 1.6rem;
+}
+.document-editor .tiptap ul {
+  list-style: disc;
+}
+.document-editor .tiptap ol {
+  list-style: decimal;
+}
+.document-editor .tiptap ul[data-type="taskList"] {
+  padding-left: 0;
+  list-style: none;
+}
+.document-editor .tiptap li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.document-editor .tiptap li[data-type="taskItem"] > div {
+  min-width: 0;
+  flex: 1;
+}
+.document-editor .tiptap a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+.document-editor .tiptap blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+}
+.document-editor .tiptap code {
+  border-radius: 0.3rem;
+  background: var(--muted);
+  padding: 0.12rem 0.35rem;
+  font-family: var(--font-mono);
+}
+.document-editor .tiptap pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--muted);
+  padding: 1rem;
+}
+.document-editor .tiptap p.is-editor-empty:first-child::before {
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .document-editor *,
+  .no-drag * {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}

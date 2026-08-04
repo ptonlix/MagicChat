@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SubmitEvent,
+} from "react"
 import {
   ArrowRight,
   CircleHelp,
@@ -10,7 +19,7 @@ import {
   Sparkles,
   UsersRound,
 } from "lucide-react"
-import { BrowserRouter } from "react-router"
+import { createBrowserRouter, RouterProvider } from "react-router"
 import { toast } from "sonner"
 import { configureDesktopHost } from "@/lib/desktop-host"
 import { RealtimeClient } from "@/lib/realtime-client"
@@ -31,6 +40,8 @@ import { BrandLoadingScreen } from "@/components/brand-loading-screen"
 import { ExternalLinkConfirmationDialog } from "@/components/external-link-confirmation-dialog"
 import { configureMessageCacheTarget } from "@/lib/messages"
 import { parseExternalWebLink } from "@shared/external-link"
+import { DesktopTargetProvider } from "@/components/desktop-target-provider"
+
 import "./settings-center.css"
 
 export function DesktopRoot() {
@@ -190,20 +201,28 @@ function DesktopWorkspace({
     [profile.id, profile.normalizedUrl, userId],
   )
   const openSettings = useCallback(() => setSettingsOpen(true), [])
+  const router = useMemo(
+    () => createBrowserRouter([{ path: "*", element: <DesktopRoutedWorkspace /> }]),
+    [],
+  )
+  const routerContext = useMemo<DesktopRoutedWorkspaceContextValue>(
+    () => ({
+      messageSoundEnabled,
+      onAuthenticated: setUserId,
+      onOpenSettings: openSettings,
+      onUpdaterChange,
+      profile,
+      target,
+      updater,
+    }),
+    [messageSoundEnabled, onUpdaterChange, openSettings, profile, target, updater],
+  )
 
   return (
     <>
-      <BrowserRouter>
-        <DesktopHostedApp
-          messageSoundEnabled={messageSoundEnabled}
-          profile={profile}
-          target={target}
-          updater={updater}
-          onAuthenticated={setUserId}
-          onOpenSettings={openSettings}
-          onUpdaterChange={onUpdaterChange}
-        />
-      </BrowserRouter>
+      <DesktopRoutedWorkspaceContext.Provider value={routerContext}>
+        <RouterProvider router={router} />
+      </DesktopRoutedWorkspaceContext.Provider>
       {settingsOpen && (
         <DesktopSettingsPanel
           platform={platform}
@@ -217,6 +236,28 @@ function DesktopWorkspace({
         />
       )}
     </>
+  )
+}
+
+type DesktopRoutedWorkspaceContextValue = {
+  messageSoundEnabled: boolean
+  profile: ServerProfile
+  target: AuthenticatedTarget
+  updater: UpdaterState
+  onAuthenticated(userId: string): void
+  onOpenSettings(): void
+  onUpdaterChange(state: UpdaterState): void
+}
+
+const DesktopRoutedWorkspaceContext = createContext<DesktopRoutedWorkspaceContextValue | null>(null)
+
+function DesktopRoutedWorkspace() {
+  const value = useContext(DesktopRoutedWorkspaceContext)
+  if (!value) throw new Error("Desktop routed workspace context is unavailable")
+  return (
+    <DesktopTargetProvider target={value.target}>
+      <DesktopHostedApp {...value} />
+    </DesktopTargetProvider>
   )
 }
 
@@ -485,7 +526,7 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
 
-  async function submit(event: FormEvent) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setBusy(true)
     setError("")

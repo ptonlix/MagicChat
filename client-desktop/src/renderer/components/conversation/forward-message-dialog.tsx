@@ -104,7 +104,7 @@ export function ForwardMessageDialog({
     onOpenChange(nextOpen)
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submitting || selectedConversationIds.size === 0) {
       return

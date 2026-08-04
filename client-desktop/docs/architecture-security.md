@@ -17,10 +17,27 @@ GitHub Token、完整更新 URL、Header 或本地缓存路径；手动下载地
       Preload
         │ 白名单 IPC
         ▼
- Electron Main ── HTTP/WebSocket ── MagicChat Server
+Electron Main ── HTTP/WebSocket ── MagicChat Server
         │
         └── 文件、通知、权限、剪贴板、更新和系统窗口
 ```
+
+文档协作使用独立的 `desktop:v1:document-collaboration-*` Bridge，不复用普通 JSON
+realtime 通道。Renderer 只能提交不可变认证目标、文档 UUID、不透明 sessionId 和二进制帧；
+不能提交 URL、Origin、Cookie、Header、代理或通用 WebSocket 参数。Main 从已保存 Server
+构造固定 `/api/client/document/collaboration` WSS 地址，持有目标 Electron Session Cookie、
+HTTPS Origin、系统代理和 TLS 信任链，并校验 Hocuspocus 帧中的文档路由名与 session 绑定
+UUID 一致。
+
+单个文档协作帧上限为 16 MiB，单会话待发送队列上限为 32 MiB，每个 WebContents 最多
+8 个文档会话。IPC 两侧复制 `Uint8Array`，会话按 owner、不可变 targetKey、文档 ID 和
+sessionId 隔离；页面卸载、WebContents 销毁、注销、认证失效、Server 删除、Target 切换、
+休眠和应用退出都会幂等关闭对应 socket 并释放队列、监听器和定时器。Main 不建立自动重连，
+退避重连只由 Hocuspocus Provider 负责。
+
+文档协作日志不得包含 Cookie、认证 Header、标题、正文、Yjs 帧、完整 URL 或本地路径；
+错误只向 Renderer 返回稳定作用域。document-server 4403 只表示当前文档权限失败，Desktop
+不会据此注销整个账户；只有统一 HTTP 401 认证控制器确认 Target 失效时才清理全局会话。
 
 - `src/main` 持有 Server Profile、Electron Session、Cookie、HTTP、WebSocket、
   文件、通知、更新、深链接和安全存储。

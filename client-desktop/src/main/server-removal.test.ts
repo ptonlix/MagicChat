@@ -15,6 +15,9 @@ describe("Server 移除生命周期", () => {
     const calls: string[] = []
     const deps: ServerRemovalDependencies = {
       asr: { closeServer: vi.fn(() => calls.push("asr")) },
+      documentCollaboration: {
+        closeServer: vi.fn(() => calls.push("document-collaboration")),
+      },
       credentials: {
         removeServer: vi.fn(async () => {
           calls.push("credentials")

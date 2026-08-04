@@ -7,6 +7,7 @@ import {
   type UpdaterState,
 } from "@shared/bridge"
 import type { ASREvent } from "@shared/asr-contract"
+import type { DocumentCollaborationEvent } from "@shared/document-collaboration-contract"
 import type { RealtimeEnvelope } from "@shared/client-contract"
 import {
   CAPTURE_BRIDGE_VERSION,
@@ -45,6 +46,21 @@ const bridge: DesktopBridge = {
   diagnostics: {
     export: () => ipcRenderer.invoke(IPC.diagnosticsExport),
     reportRuntime: (snapshot) => ipcRenderer.send(IPC.diagnosticsRuntime, snapshot),
+  },
+  documentCollaboration: {
+    close: (sessionId) => ipcRenderer.invoke(IPC.documentCollaborationClose, sessionId),
+    connect: (target, documentId, connectionId) =>
+      ipcRenderer.invoke(IPC.documentCollaborationConnect, target, documentId, connectionId),
+    send: (sessionId, frame) =>
+      ipcRenderer.invoke(IPC.documentCollaborationSend, sessionId, Uint8Array.from(frame)),
+    subscribe: (listener) =>
+      subscribe<DocumentCollaborationEvent>(IPC.documentCollaborationEvent, (event) => {
+        listener(
+          event.type === "message"
+            ? Object.freeze({ ...event, data: Uint8Array.from(event.data) })
+            : Object.freeze({ ...event }),
+        )
+      }),
   },
   files: {
     download: (target, path, name) => ipcRenderer.invoke(IPC.filesDownload, target, path, name),

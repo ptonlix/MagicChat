@@ -22,6 +22,11 @@ const forbidden = [
   /from\s+["']\.\.[\\/]src[\\/](?:main|preload|shared)[\\/]/,
 ]
 
+const rendererForbidden = [
+  /from\s+["'](?:node:|electron(?:["'/]))/,
+  /require\s*\(\s*["'](?:node:|electron(?:["'/]))/,
+]
+
 for (const root of checkedRoots) {
   for await (const file of walk(root)) checkedFiles.push(file)
 }
@@ -31,6 +36,14 @@ for (const file of checkedFiles) {
   const content = await readFile(file, "utf8")
   for (const pattern of forbidden) {
     if (pattern.test(content)) violations.push(`${path.relative(desktopRoot, file)}: ${pattern}`)
+  }
+  if (
+    file.startsWith(path.join(desktopRoot, "src", "renderer")) &&
+    !/\.test\.[cm]?[jt]sx?$/.test(file)
+  ) {
+    for (const pattern of rendererForbidden) {
+      if (pattern.test(content)) violations.push(`${path.relative(desktopRoot, file)}: ${pattern}`)
+    }
   }
 }
 
