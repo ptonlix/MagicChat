@@ -740,6 +740,21 @@ describe("client data API", () => {
     )
   })
 
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    "拒绝非法的消息同步游标 %s 且不发起请求",
+    async (afterSeq) => {
+      const fetcher = vi.fn()
+
+      await expect(
+        listConversationMessages("conversation-1", { afterSeq, limit: 20 }, fetcher),
+      ).rejects.toMatchObject({
+        message: "after_seq 必须是非负安全整数",
+        name: "ClientDataRequestError",
+      })
+      expect(fetcher).not.toHaveBeenCalled()
+    },
+  )
+
   it("sends reply references for all conversation message create APIs", async () => {
     const fetcher = vi.fn().mockImplementation(() =>
       Promise.resolve(

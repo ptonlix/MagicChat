@@ -286,8 +286,13 @@ export async function listConversationMessages(
   if (options.beforeSeq !== undefined) {
     searchParams.set("before_seq", String(options.beforeSeq))
   }
-  if (options.afterSeq !== undefined && options.afterSeq > 0) {
-    searchParams.set("after_seq", String(options.afterSeq))
+  if (options.afterSeq !== undefined) {
+    if (!Number.isSafeInteger(options.afterSeq) || options.afterSeq < 0) {
+      throw new ClientDataRequestError("after_seq 必须是非负安全整数")
+    }
+    if (options.afterSeq > 0) {
+      searchParams.set("after_seq", String(options.afterSeq))
+    }
   }
 
   const response = await fetcher(
