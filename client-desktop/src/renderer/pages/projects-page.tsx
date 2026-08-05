@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Loader2, Plus, Search } from "lucide-react"
-import { useNavigate, useParams } from "react-router"
+import { Navigate, useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
@@ -57,12 +57,19 @@ import {
   type ClientProjectSummary,
   listClientProjectMembers,
 } from "@/lib/project-data-api"
+import {
+  isProjectSection,
+  normalizeProjectSectionPath,
+  projectSectionPath,
+  type ProjectSection,
+} from "@/lib/project-section-routing"
 
 const maxProjectGroupCount = 100
 
 export function ProjectsPage() {
   const navigate = useNavigate()
-  const { projectId } = useParams<{ projectId?: string }>()
+  const location = useLocation()
+  const { projectId, section } = useParams<{ projectId?: string; section?: string }>()
   const {
     conversations,
     createProject,
@@ -94,10 +101,17 @@ export function ProjectsPage() {
         ),
       )
     : projects
+  const activeSection: ProjectSection = isProjectSection(section) ? section : "tasks"
+
+  if (projectId && !isProjectSection(section)) {
+    return (
+      <Navigate replace to={normalizeProjectSectionPath(projectId, section, location.search)} />
+    )
+  }
 
   async function handleCreateProject(name: string, groupIds: string[]) {
     const project = await createProject(name, groupIds)
-    navigate(`/projects/${encodeURIComponent(project.id)}`)
+    navigate(projectSectionPath(project.id, "tasks"))
   }
 
   async function handleLoadMore() {
@@ -156,7 +170,7 @@ export function ProjectsPage() {
             <ProjectListSection>
               <ProjectListButton
                 active={projectId === personalProject.id}
-                onSelect={() => navigate(`/projects/${encodeURIComponent(personalProject.id)}`)}
+                onSelect={() => navigate(projectSectionPath(personalProject.id, "tasks"))}
                 project={personalProject}
                 user={me}
               />
@@ -168,7 +182,7 @@ export function ProjectsPage() {
                 <ProjectListButton
                   active={projectId === project.id}
                   key={project.id}
-                  onSelect={() => navigate(`/projects/${encodeURIComponent(project.id)}`)}
+                  onSelect={() => navigate(projectSectionPath(project.id, "tasks"))}
                   project={project}
                 />
               ))}
@@ -200,6 +214,7 @@ export function ProjectsPage() {
           key={projectId}
           onProjectDeleted={handleProjectDeleted}
           projectId={projectId}
+          section={activeSection}
           refreshConversations={refreshConversations}
           refreshProjects={refreshProjects}
           user={me}
@@ -284,6 +299,7 @@ function SelectedProjectPanel({
   groups,
   onProjectDeleted,
   projectId,
+  section,
   refreshConversations,
   refreshProjects,
   user,
@@ -291,6 +307,7 @@ function SelectedProjectPanel({
   groups: ClientConversation[]
   onProjectDeleted: () => Promise<void>
   projectId: string
+  section: ProjectSection
   refreshConversations: () => Promise<void>
   refreshProjects: () => Promise<void>
   user: ClientUser
@@ -364,6 +381,7 @@ function SelectedProjectPanel({
       onProjectUpdated={handleProjectUpdated}
       onRelationsChanged={handleRelationsChanged}
       project={project}
+      section={section}
       user={user}
     />
   )
@@ -395,6 +413,7 @@ function ProjectPanel({
   onProjectUpdated,
   onRelationsChanged,
   project,
+  section,
   user,
 }: {
   groups: ClientConversation[]
@@ -403,6 +422,7 @@ function ProjectPanel({
   onProjectUpdated: () => Promise<void>
   onRelationsChanged: () => Promise<void>
   project: ClientProjectDetail
+  section: ProjectSection
   user: ClientUser
 }) {
   const extraMemberCount = Math.max(project.memberCount - members.length, 0)
@@ -448,8 +468,8 @@ function ProjectPanel({
         </div>
       </header>
 
-      <Tabs className="min-h-0 flex-1 gap-0 overflow-hidden" defaultValue="tasks">
-        <ProjectNavigation />
+      <Tabs className="min-h-0 flex-1 gap-0 overflow-hidden" value={section}>
+        <ProjectNavigation projectId={project.id} />
         <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="tasks">
           <ProjectTasksTab
             key={project.id}
@@ -460,7 +480,7 @@ function ProjectPanel({
         <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="goals">
           <ProjectGoalsTab />
         </TabsContent>
-        <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="topics">
+        <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="discussions">
           <ProjectTopicsTab />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 overflow-hidden" value="documents">
@@ -654,20 +674,26 @@ function CreateProjectDialog({
   )
 }
 
-function ProjectNavigation() {
-  const items = [
+function ProjectNavigation({ projectId }: { projectId: string }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const items: ReadonlyArray<Readonly<{ label: string; value: ProjectSection }>> = [
     { value: "tasks", label: "任务" },
     { value: "goals", label: "目标" },
-    { value: "topics", label: "讨论" },
+    { value: "discussions", label: "讨论" },
     { value: "documents", label: "文档" },
     { value: "members", label: "成员" },
   ]
 
   return (
-    <div className="shrink-0 border-b px-4">
+    <div className="no-drag shrink-0 border-b px-4">
       <TabsList aria-label="项目内容" variant="line">
         {items.map((item) => (
-          <TabsTrigger key={item.value} value={item.value}>
+          <TabsTrigger
+            key={item.value}
+            onClick={() => navigate(projectSectionPath(projectId, item.value, location.search))}
+            value={item.value}
+          >
             {item.label}
           </TabsTrigger>
         ))}

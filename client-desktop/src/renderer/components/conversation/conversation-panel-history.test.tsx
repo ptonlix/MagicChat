@@ -11,6 +11,10 @@ const testState = vi.hoisted(() => ({
   anchorTop: 100,
   bubbleRenderCount: 0,
   clientHeight: 400,
+  contentSizeChanged: false,
+  frameCallback: null as FrameRequestCallback | null,
+  messageTopShifts: {} as Record<string, number>,
+  messageTops: {} as Record<string, number>,
   resizeObserverCallback: null as ResizeObserverCallback | null,
   scrollIntoView: vi.fn(),
   scrollHeight: 1_000,
@@ -72,7 +76,13 @@ vi.mock("@/components/ui/scroll-area", () => {
 })
 
 vi.mock("@/components/conversation/conversation-message", () => ({
-  MessageBubble({ message }: { message: ConversationPanelMessage }) {
+  MessageBubble({
+    message,
+    onContentSizeChange,
+  }: {
+    message: ConversationPanelMessage
+    onContentSizeChange?: (messageId: string) => void
+  }) {
     testState.bubbleRenderCount += 1
     return (
       <div
@@ -80,12 +90,26 @@ vi.mock("@/components/conversation/conversation-message", () => ({
         data-testid={`message-${message.id}`}
         ref={(node) => {
           if (node) {
-            node.getBoundingClientRect = () => ({ top: testState.anchorTop }) as DOMRect
+            node.getBoundingClientRect = () => {
+              const top =
+                (testState.messageTops[message.id] ?? testState.anchorTop) +
+                (testState.contentSizeChanged ? (testState.messageTopShifts[message.id] ?? 0) : 0)
+              return { bottom: top + 60, top } as DOMRect
+            }
             node.scrollIntoView = testState.scrollIntoView
           }
         }}
       >
         {message.author}
+        <button
+          onClick={() => {
+            onContentSizeChange?.(message.id)
+            testState.contentSizeChanged = true
+          }}
+          type="button"
+        >
+          改变高度 {message.id}
+        </button>
       </div>
     )
   },
@@ -103,6 +127,10 @@ describe("ConversationPanelHistory", () => {
     testState.anchorTop = 100
     testState.bubbleRenderCount = 0
     testState.clientHeight = 400
+    testState.contentSizeChanged = false
+    testState.frameCallback = null
+    testState.messageTopShifts = {}
+    testState.messageTops = {}
     testState.resizeObserverCallback = null
     testState.scrollIntoView.mockReset()
     testState.scrollHeight = 1_000
@@ -114,6 +142,7 @@ describe("ConversationPanelHistory", () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
     Object.defineProperty(window, "ResizeObserver", {
       configurable: true,
       value: defaultResizeObserver,
@@ -159,6 +188,61 @@ describe("ConversationPanelHistory", () => {
     testState.resizeObserverCallback?.([], {} as ResizeObserver)
 
     expect(viewport.scrollTop).toBe(100)
+  })
+
+  it("展开靠近底部的消息后继续贴底", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const props = createProps([createMessage("message-1", "other")])
+    render(<ConversationPanelHistory {...props} />)
+    const viewport = getViewport()
+    testState.scrollHeight = 1_200
+
+    fireEvent.click(screen.getByRole("button", { name: "改变高度 message-1" }))
+
+    expect(viewport.scrollTop).toBe(1_200)
+  })
+
+  it("展开视口中部的消息后保持该消息屏幕锚点", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const props = createProps([createMessage("message-1", "other")])
+    render(<ConversationPanelHistory {...props} />)
+    const viewport = getViewport()
+    viewport.scrollTop = 100
+    fireEvent.scroll(viewport)
+    testState.anchorTop = 160
+
+    fireEvent.click(screen.getByRole("button", { name: "改变高度 message-1" }))
+
+    expect(viewport.scrollTop).toBe(100)
+  })
+
+  it("展开视口上方的消息后保持首个可见消息的屏幕锚点", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      testState.frameCallback = callback
+      return 1
+    })
+    testState.messageTops = { "message-1": -200, "message-2": 150 }
+    testState.messageTopShifts = { "message-2": 200 }
+    const props = createProps([
+      createMessage("message-1", "other"),
+      createMessage("message-2", "other"),
+    ])
+    render(<ConversationPanelHistory {...props} />)
+    const viewport = getViewport()
+    viewport.scrollTop = 100
+    fireEvent.scroll(viewport)
+    testState.scrollHeight = 1_200
+
+    fireEvent.click(screen.getByRole("button", { name: "改变高度 message-1" }))
+    act(() => testState.frameCallback?.(0))
+
+    expect(viewport.scrollTop).toBe(300)
   })
 
   it("keeps the reading position and reports incoming messages away from the bottom", () => {

@@ -347,6 +347,22 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
     setPendingNewMessageCount(0)
   }
 
+  const handleMessageContentSizeChange = React.useCallback((messageId: string) => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    const shouldFollowLatest = nearBottomRef.current
+    const snapshot = createContentSizeSnapshot(viewport, messageId)
+    window.requestAnimationFrame(() => {
+      const currentViewport = viewportRef.current
+      if (!currentViewport) return
+      if (shouldFollowLatest) {
+        scrollToBottom(currentViewport)
+      } else {
+        restoreScrollPositionAfterPrepend(currentViewport, snapshot)
+      }
+    })
+  }, [])
+
   function handleHistoryContextMenu(event: React.MouseEvent<HTMLDivElement>) {
     if (event.target instanceof Element && event.target.closest("[data-message-action-trigger]")) {
       return
@@ -477,6 +493,7 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
                   mentionLabelResolver={mentionLabelResolver}
                   onForward={isMessageAvailable(message) ? onForwardMessage : undefined}
                   onCreateTopic={onCreateTopic}
+                  onContentSizeChange={handleMessageContentSizeChange}
                   onInsertMention={onInsertMention}
                   onOpenTopic={onOpenTopic}
                   onReeditRevoked={onReeditRevokedMessage}
@@ -587,6 +604,11 @@ function createScrollSnapshot(
   }
 }
 
+function createContentSizeSnapshot(viewport: HTMLDivElement, messageId: string): ScrollSnapshot {
+  const anchor = findFirstVisibleMessage(viewport)
+  return createScrollSnapshot(viewport, anchor?.dataset.conversationMessageId ?? messageId)
+}
+
 function restoreScrollPositionAfterPrepend(viewport: HTMLDivElement, snapshot: ScrollSnapshot) {
   const nextAnchorTop = getMessageTop(viewport, snapshot.anchorMessageId)
   if (snapshot.anchorTop !== null && nextAnchorTop !== null) {
@@ -605,6 +627,23 @@ function getMessageTop(viewport: HTMLDivElement, messageId: string | null): numb
   const messageElement = findMessageElement(viewport, messageId)
 
   return messageElement?.getBoundingClientRect().top ?? null
+}
+
+function findFirstVisibleMessage(viewport: HTMLDivElement): HTMLElement | null {
+  const viewportRect = viewport.getBoundingClientRect()
+  const viewportTop = viewportRect.top
+  const viewportBottom =
+    viewportRect.bottom > viewportTop ? viewportRect.bottom : viewportTop + viewport.clientHeight
+
+  return (
+    Array.from(viewport.querySelectorAll<HTMLElement>("[data-conversation-message-id]")).find(
+      (element) => {
+        const rect = element.getBoundingClientRect()
+        const messageBottom = rect.bottom > rect.top ? rect.bottom : rect.top + 1
+        return messageBottom > viewportTop && rect.top < viewportBottom
+      },
+    ) ?? null
+  )
 }
 
 function findMessageElement(viewport: HTMLDivElement, messageId: string | null) {

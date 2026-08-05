@@ -40,6 +40,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
@@ -64,6 +65,7 @@ import {
   moveClientDocument,
   updateClientDocument,
   updateCollaborativeDocumentTitle,
+  formatDocumentModifiedTime,
   type ClientDocumentKind,
 } from "@/lib/document-data-api"
 import {
@@ -540,12 +542,28 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
           </Link>
         )}
       </div>
-      <div className="flex min-w-0 items-center justify-end gap-2 pr-3 text-muted-foreground">
-        <span className="truncate">
-          {props.node.updatedBy.nickname || props.node.updatedBy.name}
-        </span>
-        <time className="truncate" dateTime={props.node.updatedAt}>
-          {new Date(props.node.updatedAt).toLocaleString()}
+      <div className="flex min-w-0 items-center justify-end gap-3 pr-3 text-muted-foreground">
+        <div
+          aria-label={`${props.node.contributorCount} 位贡献者`}
+          className="no-drag flex shrink-0 -space-x-2"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {props.node.contributors.slice(0, 5).map((user) => (
+            <Avatar className="size-6 border-2 border-background" key={user.id}>
+              {user.avatar && <AvatarImage alt={user.nickname || user.name} src={user.avatar} />}
+              <AvatarFallback className="text-[10px]">
+                {Array.from(user.nickname || user.name)[0] ?? "?"}
+              </AvatarFallback>
+            </Avatar>
+          ))}
+          {props.node.contributorCount > 5 && (
+            <span className="flex size-6 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px]">
+              +{props.node.contributorCount - 5}
+            </span>
+          )}
+        </div>
+        <time className="truncate text-xs" dateTime={props.node.updatedAt}>
+          {formatDocumentModifiedTime(props.node.updatedAt)}
         </time>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

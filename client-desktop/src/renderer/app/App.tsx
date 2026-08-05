@@ -61,7 +61,7 @@ export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
               }
             />
             <Route
-              path="/projects/:projectId?"
+              path="/projects/:projectId?/:section?"
               element={
                 <>
                   <ClientDocumentTitle title="项目" />

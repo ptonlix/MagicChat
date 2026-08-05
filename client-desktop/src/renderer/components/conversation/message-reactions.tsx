@@ -66,7 +66,7 @@ export function MessageReactionChips({
         return (
           <div
             className={cn(
-              "inline-flex min-h-6 max-w-full items-center gap-1 rounded-md px-2 text-xs whitespace-nowrap transition-colors",
+              "inline-flex min-h-6 max-w-full min-w-0 items-center gap-1 rounded-md px-2 text-xs whitespace-normal transition-colors contain-inline-size",
               align === "end"
                 ? "bg-background/60 text-foreground dark:bg-teal-900"
                 : "bg-zinc-200 text-foreground dark:bg-zinc-700",
@@ -120,7 +120,7 @@ function ReactionParticipantSummary({
 
   const hasMoreUsers = reaction.count > reaction.users.length
   return (
-    <span className="inline-flex items-center whitespace-nowrap">
+    <span className="overflow-wrap-anywhere inline-flex min-w-0 flex-wrap items-center">
       {reaction.users.map((user, index) => (
         <React.Fragment key={user.id}>
           {index > 0 && <span>,&nbsp;</span>}
@@ -128,15 +128,15 @@ function ReactionParticipantSummary({
         </React.Fragment>
       ))}
       {hasMoreUsers && (
-        <>
-          <span>等&nbsp;</span>
+        <span className="inline-flex shrink-0 items-center whitespace-nowrap">
+          等&nbsp;
           <MessageReactionUsersPopover
             conversationId={conversationId}
             messageId={messageId}
             reaction={reaction}
           />
-          <span>&nbsp;人</span>
-        </>
+          &nbsp;人
+        </span>
       )}
     </span>
   )
@@ -146,7 +146,7 @@ function ReactionUserName({ user }: { user: ClientMessageReactionUser }) {
   return (
     <UserProfilePopover
       triggerAriaLabel={`${user.name}资料`}
-      triggerClassName="transition-colors hover:text-sky-500 focus-visible:text-sky-500 data-[state=open]:text-sky-500"
+      triggerClassName="min-w-0 max-w-full overflow-wrap-anywhere transition-colors hover:text-sky-500 focus-visible:text-sky-500 data-[state=open]:text-sky-500"
       userId={user.id}
     >
       <span>{user.name}</span>

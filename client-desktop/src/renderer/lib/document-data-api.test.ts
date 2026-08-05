@@ -49,6 +49,38 @@ describe("document data API", () => {
     expect(Object.isFrozen(documents[0])).toBe(true)
   })
 
+  it("归一化贡献者并兼容旧 Server 与非法计数", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        data: {
+          documents: [
+            {
+              ...documentResponse,
+              contributor_count: 1,
+              contributors: [
+                { avatar: "", id: "user-2", name: "贡献者", nickname: "" },
+                { avatar: "", id: "user-2", name: "重复", nickname: "" },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+    const [document] = await listClientDocuments("project-1", fetcher)
+    expect(document?.contributors.map((user) => user.id)).toEqual(["user-2"])
+    expect(document?.contributorCount).toBe(1)
+    fetcher.mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        data: { documents: [{ ...documentResponse, contributor_count: -1 }] },
+      }),
+    )
+    const [legacy] = await listClientDocuments("project-1", fetcher)
+    expect(legacy?.contributors.map((user) => user.id)).toEqual(["user-1"])
+    expect(legacy?.contributorCount).toBe(1)
+  })
+
   it("按 Unicode 码点校验标题长度", async () => {
     const title = "😀".repeat(500)
     const fetcher = vi.fn().mockResolvedValue(

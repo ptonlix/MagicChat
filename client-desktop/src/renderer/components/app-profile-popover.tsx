@@ -88,7 +88,12 @@ export function AppProfilePopover({
         >
           {children}
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72" side="right" sideOffset={8}>
+        <PopoverContent
+          align="start"
+          className="max-h-[calc(100vh-2rem)] w-[min(18rem,calc(100vw-2rem))] overflow-x-hidden overflow-y-auto"
+          side="right"
+          sideOffset={8}
+        >
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <button
@@ -108,8 +113,8 @@ export function AppProfilePopover({
                 </Avatar>
               </button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{profile.name}</div>
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="overflow-wrap-anywhere text-sm font-medium">{profile.name}</div>
+                <div className="overflow-wrap-anywhere text-xs text-muted-foreground">
                   {profile.description || "应用资料"}
                 </div>
               </div>
@@ -209,7 +214,7 @@ function AppProfileRow({
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
       {icon}
       <span className="w-12 shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 truncate">{value}</span>
+      <span className="overflow-wrap-anywhere min-w-0 flex-1">{value}</span>
     </div>
   )
 }

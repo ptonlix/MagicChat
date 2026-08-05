@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
 import { createMemoryRouter, RouterProvider } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import * as Y from "yjs"
 
 const mocks = vi.hoisted(() => ({
   attachProvider: vi.fn(),
@@ -10,11 +12,19 @@ const mocks = vi.hoisted(() => ({
   getClientDocument: vi.fn(),
   getClientProject: vi.fn(),
   listClientDocuments: vi.fn(),
+  passedCollaborationProvider: undefined as unknown,
   providerOptions: undefined as
-    | { onClose?: (event: { event: { code: number } }) => void }
+    | {
+        document?: Y.Doc
+        onAwarenessChange?: (event: { states: unknown[] }) => void
+        onClose?: (event: { event: { code: number } }) => void
+      }
     | undefined,
+  currentRefreshMe: undefined as unknown as () => Promise<void>,
+  currentRefreshProjects: undefined as unknown as () => Promise<void>,
   refreshMe: vi.fn(),
   refreshProjects: vi.fn(),
+  setAwarenessField: vi.fn(),
   updateCollaborativeDocumentTitle: vi.fn(),
 }))
 
@@ -23,6 +33,7 @@ vi.mock("@hocuspocus/provider", () => ({
     private readonly onSynced?: (event: { state: boolean }) => void
 
     constructor(options: {
+      document?: Y.Doc
       onClose?: (event: { event: { code: number } }) => void
       onSynced?: (event: { state: boolean }) => void
     }) {
@@ -36,6 +47,9 @@ vi.mock("@hocuspocus/provider", () => ({
     destroy() {
       mocks.destroyProvider()
     }
+    setAwarenessField(field: string, value: unknown) {
+      mocks.setAwarenessField(field, value)
+    }
   },
   HocuspocusProviderWebsocket: class {
     destroy() {
@@ -47,21 +61,30 @@ vi.mock("@hocuspocus/provider", () => ({
 vi.mock("@/components/client-document-title", () => ({ ClientDocumentTitle: () => null }))
 vi.mock("@/components/documents/document-editor", () => ({
   DocumentEditor: ({
+    collaborationProvider,
     onTitleChange,
     title,
   }: {
+    collaborationProvider?: unknown
     onTitleChange(value: string): void
     title: string
-  }) => (
-    <input
-      aria-label="文档页面标题"
-      onChange={(event) => onTitleChange(event.target.value)}
-      value={title}
-    />
-  ),
+  }) => {
+    mocks.passedCollaborationProvider = collaborationProvider
+    return (
+      <input
+        aria-label="文档页面标题"
+        onChange={(event) => onTitleChange(event.target.value)}
+        value={title}
+      />
+    )
+  },
 }))
 vi.mock("@/lib/client-data-context", () => ({
-  useClientData: () => ({ refreshMe: mocks.refreshMe, refreshProjects: mocks.refreshProjects }),
+  useClientData: () => ({
+    me: { avatar: "", id: "user-1", name: "陈富东", nickname: "" },
+    refreshMe: mocks.currentRefreshMe,
+    refreshProjects: mocks.currentRefreshProjects,
+  }),
 }))
 vi.mock("@/lib/document-data-api", () => ({
   createClientDocument: mocks.createClientDocument,
@@ -112,9 +135,12 @@ describe("DocumentPage", () => {
     mocks.getClientDocument.mockReset().mockResolvedValue(document)
     mocks.getClientProject.mockReset().mockResolvedValue(project)
     mocks.listClientDocuments.mockReset().mockResolvedValue([document])
+    mocks.passedCollaborationProvider = undefined
     mocks.providerOptions = undefined
     mocks.refreshMe.mockReset().mockResolvedValue(undefined)
     mocks.refreshProjects.mockReset().mockResolvedValue(undefined)
+    mocks.currentRefreshMe = mocks.refreshMe
+    mocks.currentRefreshProjects = mocks.refreshProjects
     mocks.updateCollaborativeDocumentTitle.mockReset().mockResolvedValue(document.title)
   })
 
@@ -129,10 +155,11 @@ describe("DocumentPage", () => {
     expect(title.closest("main")).toHaveClass("h-svh", "pt-10")
     expect(screen.getByRole("link", { name: "返回项目：即应产品迭代" })).toHaveAttribute(
       "href",
-      "/projects/project-1",
+      "/projects/project-1/documents",
     )
     await waitFor(() => expect(screen.getByText(/标题已自动保存.*正文已同步/)).toBeInTheDocument())
     expect(mocks.attachProvider).toHaveBeenCalledOnce()
+    expect(mocks.passedCollaborationProvider).toBeDefined()
   })
 
   it("统一拦截应用内路由导航，取消时保留编辑状态，确认后才离开", async () => {
@@ -192,9 +219,65 @@ describe("DocumentPage", () => {
     expect(mocks.destroyProvider).toHaveBeenCalledOnce()
     expect(mocks.destroyWebsocketProvider).toHaveBeenCalledOnce()
   })
+
+  it("发布并消费 awareness，在正常卸载时清空在线状态并销毁 Provider", async () => {
+    const router = renderPage()
+    await screen.findByRole("textbox", { name: "顶部文档标题" })
+    await waitFor(() => expect(mocks.passedCollaborationProvider).toBeDefined())
+    expect(mocks.setAwarenessField).toHaveBeenCalledWith(
+      "user",
+      expect.objectContaining({ id: "user-1", name: "陈富东" }),
+    )
+
+    act(() => {
+      mocks.providerOptions?.onAwarenessChange?.({
+        states: [
+          { clientId: 1, user: { color: "#112233", id: "user-2", name: "李四" } },
+          { clientId: 2, user: { color: "invalid", id: "user-2", name: "重复李四" } },
+        ],
+      })
+    })
+    expect(await screen.findByRole("button", { name: "查看 1 位在线成员" })).toBeInTheDocument()
+
+    await router.navigate("/projects/project-1")
+    await waitFor(() => {
+      expect(mocks.destroyProvider).toHaveBeenCalledOnce()
+      expect(mocks.destroyWebsocketProvider).toHaveBeenCalledOnce()
+    })
+  })
+
+  it("全局刷新函数引用变化时保持当前协作 Provider，避免编辑器和图片重复挂载", async () => {
+    renderPage()
+    await screen.findByRole("textbox", { name: "文档页面标题" })
+    await waitFor(() => expect(mocks.attachProvider).toHaveBeenCalledOnce())
+
+    mocks.currentRefreshMe = vi.fn().mockResolvedValue(undefined)
+    mocks.currentRefreshProjects = vi.fn().mockResolvedValue(undefined)
+    act(() => {
+      mocks.providerOptions?.onAwarenessChange?.({
+        states: [{ clientId: 1, user: { color: "#112233", id: "user-2", name: "李四" } }],
+      })
+    })
+    await screen.findByRole("button", { name: "查看 1 位在线成员" })
+
+    expect(mocks.attachProvider).toHaveBeenCalledOnce()
+    expect(mocks.destroyProvider).not.toHaveBeenCalled()
+    expect(mocks.destroyWebsocketProvider).not.toHaveBeenCalled()
+  })
+
+  it("StrictMode 重放 Effect 时不销毁仍在使用的协作文档", async () => {
+    const destroyDocument = vi.spyOn(Y.Doc.prototype, "destroy")
+    renderPage(true)
+    await screen.findByRole("textbox", { name: "文档页面标题" })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(mocks.providerOptions?.document).toBeDefined()
+    expect(destroyDocument.mock.contexts).not.toContain(mocks.providerOptions?.document)
+    expect(mocks.passedCollaborationProvider).toBeDefined()
+  })
 })
 
-function renderPage() {
+function renderPage(strictMode = false) {
   const router = createMemoryRouter(
     [
       {
@@ -205,12 +288,13 @@ function renderPage() {
     ],
     { initialEntries: [`/documents/document/${document.id}`] },
   )
-  render(
+  const page = (
     <DesktopTargetContext.Provider
       value={{ id: "server-1", normalizedUrl: "https://chat.example.com", userId: "user-1" }}
     >
       <RouterProvider router={router} />
-    </DesktopTargetContext.Provider>,
+    </DesktopTargetContext.Provider>
   )
+  render(strictMode ? <StrictMode>{page}</StrictMode> : page)
   return router
 }

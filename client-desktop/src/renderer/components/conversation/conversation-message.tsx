@@ -40,6 +40,7 @@ import {
   MessageReactionChips,
 } from "@/components/conversation/message-reactions"
 import { UserProfilePopover } from "@/components/user-profile-popover"
+import { CollapsibleMessageContent } from "@/components/conversation/collapsible-message-content"
 import type {
   ConversationPanelMentionTarget,
   ConversationPanelMessage,
@@ -84,6 +85,7 @@ type MessageBubbleProps = {
   onInsertMention: (target: ConversationPanelMentionTarget) => void
   onForward?: (message: ConversationPanelMessage) => void
   onCreateTopic?: (message: ConversationPanelMessage) => void
+  onContentSizeChange?: (messageId: string) => void
   onMultiSelect?: (message: ConversationPanelMessage) => void
   onReeditRevoked?: (message: ConversationPanelMessage) => void
   onReply?: (message: ConversationPanelMessage) => void
@@ -110,6 +112,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   onInsertMention,
   onForward,
   onCreateTopic,
+  onContentSizeChange,
   onMultiSelect,
   onReeditRevoked,
   onReply,
@@ -210,21 +213,40 @@ export const MessageBubble = React.memo(function MessageBubble({
       ref={bubbleRef}
     >
       {message.replyTo && <MessageReplyReference replyTo={message.replyTo} />}
-      <MessageBodyRenderer
-        body={message.body}
-        choice={message.choice}
-        currentUserId={currentUserId}
-        flushImage={flushImageBubble}
-        mentionLabelResolver={mentionLabelResolver}
-        messageId={message.id}
-        onReeditRevoked={
-          fromMe && !selectionMode && onReeditRevoked ? () => onReeditRevoked(message) : undefined
-        }
-        showChoiceResponseCounts={showChoiceResponseCounts}
-        onRespondToChoice={
-          onRespondToChoice ? (optionIds) => onRespondToChoice(message, optionIds) : undefined
-        }
-      />
+      {message.body.type === "text" || message.body.type === "markdown" ? (
+        <CollapsibleMessageContent
+          enabled={!selectionMode}
+          key={message.id}
+          onSizeChange={() => onContentSizeChange?.(message.id)}
+          variant={message.body.type}
+        >
+          <MessageBodyRenderer
+            body={message.body}
+            choice={message.choice}
+            currentUserId={currentUserId}
+            flushImage={flushImageBubble}
+            mentionLabelResolver={mentionLabelResolver}
+            messageId={message.id}
+            showChoiceResponseCounts={showChoiceResponseCounts}
+          />
+        </CollapsibleMessageContent>
+      ) : (
+        <MessageBodyRenderer
+          body={message.body}
+          choice={message.choice}
+          currentUserId={currentUserId}
+          flushImage={flushImageBubble}
+          mentionLabelResolver={mentionLabelResolver}
+          messageId={message.id}
+          onReeditRevoked={
+            fromMe && !selectionMode && onReeditRevoked ? () => onReeditRevoked(message) : undefined
+          }
+          showChoiceResponseCounts={showChoiceResponseCounts}
+          onRespondToChoice={
+            onRespondToChoice ? (optionIds) => onRespondToChoice(message, optionIds) : undefined
+          }
+        />
+      )}
       {!selectionMode && message.reactions.length > 0 && (
         <div className={cn("mt-2", flushImageBubble && "mx-2 mb-2")}>
           <MessageReactionChips

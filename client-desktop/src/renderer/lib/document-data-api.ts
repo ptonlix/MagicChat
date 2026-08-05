@@ -12,6 +12,8 @@ type DocumentUserResponse = {
 }
 
 type DocumentResponse = {
+  contributor_count?: unknown
+  contributors?: unknown
   created_at?: unknown
   creator?: unknown
   document_type?: unknown
@@ -34,6 +36,8 @@ export type ClientDocumentUser = Readonly<{
   nickname: string
 }>
 export type ClientDocument = Readonly<{
+  contributorCount: number
+  contributors: ReadonlyArray<ClientDocumentUser>
   createdAt: string
   creator: ClientDocumentUser
   documentType: "document" | null
@@ -259,9 +263,19 @@ function normalizeDocument(input: unknown): ClientDocument {
   ) {
     throw new ClientDataRequestError("文档类型响应格式不正确")
   }
+  const creator = normalizeUser(value.creator)
+  const updatedBy = normalizeUser(value.updated_by)
+  const contributors = normalizeContributors(value.contributors, creator, updatedBy)
+  const contributorCount =
+    Number.isSafeInteger(value.contributor_count) &&
+    (value.contributor_count as number) >= contributors.length
+      ? (value.contributor_count as number)
+      : contributors.length
   return Object.freeze({
+    contributorCount,
+    contributors: Object.freeze(contributors),
     createdAt: value.created_at as string,
-    creator: normalizeUser(value.creator),
+    creator,
     documentType: value.kind === "document" ? "document" : null,
     id: value.id as string,
     kind: value.kind,
@@ -271,8 +285,38 @@ function normalizeDocument(input: unknown): ClientDocument {
     sortOrder: value.sort_order as number,
     title: value.title,
     updatedAt: value.updated_at as string,
-    updatedBy: normalizeUser(value.updated_by),
+    updatedBy,
   })
+}
+
+function normalizeContributors(
+  input: unknown,
+  creator: ClientDocumentUser,
+  updatedBy: ClientDocumentUser,
+): ClientDocumentUser[] {
+  const candidates = Array.isArray(input)
+    ? input.flatMap((item) => {
+        try {
+          return [normalizeUser(item)]
+        } catch {
+          return []
+        }
+      })
+    : [creator, updatedBy]
+  const users = new Map<string, ClientDocumentUser>()
+  for (const user of candidates) if (!users.has(user.id)) users.set(user.id, user)
+  if (users.size === 0) {
+    users.set(creator.id, creator)
+    users.set(updatedBy.id, updatedBy)
+  }
+  return [...users.values()]
+}
+
+export function formatDocumentModifiedTime(value: string): string {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return "修改时间未知"
+  const part = (number: number) => String(number).padStart(2, "0")
+  return `修改于 ${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())} ${part(date.getHours())}:${part(date.getMinutes())}`
 }
 
 function normalizeUser(input: unknown): ClientDocumentUser {

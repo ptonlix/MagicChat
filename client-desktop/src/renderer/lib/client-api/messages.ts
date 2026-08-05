@@ -847,6 +847,10 @@ export async function readTemporaryFileURLs(
   return orderedURLs.filter(isDefined)
 }
 
+export function invalidateTemporaryFileReadURLCache(fileIds: readonly string[]): void {
+  for (const fileId of fileIds) temporaryFileReadURLCache.delete(fileId)
+}
+
 export async function markConversationRead(
   conversationId: string,
   options: MarkConversationReadOptions = {},

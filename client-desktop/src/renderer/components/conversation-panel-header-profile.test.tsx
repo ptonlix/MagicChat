@@ -133,6 +133,37 @@ describe("ConversationPanel header profile", () => {
 
     expect(await screen.findByRole("dialog", { name: "项目群头像预览" })).toBeInTheDocument()
   })
+
+  it("在窄窗口中保留超长 ASCII 和 Unicode 资料值并允许换行滚动", async () => {
+    const longName = `用户${"超长名称".repeat(30)}`
+    const longEmail = `${"a".repeat(180)}@example.com`
+    const otherMember = createMember({
+      email: longEmail,
+      id: "user-2",
+      name: longName,
+      phone: "138001380001380013800013800138000138000",
+    })
+    renderConversationHeader(
+      createConversation({
+        members: [createMember(), otherMember],
+        name: longName,
+        type: "direct",
+      }),
+      {
+        contacts: [{ ...otherMember, lastOnlineAt: null, online: true, type: "user" }],
+      },
+    )
+
+    await userEvent.click(screen.getByRole("button", { name: `${longName}资料` }))
+    const profile = await screen.findByRole("dialog")
+    expect(profile).toHaveClass(
+      "max-h-[calc(100vh-2rem)]",
+      "w-[min(18rem,calc(100vw-2rem))]",
+      "overflow-x-hidden",
+      "overflow-y-auto",
+    )
+    expect(within(profile).getByText(longEmail)).toHaveClass("overflow-wrap-anywhere", "min-w-0")
+  })
 })
 
 function renderConversationHeader(

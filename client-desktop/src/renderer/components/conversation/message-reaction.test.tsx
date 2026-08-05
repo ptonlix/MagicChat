@@ -22,10 +22,16 @@ vi.mock("@/components/user-profile-popover", () => ({
   UserProfilePopover: ({
     children,
     triggerAriaLabel,
+    triggerClassName,
   }: {
     children: ReactNode
     triggerAriaLabel?: string
-  }) => <button aria-label={triggerAriaLabel}>{children}</button>,
+    triggerClassName?: string
+  }) => (
+    <button aria-label={triggerAriaLabel} className={triggerClassName}>
+      {children}
+    </button>
+  ),
 }))
 vi.mock("@/components/app-profile-popover", () => ({
   AppProfilePopover: ({ children }: { children: ReactNode }) => children,
@@ -49,11 +55,15 @@ describe("MessageBubble reactions", () => {
     expect(reactionChip).toHaveTextContent(
       "自定义文本李昌志, 朱文磊, 王彪, 赵一, 钱二, 孙三, 周四, 吴五, 郑六, 王七等 16 人",
     )
-    expect(screen.getByRole("button", { name: "李昌志资料" })).toBeInTheDocument()
+    const firstParticipant = screen.getByRole("button", { name: "李昌志资料" })
+    expect(firstParticipant).toHaveClass("min-w-0", "max-w-full", "overflow-wrap-anywhere")
+    const summary = firstParticipant.parentElement
+    expect(summary).toHaveClass("inline-flex", "min-w-0", "flex-wrap")
     const participantCount = screen.getByRole("button", {
       name: "查看表情 自定义文本 的 16 位参与者",
     })
     expect(participantCount).toHaveTextContent("16")
+    expect(participantCount.parentElement).toHaveClass("shrink-0", "whitespace-nowrap")
 
     fireEvent.click(participantCount)
     await waitFor(() =>

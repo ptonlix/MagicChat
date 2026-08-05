@@ -18,6 +18,8 @@ function node(
 ): ClientDocument {
   const user = { avatar: "", id: "user-1", name: "用户", nickname: "" }
   return {
+    contributorCount: 1,
+    contributors: [{ avatar: "", id: "user-1", name: "测试用户", nickname: "" }],
     createdAt: "2026-08-04T09:00:00Z",
     creator: user,
     documentType: kind === "document" ? "document" : null,
