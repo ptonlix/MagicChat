@@ -81,6 +81,34 @@ describe("DocumentImageNodeView", () => {
     expect(screen.queryByRole("img")).toBeNull()
   })
 
+  it("外部 HTTPS 图片加载失败后可以手动重试", () => {
+    const refresh = vi.fn()
+    const node = {
+      attrs: {
+        alignment: "center",
+        alt: "外部图片",
+        externalUrl: "https://example.com/image.png",
+        fileId: null,
+        width: 100,
+      },
+    } as unknown as NodeViewProps["node"]
+
+    render(
+      <DocumentImageResolutionContext.Provider value={{ refresh, resolutions: new Map() }}>
+        <DocumentImageNodeView
+          {...({ node, updateAttributes: vi.fn() } as unknown as NodeViewProps)}
+        />
+      </DocumentImageResolutionContext.Provider>,
+    )
+
+    fireEvent.error(screen.getByRole("img", { name: "外部图片" }))
+    const retry = screen.getByRole("button", { name: "重新加载" })
+    expect(retry).toBeVisible()
+    fireEvent.click(retry)
+    expect(screen.getByRole("img", { name: "外部图片" })).toBeVisible()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
   it("通过 Desktop Host adapter 解析受保护的同源图片 URL", () => {
     const resolveResourceUrl = vi.fn((url: string) => `magicchat-media://asset${url}`)
     const restoreHost = configureDesktopHost({ resolveResourceUrl })
@@ -146,6 +174,27 @@ describe("DocumentImageNodeView", () => {
 
     fireEvent.keyDown(screen.getByRole("button", { name: "设置图片" }), { key })
     expect(screen.getByLabelText("图片替代文本")).toBeVisible()
+  })
+
+  it("替代文本编辑在失焦时一次性提交", () => {
+    const updateAttributes = vi.fn()
+    const node = {
+      attrs: {
+        alignment: "center",
+        alt: "旧替代文本",
+        externalUrl: "https://example.com/image.png",
+        fileId: null,
+        width: 100,
+      },
+    } as unknown as NodeViewProps["node"]
+
+    render(<DocumentImageNodeView {...({ node, updateAttributes } as unknown as NodeViewProps)} />)
+    fireEvent.click(screen.getByRole("button", { name: "设置图片" }))
+    const input = screen.getByLabelText("图片替代文本")
+    fireEvent.change(input, { target: { value: "新替代文本" } })
+    expect(updateAttributes).not.toHaveBeenCalled()
+    fireEvent.blur(input)
+    expect(updateAttributes).toHaveBeenCalledWith({ alt: "新替代文本" })
   })
 
   it("只读状态禁用图片上传和属性编辑入口", () => {

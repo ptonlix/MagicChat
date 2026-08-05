@@ -143,7 +143,7 @@ export function useDocumentImageResolutions(editor: Editor | null) {
       for (const id of added) current.set(id, { status: "loading" })
       signature = nextSignature
       publish()
-      const unresolved = ids.filter((id) => current.get(id)?.status !== "ready")
+      const unresolved = ids.filter((id) => current.get(id)?.status === "loading")
       const expiring = ids.filter((id) => {
         const item = current.get(id)
         return (

@@ -18,6 +18,12 @@ describe("项目 section 路由", () => {
     )
   })
 
+  it("将旧 topics 地址兼容到 discussions 并保留查询参数", () => {
+    expect(normalizeProjectSectionPath("project-1", "topics", "?source=legacy")).toBe(
+      "/projects/project-1/discussions?source=legacy",
+    )
+  })
+
   it.each(projectSections)("保留直接加载 %s section 及全部查询参数", (section) => {
     expect(normalizeProjectSectionPath("project-1", section, "?taskId=t%2F1&source=link")).toBe(
       `/projects/project-1/${section}?taskId=t%2F1&source=link`,

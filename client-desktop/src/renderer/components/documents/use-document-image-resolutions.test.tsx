@@ -41,6 +41,28 @@ describe("useDocumentImageResolutions", () => {
     editor.destroy()
   })
 
+  it("图片集合变化时不重复解析已经确认缺失的文件", async () => {
+    mocks.resolve
+      .mockResolvedValueOnce({ missingFileIds: ["file-1"], urls: [] })
+      .mockResolvedValue({ missingFileIds: ["file-2"], urls: [] })
+    const editor = createEditor()
+    const hook = renderHook(() => useDocumentImageResolutions(editor))
+
+    await waitFor(() =>
+      expect(hook.result.current.resolutions.get("file-1")?.status).toBe("failed"),
+    )
+    act(() =>
+      editor.commands.setContent(
+        '<figure data-document-image data-file-id="file-1"><span>文档图片</span></figure><figure data-document-image data-file-id="file-2"><span>文档图片</span></figure>',
+      ),
+    )
+
+    await waitFor(() => expect(mocks.resolve).toHaveBeenCalledTimes(2))
+    expect(mocks.resolve).toHaveBeenNthCalledWith(2, ["file-2"], false)
+    hook.unmount()
+    editor.destroy()
+  })
+
   it("在到期前刷新并在自动重试耗尽后允许手动恢复", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-08-05T00:00:00.000Z"))

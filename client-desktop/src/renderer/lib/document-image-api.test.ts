@@ -53,6 +53,49 @@ describe("文档图片 API", () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(urls.map((item) => item.fileId)).toEqual(ids)
   })
+
+  it("批量 404 时并发回退单文件解析并返回缺失文件", async () => {
+    let activeRequests = 0
+    let maximumActiveRequests = 0
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const requested = JSON.parse(String(init?.body)).file_ids as string[]
+      if (requested.length > 1)
+        return json({ success: false, error: { message: "文件不存在" } }, 404)
+
+      activeRequests += 1
+      maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      activeRequests -= 1
+      if (requested[0]?.endsWith("missing")) {
+        return json({ success: false, error: { message: "文件不存在" } }, 404)
+      }
+      return json({
+        success: true,
+        data: {
+          urls: [
+            {
+              expires_at: "2099-01-01T00:00:00Z",
+              file_id: requested[0],
+              url: `https://example.com/${requested[0]}`,
+            },
+          ],
+        },
+      })
+    })
+
+    await expect(
+      resolveDocumentImageURLs(
+        ["fallback-file-1", "fallback-file-missing", "fallback-file-3"],
+        false,
+        fetcher,
+      ),
+    ).resolves.toMatchObject({
+      missingFileIds: ["fallback-file-missing"],
+      urls: [{ fileId: "fallback-file-1" }, { fileId: "fallback-file-3" }],
+    })
+    expect(maximumActiveRequests).toBeGreaterThan(1)
+    expect(fetcher).toHaveBeenCalledTimes(4)
+  })
 })
 
 function json(value: unknown, status = 200) {

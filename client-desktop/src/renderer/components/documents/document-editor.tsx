@@ -1,4 +1,5 @@
 import * as React from "react"
+import type { EditorEvents } from "@tiptap/core"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import { DragHandle, type DragHandleProps } from "@tiptap/extension-drag-handle-react"
@@ -66,7 +67,13 @@ import { cn } from "@/lib/utils"
 import { limitDocumentTitle } from "@/lib/document-title-controller"
 import { safePresenceColor, type DocumentPresenceUser } from "@/lib/document-presence"
 import { DocumentControlSeparator } from "./document-control-separator"
-import { isDocumentBlockTransformable } from "./document-block-utils"
+import {
+  transformDocumentBlock,
+  type BlockFormat,
+  isDocumentBlockTransformable,
+  mapActiveDocumentBlock,
+  type ActiveDocumentBlock,
+} from "./document-block-utils"
 import { DocumentHorizontalRule } from "./document-horizontal-rule-extension"
 import { DocumentImage } from "./document-image-extension"
 import { DocumentImageResolutionContext } from "./document-image-resolution"
@@ -999,14 +1006,27 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const activeBlockElementRef = React.useRef<Element | null>(null)
   const handleHoveredRef = React.useRef(false)
-  const [activeBlock, setActiveBlock] = React.useState<{
-    nodeSize: number
-    pos: number
-  } | null>(null)
+  const activeBlockRef = React.useRef<ActiveDocumentBlock | null>(null)
+  const [activeBlock, setActiveBlock] = React.useState<ActiveDocumentBlock | null>(null)
   useEditorState({
     editor,
     selector: ({ transactionNumber }) => transactionNumber,
   })
+
+  React.useEffect(() => {
+    const onTransaction = ({ transaction }: EditorEvents["transaction"]) => {
+      const current = activeBlockRef.current
+      if (!current || !transaction.docChanged) return
+
+      const next = mapActiveDocumentBlock(current, transaction)
+      activeBlockRef.current = next
+      setActiveBlock(next)
+    }
+    editor.on("transaction", onTransaction)
+    return () => {
+      editor.off("transaction", onTransaction)
+    }
+  }, [editor])
 
   const handleNodeChange = React.useCallback<NonNullable<DragHandleProps["onNodeChange"]>>(
     ({ node, pos }) => {
@@ -1022,7 +1042,9 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
       if (handleHoveredRef.current) {
         activeBlockElementRef.current?.classList.add("document-block-active")
       }
-      setActiveBlock(node ? { nodeSize: node.nodeSize, pos } : null)
+      const next = node ? { nodeSize: node.nodeSize, pos } : null
+      activeBlockRef.current = next
+      setActiveBlock(next)
     },
     [editor],
   )
@@ -1037,12 +1059,28 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
     editor.commands.setMeta("lockDragHandle", open)
   }
 
+  function getCurrentActiveBlock(): ActiveDocumentBlock | null {
+    const current = activeBlockRef.current
+    if (!current) return null
+    const node = editor.state.doc.nodeAt(current.pos)
+    if (!node) {
+      activeBlockRef.current = null
+      setActiveBlock(null)
+      return null
+    }
+    const next = { nodeSize: node.nodeSize, pos: current.pos }
+    activeBlockRef.current = next
+    setActiveBlock(next)
+    return next
+  }
+
   function duplicateBlock() {
-    if (!activeBlock) return
-    const node = editor.state.doc.nodeAt(activeBlock.pos)
+    const current = getCurrentActiveBlock()
+    if (!current) return
+    const node = editor.state.doc.nodeAt(current.pos)
     if (!node) return
 
-    const insertPos = activeBlock.pos + activeBlock.nodeSize
+    const insertPos = current.pos + node.nodeSize
     const view = getMountedEditorView(editor)
     if (!view) return
     view.dispatch(editor.state.tr.insert(insertPos, node.copy(node.content)).scrollIntoView())
@@ -1050,60 +1088,15 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
   }
 
   function deleteBlock() {
-    if (!activeBlock) return
-    editor.chain().focus().setNodeSelection(activeBlock.pos).deleteSelection().run()
+    const current = getCurrentActiveBlock()
+    if (!current) return
+    editor.chain().focus().setNodeSelection(current.pos).deleteSelection().run()
   }
 
   function transformBlock(format: BlockFormat) {
-    if (!activeBlock) return
-    const node = editor.state.doc.nodeAt(activeBlock.pos)
-    if (!node || !isDocumentBlockTransformable(node)) return
-
-    let selectionPos = activeBlock.pos + 1
-    let selectionNode = node
-    while (!selectionNode.isTextblock) {
-      const firstChild = selectionNode.firstChild
-      if (!firstChild) break
-      selectionNode = firstChild
-      selectionPos += 1
-    }
-    editor.commands.setTextSelection(selectionPos)
-
-    if (editor.isActive("bulletList")) editor.chain().focus().toggleBulletList().run()
-    if (editor.isActive("orderedList")) editor.chain().focus().toggleOrderedList().run()
-    if (editor.isActive("taskList")) editor.chain().focus().toggleTaskList().run()
-    if (editor.isActive("blockquote")) editor.chain().focus().toggleBlockquote().run()
-    if (editor.isActive("codeBlock")) editor.chain().focus().toggleCodeBlock().run()
-
-    editor.chain().focus().setParagraph().run()
-
-    switch (format) {
-      case "paragraph":
-        return
-      case "heading-1":
-        editor.chain().focus().setHeading({ level: 1 }).run()
-        return
-      case "heading-2":
-        editor.chain().focus().setHeading({ level: 2 }).run()
-        return
-      case "heading-3":
-        editor.chain().focus().setHeading({ level: 3 }).run()
-        return
-      case "bullet-list":
-        editor.chain().focus().toggleBulletList().run()
-        return
-      case "ordered-list":
-        editor.chain().focus().toggleOrderedList().run()
-        return
-      case "task-list":
-        editor.chain().focus().toggleTaskList().run()
-        return
-      case "blockquote":
-        editor.chain().focus().toggleBlockquote().run()
-        return
-      case "code-block":
-        editor.chain().focus().toggleCodeBlock().run()
-    }
+    const current = getCurrentActiveBlock()
+    if (!current) return
+    transformDocumentBlock(editor, current, format)
   }
 
   const activeBlockNode = activeBlock ? editor.state.doc.nodeAt(activeBlock.pos) : null
@@ -1192,14 +1185,3 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
     </DragHandle>
   )
 }
-
-type BlockFormat =
-  | "paragraph"
-  | "heading-1"
-  | "heading-2"
-  | "heading-3"
-  | "bullet-list"
-  | "ordered-list"
-  | "task-list"
-  | "blockquote"
-  | "code-block"

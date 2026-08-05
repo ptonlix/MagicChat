@@ -12,6 +12,7 @@ import * as Y from "yjs"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { DocumentEditor } from "./document-editor"
+import { transformDocumentBlock } from "./document-block-utils"
 import { DocumentHorizontalRule } from "./document-horizontal-rule-extension"
 
 describe("DocumentEditor", () => {
@@ -304,6 +305,27 @@ describe("DocumentEditor", () => {
     fireEvent.change(input, { target: { value: "example.com" } })
     fireEvent.click(screen.getByRole("button", { name: "应用" }))
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "链接地址" })).toBeNull())
+  })
+
+  it("块转换在同一事务中清理嵌套容器并应用目标格式", () => {
+    const editor = new Editor({
+      content: "<ul><li><p>父项</p><ul><li><p>子项</p></li></ul></li></ul>",
+      extensions: [StarterKit],
+    })
+    const block = editor.state.doc.firstChild
+    if (!block) throw new Error("测试文档缺少列表块")
+    const listItem = block.firstChild
+    if (!listItem) throw new Error("测试文档缺少列表项")
+    const transactions: number[] = []
+    editor.on("transaction", ({ transaction }) => {
+      if (transaction.docChanged) transactions.push(transaction.steps.length)
+    })
+
+    transformDocumentBlock(editor, { nodeSize: listItem.nodeSize, pos: 1 }, "heading-2")
+    expect(transactions).toHaveLength(1)
+    expect(editor.getHTML()).toContain("<h2>父项</h2>")
+    expect(editor.getHTML()).not.toContain("<li><p>父项</p>")
+    editor.destroy()
   })
 })
 

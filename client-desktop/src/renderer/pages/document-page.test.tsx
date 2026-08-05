@@ -242,6 +242,9 @@ describe("DocumentPage", () => {
       })
     })
     expect(await screen.findByRole("button", { name: "查看 1 位在线成员" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "重复李四" })).toHaveStyle({
+      outline: "2px solid #64748b",
+    })
 
     await router.navigate("/projects/project-1")
     await waitFor(() => {

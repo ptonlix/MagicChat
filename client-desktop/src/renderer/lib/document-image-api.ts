@@ -13,10 +13,55 @@ import {
 export const maximumDocumentImageBytes = 10 * 1024 * 1024
 const allowedTypes = new Set(["image/avif", "image/gif", "image/jpeg", "image/png", "image/webp"])
 const maximumBatchSize = 100
+const maximumFallbackConcurrency = 8
 
 type UploadResponse = { file?: { id?: unknown; size_bytes?: unknown } }
 
 export type UploadedDocumentImage = Readonly<{ fileId: string; sizeBytes: number }>
+
+type SingleFileResolution =
+  | { fileId: string; missing: true; urls: [] }
+  | { fileId: string; missing: false; urls: TemporaryFileReadURL[] }
+
+async function resolveDocumentImageBatchIndividually(
+  fileIds: readonly string[],
+  fetcher: ClientDataFetch,
+): Promise<SingleFileResolution[]> {
+  const results = new Map<string, SingleFileResolution>()
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < fileIds.length) {
+      const index = nextIndex
+      nextIndex += 1
+      const fileId = fileIds[index]
+      if (!fileId) continue
+
+      try {
+        results.set(fileId, {
+          fileId,
+          missing: false,
+          urls: await readTemporaryFileURLs([fileId], fetcher),
+        })
+      } catch (error) {
+        if (error instanceof ClientDataRequestError && error.status === 404) {
+          results.set(fileId, { fileId, missing: true, urls: [] })
+          continue
+        }
+        throw error
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(maximumFallbackConcurrency, fileIds.length) }, () => worker()),
+  )
+
+  return fileIds.flatMap((fileId) => {
+    const result = results.get(fileId)
+    return result ? [result] : []
+  })
+}
 
 export async function uploadDocumentImage(
   file: File,
@@ -67,16 +112,11 @@ export async function resolveDocumentImageURLs(
       urls.push(...(await readTemporaryFileURLs(batch, fetcher)))
     } catch (error) {
       if (!(error instanceof ClientDataRequestError) || error.status !== 404) throw error
-      for (const fileId of batch) {
-        try {
-          urls.push(...(await readTemporaryFileURLs([fileId], fetcher)))
-        } catch (fileError) {
-          if (fileError instanceof ClientDataRequestError && fileError.status === 404) {
-            missingFileIds.push(fileId)
-          } else {
-            throw fileError
-          }
-        }
+      // 批量接口是全有或全无语义；回退时限制并发，避免一个失效文件拖成串行往返。
+      const individualResults = await resolveDocumentImageBatchIndividually(batch, fetcher)
+      for (const result of individualResults) {
+        if (result.missing) missingFileIds.push(result.fileId)
+        else urls.push(...result.urls)
       }
     }
   }

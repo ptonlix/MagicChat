@@ -19,5 +19,10 @@ export function normalizeProjectSectionPath(
   section: string | undefined,
   search = "",
 ): string {
-  return projectSectionPath(projectId, isProjectSection(section) ? section : "tasks", search)
+  const normalizedSection = section === "topics" ? "discussions" : section
+  return projectSectionPath(
+    projectId,
+    isProjectSection(normalizedSection) ? normalizedSection : "tasks",
+    search,
+  )
 }

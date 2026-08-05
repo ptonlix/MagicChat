@@ -111,6 +111,7 @@ export function DocumentImageNodeView({ editor, node, updateAttributes }: NodeVi
   const imageReady = Boolean(source && loadFailures < 2)
   const imageLoading = Boolean(attributes.fileId && resolution?.status === "loading")
   const resolvedSource = source ? resolveHostResourceUrl(source) : ""
+  const canRetry = Boolean((attributes.fileId || externalAllowed) && !uploading)
 
   return (
     <NodeViewWrapper className="document-image-node">
@@ -185,14 +186,13 @@ export function DocumentImageNodeView({ editor, node, updateAttributes }: NodeVi
                         ? "图片已失效或加载失败"
                         : "添加一张图片"}
                 </span>
-                {attributes.fileId && !uploading && (
+                {canRetry && (
                   <Button
                     onClick={(event) => {
                       event.stopPropagation()
                       const fileId = attributes.fileId
-                      if (!fileId) return
                       setLoadFailures(0)
-                      refresh(fileId)
+                      if (fileId) refresh(fileId)
                     }}
                     size="sm"
                     type="button"
@@ -271,11 +271,18 @@ function DocumentImageControls({
   uploading: boolean
   width: number
 }) {
+  const [altDraft, setAltDraft] = React.useState(alt)
   const alignments = [
     { icon: AlignLeft, label: "左对齐", value: "left" },
     { icon: AlignCenter, label: "居中对齐", value: "center" },
     { icon: AlignRight, label: "右对齐", value: "right" },
   ] as const
+
+  React.useEffect(() => setAltDraft(alt), [alt])
+
+  const commitAlt = React.useCallback(() => {
+    if (altDraft !== alt) onAltChange(altDraft)
+  }, [alt, altDraft, onAltChange])
 
   return (
     <div
@@ -354,9 +361,15 @@ function DocumentImageControls({
         className="w-full"
         disabled={!editable}
         maxLength={500}
-        onChange={(event) => onAltChange(event.target.value)}
+        onBlur={commitAlt}
+        onChange={(event) => setAltDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return
+          event.preventDefault()
+          event.currentTarget.blur()
+        }}
         placeholder="图片替代文本"
-        value={alt}
+        value={altDraft}
       />
     </div>
   )

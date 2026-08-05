@@ -448,7 +448,8 @@ function PresenceAvatar({ user }: { user: DocumentPresenceUser }) {
     <Avatar
       aria-label={user.name}
       className="size-7 border-2 border-background"
-      style={{ outlineColor: user.color }}
+      role="img"
+      style={{ outline: `2px solid ${user.color}`, outlineOffset: "-1px" }}
     >
       {user.avatar && <AvatarImage alt={user.name} src={user.avatar} />}
       <AvatarFallback>{Array.from(user.name)[0] ?? "?"}</AvatarFallback>
