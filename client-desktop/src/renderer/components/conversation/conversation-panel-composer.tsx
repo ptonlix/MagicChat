@@ -359,21 +359,22 @@ export const ConversationPanelComposer = React.forwardRef<
       }
     }
 
+    if (
+      sendMessageShortcut &&
+      acceleratorMatchesKeyboardEvent(sendMessageShortcut, event.nativeEvent)
+    ) {
+      // 配置的发送快捷键优先于默认 Enter 行为，支持 Ctrl+K、Alt+S 等非 Enter 组合
+      event.preventDefault()
+      if (!sending) handleSendMessage()
+      return
+    }
+
     if (event.key !== "Enter") {
       return
     }
 
     if (sending) {
       event.preventDefault()
-      return
-    }
-
-    if (
-      sendMessageShortcut &&
-      acceleratorMatchesKeyboardEvent(sendMessageShortcut, event.nativeEvent)
-    ) {
-      event.preventDefault()
-      handleSendMessage()
       return
     }
 

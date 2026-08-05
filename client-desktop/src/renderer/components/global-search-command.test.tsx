@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { GlobalSearchCommand } from "@/components/global-search-command"
+import { getConversationDefaultDescription } from "@/lib/conversation-search-description"
 import type {
   ClientConversation,
   ClientConversationMember,
@@ -140,7 +141,22 @@ describe("GlobalSearchCommand", () => {
     expect(screen.getByRole("combobox", { name: "搜索所有内容" })).toHaveValue("")
   })
 
-  it("debounces message search and supports shortcut plus keyboard selection", async () => {
+  it("debounces message search and supports host shortcut plus keyboard selection", async () => {
+    const listeners: Array<() => void> = []
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: {
+        shortcuts: {
+          subscribeSearchOpen: (listener: () => void) => {
+            listeners.push(listener)
+            return () => {
+              const index = listeners.indexOf(listener)
+              if (index >= 0) listeners.splice(index, 1)
+            }
+          },
+        },
+      },
+    })
     const user = userEvent.setup()
     const result = createMessageSearchResult()
     const messageSearch = vi.fn().mockResolvedValue([result])
@@ -151,7 +167,7 @@ describe("GlobalSearchCommand", () => {
       searchDebounceMs: 0,
     })
 
-    await user.keyboard("{Control>}f{/Control}")
+    act(() => listeners[0]())
     const input = screen.getByRole("combobox", { name: "搜索所有内容" })
     expect(input).toHaveFocus()
     await user.click(screen.getByRole("tab", { name: "聊天记录" }))
@@ -162,6 +178,30 @@ describe("GlobalSearchCommand", () => {
     expect(messageSearch).toHaveBeenCalledWith(expect.objectContaining({ keyword: "计划" }))
     await user.keyboard("{Enter}")
     expect(onSelectMessageResult).toHaveBeenCalledWith(result)
+  })
+
+  it("不再响应硬编码的 Ctrl/Cmd+F，仅通过宿主订阅打开搜索", async () => {
+    const user = userEvent.setup()
+    renderSearch([])
+
+    await user.keyboard("{Control>}f{/Control}")
+    expect(screen.queryByRole("combobox", { name: "搜索所有内容" })).not.toBeInTheDocument()
+
+    await user.keyboard("{Meta>}f{/Meta}")
+    expect(screen.queryByRole("combobox", { name: "搜索所有内容" })).not.toBeInTheDocument()
+  })
+
+  it("无消息会话的默认描述显示暂无消息文案", () => {
+    const t = (key: string) => (key === "search.noMessages" ? "暂无消息" : key)
+    expect(
+      getConversationDefaultDescription(createConversation({ lastMessageSummary: "" }), t),
+    ).toBe("暂无消息")
+    expect(
+      getConversationDefaultDescription(
+        createConversation({ lastMessageSummary: "最近一条消息" }),
+        t,
+      ),
+    ).toBe("最近一条消息")
   })
 })
 

@@ -115,6 +115,10 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
 
 function DesktopRootContent({ platform }: { platform?: string }) {
   const { t } = useLocale()
+  const latestTRef = useRef(t)
+  useEffect(() => {
+    latestTRef.current = t
+  }, [t])
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [messageSoundEnabled, setMessageSoundEnabled] = useState(true)
@@ -125,6 +129,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
 
   useEffect(() => {
     let active = true
+    // 语言/字号变化只影响文案，不重新订阅宿主事件
     void Promise.all([window.desktop.servers.list(), window.desktop.settings.get()]).then(
       ([items, settings]) => {
         if (!active) return
@@ -136,7 +141,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
     )
     const unsubscribeUnknownServer = window.desktop.navigation.subscribeUnknownServer(
       ({ serverId }) => {
-        window.alert(t("startup.unknownServer", { serverId }))
+        window.alert(latestTRef.current("startup.unknownServer", { serverId }))
         setSelectedId(undefined)
       },
     )
@@ -144,7 +149,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
       active = false
       unsubscribeUnknownServer()
     }
-  }, [t])
+  }, [])
 
   async function select(id: string) {
     await window.desktop.servers.select(id)
@@ -410,6 +415,10 @@ function DesktopHostedApp({
   onUpdaterChange(state: UpdaterState): void
 }) {
   const { t } = useLocale()
+  const latestTRef = useRef(t)
+  useEffect(() => {
+    latestTRef.current = t
+  }, [t])
   const [ready, setReady] = useState(false)
   const [pendingExternalUrl, setPendingExternalUrl] = useState<string>()
   const messageSoundEnabledRef = useRef(messageSoundEnabled)
@@ -419,6 +428,7 @@ function DesktopHostedApp({
   }, [messageSoundEnabled])
 
   useEffect(() => {
+    // 语言/字号变化不应重建宿主（fetch/缓存目标/实时连接/订阅）
     const restoreFetch = installDesktopFetch(target)
     const restoreMessageCacheTarget = configureMessageCacheTarget(target)
     const requestExternalLink = async (url: string) => {
@@ -484,7 +494,9 @@ function DesktopHostedApp({
       window.dispatchEvent(new PopStateEvent("popstate"))
     })
     const restoreLinkNavigation = installDesktopLinkNavigation((url) => {
-      void requestExternalLink(url).catch(() => toast.error(t("startup.openLinkError")))
+      void requestExternalLink(url).catch(() =>
+        toast.error(latestTRef.current("startup.openLinkError")),
+      )
     })
     window.addEventListener("magicchat:authenticated", authenticated)
     setReady(true)
@@ -498,7 +510,7 @@ function DesktopHostedApp({
       restoreFetch()
       restoreMessageCacheTarget()
     }
-  }, [onAuthenticated, onOpenSettings, profile, t, target])
+  }, [onAuthenticated, onOpenSettings, profile, target])
 
   return (
     <>

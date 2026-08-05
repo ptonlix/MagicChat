@@ -9,6 +9,7 @@ type BrandLoadingScreenProps = {
 
 export function BrandLoadingScreen({ className, detail, message }: BrandLoadingScreenProps) {
   const { t } = useLocale()
+  const detailText = detail ?? t("brandLoading.detail")
   return (
     <main
       className={cn(
@@ -18,7 +19,7 @@ export function BrandLoadingScreen({ className, detail, message }: BrandLoadingS
     >
       <div className="flex w-56 flex-col items-center gap-3">
         <div className="text-center text-sm text-muted-foreground">
-          {message ? `${message} · ${detail}` : detail}
+          {message ? `${message} · ${detailText}` : detailText}
         </div>
         <div
           aria-label={t("brandLoading.progress")}

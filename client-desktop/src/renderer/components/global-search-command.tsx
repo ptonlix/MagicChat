@@ -20,6 +20,7 @@ import type {
   ContactUser,
 } from "@/lib/client-data-api"
 import { getConversationDisplayName } from "@/lib/conversation-avatar-presentation"
+import { getConversationDefaultDescription } from "@/lib/conversation-search-description"
 import { formatActivityTime } from "@/lib/activity-time"
 import type { ConversationSearchField, ConversationSearchResult } from "@/lib/conversation-search"
 import {
@@ -55,7 +56,7 @@ export function GlobalSearchCommand({
   contacts,
   conversations,
   currentUserId,
-  getConversationDescription = getDefaultConversationDescription,
+  getConversationDescription,
   messageSearch,
   onSelectDirectoryItem,
   onSelectMessageResult,
@@ -81,6 +82,11 @@ export function GlobalSearchCommand({
   const [keyword, setKeyword] = React.useState("")
   const [scope, setScope] = React.useState<Scope>("all")
   const [activeIndex, setActiveIndex] = React.useState(0)
+  const defaultConversationDescription = React.useCallback(
+    (conversation: ClientConversation) => getConversationDefaultDescription(conversation, t),
+    [t],
+  )
+  const conversationDescription = getConversationDescription ?? defaultConversationDescription
   const service = React.useMemo(
     () =>
       createClientSearchService({
@@ -193,24 +199,6 @@ export function GlobalSearchCommand({
     if (!activeOption) return
     optionRefs.current.get(activeOption.key)?.scrollIntoView?.({ block: "nearest" })
   }, [activeOption])
-
-  React.useEffect(() => {
-    function handleSearchShortcut(event: KeyboardEvent) {
-      if (
-        event.key.toLowerCase() !== "f" ||
-        (!event.ctrlKey && !event.metaKey) ||
-        event.altKey ||
-        event.shiftKey
-      ) {
-        return
-      }
-      event.preventDefault()
-      setOpen(true)
-      window.requestAnimationFrame(() => inputRef.current?.focus())
-    }
-    window.addEventListener("keydown", handleSearchShortcut)
-    return () => window.removeEventListener("keydown", handleSearchShortcut)
-  }, [])
 
   React.useEffect(() => {
     const shortcuts = window.desktop?.shortcuts
@@ -402,7 +390,7 @@ export function GlobalSearchCommand({
                       description={getConversationResultDescription(
                         result,
                         keyword,
-                        getConversationDescription,
+                        conversationDescription,
                         t,
                       )}
                       id={`global-search-option-${index}`}
@@ -610,10 +598,6 @@ function getConversationMatchLabel(
   if (field.kind === "member_phone") return t("search.match.phone")
   if (field.kind === "app_name") return t("search.match.app")
   return t("search.match.member")
-}
-
-function getDefaultConversationDescription(conversation: ClientConversation) {
-  return conversation.lastMessageSummary.trim() || ""
 }
 
 function setOptionRef(

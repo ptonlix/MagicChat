@@ -256,6 +256,27 @@ describe("ConversationPanelComposer 截图", () => {
     expect(onSendMessage).not.toHaveBeenCalled()
   })
 
+  it("自定义非 Enter 发送快捷键（Ctrl+K）也能发送消息", async () => {
+    mocks.settingsGet.mockResolvedValue({
+      autoLaunch: false,
+      closeBehavior: "background",
+      messageSoundEnabled: true,
+      notificationPrivacy: "metadata",
+      screenshotShortcut: "CommandOrControl+Shift+A",
+      searchShortcut: "CommandOrControl+Shift+F",
+      sendMessageShortcut: "CommandOrControl+K",
+    })
+    const user = userEvent.setup()
+    const onSendMessage = vi.fn()
+    render(composerElement(conversation, { draft: "你好", onSendMessage }))
+
+    const input = screen.getByPlaceholderText("输入消息")
+    await user.click(input)
+    await user.keyboard("{Control>}k{/Control}")
+
+    expect(onSendMessage).toHaveBeenCalledWith("你好")
+  })
+
   it("禁用发送消息快捷键后 Ctrl+Enter 插入换行而不发送", async () => {
     mocks.settingsGet.mockResolvedValue({
       autoLaunch: false,

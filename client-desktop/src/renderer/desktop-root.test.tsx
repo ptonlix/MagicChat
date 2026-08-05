@@ -442,7 +442,7 @@ describe("桌面设置服务器管理", () => {
     expect(source).toMatch(/\.settings-secondary-button\s*\{[^}]*justify-self:\s*end/)
   })
 
-  it("切换语言为 English 后设置界面即时变为英文", async () => {
+  it("切换语言为 English 后设置界面即时变为英文且不重建工作区宿主", async () => {
     const bridge = createDesktopBridge()
     Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
     const user = userEvent.setup()
@@ -450,6 +450,8 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await waitFor(() => expect(screen.getByText("通用设置")).toBeInTheDocument())
+    const hostInstallCount = mocks.installDesktopFetch.mock.calls.length
+    expect(hostInstallCount).toBeGreaterThan(0)
 
     await user.selectOptions(screen.getByRole("combobox", { name: "语言" }), "en")
 
@@ -457,6 +459,8 @@ describe("桌面设置服务器管理", () => {
     expect(await screen.findByRole("button", { name: "Notifications" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Language" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Font size" })).toBeInTheDocument()
+    expect(mocks.installDesktopFetch).toHaveBeenCalledTimes(hostInstallCount)
+    expect(mocks.restoreFetch).not.toHaveBeenCalled()
   })
 
   it("字体大小设置应用到根元素字号", async () => {
