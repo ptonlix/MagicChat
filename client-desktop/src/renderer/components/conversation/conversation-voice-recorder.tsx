@@ -1,4 +1,5 @@
 import type { VoiceRecordingStatus } from "@/hooks/use-voice-recording"
+import { useLocale } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
 
 const waveformBarHeights = [24, 40, 58, 34, 68, 46, 76, 52, 86, 62, 72, 44, 80, 56, 38, 64, 48, 30]
@@ -12,6 +13,7 @@ export function VoiceRecordingPanel({
   level: number
   status: VoiceRecordingStatus
 }) {
+  const { t } = useLocale()
   return (
     <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
       <div className="flex h-24 items-center justify-center gap-1 overflow-hidden rounded-md bg-background px-4">
@@ -36,14 +38,14 @@ export function VoiceRecordingPanel({
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="text-muted-foreground">
           {status === "requesting"
-            ? "正在连接麦克风"
+            ? t("voiceRecorder.connecting")
             : status === "processing"
-              ? "正在生成语音"
+              ? t("voiceRecorder.generating")
               : status === "recording"
-                ? "正在录音"
+                ? t("voiceRecorder.recording")
                 : status === "recorded"
-                  ? "录音完成"
-                  : "准备录音"}
+                  ? t("voiceRecorder.recorded")
+                  : t("voiceRecorder.ready")}
         </span>
         <span className="font-mono tabular-nums">
           {formatVoiceRecordingDuration(elapsedSeconds)}

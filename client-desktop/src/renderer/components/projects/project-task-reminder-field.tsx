@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Bell, CalendarClock, Repeat2, X } from "lucide-react"
 
 import {
@@ -21,15 +22,18 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 
-const weekdays = [
-  { label: "一", value: 1 },
-  { label: "二", value: 2 },
-  { label: "三", value: 3 },
-  { label: "四", value: 4 },
-  { label: "五", value: 5 },
-  { label: "六", value: 6 },
-  { label: "日", value: 7 },
-] as const
+function getWeekdays(t: ReturnType<typeof useLocale>["t"]) {
+  const labels = Array.from(t("project.reminder.weekday"))
+  return [
+    { label: labels[0], value: 1 },
+    { label: labels[1], value: 2 },
+    { label: labels[2], value: 3 },
+    { label: labels[3], value: 4 },
+    { label: labels[4], value: 5 },
+    { label: labels[5], value: 6 },
+    { label: labels[6], value: 7 },
+  ] as const
+}
 
 export function ProjectTaskReminderField({
   disabled = false,
@@ -44,6 +48,7 @@ export function ProjectTaskReminderField({
   status: ProjectTaskStatus
   value: ProjectTaskReminderInput | null
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = React.useState(false)
   const [draft, setDraft] = React.useState<ProjectTaskReminderInput | null>(null)
   const paused = status === "done" || status === "canceled"
@@ -59,7 +64,7 @@ export function ProjectTaskReminderField({
     <Popover onOpenChange={handleOpenChange} open={open}>
       <PopoverTrigger asChild>
         <Button
-          aria-label="提醒时间"
+          aria-label={t("project.reminder.title")}
           className={cn(
             "w-full min-w-0 justify-start px-2.5 font-normal",
             !value && "text-muted-foreground",
@@ -69,21 +74,21 @@ export function ProjectTaskReminderField({
           variant="outline"
         >
           <Bell />
-          <span className="min-w-0 truncate">{formatReminderSummary(value, paused, state)}</span>
+          <span className="min-w-0 truncate">{formatReminderSummary(value, paused, state, t)}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-medium">提醒时间</p>
-            <p className="text-xs text-muted-foreground">到时向当前负责人发送任务卡片</p>
+            <p className="text-sm font-medium">{t("project.reminder.title")}</p>
+            <p className="text-xs text-muted-foreground">{t("project.reminder.desc")}</p>
           </div>
           {draft && (
             <Button
-              aria-label="清除提醒"
+              aria-label={t("project.reminder.clear")}
               onClick={() => setDraft(null)}
               size="icon-xs"
-              title="清除提醒"
+              title={t("project.reminder.clear")}
               type="button"
               variant="ghost"
             >
@@ -101,7 +106,7 @@ export function ProjectTaskReminderField({
               variant="outline"
             >
               <CalendarClock />
-              一次性
+              {t("project.reminder.once")}
             </Button>
             <Button
               className="h-auto gap-1.5 py-3 whitespace-nowrap"
@@ -110,7 +115,7 @@ export function ProjectTaskReminderField({
               variant="outline"
             >
               <Repeat2 />
-              重复
+              {t("project.reminder.repeat")}
             </Button>
           </div>
         ) : (
@@ -129,16 +134,16 @@ export function ProjectTaskReminderField({
               variant="outline"
             >
               <ToggleGroupItem className="flex-1" value="once">
-                一次性
+                {t("project.reminder.once")}
               </ToggleGroupItem>
               <ToggleGroupItem className="flex-1" value="recurring">
-                重复
+                {t("project.reminder.repeat")}
               </ToggleGroupItem>
             </ToggleGroup>
 
             {draft.mode === "once" ? (
               <div className="grid gap-2">
-                <Label htmlFor="task-reminder-once-at">日期和时间</Label>
+                <Label htmlFor="task-reminder-once-at">{t("project.reminder.dateTime")}</Label>
                 <Input
                   id="task-reminder-once-at"
                   min={minimumLocalDateTime()}
@@ -158,15 +163,15 @@ export function ProjectTaskReminderField({
             )}
 
             <div className="text-xs text-muted-foreground">
-              时区：{PROJECT_TASK_REMINDER_TIMEZONE}
-              {paused && " · 任务完成或取消期间暂停提醒"}
+              {t("project.reminder.timezone", { tz: PROJECT_TASK_REMINDER_TIMEZONE })}
+              {paused && t("project.reminder.pausedHint")}
             </div>
           </>
         )}
 
         <div className="flex justify-end gap-2 border-t pt-3">
           <Button onClick={() => setOpen(false)} type="button" variant="ghost">
-            取消
+            {t("project.reminder.cancel")}
           </Button>
           <Button
             onClick={() => {
@@ -175,7 +180,7 @@ export function ProjectTaskReminderField({
             }}
             type="button"
           >
-            确定
+            {t("project.reminder.confirm")}
           </Button>
         </div>
       </PopoverContent>
@@ -190,10 +195,11 @@ function RecurringReminderFields({
   onValueChange: (value: ProjectTaskReminderInput) => void
   value: Extract<ProjectTaskReminderInput, { mode: "recurring" }>
 }) {
+  const { t } = useLocale()
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label>重复周期</Label>
+        <Label>{t("project.reminder.period")}</Label>
         <Select
           onValueChange={(frequency) => onValueChange(changeFrequency(value, frequency))}
           value={value.frequency}
@@ -202,16 +208,16 @@ function RecurringReminderFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="daily">每天</SelectItem>
-            <SelectItem value="weekly">每周</SelectItem>
-            <SelectItem value="monthly">每月</SelectItem>
+            <SelectItem value="daily">{t("project.reminder.daily")}</SelectItem>
+            <SelectItem value="weekly">{t("project.reminder.weekly")}</SelectItem>
+            <SelectItem value="monthly">{t("project.reminder.monthly")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {value.frequency === "weekly" && (
         <div className="grid gap-2">
-          <Label>星期</Label>
+          <Label>{t("project.reminder.weekdays")}</Label>
           <ToggleGroup
             className="w-full"
             onValueChange={(selected) => {
@@ -227,9 +233,9 @@ function RecurringReminderFields({
             value={(value.weekdays ?? []).map(String)}
             variant="outline"
           >
-            {weekdays.map((weekday) => (
+            {getWeekdays(t).map((weekday) => (
               <ToggleGroupItem
-                aria-label={`星期${weekday.label}`}
+                aria-label={t("project.reminder.weekdayAria", { label: weekday.label })}
                 className="min-w-0 flex-1 px-0"
                 key={weekday.value}
                 value={String(weekday.value)}
@@ -243,7 +249,7 @@ function RecurringReminderFields({
 
       {value.frequency === "monthly" && (
         <div className="grid gap-2">
-          <Label>每月日期</Label>
+          <Label>{t("project.reminder.monthDay")}</Label>
           <Select
             onValueChange={(day) => onValueChange({ ...value, dayOfMonth: Number(day) })}
             value={String(value.dayOfMonth ?? 1)}
@@ -254,7 +260,7 @@ function RecurringReminderFields({
             <SelectContent className="max-h-64">
               {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
                 <SelectItem key={day} value={String(day)}>
-                  {day} 日
+                  {t("project.reminder.daySuffix", { day })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -263,7 +269,7 @@ function RecurringReminderFields({
       )}
 
       <div className="grid gap-2">
-        <Label htmlFor="task-reminder-time">提醒时间</Label>
+        <Label htmlFor="task-reminder-time">{t("project.reminder.time")}</Label>
         <Input
           id="task-reminder-time"
           onChange={(event) => {
@@ -330,16 +336,17 @@ function currentISOWeekday() {
 function formatReminderSummary(
   reminder: ProjectTaskReminderInput | null,
   paused: boolean,
-  state?: ProjectTaskReminderState,
+  state: ProjectTaskReminderState | undefined,
+  t: ReturnType<typeof useLocale>["t"],
 ) {
   if (!reminder) {
-    return "不提醒"
+    return t("project.reminder.none")
   }
   let summary: string
   if (reminder.mode === "once") {
     const at = new Date(reminder.at)
     summary = Number.isNaN(at.getTime())
-      ? "一次性提醒"
+      ? t("project.reminder.onceSummary")
       : new Intl.DateTimeFormat("zh-CN", {
           day: "numeric",
           hour: "2-digit",
@@ -350,24 +357,27 @@ function formatReminderSummary(
           year: "numeric",
         }).format(at)
   } else if (reminder.frequency === "daily") {
-    summary = `每天 ${reminder.time}`
+    summary = t("project.reminder.dailySummary", { time: reminder.time })
   } else if (reminder.frequency === "weekly") {
     const labels = (reminder.weekdays ?? [])
-      .map((value) => weekdays.find((weekday) => weekday.value === value)?.label)
+      .map((value) => getWeekdays(t).find((weekday) => weekday.value === value)?.label)
       .filter(Boolean)
       .join("、")
-    summary = `每周${labels} ${reminder.time}`
+    summary = t("project.reminder.weeklySummary", { labels, time: reminder.time })
   } else {
-    summary = `每月 ${reminder.dayOfMonth} 日 ${reminder.time}`
+    summary = t("project.reminder.monthlySummary", {
+      day: reminder.dayOfMonth ?? "",
+      time: reminder.time,
+    })
   }
   if (paused || state === "paused") {
-    return `已暂停 · ${summary}`
+    return t("project.reminder.pausedSummary", { summary })
   }
   if (state === "fired") {
-    return `已提醒 · ${summary}`
+    return t("project.reminder.remindedSummary", { summary })
   }
   if (state === "expired") {
-    return `已过期 · ${summary}`
+    return t("project.reminder.expiredSummary", { summary })
   }
   return summary
 }

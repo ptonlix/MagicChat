@@ -1,4 +1,5 @@
 import { LoaderCircle, Mic, RotateCcw, Square } from "lucide-react"
+import { useLocale } from "@/components/locale-provider"
 
 import { VoiceRecordingPanel } from "@/components/conversation/conversation-voice-recorder"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ export function SendVoiceMessageDialog({
   open,
   sending,
 }: SendVoiceMessageDialogProps) {
+  const { t } = useLocale()
   const recording = useVoiceRecording()
 
   function handleOpenChange(nextOpen: boolean) {
@@ -60,8 +62,8 @@ export function SendVoiceMessageDialog({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base">发送语音消息</DialogTitle>
-          <DialogDescription className="sr-only">录制并发送语音消息到当前会话</DialogDescription>
+          <DialogTitle className="text-base">{t("sendVoice.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("sendVoice.desc")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <VoiceRecordingPanel
@@ -71,37 +73,38 @@ export function SendVoiceMessageDialog({
           />
           {recording.error && <p className="text-sm text-destructive">{recording.error}</p>}
           <p className="min-w-0 text-sm text-muted-foreground">
-            将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
+            {t("voice.sendTo")}{" "}
+            <span className="font-medium text-foreground">{conversationName}</span>
           </p>
         </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button disabled={sending} type="button" variant="outline">
-              取消
+              {t("voice.cancel")}
             </Button>
           </DialogClose>
           {recording.status === "idle" && (
             <Button onClick={() => void recording.startRecording()} type="button">
               <Mic />
-              开始录音
+              {t("voice.start")}
             </Button>
           )}
           {recording.status === "requesting" && (
             <Button disabled type="button">
               <LoaderCircle className="animate-spin" />
-              正在连接
+              {t("voice.connecting")}
             </Button>
           )}
           {recording.status === "recording" && (
             <Button onClick={recording.stopRecording} type="button" variant="destructive">
               <Square />
-              结束录音
+              {t("voice.stop")}
             </Button>
           )}
           {recording.status === "processing" && (
             <Button disabled type="button">
               <LoaderCircle className="animate-spin" />
-              正在生成
+              {t("smartVoice.generating")}
             </Button>
           )}
           {recording.status === "recorded" && (
@@ -113,7 +116,7 @@ export function SendVoiceMessageDialog({
                 variant="outline"
               >
                 <RotateCcw />
-                重新录音
+                {t("voice.retry")}
               </Button>
               <Button
                 disabled={!recording.recording || sending}
@@ -121,7 +124,7 @@ export function SendVoiceMessageDialog({
                 type="button"
               >
                 {sending && <LoaderCircle className="animate-spin" />}
-                发送
+                {t("sendVoice.send")}
               </Button>
             </>
           )}

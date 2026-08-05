@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react"
 import { useNavigate } from "react-router"
 import { toast } from "sonner"
 
+import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { LoginForm } from "@/components/login-form"
 import { Separator } from "@/components/ui/separator"
@@ -15,8 +16,8 @@ import {
 } from "@/lib/desktop-host"
 
 export function LoginPage() {
+  const { t } = useLocale()
   const {
-    appName,
     authenticated,
     emailCodeLoginEnabled,
     organizationName,
@@ -40,9 +41,9 @@ export function LoginPage() {
       setPendingThirdParty(undefined)
       setThirdPartyStarting(false)
       if (result.status === "canceled") {
-        toast.info("已关闭第三方登录窗口")
+        toast.info(t("login.thirdPartyClosed"))
       } else if (result.status === "error") {
-        toast.error(result.error ?? "第三方登录失败")
+        toast.error(result.error ?? t("login.thirdPartyFailed"))
       }
     })
     return () => {
@@ -51,7 +52,7 @@ export function LoginPage() {
         void cancelThirdPartyLogin(thirdPartyTransactionRef.current)
       }
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (authenticated) {
@@ -87,9 +88,9 @@ export function LoginPage() {
       const transaction = await openThirdPartyLogin(providerKey)
       thirdPartyTransactionRef.current = transaction.transactionId
       setPendingThirdParty({ providerName, transactionId: transaction.transactionId })
-      toast.info("已打开第三方登录窗口")
+      toast.info(t("login.thirdPartyOpened"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法发起第三方登录")
+      toast.error(error instanceof Error ? error.message : t("login.thirdPartyStartFailed"))
     } finally {
       setThirdPartyStarting(false)
     }
@@ -100,7 +101,7 @@ export function LoginPage() {
     try {
       await cancelThirdPartyLogin(pendingThirdParty.transactionId)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法取消第三方登录")
+      toast.error(error instanceof Error ? error.message : t("login.thirdPartyCancelFailed"))
     }
   }
 
@@ -109,10 +110,12 @@ export function LoginPage() {
       <main className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="flex w-full max-w-sm flex-col gap-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-left text-2xl font-medium">{appName} 智能协作平台</h1>
+            <h1 className="text-left text-2xl font-medium">
+              {t("login.title", { appName: t("brand.name") })}
+            </h1>
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <MoveRight className="size-4" />
-              <span>登录到{organizationName}的工作空间</span>
+              <span>{t("login.workspace", { name: organizationName })}</span>
             </p>
           </div>
           <LoginForm
@@ -128,7 +131,7 @@ export function LoginPage() {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <Separator className="flex-1" />
-                  <span className="shrink-0">其他登录方式</span>
+                  <span className="shrink-0">{t("login.otherMethods")}</span>
                   <Separator className="flex-1" />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -138,7 +141,7 @@ export function LoginPage() {
                       type="button"
                       variant="outline"
                     >
-                      取消 {pendingThirdParty.providerName} 登录
+                      {t("login.cancelProvider", { name: pendingThirdParty.providerName })}
                     </Button>
                   ) : (
                     thirdPartyProviders.map((provider, index) => (
@@ -157,7 +160,7 @@ export function LoginPage() {
                           }
                         >
                           <LogInIcon data-icon="inline-start" />
-                          使用 {provider.name} 登录
+                          {t("login.withProvider", { name: provider.name })}
                         </a>
                       </Button>
                     ))

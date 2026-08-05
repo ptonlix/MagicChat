@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import { useClientData } from "@/lib/client-data-context"
 import { AppConversationInfo } from "@/components/app-conversation-info"
@@ -30,6 +31,7 @@ export function ConversationInfoDrawer({ children, conversationId }: Conversatio
 }
 
 function ConversationInfoContent({ conversationId }: { conversationId: string }) {
+  const { t } = useLocale()
   const { getConversation, me } = useClientData()
   const conversation = getConversation(conversationId)
 
@@ -37,10 +39,12 @@ function ConversationInfoContent({ conversationId }: { conversationId: string })
     return (
       <>
         <SheetHeader className="border-b">
-          <SheetTitle>会话信息</SheetTitle>
-          <SheetDescription>会话</SheetDescription>
+          <SheetTitle>{t("conversationInfo.title")}</SheetTitle>
+          <SheetDescription>{t("conversationInfo.subtitle")}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">会话信息不可用</div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">
+          {t("conversationInfo.unavailable")}
+        </div>
       </>
     )
   }
@@ -55,10 +59,10 @@ function ConversationInfoContent({ conversationId }: { conversationId: string })
     return (
       <>
         <SheetHeader className="border-b">
-          <SheetTitle>会话信息</SheetTitle>
-          <SheetDescription>私聊</SheetDescription>
+          <SheetTitle>{t("conversationInfo.title")}</SheetTitle>
+          <SheetDescription>{t("directInfo.subtitle")}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">用户信息不可用</div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">{t("directInfo.unavailable")}</div>
       </>
     )
   }

@@ -1,4 +1,5 @@
 import { Bot } from "lucide-react"
+import { useLocale } from "@/components/locale-provider"
 
 import { GroupAvatar } from "@/components/group-avatar"
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -86,6 +87,7 @@ function BaseConversationAvatar({
   conversation: ClientConversation
   online?: boolean
 }) {
+  const { t } = useLocale()
   if (avatarType === "group") {
     return (
       <GroupAvatar
@@ -107,7 +109,7 @@ function BaseConversationAvatar({
       </AvatarFallback>
       {online !== undefined && (
         <AvatarBadge
-          aria-label={online ? "在线" : "离线"}
+          aria-label={online ? t("avatar.online") : t("avatar.offline")}
           className={online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"}
         />
       )}

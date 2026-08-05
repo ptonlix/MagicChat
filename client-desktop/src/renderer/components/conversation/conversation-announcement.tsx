@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -11,6 +12,7 @@ export function ConversationAnnouncement({ announcement }: { announcement: strin
 }
 
 function ConversationAnnouncementContent({ content }: { content: string }) {
+  const { t } = useLocale()
   const textRef = React.useRef<HTMLParagraphElement>(null)
   const [expanded, setExpanded] = React.useState(false)
   const [canExpand, setCanExpand] = React.useState(false)
@@ -34,7 +36,7 @@ function ConversationAnnouncementContent({ content }: { content: string }) {
 
   return (
     <section
-      aria-label="群公告"
+      aria-label={t("announcement.title")}
       className="flex shrink-0 items-start gap-2 border-b bg-muted/30 px-5 py-2.5 text-sm"
     >
       <div className="flex min-w-0 flex-1 justify-center">
@@ -55,7 +57,7 @@ function ConversationAnnouncementContent({ content }: { content: string }) {
           type="button"
           variant="ghost"
         >
-          {expanded ? "收起" : "展开"}
+          {expanded ? t("announcement.collapse") : t("announcement.expand")}
         </Button>
       )}
     </section>

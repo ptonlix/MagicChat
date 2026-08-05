@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import {
   closestCorners,
   DndContext,
@@ -21,8 +22,8 @@ import {
   ProjectTaskStatusIcon,
 } from "@/components/projects/project-task-view-elements"
 import {
-  projectTaskPriorityLabels,
-  projectTaskStatusDetails,
+  getProjectTaskPriorityLabels,
+  getProjectTaskStatusDetails,
 } from "@/components/projects/project-task-view-utils"
 import { UpdateProjectTaskDateDialog } from "@/components/projects/update-project-task-date-dialog"
 import { UpdateProjectTaskPriorityDialog } from "@/components/projects/update-project-task-priority-dialog"
@@ -34,7 +35,7 @@ import { cn } from "@/lib/utils"
 const boardColumns: ProjectTaskStatus[] = ["todo", "in_progress", "done", "canceled"]
 
 export function ProjectTaskBoardView({
-  emptyMessage = "暂无任务",
+  emptyMessage,
   onOpenTask,
   onTaskStatusChange,
   onTaskUpdated,
@@ -46,6 +47,8 @@ export function ProjectTaskBoardView({
   onTaskUpdated: () => Promise<void>
   tasks: ProjectTask[]
 }) {
+  const { t } = useLocale()
+  const resolvedEmptyMessage = emptyMessage ?? t("project.noTasks")
   const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null)
   const [updatingTaskIds, setUpdatingTaskIds] = React.useState<Set<string>>(() => new Set())
   const sensors = useSensors(
@@ -77,11 +80,13 @@ export function ProjectTaskBoardView({
       await updateClientProjectTask(task.projectId, task.id, {
         status: nextStatus,
       })
-      toast.success(`任务已移至${projectTaskStatusDetails[nextStatus].label}`)
+      toast.success(
+        t("project.task.moved", { label: getProjectTaskStatusDetails(t)[nextStatus].label }),
+      )
       await onTaskUpdated()
     } catch (error) {
       onTaskStatusChange(taskId, previousStatus)
-      toast.error(error instanceof Error ? error.message : "更新任务状态失败")
+      toast.error(error instanceof Error ? error.message : t("project.task.statusUpdateFailed"))
     } finally {
       setTaskUpdating(taskId, false)
     }
@@ -113,7 +118,7 @@ export function ProjectTaskBoardView({
             {boardColumns.map((status) => (
               <BoardColumn
                 dragging={draggedTaskId !== null}
-                emptyMessage={emptyMessage}
+                emptyMessage={resolvedEmptyMessage}
                 key={status}
                 onOpenTask={onOpenTask}
                 onTaskUpdated={onTaskUpdated}
@@ -153,8 +158,9 @@ function BoardColumn({
   tasks: ProjectTask[]
   updatingTaskIds: Set<string>
 }) {
+  const { t } = useLocale()
   const { isOver, setNodeRef } = useDroppable({ id: status })
-  const details = projectTaskStatusDetails[status]
+  const details = getProjectTaskStatusDetails(t)[status]
 
   return (
     <section
@@ -210,6 +216,7 @@ function BoardTask({
   onUpdated: () => Promise<void>
   task: ProjectTask
 }) {
+  const { t } = useLocale()
   const { attributes, isDragging, listeners, setNodeRef } = useDraggable({
     disabled: draggingDisabled,
     id: task.id,
@@ -232,7 +239,7 @@ function BoardTask({
         <div
           {...attributes}
           {...listeners}
-          aria-label={`任务：${task.title}。按 Enter 查看详情，按空格拖动`}
+          aria-label={t("project.task.boardAria", { title: task.title })}
           className={cn(
             "cursor-grab touch-none select-none active:cursor-grabbing",
             draggingDisabled && "cursor-default",
@@ -258,7 +265,9 @@ function BoardTask({
         <div className="mt-3 flex min-w-0 items-center gap-2">
           <Badge asChild variant="outline">
             <button
-              aria-label={`修改任务优先级，当前为${projectTaskPriorityLabels[task.priority]}`}
+              aria-label={t("project.task.changePriority", {
+                label: getProjectTaskPriorityLabels(t)[task.priority],
+              })}
               className="cursor-pointer font-normal hover:ring-1 hover:ring-ring/50"
               onClick={(event) => {
                 event.stopPropagation()
@@ -267,13 +276,16 @@ function BoardTask({
               type="button"
             >
               <ProjectTaskPriorityIcon priority={task.priority} />
-              {projectTaskPriorityLabels[task.priority]}
+              {getProjectTaskPriorityLabels(t)[task.priority]}
             </button>
           </Badge>
           {task.dueDate && (
             <Badge asChild variant={overdue ? "warning" : "outline"}>
               <button
-                aria-label={`修改任务截止日期，当前为${task.dueDate}`}
+                aria-label={t("project.task.changeDate", {
+                  label: t("project.task.dueLabel"),
+                  value: task.dueDate,
+                })}
                 className={cn(
                   "cursor-pointer hover:ring-1 hover:ring-ring/50",
                   overdue &&
@@ -286,7 +298,7 @@ function BoardTask({
                 }}
                 type="button"
               >
-                截止 <time dateTime={task.dueDate}>{task.dueDate}</time>
+                {t("project.task.dueLabel")} <time dateTime={task.dueDate}>{task.dueDate}</time>
               </button>
             </Badge>
           )}
@@ -322,6 +334,7 @@ function BoardTask({
 }
 
 function BoardTaskOverlay({ task }: { task: ProjectTask }) {
+  const { t } = useLocale()
   return (
     <div className="w-full rounded-md border bg-background p-3 text-left shadow-lg">
       <div className="line-clamp-2 text-sm leading-snug font-medium">{task.title}</div>
@@ -333,10 +346,12 @@ function BoardTaskOverlay({ task }: { task: ProjectTask }) {
       <div className="mt-3 flex min-w-0 items-center gap-2">
         <Badge className="font-normal" variant="outline">
           <ProjectTaskPriorityIcon priority={task.priority} />
-          {projectTaskPriorityLabels[task.priority]}
+          {getProjectTaskPriorityLabels(t)[task.priority]}
         </Badge>
         {task.dueDate && (
-          <Badge variant={isOverdue(task) ? "warning" : "outline"}>截止 {task.dueDate}</Badge>
+          <Badge variant={isOverdue(task) ? "warning" : "outline"}>
+            {t("project.task.dueDate", { date: task.dueDate })}
+          </Badge>
         )}
         {task.assignee && (
           <ProjectTaskAssigneeAvatar assignee={task.assignee} className="ml-auto" />

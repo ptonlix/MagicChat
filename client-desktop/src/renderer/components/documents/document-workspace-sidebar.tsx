@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ArrowLeft, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { toast } from "sonner"
@@ -25,6 +26,7 @@ export function DocumentWorkspaceSidebar({
   projectId: string
   projectName: string
 }) {
+  const { t } = useLocale()
   const navigate = useNavigate()
   const [creating, setCreating] = React.useState(false)
   const [documents, setDocuments] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
@@ -40,11 +42,11 @@ export function DocumentWorkspaceSidebar({
       setExpanded(new Set(collectFolderIds(tree)))
       setError("")
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载文档导航失败")
+      setError(loadError instanceof Error ? loadError.message : t("document.loadNavFailed"))
     } finally {
       setLoading(false)
     }
-  }, [projectId])
+  }, [projectId, t])
 
   React.useEffect(() => void load(), [load])
 
@@ -55,13 +57,13 @@ export function DocumentWorkspaceSidebar({
     try {
       const created = await createClientDocument(projectId, {
         kind: "document",
-        title: "无标题文档",
+        title: t("document.untitled"),
       })
       if (!onBeforeNavigate(confirmedVersion)) return
       onAllowConfirmedNavigation()
       navigate(`/documents/document/${encodeURIComponent(created.id)}`)
     } catch (createError) {
-      toast.error(createError instanceof Error ? createError.message : "创建文档失败")
+      toast.error(createError instanceof Error ? createError.message : t("document.createFailed"))
     } finally {
       setCreating(false)
     }
@@ -70,7 +72,7 @@ export function DocumentWorkspaceSidebar({
   return (
     <aside className="no-drag flex h-full w-full shrink-0 flex-col overflow-hidden bg-background text-foreground">
       <Link
-        aria-label={`返回项目：${projectName}`}
+        aria-label={t("document.backToProjectAria", { name: projectName })}
         className="mx-2 mt-2 flex h-10 items-center gap-2 rounded-md px-2 hover:bg-accent focus-visible:ring-2"
         to={`/projects/${encodeURIComponent(projectId)}/documents`}
       >
@@ -84,24 +86,30 @@ export function DocumentWorkspaceSidebar({
           onClick={() => void createDocument()}
           variant="outline"
         >
-          {creating ? <Loader2 className="animate-spin" /> : <Plus />}新建文档
+          {creating ? <Loader2 className="animate-spin" /> : <Plus />}
+          {t("document.newDoc")}
         </Button>
       </div>
-      <nav aria-label="项目文档" className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+      <nav
+        aria-label={t("document.projectDocs")}
+        className="min-h-0 flex-1 overflow-y-auto px-2 pb-4"
+      >
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            正在加载
+            {t("document.loading2")}
           </div>
         ) : error ? (
           <div className="space-y-3 px-3 py-8 text-center text-sm text-muted-foreground">
             <p>{error}</p>
             <Button onClick={() => void load()} size="sm" variant="outline">
-              重试
+              {t("document.retry")}
             </Button>
           </div>
         ) : documents.length === 0 ? (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground">还没有其他文档</div>
+          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+            {t("document.noOthers")}
+          </div>
         ) : (
           <SidebarTree
             activeDocumentId={activeDocumentId}

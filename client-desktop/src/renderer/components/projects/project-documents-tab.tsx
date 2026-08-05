@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import {
   DndContext,
   DragOverlay,
@@ -89,6 +90,7 @@ type EditDialogState =
   | null
 
 export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
+  const { t } = useLocale()
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [deleteNode, setDeleteNode] = React.useState<DocumentTreeNode | null>(null)
   const [documentTree, setDocumentTree] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
@@ -120,12 +122,12 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
         setError("")
       } catch (loadError) {
         if (controller.signal.aborted) return
-        setError(loadError instanceof Error ? loadError.message : "加载文档列表失败")
+        setError(loadError instanceof Error ? loadError.message : t("docTab.loadFailed"))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
     },
-    [projectId],
+    [projectId, t],
   )
 
   React.useEffect(() => {
@@ -159,18 +161,22 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
         if (editDialog.parentId) {
           setExpandedFolderIds((current) => new Set(current).add(editDialog.parentId as string))
         }
-        toast.success(created.kind === "folder" ? "目录已创建" : "文档已创建")
+        toast.success(
+          created.kind === "folder" ? t("docTab.folderCreated") : t("docTab.docCreated"),
+        )
       } else if (editDialog.node.kind === "document") {
         await updateCollaborativeDocumentTitle(editDialog.node.id, title)
-        toast.success("文档标题已更新")
+        toast.success(t("docTab.titleUpdated"))
       } else {
         await updateClientDocument(editDialog.node.id, { title })
-        toast.success("目录名称已更新")
+        toast.success(t("docTab.folderNameUpdated"))
       }
       setEditDialog(null)
       await loadDocuments()
     } catch (mutationError) {
-      toast.error(mutationError instanceof Error ? mutationError.message : "操作失败")
+      toast.error(
+        mutationError instanceof Error ? mutationError.message : t("docTab.operationFailed"),
+      )
     } finally {
       setMutating(false)
     }
@@ -182,12 +188,14 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
     try {
       const result = await deleteClientDocument(deleteNode.id)
       toast.success(
-        result.deletedCount > 1 ? `已删除 ${result.deletedCount} 个节点` : "文档节点已删除",
+        result.deletedCount > 1
+          ? t("docTab.deletedMany", { count: result.deletedCount })
+          : t("docTab.deletedOne"),
       )
       setDeleteNode(null)
       await loadDocuments()
     } catch (mutationError) {
-      toast.error(mutationError instanceof Error ? mutationError.message : "删除失败")
+      toast.error(mutationError instanceof Error ? mutationError.message : t("docTab.deleteFailed"))
     } finally {
       setMutating(false)
     }
@@ -209,11 +217,11 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
     setMutating(true)
     void moveClientDocument(draggedId, location)
       .then(() => {
-        toast.success("文档位置已更新")
+        toast.success(t("docTab.moved"))
         return loadDocuments()
       })
       .catch(async (mutationError: unknown) => {
-        toast.error(mutationError instanceof Error ? mutationError.message : "移动文档失败")
+        toast.error(mutationError instanceof Error ? mutationError.message : t("docTab.moveFailed"))
         await loadDocuments()
       })
       .finally(() => setMutating(false))
@@ -236,12 +244,15 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
           sensors={sensors}
         >
           {loading ? (
-            <DocumentState icon={<Loader2 className="animate-spin" />} title="正在加载文档" />
+            <DocumentState
+              icon={<Loader2 className="animate-spin" />}
+              title={t("docTab.loading")}
+            />
           ) : error ? (
             <DocumentState
               action={
                 <Button onClick={() => void loadDocuments(true)} variant="outline">
-                  重试
+                  {t("docTab.retry")}
                 </Button>
               }
               title={error}
@@ -256,12 +267,12 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
                     }
                   >
                     <Plus />
-                    创建文档
+                    {t("docTab.createDoc")}
                   </Button>
                 ) : undefined
               }
               icon={<FileText />}
-              title={searching ? "没有匹配的文档" : "还没有文档"}
+              title={searching ? t("docTab.noMatch") : t("docTab.empty")}
             />
           ) : (
             <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-background shadow-xs">
@@ -316,18 +327,20 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              删除{deleteNode?.kind === "folder" ? "目录" : "文档"}？
+              {t(deleteNode?.kind === "folder" ? "docTab.deleteFolder" : "docTab.deleteDoc")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteNode?.kind === "folder"
-                ? `目录及其 ${Math.max(collectDocumentNodeIds(deleteNode).size - 1, 0)} 个子节点将一并删除，此操作暂不支持恢复。`
-                : "删除后将无法继续打开该文档，此操作暂不支持恢复。"}
+                ? t("docTab.deleteFolderDesc", {
+                    count: Math.max(collectDocumentNodeIds(deleteNode).size - 1, 0),
+                  })
+                : t("docTab.deleteDocDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={mutating}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={mutating}>{t("docTab.cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={mutating} onClick={() => void confirmDelete()}>
-              {mutating ? "正在删除" : "删除"}
+              {mutating ? t("docTab.deleting") : t("docTab.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -347,15 +360,16 @@ function DocumentToolbar({
   onCreate: (kind: ClientDocumentKind) => void
   onKeywordChange: (keyword: string) => void
 }) {
+  const { t } = useLocale()
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
       <div className="relative min-w-52 sm:min-w-64">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          aria-label="搜索当前项目文档"
+          aria-label={t("docTab.search")}
           className="pl-8"
           onChange={(event) => onKeywordChange(event.target.value)}
-          placeholder="搜索当前项目文档"
+          placeholder={t("docTab.search")}
           type="search"
           value={keyword}
         />
@@ -364,17 +378,17 @@ function DocumentToolbar({
         <DropdownMenuTrigger asChild>
           <Button disabled={disabled} type="button">
             <Plus />
-            创建
+            {t("docTab.create")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => onCreate("document")}>
             <FileText />
-            新建文档
+            {t("docTree.newDoc")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onCreate("folder")}>
             <FolderPlus />
-            新建目录
+            {t("docTree.newFolder")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -465,6 +479,7 @@ function DocumentTreeItem(
 }
 
 function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & { open: boolean }) {
+  const { t } = useLocale()
   const {
     attributes,
     isDragging,
@@ -517,7 +532,7 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          aria-label={`拖动${props.node.title}`}
+          aria-label={t("docTree.dragAria", { title: props.node.title })}
           className="mr-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted focus-visible:opacity-100"
           disabled={props.disabled}
           type="button"
@@ -567,7 +582,11 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
         </time>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button aria-label={`操作${props.node.title}`} size="icon-xs" variant="ghost">
+            <Button
+              aria-label={t("docTree.actionsAria", { title: props.node.title })}
+              size="icon-xs"
+              variant="ghost"
+            >
               <Ellipsis />
             </Button>
           </DropdownMenuTrigger>
@@ -576,25 +595,25 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
               <>
                 <DropdownMenuItem onSelect={() => props.onCreate("document", props.node.id)}>
                   <FileText />
-                  新建子文档
+                  {t("docTree.newChildDoc")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => props.onCreate("folder", props.node.id)}>
                   <FolderPlus />
-                  新建子目录
+                  {t("docTree.newChildFolder")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
             )}
             <DropdownMenuItem onSelect={() => props.onRename(props.node)}>
               <Pencil />
-              重命名
+              {t("docTree.rename")}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive"
               onSelect={() => props.onDelete(props.node)}
             >
               <Trash2 />
-              删除
+              {t("docTree.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -651,6 +670,7 @@ function DocumentEditDialog({
   onSubmit: (title: string) => Promise<void>
   state: Exclude<EditDialogState, null>
 }) {
+  const { t } = useLocale()
   const [title, setTitle] = React.useState(state.mode === "rename" ? state.node.title : "")
   const kind = state.mode === "create" ? state.kind : state.node.kind
   return (
@@ -658,7 +678,11 @@ function DocumentEditDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {state.mode === "rename" ? "重命名" : kind === "folder" ? "新建目录" : "新建文档"}
+            {state.mode === "rename"
+              ? t("docTree.rename")
+              : kind === "folder"
+                ? t("docTree.newFolder")
+                : t("docTree.newDoc")}
           </DialogTitle>
         </DialogHeader>
         <form
@@ -669,7 +693,9 @@ function DocumentEditDialog({
           }}
         >
           <div className="space-y-2">
-            <Label htmlFor="document-title">{kind === "folder" ? "目录名称" : "文档标题"}</Label>
+            <Label htmlFor="document-title">
+              {kind === "folder" ? t("docTree.folderName") : t("docTree.docTitle")}
+            </Label>
             <Input
               autoFocus
               id="document-title"
@@ -684,10 +710,10 @@ function DocumentEditDialog({
               type="button"
               variant="outline"
             >
-              取消
+              {t("docTree.cancel")}
             </Button>
             <Button disabled={disabled || !title.trim()} type="submit">
-              {disabled ? "正在保存" : "保存"}
+              {disabled ? t("docTree.saving") : t("docTree.save")}
             </Button>
           </DialogFooter>
         </form>

@@ -9,6 +9,7 @@ import { ClientDocumentTitle } from "@/components/client-document-title"
 import { ClientMessageNotificationSync } from "@/components/client-message-notification-sync"
 import { ClientRealtimeProvider } from "@/components/client-realtime-provider"
 import { AppInfoProvider } from "@/components/app-info-provider"
+import { useLocale } from "@/components/locale-provider"
 import { ChatPage } from "@/pages/chat-page"
 import { ContactsPage } from "@/pages/contacts-page"
 import { LoginPage } from "@/pages/login-page"
@@ -17,6 +18,7 @@ import { ProjectsPage } from "@/pages/projects-page"
 const DocumentPage = lazy(() => import("@/pages/document-page"))
 
 export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
+  const { t } = useLocale()
   return (
     <AppInfoProvider>
       <ClientBrandMetadata />
@@ -26,7 +28,7 @@ export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
           path="/login"
           element={
             <>
-              <ClientDocumentTitle title="登录" disableMessageAlert />
+              <ClientDocumentTitle title={t("app.title.login")} disableMessageAlert />
               <LoginPage />
             </>
           }
@@ -37,7 +39,7 @@ export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
               path="/init"
               element={
                 <>
-                  <ClientDocumentTitle title="正在加载" disableMessageAlert />
+                  <ClientDocumentTitle title={t("app.title.loading")} disableMessageAlert />
                   <InitPage />
                 </>
               }
@@ -55,7 +57,7 @@ export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
               path="/contacts/:directoryType?/:directoryId?"
               element={
                 <>
-                  <ClientDocumentTitle title="联系人" />
+                  <ClientDocumentTitle title={t("app.title.contacts")} />
                   <ContactsPage />
                 </>
               }
@@ -64,7 +66,7 @@ export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
               path="/projects/:projectId?/:section?"
               element={
                 <>
-                  <ClientDocumentTitle title="项目" />
+                  <ClientDocumentTitle title={t("app.title.projects")} />
                   <ProjectsPage />
                 </>
               }
@@ -98,9 +100,10 @@ function AuthenticatedProviderShell() {
 }
 
 function DocumentRouteLoading() {
+  const { t } = useLocale()
   return (
     <main className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-      正在加载文档工作区
+      {t("app.title.document")}
     </main>
   )
 }

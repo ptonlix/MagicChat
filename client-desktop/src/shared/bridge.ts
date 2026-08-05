@@ -108,6 +108,10 @@ export const IPC = {
 
 export type DesktopThemeSource = "dark" | "light" | "system"
 
+export type DesktopLanguage = "zh-CN" | "en"
+
+export type DesktopFontScale = "normal" | "medium" | "large"
+
 export type ServerProfile = ServerTarget &
   Readonly<{
     createdAt: string
@@ -118,6 +122,8 @@ export type ServerProfile = ServerTarget &
 export type DesktopSettings = Readonly<{
   autoLaunch: boolean
   closeBehavior: "background" | "quit"
+  fontScale: DesktopFontScale
+  language: DesktopLanguage
   messageSoundEnabled: boolean
   notificationPrivacy: "hidden" | "metadata" | "preview"
   screenshotShortcut: string | null

@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import { useClientData } from "@/lib/client-data-context"
+import { useLocale } from "@/components/locale-provider"
 import { useConversationDrafts } from "@/hooks/use-conversation-drafts"
 import { useMessageSelection } from "@/hooks/use-message-selection"
 import {
@@ -135,6 +136,7 @@ function normalizeSingleLinkMessageURL(content: string) {
 }
 
 export function ChatPage() {
+  const { t } = useLocale()
   const navigate = useNavigate()
   const navigationIntentRef = React.useRef(0)
   const { conversationId } = useParams<{ conversationId?: string }>()
@@ -271,8 +273,8 @@ export function ChatPage() {
     activeConversation?.canSend === false && !activeConversation.topic?.archived
       ? activeConversation.type === "app" ||
         activeConversation.topic?.parentConversationType === "app"
-        ? "你当前无权直接使用此应用"
-        : "当前会话不能发送消息"
+        ? t("topic.noAccess")
+        : t("topic.cannotSend")
       : undefined
   const activeClientMessages = activeMessageState?.messages ?? emptyClientMessages
   const activeClientMessagesById = React.useMemo(
@@ -460,6 +462,7 @@ export function ChatPage() {
     activeConversationHasUnreadProgress,
     activeMessageState?.viewMode,
     markConversationRead,
+    t,
   ])
 
   const loadBeforeMessages = React.useCallback(() => {
@@ -511,10 +514,10 @@ export function ChatPage() {
       }
 
       void revokeConversationMessage(activeConversationId, message.id).catch(() => {
-        toast.error("撤回消息失败")
+        toast.error(t("topic.revokeFailed"))
       })
     },
-    [activeConversationId, revokeConversationMessage],
+    [activeConversationId, revokeConversationMessage, t],
   )
 
   const updateMessageReaction = React.useCallback(
@@ -578,12 +581,12 @@ export function ChatPage() {
       if (!canForwardOrSelectMessage(message)) return
       const selected = selectedMessageIds.has(message.id)
       if (!selected && selectedMessageIds.size >= maxSelectedMessages) {
-        toast.warning(`一次最多选择 ${maxSelectedMessages} 条消息`)
+        toast.warning(t("topic.maxSelected", { count: maxSelectedMessages }))
         return
       }
       toggleSelectedMessage(message.id)
     },
-    [maxSelectedMessages, selectedMessageIds, toggleSelectedMessage],
+    [maxSelectedMessages, selectedMessageIds, toggleSelectedMessage, t],
   )
 
   const forwardSelectedMessages = React.useCallback(
@@ -764,7 +767,7 @@ export function ChatPage() {
       if (activeTopicSourceSelectable && activeTopicSource?.id === message.id) {
         const selected = selectedMessageIds.has(message.id)
         if (!selected && selectedMessageIds.size >= maxSelectedMessages) {
-          toast.warning(`一次最多选择 ${maxSelectedMessages} 条消息`)
+          toast.warning(t("topic.maxSelected", { count: maxSelectedMessages }))
           return
         }
         toggleSelectedMessage(message.id)
@@ -776,6 +779,7 @@ export function ChatPage() {
       maxSelectedMessages,
       selectedMessageIds,
       toggleSelectedMessage,
+      t,
     ],
   )
 
@@ -1002,11 +1006,11 @@ export function ChatPage() {
         conversationId: result.conversation.id,
       })
       setCreateTopicOperation(null)
-      toast.success(result.created ? "话题已创建" : "已打开现有话题")
+      toast.success(result.created ? t("chat.topicCreated") : t("chat.topicOpened"))
       openTopicDrawer(result.conversation.id)
       void refreshConversations().catch(() => undefined)
     } catch (error) {
-      toast.error(getClientDataErrorMessage(error, "创建话题失败"))
+      toast.error(getClientDataErrorMessage(error, t("chat.topicCreateFailed")))
     } finally {
       setCreatingTopic(false)
     }
@@ -1028,7 +1032,7 @@ export function ChatPage() {
       }
     } catch (error) {
       if (navigationIntentRef.current === navigationIntent) {
-        toast.error(getClientDataErrorMessage(error, "打开会话失败"))
+        toast.error(getClientDataErrorMessage(error, t("chat.openConversationFailed")))
       }
     }
   }
@@ -1054,7 +1058,7 @@ export function ChatPage() {
       })
     } catch (error) {
       if (navigationIntentRef.current === navigationIntent) {
-        toast.error(getClientDataErrorMessage(error, "打开搜索结果失败"))
+        toast.error(getClientDataErrorMessage(error, t("chat.openSearchResultFailed")))
       }
     }
   }
@@ -1218,17 +1222,16 @@ function CreateTopicConfirmDialog({
   open: boolean
   saving: boolean
 }) {
+  const { t } = useLocale()
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>创建话题</AlertDialogTitle>
-          <AlertDialogDescription>
-            将以这条消息作为起点创建一个独立话题，方便围绕它继续讨论。
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t("chat.createTopic.title")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("chat.createTopic.desc")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={saving}>取消</AlertDialogCancel>
+          <AlertDialogCancel disabled={saving}>{t("topic.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             disabled={saving}
             onClick={(event) => {
@@ -1237,7 +1240,7 @@ function CreateTopicConfirmDialog({
             }}
           >
             {saving && <LoaderCircle className="size-4 animate-spin" />}
-            确认创建
+            {t("chat.confirmCreate")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

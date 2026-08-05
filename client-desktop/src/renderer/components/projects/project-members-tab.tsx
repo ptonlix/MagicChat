@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2 } from "lucide-react"
 
 import { ProjectMemberAvatar } from "@/components/projects/project-member-avatar"
@@ -16,6 +17,7 @@ import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
 
 export function ProjectMembersTab({ projectId }: { projectId: string }) {
+  const { t } = useLocale()
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
@@ -31,7 +33,7 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
       })
       .catch((loadError) => {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : "加载项目成员失败")
+          setError(loadError instanceof Error ? loadError.message : t("project.members.loadFailed"))
         }
       })
       .finally(() => {
@@ -43,13 +45,13 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [projectId, t])
 
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 bg-muted/10 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        正在加载成员
+        {t("project.members.loading")}
       </div>
     )
   }
@@ -65,7 +67,7 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
   if (members.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-muted/10 text-sm text-muted-foreground">
-        暂无项目成员
+        {t("project.noMembers")}
       </div>
     )
   }
@@ -89,7 +91,11 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
                 <ItemDescription className="truncate text-xs">{member.email}</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <Badge variant="secondary">{member.role === "owner" ? "所有者" : "成员"}</Badge>
+                <Badge variant="secondary">
+                  {member.role === "owner"
+                    ? t("project.members.owner")
+                    : t("project.members.member")}
+                </Badge>
               </ItemActions>
             </Item>
           )

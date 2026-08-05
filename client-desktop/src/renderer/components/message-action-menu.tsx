@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import {
   Copy,
@@ -46,7 +47,8 @@ type MessageActionItem = {
 type MessageActionMenuProps = MessageActionOptions & { children: React.ReactNode }
 
 export function MessageActionMenu({ children, ...options }: MessageActionMenuProps) {
-  const actions = resolveMessageActions(options)
+  const { t } = useLocale()
+  const actions = resolveMessageActions(options, t)
 
   return (
     <ContextMenuPrimitive.Root>
@@ -91,16 +93,17 @@ export function MessageMoreActionsMenu({
   align: "start" | "end"
   onOpenChange?: (open: boolean) => void
 }) {
-  const actions = resolveMessageActions(options)
+  const { t } = useLocale()
+  const actions = resolveMessageActions(options, t)
 
   return (
     <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
-          aria-label="更多操作"
+          aria-label={t("messageAction.more")}
           className={messageHoverActionButtonClassName}
           data-slot="message-more-actions"
-          title="更多操作"
+          title={t("messageAction.more")}
           type="button"
         >
           <Ellipsis className="size-3.5" />
@@ -125,25 +128,40 @@ export function MessageMoreActionsMenu({
   )
 }
 
-function resolveMessageActions({
-  canRevoke = false,
-  copyDisabled = false,
-  onCopy,
-  onCreateTopic,
-  onForward,
-  onMultiSelect,
-  onReply,
-  onRevoke,
-  showCopy = true,
-}: MessageActionOptions): MessageActionItem[] {
+function resolveMessageActions(
+  {
+    canRevoke = false,
+    copyDisabled = false,
+    onCopy,
+    onCreateTopic,
+    onForward,
+    onMultiSelect,
+    onReply,
+    onRevoke,
+    showCopy = true,
+  }: MessageActionOptions,
+  t: ReturnType<typeof useLocale>["t"],
+): MessageActionItem[] {
   const actions: MessageActionItem[] = [
-    { disabled: !onReply, icon: Reply, key: "reply", label: "回复", onSelect: onReply },
-    { disabled: !onForward, icon: Forward, key: "forward", label: "转发", onSelect: onForward },
+    {
+      disabled: !onReply,
+      icon: Reply,
+      key: "reply",
+      label: t("messageAction.reply"),
+      onSelect: onReply,
+    },
+    {
+      disabled: !onForward,
+      icon: Forward,
+      key: "forward",
+      label: t("messageAction.forward"),
+      onSelect: onForward,
+    },
     {
       disabled: !onMultiSelect,
       icon: ListChecks,
       key: "multi-select",
-      label: "多选",
+      label: t("messageAction.multiSelect"),
       onSelect: onMultiSelect,
     },
   ]
@@ -153,7 +171,7 @@ function resolveMessageActions({
       disabled: copyDisabled,
       icon: Copy,
       key: "copy",
-      label: "复制",
+      label: t("messageAction.copy"),
       onSelect: onCopy,
     })
   }
@@ -163,7 +181,7 @@ function resolveMessageActions({
       disabled: false,
       icon: MessageSquareText,
       key: "create-topic",
-      label: "创建话题",
+      label: t("messageAction.createTopic"),
       onSelect: onCreateTopic,
     })
   }
@@ -172,7 +190,7 @@ function resolveMessageActions({
       disabled: !onRevoke,
       icon: Undo2,
       key: "revoke",
-      label: "撤回",
+      label: t("messageAction.revoke"),
       onSelect: onRevoke,
       separatorBefore: true,
       variant: "destructive",

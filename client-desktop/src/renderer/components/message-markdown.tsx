@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import ReactMarkdown from "react-markdown"
 import remarkFlexibleMarkers from "remark-flexible-markers"
 import remarkGfm from "remark-gfm"
@@ -79,6 +80,7 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
   currentUserId?: string
   mentionLabelResolver?: MentionLabelResolver
 }) {
+  const { t } = useLocale()
   const remarkPlugins = React.useMemo<ReactMarkdownProps["remarkPlugins"]>(
     () => [
       [remarkGfm, { singleTilde: false }],
@@ -88,7 +90,10 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
     ],
     [mentionLabelResolver],
   )
-  const components = React.useMemo(() => createMarkdownComponents(currentUserId), [currentUserId])
+  const components = React.useMemo(
+    () => createMarkdownComponents(currentUserId, t),
+    [currentUserId, t],
+  )
 
   return (
     <div className="max-w-full space-y-4 break-all">
@@ -107,6 +112,7 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
 
 function createMarkdownComponents(
   currentUserId: string | undefined,
+  t: ReturnType<typeof useLocale>["t"],
 ): ReactMarkdownProps["components"] {
   return {
     a: ({ children, href }) =>
@@ -153,7 +159,7 @@ function createMarkdownComponents(
     input: ({ checked, type }) =>
       type === "checkbox" ? (
         <Checkbox
-          aria-label={checked ? "已完成" : "未完成"}
+          aria-label={checked ? t("markdown.done") : t("markdown.undone")}
           checked={Boolean(checked)}
           className="mt-0.5 shrink-0 disabled:opacity-100"
           disabled
@@ -262,6 +268,7 @@ function MarkdownMention({
 }: MarkdownMentionProps & {
   currentUserId?: string
 }) {
+  const { t } = useLocale()
   const mentionId = getMarkdownNodeProperty(node, "data-mention-id")
   const mentionType = getMarkdownNodeProperty(node, "data-mention-type")
   const isCurrentUserMention =
@@ -292,7 +299,7 @@ function MarkdownMention({
           avatar: "",
           description: "",
           id: mentionId,
-          name: getMentionFallbackName(children),
+          name: getMentionFallbackName(children, t),
           online: false,
         }}
         triggerClassName="align-baseline"
@@ -319,10 +326,10 @@ function isSameUserId(userId: string | undefined, currentUserId?: string) {
   )
 }
 
-function getMentionFallbackName(children: React.ReactNode) {
+function getMentionFallbackName(children: React.ReactNode, t: ReturnType<typeof useLocale>["t"]) {
   const text = React.Children.toArray(children).join("").trim()
 
-  return text.replace(/^@/, "") || "应用"
+  return text.replace(/^@/, "") || t("markdown.app")
 }
 
 function createRemarkMentionPlugin(mentionLabelResolver: MentionLabelResolver) {

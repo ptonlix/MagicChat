@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ChevronsDown, ChevronsUp, Equal } from "lucide-react"
 import { toast } from "sonner"
 
@@ -43,6 +44,7 @@ export function CreateProjectTaskDialog({
   open: boolean
   projectId: string
 }) {
+  const { t } = useLocale()
   const [assigneeUserId, setAssigneeUserId] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
@@ -68,7 +70,7 @@ export function CreateProjectTaskDialog({
       })
       .catch((error: unknown) => {
         if (active) {
-          setMembersError(error instanceof Error ? error.message : "加载项目成员失败")
+          setMembersError(error instanceof Error ? error.message : t("project.members.loadFailed"))
         }
       })
       .finally(() => {
@@ -80,7 +82,7 @@ export function CreateProjectTaskDialog({
     return () => {
       active = false
     }
-  }, [open, projectId])
+  }, [open, projectId, t])
 
   const selectedAssignee = members.find((member) => member.id === assigneeUserId)
   const trimmedTitle = title.trim()
@@ -126,9 +128,9 @@ export function CreateProjectTaskDialog({
       await onCreated()
       resetForm()
       onOpenChange(false)
-      toast.success("任务已创建")
+      toast.success(t("project.task.create.success"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "创建任务失败")
+      toast.error(error instanceof Error ? error.message : t("project.task.create.failed"))
     } finally {
       setSaving(false)
     }
@@ -141,62 +143,63 @@ export function CreateProjectTaskDialog({
         onPointerDownOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>创建任务</DialogTitle>
-          <DialogDescription className="sr-only">
-            填写任务标题、描述、优先级和负责人。
-          </DialogDescription>
+          <DialogTitle>{t("project.task.create.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("project.task.create.desc")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <div className="grid gap-2">
-            <Label htmlFor="create-task-title">任务标题</Label>
+            <Label htmlFor="create-task-title">{t("project.task.title")}</Label>
             <Input
               autoFocus
               disabled={saving}
               id="create-task-title"
               maxLength={240}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="输入任务标题"
+              placeholder={t("project.task.titlePlaceholder")}
               value={title}
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="create-task-description">任务描述</Label>
+            <Label htmlFor="create-task-description">{t("project.task.description")}</Label>
             <Textarea
               className="min-h-40"
               disabled={saving}
               id="create-task-description"
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="支持 Markdown"
+              placeholder={t("project.task.descriptionPlaceholder")}
               value={description}
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <TaskSelectField label="优先级">
+            <TaskSelectField label={t("project.task.priorityLabel")}>
               <Select
                 disabled={saving}
                 onValueChange={(value) => setPriority(Number(value) as ProjectTaskPriority)}
                 value={String(priority)}
               >
-                <SelectTrigger aria-label="任务优先级" className="w-full">
+                <SelectTrigger aria-label={t("project.task.priorityLabel")} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">
-                    <ChevronsDown className="text-muted-foreground" />低
+                    <ChevronsDown className="text-muted-foreground" />
+                    {t("project.priority.low")}
                   </SelectItem>
                   <SelectItem value="2">
-                    <Equal className="text-amber-600" />中
+                    <Equal className="text-amber-600" />
+                    {t("project.priority.medium")}
                   </SelectItem>
                   <SelectItem value="3">
-                    <ChevronsUp className="text-rose-600" />高
+                    <ChevronsUp className="text-rose-600" />
+                    {t("project.priority.high")}
                   </SelectItem>
                 </SelectContent>
               </Select>
             </TaskSelectField>
 
-            <TaskSelectField label="负责人">
+            <TaskSelectField label={t("project.task.assigneeLabel")}>
               <ProjectMemberCombobox
                 disabled={saving || membersLoading}
                 loading={membersLoading}
@@ -211,7 +214,7 @@ export function CreateProjectTaskDialog({
             </TaskSelectField>
           </div>
 
-          <TaskSelectField label="提醒时间">
+          <TaskSelectField label={t("project.task.reminderLabel")}>
             <ProjectTaskReminderField
               disabled={saving}
               onValueChange={setReminder}
@@ -227,11 +230,11 @@ export function CreateProjectTaskDialog({
               type="button"
               variant="outline"
             >
-              取消
+              {t("project.cancel")}
             </Button>
             <Button disabled={!canSubmit} type="submit">
               {saving && <Spinner />}
-              创建
+              {t("project.createTask")}
             </Button>
           </DialogFooter>
         </form>

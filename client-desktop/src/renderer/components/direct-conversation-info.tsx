@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import { Mail, Phone, UserPen, UserRound } from "lucide-react"
 
@@ -13,6 +14,7 @@ type DirectConversationInfoProps = {
 }
 
 export function DirectConversationInfo({ userId }: DirectConversationInfoProps) {
+  const { t } = useLocale()
   const { contacts, me } = useClientData()
   const user = me.id === userId ? me : contacts.find((contact) => contact.id === userId)
 
@@ -20,21 +22,21 @@ export function DirectConversationInfo({ userId }: DirectConversationInfoProps) 
     return (
       <>
         <SheetHeader className="border-b">
-          <SheetTitle>会话信息</SheetTitle>
-          <SheetDescription>私聊</SheetDescription>
+          <SheetTitle>{t("directInfo.title")}</SheetTitle>
+          <SheetDescription>{t("directInfo.subtitle")}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">用户信息不可用</div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">{t("directInfo.unavailable")}</div>
       </>
     )
   }
 
-  const displayName = getUserDisplayName(user)
+  const displayName = getUserDisplayName(user, t)
 
   return (
     <>
       <SheetHeader className="border-b">
-        <SheetTitle>会话信息</SheetTitle>
-        <SheetDescription>私聊</SheetDescription>
+        <SheetTitle>{t("directInfo.title")}</SheetTitle>
+        <SheetDescription>{t("directInfo.subtitle")}</SheetDescription>
       </SheetHeader>
       <div className="flex min-w-0 flex-col gap-5 p-4">
         <div className="flex justify-center">
@@ -51,22 +53,22 @@ export function DirectConversationInfo({ userId }: DirectConversationInfoProps) 
         <div className="grid min-w-0 gap-1 text-sm">
           <DirectConversationInfoRow
             icon={<UserRound className="size-4 text-muted-foreground" />}
-            label="姓名"
+            label={t("app.contactName")}
             value={user.name}
           />
           <DirectConversationInfoRow
             icon={<UserPen className="size-4 text-muted-foreground" />}
-            label="昵称"
+            label={t("app.contactNickname")}
             value={user.nickname}
           />
           <DirectConversationInfoRow
             icon={<Mail className="size-4 text-muted-foreground" />}
-            label="邮箱"
+            label={t("app.contactEmail")}
             value={user.email}
           />
           <DirectConversationInfoRow
             icon={<Phone className="size-4 text-muted-foreground" />}
-            label="手机"
+            label={t("app.contactPhone")}
             value={user.phone ? formatContactPhone(user.phone) : ""}
           />
         </div>
@@ -84,8 +86,9 @@ function DirectConversationInfoRow({
   label: string
   value: string
 }) {
+  const { t } = useLocale()
   const hasValue = Boolean(value.trim())
-  const displayValue = hasValue ? value : "未设置"
+  const displayValue = hasValue ? value : t("app.notSet")
 
   return (
     <div className="flex min-w-0 items-center gap-3 border-b py-2 last:border-b-0">
@@ -98,11 +101,14 @@ function DirectConversationInfoRow({
   )
 }
 
-function getUserDisplayName(user: { name: string; nickname: string }) {
+function getUserDisplayName(
+  user: { name: string; nickname: string },
+  t: ReturnType<typeof useLocale>["t"],
+) {
   const name = user.name.trim()
   const nickname = user.nickname.trim()
 
-  return nickname || name || "未命名用户"
+  return nickname || name || t("userProfile.unnamed")
 }
 
 function getUserInitial(displayName: string) {

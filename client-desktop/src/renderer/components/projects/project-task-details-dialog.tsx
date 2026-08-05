@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import {
   ChevronsDown,
   ChevronsUp,
@@ -106,6 +107,7 @@ export function ProjectTaskDetailsDialog({
   open: boolean
   task: ProjectTask
 }) {
+  const { t } = useLocale()
   const initialForm = createTaskEditForm(task)
   const [baseline, setBaseline] = React.useState<NormalizedTaskEditForm>(() =>
     normalizeTaskEditForm(initialForm),
@@ -146,7 +148,7 @@ export function ProjectTaskDetailsDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : "加载任务详情失败")
+          setError(loadError instanceof Error ? loadError.message : t("taskDetail.loadFailed"))
         }
       })
       .finally(() => {
@@ -163,7 +165,9 @@ export function ProjectTaskDetailsDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setMembersError(loadError instanceof Error ? loadError.message : "加载项目成员失败")
+          setMembersError(
+            loadError instanceof Error ? loadError.message : t("taskDetail.membersLoadFailed"),
+          )
         }
       })
       .finally(() => {
@@ -180,7 +184,9 @@ export function ProjectTaskDetailsDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setLabelsError(loadError instanceof Error ? loadError.message : "加载候选标签失败")
+          setLabelsError(
+            loadError instanceof Error ? loadError.message : t("taskDetail.labelsLoadFailed"),
+          )
         }
       })
       .finally(() => {
@@ -192,10 +198,10 @@ export function ProjectTaskDetailsDialog({
     return () => {
       active = false
     }
-  }, [open, task])
+  }, [open, task, t])
 
   const normalizedForm = normalizeTaskEditForm(form)
-  const validationError = getTaskEditValidationError(normalizedForm)
+  const validationError = getTaskEditValidationError(normalizedForm, t)
   const dirty = !taskEditFormsEqual(normalizedForm, baseline)
   const canSave = dirty && !loading && !saving && !deleting && !validationError
   const fallbackAssignee = createFallbackProjectMember(details)
@@ -256,11 +262,11 @@ export function ProjectTaskDetailsDialog({
       setDescriptionEditing(false)
       setError("")
       setForm(updatedForm)
-      toast.success("任务已保存")
+      toast.success(t("taskDetail.saved"))
       onOpenChange(false)
       await onUpdated?.()
     } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : "保存任务失败")
+      toast.error(saveError instanceof Error ? saveError.message : t("taskDetail.saveFailed"))
     } finally {
       setSaving(false)
     }
@@ -271,12 +277,12 @@ export function ProjectTaskDetailsDialog({
     setDeleting(true)
     try {
       const deletedTaskId = await deleteClientProjectTask(task.projectId, task.id)
-      toast.success("任务已删除")
+      toast.success(t("taskDetail.deleted"))
       setDeleteDialogOpen(false)
       onOpenChange(false)
       onDeleted?.(deletedTaskId)
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : "删除任务失败")
+      toast.error(deleteError instanceof Error ? deleteError.message : t("taskDetail.deleteFailed"))
     } finally {
       setDeleting(false)
     }
@@ -290,16 +296,16 @@ export function ProjectTaskDetailsDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            任务详情
+            {t("taskDetail.title")}
             {loading && <Spinner />}
           </DialogTitle>
-          <DialogDescription className="sr-only">查看并修改任务详情。</DialogDescription>
+          <DialogDescription className="sr-only">{t("taskDetail.desc")}</DialogDescription>
         </DialogHeader>
 
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(18rem,1fr)] lg:items-start">
             <div className="grid min-w-0 content-start gap-5">
-              <TaskField htmlFor="task-details-title" label="标题">
+              <TaskField htmlFor="task-details-title" label={t("taskDetail.field.title")}>
                 <Input
                   autoFocus
                   disabled={loading || saving}
@@ -310,7 +316,7 @@ export function ProjectTaskDetailsDialog({
                 />
               </TaskField>
 
-              <TaskField label="标签">
+              <TaskField label={t("taskDetail.field.labels")}>
                 <ProjectTaskLabelsCombobox
                   disabled={loading || saving}
                   loading={labelsLoading}
@@ -325,7 +331,7 @@ export function ProjectTaskDetailsDialog({
               <TaskField
                 action={
                   <ToggleGroup
-                    aria-label="详细内容显示模式"
+                    aria-label={t("taskDetail.detailMode")}
                     className="shrink-0"
                     disabled={loading || saving}
                     onValueChange={(value) => {
@@ -339,17 +345,17 @@ export function ProjectTaskDetailsDialog({
                     variant="outline"
                   >
                     <ToggleGroupItem
-                      aria-label="显示渲染结果"
+                      aria-label={t("taskDetail.preview")}
                       className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
-                      title="预览"
+                      title={t("taskDetail.previewLabel")}
                       value="preview"
                     >
                       <Eye className="size-3.5" />
                     </ToggleGroupItem>
                     <ToggleGroupItem
-                      aria-label="显示 Markdown 原文"
+                      aria-label={t("taskDetail.editSource")}
                       className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
-                      title="编辑原文"
+                      title={t("taskDetail.editLabel")}
                       value="source"
                     >
                       <Pencil className="size-3.5" />
@@ -357,7 +363,7 @@ export function ProjectTaskDetailsDialog({
                   </ToggleGroup>
                 }
                 htmlFor={descriptionEditing ? "task-details-description" : undefined}
-                label="详细内容"
+                label={t("taskDetail.detail")}
               >
                 {descriptionEditing ? (
                   <Textarea
@@ -366,7 +372,7 @@ export function ProjectTaskDetailsDialog({
                     disabled={loading || saving}
                     id="task-details-description"
                     onChange={(event) => updateForm("description", event.target.value)}
-                    placeholder="支持 Markdown"
+                    placeholder={t("taskDetail.detailPlaceholder")}
                     value={form.description}
                   />
                 ) : (
@@ -378,7 +384,7 @@ export function ProjectTaskDetailsDialog({
                       {form.description.trim() ? (
                         <MessageMarkdown content={form.description} />
                       ) : (
-                        <span className="text-muted-foreground">暂无详细内容</span>
+                        <span className="text-muted-foreground">{t("taskDetail.noDetail")}</span>
                       )}
                     </div>
                   </div>
@@ -388,41 +394,41 @@ export function ProjectTaskDetailsDialog({
 
             <div className="grid min-w-0 content-start gap-5">
               <div className="grid gap-4">
-                <TaskField label="状态">
+                <TaskField label={t("taskDetail.field.status")}>
                   <Select
                     disabled={loading || saving}
                     onValueChange={(value) => updateForm("status", value as ProjectTaskStatus)}
                     value={form.status}
                   >
-                    <SelectTrigger aria-label="任务状态" className="w-full">
+                    <SelectTrigger aria-label={t("taskDetail.field.status")} className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todo">
                         <Circle className="text-amber-600" />
-                        待办
+                        {t("project.filter.todo")}
                       </SelectItem>
                       <SelectItem value="in_progress">
                         <CircleDot className="text-sky-600" />
-                        进行中
+                        {t("project.filter.in_progress")}
                       </SelectItem>
                       <SelectItem value="done">
                         <CircleCheckBig className="text-emerald-600" />
-                        已完成
+                        {t("project.filter.done")}
                       </SelectItem>
                       <SelectItem value="canceled">
                         <CircleX className="text-stone-500" />
-                        已取消
+                        {t("project.filter.canceled")}
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </TaskField>
 
-                <TaskField label="创建人">
+                <TaskField label={t("taskDetail.field.creator")}>
                   <DisabledUserInput user={details.creator} />
                 </TaskField>
 
-                <TaskField label="优先级">
+                <TaskField label={t("taskDetail.field.priority")}>
                   <Select
                     disabled={loading || saving}
                     onValueChange={(value) =>
@@ -430,18 +436,21 @@ export function ProjectTaskDetailsDialog({
                     }
                     value={String(form.priority)}
                   >
-                    <SelectTrigger aria-label="任务优先级" className="w-full">
+                    <SelectTrigger aria-label={t("taskDetail.field.priority")} className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="3">
-                        <ChevronsUp className="text-rose-600" />高
+                        <ChevronsUp className="text-rose-600" />
+                        {t("project.priority.high")}
                       </SelectItem>
                       <SelectItem value="2">
-                        <Equal className="text-amber-600" />中
+                        <Equal className="text-amber-600" />
+                        {t("project.priority.medium")}
                       </SelectItem>
                       <SelectItem value="1">
-                        <ChevronsDown className="text-muted-foreground" />低
+                        <ChevronsDown className="text-muted-foreground" />
+                        {t("project.priority.low")}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -449,7 +458,7 @@ export function ProjectTaskDetailsDialog({
               </div>
 
               <div className="grid gap-4">
-                <TaskField label="负责人">
+                <TaskField label={t("taskDetail.field.assignee")}>
                   <ProjectMemberCombobox
                     disabled={loading || saving || membersLoading}
                     loading={membersLoading}
@@ -466,25 +475,25 @@ export function ProjectTaskDetailsDialog({
               </div>
 
               <div className="grid gap-4">
-                <TaskField label="开始日期">
+                <TaskField label={t("taskDetail.field.startDate")}>
                   <ProjectTaskDatePicker
                     disabled={loading || saving}
-                    label="开始日期"
+                    label={t("taskDetail.field.startDate")}
                     maximum={form.dueDate || undefined}
                     onValueChange={(value) => updateForm("startDate", value)}
                     value={form.startDate}
                   />
                 </TaskField>
-                <TaskField label="截止日期">
+                <TaskField label={t("taskDetail.field.dueDate")}>
                   <ProjectTaskDatePicker
                     disabled={loading || saving}
-                    label="截止日期"
+                    label={t("taskDetail.field.dueDate")}
                     minimum={form.startDate || undefined}
                     onValueChange={(value) => updateForm("dueDate", value)}
                     value={form.dueDate}
                   />
                 </TaskField>
-                <TaskField label="提醒时间">
+                <TaskField label={t("taskDetail.field.reminder")}>
                   <ProjectTaskReminderField
                     disabled={loading || saving}
                     onValueChange={(value) => updateForm("reminder", value)}
@@ -513,16 +522,16 @@ export function ProjectTaskDetailsDialog({
                 onClick={() => setSendDialogOpen(true)}
                 title={
                   dirty
-                    ? "请先保存修改后再发送"
+                    ? t("taskDetail.sendBeforeSave")
                     : error
-                      ? "任务详情加载失败，暂不能发送"
+                      ? t("taskDetail.cannotSend")
                       : undefined
                 }
                 type="button"
                 variant="outline"
               >
                 <Send />
-                发送到对话
+                {t("taskDetail.sendToChat")}
               </Button>
               <Button
                 disabled={loading || saving || deleting}
@@ -531,7 +540,7 @@ export function ProjectTaskDetailsDialog({
                 variant="destructive"
               >
                 <Trash2 />
-                删除任务
+                {t("taskDetail.delete")}
               </Button>
             </div>
             <div className="flex justify-end gap-2">
@@ -541,11 +550,11 @@ export function ProjectTaskDetailsDialog({
                 type="button"
                 variant="outline"
               >
-                关闭
+                {t("taskDetail.close")}
               </Button>
               <Button disabled={!canSave} type="submit">
                 {saving && <Spinner />}
-                保存
+                {t("taskDetail.save")}
               </Button>
             </div>
           </DialogFooter>
@@ -561,13 +570,13 @@ export function ProjectTaskDetailsDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除任务</AlertDialogTitle>
+            <AlertDialogTitle>{t("taskDetail.delete")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`确定删除“${details.title}”吗？此操作无法撤销。`}
+              {t("taskDetail.delete.desc", { title: details.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("project.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
               onClick={(event) => {
@@ -577,7 +586,7 @@ export function ProjectTaskDetailsDialog({
               variant="destructive"
             >
               {deleting && <Spinner />}
-              删除任务
+              {t("taskDetail.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -613,6 +622,7 @@ function TaskField({
 }
 
 function DisabledUserInput({ user }: { user: ProjectTask["creator"] }) {
+  const { t } = useLocale()
   const displayName = user.nickname || user.name
   const initial = Array.from(displayName.trim())[0]?.toUpperCase() ?? "?"
 
@@ -626,7 +636,7 @@ function DisabledUserInput({ user }: { user: ProjectTask["creator"] }) {
           <AvatarFallback className="rounded-sm text-[10px]">{initial}</AvatarFallback>
         </Avatar>
       </InputGroupAddon>
-      <InputGroupInput aria-label="创建人" disabled value={displayName} />
+      <InputGroupInput aria-label={t("taskDetail.field.creator")} disabled value={displayName} />
     </InputGroup>
   )
 }
@@ -690,19 +700,22 @@ function normalizeLabels(values: string[]) {
   return labels
 }
 
-function getTaskEditValidationError(form: NormalizedTaskEditForm) {
+function getTaskEditValidationError(
+  form: NormalizedTaskEditForm,
+  t: ReturnType<typeof useLocale>["t"],
+) {
   const titleLength = Array.from(form.title).length
   if (titleLength < 1 || titleLength > 240) {
-    return "标题长度必须为 1 到 240 个字符"
+    return t("taskDetail.validate.title")
   }
   if (form.startDate && form.dueDate && form.startDate > form.dueDate) {
-    return "开始日期不能晚于截止日期"
+    return t("taskDetail.validate.dateRange")
   }
   if (form.labels.length > 20) {
-    return "标签不能超过 20 个"
+    return t("taskDetail.validate.labels")
   }
   if (form.labels.some((label) => Array.from(label).length > 32)) {
-    return "每个标签不能超过 32 个字符"
+    return t("taskDetail.validate.labelLength")
   }
   return ""
 }

@@ -92,6 +92,8 @@ describe("桌面配置迁移", () => {
     expect(store.getSettings()).toEqual({
       autoLaunch: false,
       closeBehavior: "background",
+      fontScale: "normal",
+      language: "zh-CN",
       messageSoundEnabled: true,
       notificationPrivacy: "metadata",
       screenshotShortcut: "CommandOrControl+Shift+A",

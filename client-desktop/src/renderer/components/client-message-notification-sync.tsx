@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { matchPath, useLocation, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -33,9 +34,10 @@ import {
 } from "@/lib/desktop-host"
 
 const enableNotificationToastId = "enable-browser-message-notifications"
-const enableNotificationToastText = "收到新消息，左上角点击头像，在设置中可以开启桌面通知"
 
 export function ClientMessageNotificationSync() {
+  const { t } = useLocale()
+  const enableNotificationToastText = t("notification.enableHint")
   const location = useLocation()
   const navigate = useNavigate()
   const { subscribeRealtimeEvent } = useRealtime()
@@ -85,6 +87,7 @@ export function ClientMessageNotificationSync() {
           conversation,
           me,
           sender: message.sender,
+          t,
         })
         const body = `${senderName}: ${getMessageNotificationSummary({
           appsById: contactAppsById,
@@ -92,6 +95,7 @@ export function ClientMessageNotificationSync() {
           conversation,
           me,
           message,
+          t,
         })}`
 
         if (
@@ -115,7 +119,7 @@ export function ClientMessageNotificationSync() {
         const notified = showBrowserMessageNotification({
           body,
           tag: message.id,
-          title: "收到新消息",
+          title: t("notification.title"),
           onClick: () => {
             window.focus()
             navigate(`/chat/${encodeURIComponent(message.conversationId)}`)
@@ -134,8 +138,10 @@ export function ClientMessageNotificationSync() {
     contactAppsById,
     contacts,
     conversations,
+    enableNotificationToastText,
     me,
     navigate,
+    t,
     subscribeRealtimeEvent,
     visibleConversationId,
   ])
@@ -149,15 +155,17 @@ function getMessageNotificationSenderName({
   appsById,
   me,
   sender,
+  t,
 }: {
   appsById: ReadonlyMap<string, ContactApp>
   contacts: ContactUser[]
   conversation: ClientConversation | undefined
   me: ClientUser
   sender: ClientMessageSender
+  t: ReturnType<typeof useLocale>["t"]
 }) {
   if (sender.type === "system") {
-    return "系统"
+    return t("notification.system")
   }
 
   if (sender.type === "app") {
@@ -182,12 +190,13 @@ function getMessageNotificationSenderName({
     return conversation.name
   }
 
-  return "未知用户"
+  return t("notification.unknownUser")
 }
 
 function getMessageNotificationSummary({
   appsById,
   contacts,
+  t,
   conversation,
   me,
   message,
@@ -197,6 +206,7 @@ function getMessageNotificationSummary({
   conversation: ClientConversation | undefined
   me: ClientUser
   message: ClientMessage
+  t: ReturnType<typeof useLocale>["t"]
 }) {
   const mentionLabelResolver = createConversationMentionLabelResolver({
     appsById,
@@ -211,7 +221,7 @@ function getMessageNotificationSummary({
     .trim()
     .replace(/\s+/g, " ")
 
-  return summary || "收到一条新消息"
+  return summary || t("notification.newMessage")
 }
 
 function formatUserName(user: { name: string; nickname: string }) {

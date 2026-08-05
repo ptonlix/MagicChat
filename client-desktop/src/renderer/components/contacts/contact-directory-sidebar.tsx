@@ -16,6 +16,7 @@ import { CreateAppDialog } from "@/components/contacts/create-app-dialog"
 import { GroupAvatar } from "@/components/group-avatar"
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -70,6 +71,7 @@ export function ContactDirectorySidebar({
   onStartGroupConversation: (group: ContactGroup) => void
   openingDirectoryItemKey: string
 }) {
+  const { t } = useLocale()
   const [createAppDialogOpen, setCreateAppDialogOpen] = useState(false)
   const [createdAppCredentials, setCreatedAppCredentials] = useState<ClientAppCredentials | null>(
     null,
@@ -77,7 +79,7 @@ export function ContactDirectorySidebar({
   const userScrollRef = useRef<HTMLDivElement>(null)
   const appScrollRef = useRef<HTMLDivElement>(null)
   const groupScrollRef = useRef<HTMLDivElement>(null)
-  const activeTabLabel = getDirectoryTabLabel(activeTab)
+  const activeTabLabel = getDirectoryTabLabel(activeTab, t)
   const normalizedCurrentUserId = currentUserId.toLowerCase()
   const builtInApps = apps.filter((app) => app.creatorUserId === null)
   const ownedApps = apps.filter(
@@ -94,13 +96,13 @@ export function ContactDirectorySidebar({
     <Sidebar className="border-r bg-background" collapsible="none">
       <SidebarHeader className="gap-0 p-0">
         <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-base font-medium">通讯录</h1>
+          <h1 className="text-base font-medium">{t("contacts.title")}</h1>
           <Button
-            aria-label="刷新"
+            aria-label={t("contacts.refresh")}
             disabled={contactsRefreshing}
             onClick={onRefresh}
             size="icon-sm"
-            title="刷新"
+            title={t("contacts.refresh")}
             type="button"
             variant="ghost"
           >
@@ -115,17 +117,17 @@ export function ContactDirectorySidebar({
       >
         <div className="px-4 pb-3">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="user">联系人</TabsTrigger>
-            <TabsTrigger value="app">应用</TabsTrigger>
-            <TabsTrigger value="group">群组</TabsTrigger>
+            <TabsTrigger value="user">{t("contacts.tab.users")}</TabsTrigger>
+            <TabsTrigger value="app">{t("contacts.tab.apps")}</TabsTrigger>
+            <TabsTrigger value="group">{t("contacts.tab.groups")}</TabsTrigger>
           </TabsList>
           <div className="relative mt-3">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
             <SidebarInput
-              aria-label={`搜索${activeTabLabel}`}
+              aria-label={t("contacts.search", { label: activeTabLabel })}
               className="pl-8"
               onChange={(event) => onKeywordChange(event.target.value)}
-              placeholder={`搜索${activeTabLabel}`}
+              placeholder={t("contacts.search", { label: activeTabLabel })}
               type="search"
               value={activeKeyword}
             />
@@ -143,7 +145,10 @@ export function ContactDirectorySidebar({
               count={contacts.length}
               title={organizationName}
             >
-              <DirectoryList ariaLabel={`${organizationName} 联系人列表`} scrollRef={userScrollRef}>
+              <DirectoryList
+                ariaLabel={t("contacts.list", { name: organizationName })}
+                scrollRef={userScrollRef}
+              >
                 {contacts.map((contact) => (
                   <ContactListItem
                     key={contact.id}
@@ -159,7 +164,7 @@ export function ContactDirectorySidebar({
                   />
                 ))}
                 {contacts.length === 0 && (
-                  <DirectoryEmptyState label={`${organizationName}联系人`} />
+                  <DirectoryEmptyState label={t("contacts.empty", { name: organizationName })} />
                 )}
               </DirectoryList>
             </DirectorySectionCollapsible>
@@ -175,12 +180,12 @@ export function ContactDirectorySidebar({
               count={builtInApps.length}
               defaultOpen={builtInApps.length > 0}
               forceOpen={Boolean(activeKeyword.trim())}
-              title="内置应用"
+              title={t("contacts.builtinApps")}
             >
               <AppDirectoryList
                 activeSelection={activeSelection}
                 apps={builtInApps}
-                ariaLabel="内置应用列表"
+                ariaLabel={t("contacts.builtinAppsList")}
                 onSelect={onSelect}
                 onStartAppConversation={onStartAppConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
@@ -192,12 +197,12 @@ export function ContactDirectorySidebar({
               count={ownedApps.length}
               defaultOpen={ownedApps.length > 0}
               forceOpen={Boolean(activeKeyword.trim())}
-              title="我的应用"
+              title={t("contacts.myApps")}
             >
               <AppDirectoryList
                 activeSelection={activeSelection}
                 apps={ownedApps}
-                ariaLabel="我的应用列表"
+                ariaLabel={t("contacts.myAppsList")}
                 onSelect={onSelect}
                 onStartAppConversation={onStartAppConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
@@ -211,7 +216,7 @@ export function ContactDirectorySidebar({
                   variant="secondary"
                 >
                   <Blocks />
-                  创建应用
+                  {t("contacts.createApp")}
                 </Button>
               </div>
             </DirectorySectionCollapsible>
@@ -220,12 +225,12 @@ export function ContactDirectorySidebar({
               count={otherApps.length}
               defaultOpen={otherApps.length > 0}
               forceOpen={Boolean(activeKeyword.trim())}
-              title="其他应用"
+              title={t("contacts.otherApps")}
             >
               <AppDirectoryList
                 activeSelection={activeSelection}
                 apps={otherApps}
-                ariaLabel="其他应用列表"
+                ariaLabel={t("dir.otherAppsList")}
                 onSelect={onSelect}
                 onStartAppConversation={onStartAppConversation}
                 openingDirectoryItemKey={openingDirectoryItemKey}
@@ -244,11 +249,11 @@ export function ContactDirectorySidebar({
               count={joinedGroups.length}
               defaultOpen={joinedGroups.length > 0}
               forceOpen={Boolean(activeKeyword.trim())}
-              title="我加入的"
+              title={t("dir.joined")}
             >
               <GroupDirectoryList
                 activeSelection={activeSelection}
-                ariaLabel="我加入的群组列表"
+                ariaLabel={t("dir.joinedList")}
                 groups={joinedGroups}
                 onSelect={onSelect}
                 onStartGroupConversation={onStartGroupConversation}
@@ -261,11 +266,11 @@ export function ContactDirectorySidebar({
               count={publicGroups.length}
               defaultOpen={publicGroups.length > 0}
               forceOpen={Boolean(activeKeyword.trim())}
-              title="公开群组"
+              title={t("dir.public")}
             >
               <GroupDirectoryList
                 activeSelection={activeSelection}
-                ariaLabel="公开群组列表"
+                ariaLabel={t("dir.publicList")}
                 groups={publicGroups}
                 onSelect={onSelect}
                 onStartGroupConversation={onStartGroupConversation}
@@ -458,9 +463,12 @@ function AppDirectoryList({
 }
 
 function DirectoryEmptyState({ label }: { label: string }) {
+  const { t } = useLocale()
   return (
     <div className="group/menu-item relative">
-      <div className="px-3 py-8 text-center text-sm text-muted-foreground">没有匹配的{label}</div>
+      <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+        {t("dir.noMatch", { label })}
+      </div>
     </div>
   )
 }
@@ -478,10 +486,11 @@ function AppListItem({
   selected: boolean
   startingConversation: boolean
 }) {
+  const { t } = useLocale()
   return (
     <DirectoryListItem
       actionDisabled={false}
-      actionLabel={`与 ${app.name} 对话`}
+      actionLabel={t("dir.talkTo", { name: app.name })}
       actionLoading={startingConversation}
       media={
         <Avatar className="rounded-sm bg-muted after:rounded-sm">
@@ -513,10 +522,13 @@ function GroupListItem({
   selected: boolean
   startingConversation: boolean
 }) {
+  const { t } = useLocale()
   return (
     <DirectoryListItem
       actionDisabled={false}
-      actionLabel={group.joined ? `进入 ${group.name}` : `加入 ${group.name}`}
+      actionLabel={
+        group.joined ? t("dir.enter", { name: group.name }) : t("dir.join", { name: group.name })
+      }
       actionLoading={startingConversation}
       media={
         <GroupAvatar
@@ -551,12 +563,13 @@ function ContactListItem({
   startingConversation: boolean
   size?: "default" | "sm"
 }) {
+  const { t } = useLocale()
   const displayName = getContactDisplayName(contact)
   const title = getContactItemTitle(contact)
 
   return (
     <DirectoryListItem
-      actionLabel={canStartConversation ? `与 ${title} 对话` : undefined}
+      actionLabel={canStartConversation ? t("dir.talkTo", { name: title }) : undefined}
       actionLoading={startingConversation}
       media={
         <Avatar className="rounded-sm bg-muted after:rounded-sm" data-testid="contact-avatar">
@@ -646,9 +659,10 @@ function DirectoryListItem({
 }
 
 function ContactAvatarBadge({ online }: { online: boolean }) {
+  const { t } = useLocale()
   return (
     <AvatarBadge
-      aria-label={online ? "在线" : "离线"}
+      aria-label={online ? t("avatar.online") : t("avatar.offline")}
       className={online ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-500"}
     />
   )
@@ -662,16 +676,16 @@ function isDirectorySelection(
   return selection?.type === type && selection.id === id
 }
 
-function getDirectoryTabLabel(tab: DirectoryTab) {
+function getDirectoryTabLabel(tab: DirectoryTab, t: ReturnType<typeof useLocale>["t"]) {
   if (tab === "app") {
-    return "应用"
+    return t("dir.typeApp")
   }
 
   if (tab === "group") {
-    return "群组"
+    return t("dir.typeGroup")
   }
 
-  return "联系人"
+  return t("dir.contact")
 }
 
 function getContactItemTitle(contact: { name: string; nickname: string }) {

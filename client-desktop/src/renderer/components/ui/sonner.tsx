@@ -1,4 +1,5 @@
 import { useTheme } from "next-themes"
+import { useLocale } from "@/components/locale-provider"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import {
   CircleCheckIcon,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { t } = useLocale()
   const { theme = "system" } = useTheme()
 
   return (
@@ -31,7 +33,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       toastOptions={{
-        closeButtonAriaLabel: "关闭提示",
+        closeButtonAriaLabel: t("toast.close"),
         classNames: {
           closeButton: "desktop-toast-close",
           toast: "cn-toast",

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 
 import type { ProjectTask } from "@/components/projects/project-types"
@@ -19,7 +20,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
-const weekdayLabels = ["一", "二", "三", "四", "五", "六", "日"]
 const calendarTaskStatusOrder = {
   todo: 0,
   in_progress: 1,
@@ -28,7 +28,7 @@ const calendarTaskStatusOrder = {
 } satisfies Record<ProjectTask["status"], number>
 
 export function ProjectTaskCalendarView({
-  emptyMessage = "暂无任务",
+  emptyMessage,
   onOpenTask,
   tasks,
 }: {
@@ -36,6 +36,8 @@ export function ProjectTaskCalendarView({
   onOpenTask: (task: ProjectTask) => void
   tasks: ProjectTask[]
 }) {
+  const { t } = useLocale()
+  const weekdayLabels = Array.from(t("project.calendar.weekday"))
   const [monthPickerOpen, setMonthPickerOpen] = React.useState(false)
   const [monthPickerYear, setMonthPickerYear] = React.useState(() => new Date().getFullYear())
   const [visibleMonth, setVisibleMonth] = React.useState(
@@ -73,28 +75,33 @@ export function ProjectTaskCalendarView({
               >
                 <PopoverTrigger asChild>
                   <Button type="button" variant="ghost">
-                    {visibleMonth.getFullYear()} 年 {visibleMonth.getMonth() + 1} 月
+                    {t("project.calendar.yearMonth", {
+                      year: visibleMonth.getFullYear(),
+                      month: visibleMonth.getMonth() + 1,
+                    })}
                     <ChevronDown />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-72 p-3">
                   <div className="mb-3 flex items-center justify-between">
                     <Button
-                      aria-label="上一年"
+                      aria-label={t("project.calendar.prevYear")}
                       onClick={() => setMonthPickerYear((year) => year - 1)}
                       size="icon-sm"
-                      title="上一年"
+                      title={t("project.calendar.prevYear")}
                       type="button"
                       variant="ghost"
                     >
                       <ChevronLeft />
                     </Button>
-                    <span className="text-sm font-medium tabular-nums">{monthPickerYear} 年</span>
+                    <span className="text-sm font-medium tabular-nums">
+                      {t("project.calendar.yearMonth", { year: monthPickerYear, month: "" })}
+                    </span>
                     <Button
-                      aria-label="下一年"
+                      aria-label={t("project.calendar.nextYear")}
                       onClick={() => setMonthPickerYear((year) => year + 1)}
                       size="icon-sm"
-                      title="下一年"
+                      title={t("project.calendar.nextYear")}
                       type="button"
                       variant="ghost"
                     >
@@ -128,7 +135,7 @@ export function ProjectTaskCalendarView({
                           type="button"
                           variant={selected ? "secondary" : "ghost"}
                         >
-                          {month + 1} 月
+                          {month + 1}
                         </Button>
                       )
                     })}
@@ -144,7 +151,7 @@ export function ProjectTaskCalendarView({
                 type="button"
                 variant="outline"
               >
-                今天
+                {t("project.calendar.today")}
               </Button>
             </header>
             <div className="overflow-x-auto">
@@ -158,7 +165,7 @@ export function ProjectTaskCalendarView({
                       )}
                       key={label}
                     >
-                      周{label}
+                      {t("project.calendar.week", { label })}
                     </div>
                   ))}
                 </div>
@@ -190,7 +197,10 @@ export function ProjectTaskCalendarView({
                             )}
                             dateTime={dateKey}
                           >
-                            {date.getMonth() + 1} 月 {date.getDate()} 日{isToday && " - 今天"}
+                            {t(isToday ? "project.calendar.dayToday" : "project.calendar.day", {
+                              month: date.getMonth() + 1,
+                              day: date.getDate(),
+                            })}
                           </time>
                         </div>
                         <div className="grid gap-1">
@@ -222,6 +232,7 @@ function UnscheduledCalendarTasks({
   onOpenTask: (task: ProjectTask) => void
   tasks: ProjectTask[]
 }) {
+  const { t } = useLocale()
   return (
     <Collapsible
       className="overflow-hidden rounded-md border bg-background shadow-xs"
@@ -234,7 +245,7 @@ function UnscheduledCalendarTasks({
           variant="ghost"
         >
           <ChevronRight className="transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
-          未设置日期
+          {t("project.calendar.noDate")}
           <Badge className="ml-auto min-w-5 bg-background px-1.5 tabular-nums" variant="secondary">
             {tasks.length}
           </Badge>
@@ -268,9 +279,10 @@ function UnscheduledCalendarTasks({
 }
 
 function CalendarTask({ onOpen, task }: { onOpen: () => void; task: ProjectTask }) {
+  const { t } = useLocale()
   return (
     <button
-      aria-label={`查看任务详情：${task.title}`}
+      aria-label={t("project.task.viewDetail", { title: task.title })}
       className={cn(
         "flex h-8 w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
         getProjectTaskBlockClassName(task.status),

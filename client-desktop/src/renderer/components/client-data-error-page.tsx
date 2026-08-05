@@ -1,5 +1,6 @@
 import { AlertTriangle, CloudOff, RefreshCw, Server, ShieldCheck, Wifi } from "lucide-react"
 
+import { useLocale } from "@/components/locale-provider"
 import { ClientDocumentTitle } from "@/components/client-document-title"
 import { Button } from "@/components/ui/button"
 
@@ -8,35 +9,35 @@ type ClientDataErrorPageProps = {
   onRetry: () => void
 }
 
-const connectionChecks = [
-  {
-    description: "确认当前设备可以正常访问网络",
-    icon: Wifi,
-    title: "网络连接",
-  },
-  {
-    description: "确认工作区服务器正在运行",
-    icon: Server,
-    title: "服务状态",
-  },
-  {
-    description: "重新连接不会影响本地设置",
-    icon: ShieldCheck,
-    title: "数据安全",
-  },
-]
-
 export function ClientDataErrorPage({ message, onRetry }: ClientDataErrorPageProps) {
+  const { t } = useLocale()
+  const connectionChecks = [
+    {
+      description: t("error.network.desc"),
+      icon: Wifi,
+      title: t("error.network.title"),
+    },
+    {
+      description: t("error.server.desc"),
+      icon: Server,
+      title: t("error.server.title"),
+    },
+    {
+      description: t("error.data.desc"),
+      icon: ShieldCheck,
+      title: t("error.data.title"),
+    },
+  ]
   return (
     <>
-      <ClientDocumentTitle title="工作区加载失败" disableMessageAlert />
+      <ClientDocumentTitle title={t("error.pageTitle")} disableMessageAlert />
       <main className="client-data-error-page min-h-svh bg-background pt-10 text-foreground">
         <header className="client-data-error-header">
           <div className="client-data-error-brand">
-            <img alt="即应" src="/logo.png" />
-            <strong>即应</strong>
+            <img alt={t("brand.name")} src="/logo.png" />
+            <strong>{t("brand.name")}</strong>
             <span aria-hidden="true" />
-            <p>工作空间</p>
+            <p>{t("error.workspace")}</p>
           </div>
         </header>
 
@@ -45,16 +46,14 @@ export function ClientDataErrorPage({ message, onRetry }: ClientDataErrorPagePro
             <div className="client-data-error-icon" aria-hidden="true">
               <CloudOff />
             </div>
-            <p className="client-data-error-eyebrow">连接中断</p>
-            <h1 id="workspace-error-title">工作区加载失败</h1>
-            <p className="client-data-error-description">
-              即应暂时无法完成工作区同步。你可以重新加载，恢复后会回到原来的工作状态。
-            </p>
+            <p className="client-data-error-eyebrow">{t("error.connection")}</p>
+            <h1 id="workspace-error-title">{t("error.pageTitle")}</h1>
+            <p className="client-data-error-description">{t("error.desc")}</p>
 
             <div className="client-data-error-detail" role="alert">
               <AlertTriangle aria-hidden="true" />
               <div>
-                <strong>未能连接工作区</strong>
+                <strong>{t("error.failedToConnect")}</strong>
                 <p>{message}</p>
               </div>
             </div>
@@ -62,16 +61,16 @@ export function ClientDataErrorPage({ message, onRetry }: ClientDataErrorPagePro
             <div className="client-data-error-actions">
               <Button className="client-data-error-retry" onClick={onRetry} size="lg" type="button">
                 <RefreshCw aria-hidden="true" />
-                重新加载
+                {t("error.reload")}
               </Button>
-              <p>仍无法进入？请检查网络与服务器状态后再试。</p>
+              <p>{t("error.reloadHint")}</p>
             </div>
           </section>
 
-          <aside className="client-data-error-checks" aria-label="连接检查">
+          <aside className="client-data-error-checks" aria-label={t("error.checks")}>
             <div className="client-data-error-checks-heading">
               <span aria-hidden="true" />
-              <p>连接检查</p>
+              <p>{t("error.checks")}</p>
             </div>
             <div className="client-data-error-check-list">
               {connectionChecks.map(({ description, icon: Icon, title }) => (

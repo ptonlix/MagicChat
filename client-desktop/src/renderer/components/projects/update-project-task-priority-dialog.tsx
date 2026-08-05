@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ChevronsDown, ChevronsUp, Equal } from "lucide-react"
 import { toast } from "sonner"
 
@@ -17,31 +18,33 @@ import { Spinner } from "@/components/ui/spinner"
 import { updateClientProjectTask } from "@/lib/project-task-data-api"
 import { cn } from "@/lib/utils"
 
-const priorityOptions: Array<{
+function getPriorityOptions(t: ReturnType<typeof useLocale>["t"]): Array<{
   icon: React.ComponentType<{ className?: string }>
   iconClassName: string
   label: string
   value: ProjectTaskPriority
-}> = [
-  {
-    icon: ChevronsUp,
-    iconClassName: "text-rose-600",
-    label: "高",
-    value: 3,
-  },
-  {
-    icon: Equal,
-    iconClassName: "text-amber-600",
-    label: "中",
-    value: 2,
-  },
-  {
-    icon: ChevronsDown,
-    iconClassName: "text-muted-foreground",
-    label: "低",
-    value: 1,
-  },
-]
+}> {
+  return [
+    {
+      icon: ChevronsUp,
+      iconClassName: "text-rose-600",
+      label: t("project.priority.high"),
+      value: 3,
+    },
+    {
+      icon: Equal,
+      iconClassName: "text-amber-600",
+      label: t("project.priority.medium"),
+      value: 2,
+    },
+    {
+      icon: ChevronsDown,
+      iconClassName: "text-muted-foreground",
+      label: t("project.priority.low"),
+      value: 1,
+    },
+  ]
+}
 
 export function UpdateProjectTaskPriorityDialog({
   currentPriority,
@@ -58,6 +61,8 @@ export function UpdateProjectTaskPriorityDialog({
   projectId: string
   taskId: string
 }) {
+  const { t } = useLocale()
+
   const [priority, setPriority] = React.useState<ProjectTaskPriority>(currentPriority)
   const [saving, setSaving] = React.useState(false)
 
@@ -82,9 +87,9 @@ export function UpdateProjectTaskPriorityDialog({
       await updateClientProjectTask(projectId, taskId, { priority })
       await onUpdated()
       onOpenChange(false)
-      toast.success("任务优先级已更新")
+      toast.success(t("updateTask.priority.saved"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "更新任务优先级失败")
+      toast.error(error instanceof Error ? error.message : t("updateTask.priority.failed"))
     } finally {
       setSaving(false)
     }
@@ -94,8 +99,8 @@ export function UpdateProjectTaskPriorityDialog({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="gap-5">
         <DialogHeader>
-          <DialogTitle>修改优先级</DialogTitle>
-          <DialogDescription className="sr-only">选择任务的新优先级。</DialogDescription>
+          <DialogTitle>{t("updateTask.priority.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("updateTask.priority.desc")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <RadioGroup
@@ -103,7 +108,7 @@ export function UpdateProjectTaskPriorityDialog({
             onValueChange={(value) => setPriority(Number(value) as ProjectTaskPriority)}
             value={String(priority)}
           >
-            {priorityOptions.map((option) => {
+            {getPriorityOptions(t).map((option) => {
               const Icon = option.icon
               const id = `task-priority-${taskId}-${option.value}`
 
@@ -130,11 +135,11 @@ export function UpdateProjectTaskPriorityDialog({
               type="button"
               variant="outline"
             >
-              取消
+              {t("updateTask.cancel")}
             </Button>
             <Button disabled={saving || priority === currentPriority} type="submit">
               {saving && <Spinner />}
-              保存
+              {t("updateTask.save")}
             </Button>
           </DialogFooter>
         </form>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import { Bot, Circle } from "lucide-react"
 
@@ -12,6 +13,7 @@ type AppConversationInfoProps = {
 }
 
 export function AppConversationInfo({ conversationId }: AppConversationInfoProps) {
+  const { t } = useLocale()
   const { contactApps, getConversation } = useClientData()
   const conversation = getConversation(conversationId)
 
@@ -19,10 +21,10 @@ export function AppConversationInfo({ conversationId }: AppConversationInfoProps
     return (
       <>
         <SheetHeader className="border-b">
-          <SheetTitle>会话信息</SheetTitle>
-          <SheetDescription>应用</SheetDescription>
+          <SheetTitle>{t("appInfo.title")}</SheetTitle>
+          <SheetDescription>{t("appInfo.subtitle")}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">应用信息不可用</div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">{t("appInfo.unavailable")}</div>
       </>
     )
   }
@@ -38,8 +40,8 @@ export function AppConversationInfo({ conversationId }: AppConversationInfoProps
   return (
     <>
       <SheetHeader className="border-b">
-        <SheetTitle>会话信息</SheetTitle>
-        <SheetDescription>应用</SheetDescription>
+        <SheetTitle>{t("appInfo.title")}</SheetTitle>
+        <SheetDescription>{t("appInfo.subtitle")}</SheetDescription>
       </SheetHeader>
       <div className="flex min-w-0 flex-col gap-5 p-4">
         <div className="flex flex-col items-center gap-3 text-center">
@@ -62,8 +64,8 @@ export function AppConversationInfo({ conversationId }: AppConversationInfoProps
         <div className="grid min-w-0 gap-1 text-sm">
           <AppConversationInfoRow
             icon={<Bot className="size-4 text-muted-foreground" />}
-            label="类型"
-            value="应用"
+            label={t("app.type")}
+            value={t("app.typeValue")}
           />
           <AppConversationInfoRow
             icon={
@@ -74,8 +76,8 @@ export function AppConversationInfo({ conversationId }: AppConversationInfoProps
                 )}
               />
             }
-            label="状态"
-            value={appOnline ? "在线" : "离线"}
+            label={t("app.status")}
+            value={appOnline ? t("app.online") : t("app.offline")}
           />
         </div>
       </div>

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { LoaderCircle } from "lucide-react"
 
 import { formatFileSize } from "@/lib/file-format"
@@ -30,6 +31,7 @@ export function SendFileMessageDialog({
   open,
   sending,
 }: SendFileMessageDialogProps) {
+  const { t } = useLocale()
   const confirmButtonRef = React.useRef<HTMLButtonElement | null>(null)
 
   return (
@@ -46,8 +48,8 @@ export function SendFileMessageDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">发送文件</DialogTitle>
-          <DialogDescription className="sr-only">确认发送文件到当前会话</DialogDescription>
+          <DialogTitle className="text-base">{t("sendFile.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("sendFile.desc")}</DialogDescription>
         </DialogHeader>
         {file && (
           <div className="grid gap-3">
@@ -56,14 +58,15 @@ export function SendFileMessageDialog({
               <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
             </div>
             <p className="min-w-0 text-sm text-muted-foreground">
-              将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
+              {t("voice.sendTo")}{" "}
+              <span className="font-medium text-foreground">{conversationName}</span>
             </p>
           </div>
         )}
         <DialogFooter>
           <DialogClose asChild>
             <Button disabled={sending} type="button" variant="outline">
-              取消
+              {t("sendFile.cancel")}
             </Button>
           </DialogClose>
           <Button
@@ -73,7 +76,7 @@ export function SendFileMessageDialog({
             type="button"
           >
             {sending && <LoaderCircle className="size-4 animate-spin" />}
-            发送
+            {t("sendFile.send")}
           </Button>
         </DialogFooter>
       </DialogContent>

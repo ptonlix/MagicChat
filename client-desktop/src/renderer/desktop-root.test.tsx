@@ -16,6 +16,8 @@ import {
 } from "@shared/bridge"
 import type { ScreenshotStartFailure } from "@shared/screenshot-contract"
 
+vi.unmock("@/components/locale-provider")
+
 const profile: ServerProfile = {
   createdAt: "2026-07-23T00:00:00.000Z",
   displayName: "测试服务器",
@@ -321,11 +323,14 @@ describe("桌面设置服务器管理", () => {
   it("设置读取失败后提供重试并恢复内容", async () => {
     const bridge = createDesktopBridge()
     const initialSettings = await bridge.settings.get()
+    let settingsCalls = 0
     vi.mocked(bridge.settings.get)
       .mockReset()
-      .mockResolvedValueOnce(initialSettings)
-      .mockRejectedValueOnce(new Error("IPC unavailable"))
-      .mockResolvedValueOnce(initialSettings)
+      .mockImplementation(async () => {
+        settingsCalls += 1
+        if (settingsCalls === 3) throw new Error("IPC unavailable")
+        return initialSettings
+      })
     Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
     const user = userEvent.setup()
     render(<DesktopRoot />)
@@ -435,6 +440,39 @@ describe("桌面设置服务器管理", () => {
       "utf8",
     )
     expect(source).toMatch(/\.settings-secondary-button\s*\{[^}]*justify-self:\s*end/)
+  })
+
+  it("切换语言为 English 后设置界面即时变为英文", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await waitFor(() => expect(screen.getByText("通用设置")).toBeInTheDocument())
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "语言" }), "en")
+
+    await waitFor(() => expect(bridge.settings.set).toHaveBeenCalledWith({ language: "en" }))
+    expect(await screen.findByRole("button", { name: "Notifications" })).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Language" })).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Font size" })).toBeInTheDocument()
+  })
+
+  it("字体大小设置应用到根元素字号", async () => {
+    const bridge = createDesktopBridge()
+    Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.selectOptions(screen.getByRole("combobox", { name: "字体大小" }), "medium")
+
+    await waitFor(() => expect(bridge.settings.set).toHaveBeenCalledWith({ fontScale: "medium" }))
+    await waitFor(() => expect(document.documentElement.style.fontSize).toBe("19.2px"))
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "字体大小" }), "large")
+    await waitFor(() => expect(document.documentElement.style.fontSize).toBe("20.8px"))
   })
 
   it("八个分类完整保留全部现有设置能力", async () => {
@@ -1128,12 +1166,8 @@ describe("桌面设置服务器管理", () => {
 })
 
 describe("发布通道显示", () => {
-  it.each([
-    ["test", "开发版"],
-    ["preview", "预览版"],
-    ["stable", "正式版"],
-  ] as const)("将 %s 显示为 %s", (channel, label) => {
-    expect(releaseChannelLabel(channel)).toBe(label)
+  it.each(["test", "preview", "stable"] as const)("将 %s 映射到翻译键", (channel) => {
+    expect(releaseChannelLabel(channel, (key) => key)).toBe(`settings.release.${channel}`)
   })
 })
 
@@ -1153,6 +1187,8 @@ function createDesktopBridge(
   let settings = {
     autoLaunch: false,
     closeBehavior: "background" as const,
+    fontScale: "normal" as const,
+    language: "zh-CN" as const,
     messageSoundEnabled: true,
     notificationPrivacy: "metadata" as const,
     screenshotShortcut: "CommandOrControl+Shift+A",

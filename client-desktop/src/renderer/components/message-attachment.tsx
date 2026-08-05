@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import {
   Archive,
   Download,
@@ -21,6 +22,7 @@ type MessageAttachmentProps = {
 }
 
 export function MessageAttachment({ file }: MessageAttachmentProps) {
+  const { t } = useLocale()
   const [downloading, setDownloading] = React.useState(false)
 
   async function handleDownload() {
@@ -41,7 +43,7 @@ export function MessageAttachment({ file }: MessageAttachmentProps) {
 
       triggerBrowserDownload(readURL.url, file.name)
     } catch {
-      toast.error("下载文件失败")
+      toast.error(t("attachment.downloadFailed"))
     } finally {
       setDownloading(false)
     }
@@ -50,11 +52,11 @@ export function MessageAttachment({ file }: MessageAttachmentProps) {
   return (
     <Button
       aria-disabled={downloading}
-      aria-label={`下载 ${file.name}`}
+      aria-label={t("attachment.download", { name: file.name })}
       className="h-auto w-80 max-w-full justify-start gap-3 p-0 text-left font-normal hover:bg-background/40"
       disabled={downloading}
       onClick={() => void handleDownload()}
-      title="下载"
+      title={t("attachment.downloadTitle")}
       type="button"
       variant="ghost"
     >

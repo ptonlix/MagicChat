@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { format } from "date-fns"
 import { zhCN } from "date-fns/locale"
 import { CalendarDays, X } from "lucide-react"
@@ -25,6 +26,7 @@ export function ProjectTaskDatePicker({
   onValueChange: (value: string) => void
   value: string
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = React.useState(false)
   const selectedDate = parseDateKey(value)
   const minimumDate = parseDateKey(minimum ?? null)
@@ -48,8 +50,8 @@ export function ProjectTaskDatePicker({
             <CalendarDays />
             <span className="min-w-0 truncate">
               {selectedDate
-                ? format(selectedDate, "yyyy 年 M 月 d 日", { locale: zhCN })
-                : "选择日期"}
+                ? format(selectedDate, t("project.datePicker.format"), { locale: zhCN })
+                : t("project.datePicker.select")}
             </span>
           </Button>
         </PopoverTrigger>
@@ -76,12 +78,12 @@ export function ProjectTaskDatePicker({
       {selectedDate && (
         <InputGroupAddon align="inline-end">
           <InputGroupButton
-            aria-label={`清除${label}`}
+            aria-label={t("project.datePicker.clear", { label })}
             className="cursor-pointer"
             disabled={disabled}
             onClick={() => onValueChange("")}
             size="icon-xs"
-            title={`清除${label}`}
+            title={t("project.datePicker.clear", { label })}
             type="button"
             variant="ghost"
           >

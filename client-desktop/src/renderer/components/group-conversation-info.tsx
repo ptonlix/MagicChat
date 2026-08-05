@@ -8,6 +8,7 @@ import { useClientData } from "@/lib/client-data-context"
 import { CustomAvatarPicker, type CroppedAvatar } from "@/components/custom-avatar-picker"
 import { GroupAvatar } from "@/components/group-avatar"
 import { GroupConversationProjects } from "@/components/group-conversation-projects"
+import { useLocale } from "@/components/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   AlertDialog,
@@ -54,6 +55,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     updateGroupConversationName,
     updateGroupConversationAvatar,
   } = useClientData()
+  const { t } = useLocale()
   const conversation = getConversation(conversationId)
   const [announcementClearConfirmOpen, setAnnouncementClearConfirmOpen] = useState(false)
   const [announcementEditorOpen, setAnnouncementEditorOpen] = useState(false)
@@ -82,10 +84,10 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     return (
       <>
         <SheetHeader className="border-b">
-          <SheetTitle>群聊信息</SheetTitle>
-          <SheetDescription>群聊</SheetDescription>
+          <SheetTitle>{t("group.info.title")}</SheetTitle>
+          <SheetDescription>{t("group.info.subtitle")}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 py-6 text-sm text-muted-foreground">会话信息不可用</div>
+        <div className="px-4 py-6 text-sm text-muted-foreground">{t("group.info.unavailable")}</div>
       </>
     )
   }
@@ -130,9 +132,9 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
         conversationId: updatedConversation.id,
       })
       setAvatarPickerOpen(false)
-      toast.success("群头像已保存")
+      toast.success(t("group.avatarSaved"))
     } catch (error) {
-      toast.error(getErrorMessage(error, "上传群头像失败"))
+      toast.error(getErrorMessage(error, t("group.avatarUploadFailed")))
     } finally {
       setAvatarSaving(false)
     }
@@ -146,9 +148,9 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     setNameSaving(true)
     try {
       await updateGroupConversationName(activeConversation.id, name)
-      toast.success("群聊名称已保存")
+      toast.success(t("group.nameSaved"))
     } catch (error) {
-      toast.error(getErrorMessage(error, "修改群聊名称失败"))
+      toast.error(getErrorMessage(error, t("group.nameUpdateFailed")))
       throw error
     } finally {
       setNameSaving(false)
@@ -169,9 +171,11 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
       await updateGroupConversationAnnouncement(activeConversation.id, announcement)
       setAnnouncementClearConfirmOpen(false)
       setAnnouncementEditorOpen(false)
-      toast.success(announcement.trim() ? "群公告已保存" : "群公告已清空")
+      toast.success(
+        announcement.trim() ? t("group.announcementSaved") : t("group.announcementCleared"),
+      )
     } catch (error) {
-      toast.error(getErrorMessage(error, "修改群公告失败"))
+      toast.error(getErrorMessage(error, t("group.announcementUpdateFailed")))
     } finally {
       setAnnouncementSaving(false)
     }
@@ -186,9 +190,9 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     try {
       await leaveGroupConversation(activeConversation.id)
       setLeaveConfirmOpen(false)
-      toast.success("已退出群聊")
+      toast.success(t("group.left"))
     } catch (error) {
-      toast.error(getErrorMessage(error, "退出群聊失败"))
+      toast.error(getErrorMessage(error, t("group.leaveFailed")))
     } finally {
       setLeaveSaving(false)
     }
@@ -203,9 +207,9 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     try {
       await dissolveGroupConversation(activeConversation.id)
       setDissolveConfirmOpen(false)
-      toast.success("已解散群聊")
+      toast.success(t("group.dissolved"))
     } catch (error) {
-      toast.error(getErrorMessage(error, "解散群聊失败"))
+      toast.error(getErrorMessage(error, t("group.dissolveFailed")))
     } finally {
       setDissolveSaving(false)
     }
@@ -227,9 +231,9 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     try {
       await removeGroupConversationMember(activeConversation.id, target.id, target.type)
       setMemberRemovalTarget(null)
-      toast.success("已移出群聊成员")
+      toast.success(t("group.memberRemoved"))
     } catch (error) {
-      toast.error(getErrorMessage(error, "移出群聊成员失败"))
+      toast.error(getErrorMessage(error, t("group.memberRemoveFailed")))
     } finally {
       setMemberRemovalSaving(false)
     }
@@ -244,14 +248,14 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
     try {
       if (target === "public") {
         await setGroupConversationPublic(activeConversation.id)
-        toast.success("已设置为公开群")
+        toast.success(t("group.madePublic"))
       } else {
         await setGroupConversationPrivate(activeConversation.id)
-        toast.success("已取消公开群")
+        toast.success(t("group.madePrivate"))
       }
       setVisibilityTarget(null)
     } catch (error) {
-      toast.error(getErrorMessage(error, "更新群公开状态失败"))
+      toast.error(getErrorMessage(error, t("group.visibilityUpdateFailed")))
     } finally {
       setVisibilitySaving(false)
     }
@@ -260,7 +264,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
   return (
     <>
       <SheetHeader className="border-b">
-        <SheetTitle>群聊信息</SheetTitle>
+        <SheetTitle>{t("group.info.title")}</SheetTitle>
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="flex flex-col gap-5">
@@ -298,7 +302,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
           />
 
           <div className="grid gap-2">
-            <Label>群成员（{activeConversation.memberCount}）</Label>
+            <Label>{t("group.membersLabel", { count: activeConversation.memberCount })}</Label>
             <div className="grid gap-1">
               {members.map((member) => (
                 <GroupMemberItem
@@ -314,7 +318,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
               ))}
               {members.length === 0 && (
                 <div className="rounded-md border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
-                  暂无成员信息
+                  {t("group.noMembers")}
                 </div>
               )}
             </div>
@@ -335,14 +339,16 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <DialogTitle className="text-base font-medium">修改群头像</DialogTitle>
+              <DialogTitle className="text-base font-medium">
+                {t("group.editAvatar.title")}
+              </DialogTitle>
               <DialogDescription className="sr-only">
-                上传并裁切一张图片作为群聊头像
+                {t("group.editAvatar.desc")}
               </DialogDescription>
             </div>
             <DialogClose asChild>
               <Button
-                aria-label="关闭群头像选择"
+                aria-label={t("group.editAvatar.close")}
                 disabled={avatarSaving}
                 size="icon-sm"
                 type="button"
@@ -362,19 +368,17 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
         }}
       >
         <DialogContent className="sm:max-w-lg">
-          <DialogTitle>修改群公告</DialogTitle>
-          <DialogDescription>
-            群公告为纯文本，最多 200 个字符。清空内容即可移除公告。
-          </DialogDescription>
+          <DialogTitle>{t("group.editAnnouncement.title")}</DialogTitle>
+          <DialogDescription>{t("group.editAnnouncement.desc")}</DialogDescription>
           <div className="grid gap-2">
-            <Label htmlFor="group-announcement-editor">群公告</Label>
+            <Label htmlFor="group-announcement-editor">{t("group.announcement")}</Label>
             <Textarea
               aria-invalid={announcementDraftTooLong}
               className="min-h-32 resize-y"
               disabled={announcementSaving}
               id="group-announcement-editor"
               onChange={(event) => setAnnouncementDraft(event.target.value)}
-              placeholder="输入群公告"
+              placeholder={t("group.announcement.placeholder")}
               value={announcementDraft}
             />
             <div
@@ -394,12 +398,12 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
               type="button"
               variant="outline"
             >
-              清空公告
+              {t("group.announcement.clear")}
             </Button>
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
                 <Button disabled={announcementSaving} type="button" variant="outline">
-                  取消
+                  {t("group.cancel")}
                 </Button>
               </DialogClose>
               <Button
@@ -411,7 +415,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
                 onClick={() => void handleAnnouncementSave(normalizedAnnouncementDraft)}
                 type="button"
               >
-                保存
+                {t("group.save")}
               </Button>
             </div>
           </DialogFooter>
@@ -425,13 +429,11 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认清空群公告</AlertDialogTitle>
-            <AlertDialogDescription>
-              确定要清空当前群公告吗？清空后，群聊页面将不再展示公告。
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("group.clearAnnouncement.confirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("group.clearAnnouncement.desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={announcementSaving}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={announcementSaving}>{t("group.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={
                 announcementSaving || !canChangeAnnouncement || !activeConversation.announcement
@@ -447,7 +449,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
                   <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 </span>
               )}
-              清空公告
+              {t("group.announcement.clear")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -465,7 +467,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
             ) : (
               <Globe2 aria-hidden="true" className="size-4" />
             )}
-            {isPublicGroup ? "取消公开群" : "设置为公开群"}
+            {isPublicGroup ? t("group.visibility.private") : t("group.visibility.public")}
           </Button>
         )}
         {canLeaveGroup && (
@@ -476,7 +478,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
             variant="destructive"
           >
             <LogOut aria-hidden="true" className="size-4" />
-            退出群聊
+            {t("group.leave")}
           </Button>
         )}
         {canDissolveGroup && (
@@ -487,7 +489,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
             variant="destructive"
           >
             <Trash2 aria-hidden="true" className="size-4" />
-            解散群聊
+            {t("group.dissolve")}
           </Button>
         )}
       </SheetFooter>
@@ -501,11 +503,11 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认退出群聊</AlertDialogTitle>
-            <AlertDialogDescription>退出后将无法继续查看和发送该群聊消息。</AlertDialogDescription>
+            <AlertDialogTitle>{t("group.leave.confirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("group.leave.desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={leaveSaving}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={leaveSaving}>{t("group.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={leaveSaving || !canLeaveGroup}
               onClick={(event) => {
@@ -519,7 +521,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
                   <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 </span>
               )}
-              退出群聊
+              {t("group.leave")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -534,13 +536,11 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认解散群聊</AlertDialogTitle>
-            <AlertDialogDescription>
-              解散后所有成员都无法继续查看和发送该群聊消息。此操作不可恢复。
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("group.dissolve.confirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("group.dissolve.desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={dissolveSaving}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={dissolveSaving}>{t("group.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={dissolveSaving || !canDissolveGroup}
               onClick={(event) => {
@@ -554,7 +554,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
                   <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 </span>
               )}
-              解散群聊
+              {t("group.dissolve")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -570,16 +570,18 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {visibilityTarget === "private" ? "取消公开群" : "设置为公开群"}
+              {visibilityTarget === "private"
+                ? t("group.visibility.private")
+                : t("group.visibility.public")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {visibilityTarget === "private"
-                ? "取消公开后，未加入的用户将不能再从通讯录加入这个群。"
-                : "公开以后任何用户都可以加入这个群。"}
+                ? t("group.visibility.private.desc")
+                : t("group.visibility.public.desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={visibilitySaving}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={visibilitySaving}>{t("group.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={visibilitySaving}
               onClick={(event) => {
@@ -594,7 +596,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
                   <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 </span>
               )}
-              确定
+              {t("group.visibility.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -609,14 +611,19 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>移出群聊</AlertDialogTitle>
+            <AlertDialogTitle>{t("group.removeMember.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要将 {memberRemovalTarget ? getMemberDisplayName(memberRemovalTarget) : "该成员"}{" "}
-              移出群聊吗？
+              {t("group.removeMember.desc", {
+                name: memberRemovalTarget
+                  ? getMemberDisplayName(memberRemovalTarget)
+                  : t("group.removeMember.member"),
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={memberRemovalSaving}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={memberRemovalSaving}>
+              {t("group.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={memberRemovalSaving}
               onClick={(event) => {
@@ -630,7 +637,7 @@ export function GroupConversationInfo({ conversationId }: GroupConversationInfoP
                   <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 </span>
               )}
-              移出
+              {t("group.removeMember.action")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -650,6 +657,7 @@ function GroupConversationNameControl({
   onSave: (name: string) => Promise<void> | void
   saving: boolean
 }) {
+  const { t } = useLocale()
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
@@ -697,7 +705,7 @@ function GroupConversationNameControl({
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor={inputId}>群聊名称</Label>
+      <Label htmlFor={inputId}>{t("group.nameLabel")}</Label>
       <div className="flex min-w-0 items-center gap-2">
         <Input
           disabled={!editing || saving}
@@ -720,7 +728,7 @@ function GroupConversationNameControl({
         {canChangeName && editing ? (
           <>
             <Button
-              aria-label="保存群聊名称"
+              aria-label={t("group.name.aria.save")}
               disabled={saveDisabled || saving}
               onClick={() => void saveName()}
               size="icon-sm"
@@ -729,7 +737,7 @@ function GroupConversationNameControl({
               <Check className="size-4" />
             </Button>
             <Button
-              aria-label="取消修改群聊名称"
+              aria-label={t("group.name.aria.cancel")}
               disabled={saving}
               onClick={cancelEditing}
               size="icon-sm"
@@ -741,7 +749,7 @@ function GroupConversationNameControl({
           </>
         ) : canChangeName ? (
           <Button
-            aria-label="修改群聊名称"
+            aria-label={t("group.name.aria.edit")}
             disabled={saving}
             onClick={startEditing}
             size="icon-sm"
@@ -765,13 +773,14 @@ function GroupConversationAnnouncementControl({
   canChange: boolean
   onEdit: () => void
 }) {
+  const { t } = useLocale()
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
-        <Label>群公告</Label>
+        <Label>{t("group.announcement")}</Label>
         {canChange && (
           <Button
-            aria-label="修改群公告"
+            aria-label={t("group.announcement.aria.edit")}
             onClick={onEdit}
             size="icon-sm"
             type="button"
@@ -782,7 +791,7 @@ function GroupConversationAnnouncementControl({
         )}
       </div>
       <div className="min-h-16 rounded-md border bg-muted/30 px-3 py-2 text-sm break-words whitespace-pre-wrap text-muted-foreground">
-        {announcement || "暂无群公告"}
+        {announcement || t("group.announcement.empty")}
       </div>
     </div>
   )
@@ -801,6 +810,7 @@ function GroupConversationAvatarControl({
   name: string
   onClick: () => void
 }) {
+  const { t } = useLocale()
   const avatarNode = (
     <GroupAvatar avatar={avatar} className="size-20" members={members} name={name} />
   )
@@ -812,7 +822,7 @@ function GroupConversationAvatarControl({
   return (
     <Button
       aria-haspopup="dialog"
-      aria-label="更换群头像"
+      aria-label={t("group.avatar.aria.change")}
       className="group/group-avatar-change relative h-auto overflow-hidden rounded-sm bg-muted p-0 hover:bg-background"
       onClick={onClick}
       type="button"
@@ -838,6 +848,7 @@ function GroupMemberItem({
   member: ClientConversationMember
   onRemove: () => void
 }) {
+  const { t } = useLocale()
   const displayName = getMemberDisplayName(member)
   const content = <GroupMemberItemContent member={member} />
 
@@ -856,7 +867,7 @@ function GroupMemberItem({
       )}
       {canRemove && (
         <Button
-          aria-label={`移出 ${displayName}`}
+          aria-label={t("group.member.removeAria", { name: displayName })}
           className="pointer-events-none mr-1 opacity-0 transition-opacity group-hover/member:pointer-events-auto group-hover/member:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
           onClick={(event) => {
             event.preventDefault()
@@ -864,7 +875,7 @@ function GroupMemberItem({
             onRemove()
           }}
           size="icon-sm"
-          title="移出群聊"
+          title={t("group.removeMember.title")}
           type="button"
           variant="ghost"
         >
@@ -876,6 +887,7 @@ function GroupMemberItem({
 }
 
 function GroupMemberItemContent({ member }: { member: ClientConversationMember }) {
+  const { t } = useLocale()
   const displayName = getMemberDisplayName(member)
 
   return (
@@ -888,7 +900,9 @@ function GroupMemberItemContent({ member }: { member: ClientConversationMember }
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="truncate">{displayName}</div>
-        <div className="truncate text-xs text-muted-foreground">{getMemberRoleLabel(member)}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {getMemberRoleLabel(member, t)}
+        </div>
       </div>
     </>
   )
@@ -898,18 +912,21 @@ function getMemberDisplayName(member: Pick<ClientConversationMember, "name" | "n
   return member.nickname.trim() || member.name.trim()
 }
 
-function getMemberRoleLabel(member: ClientConversationMember) {
+function getMemberRoleLabel(
+  member: ClientConversationMember,
+  t: ReturnType<typeof useLocale>["t"],
+) {
   if (member.type === "app") {
-    return "应用"
+    return t("group.role.app")
   }
   if (member.role === "owner") {
-    return "群主"
+    return t("group.role.owner")
   }
   if (member.role === "admin") {
-    return "管理员"
+    return t("group.role.admin")
   }
 
-  return "成员"
+  return t("group.role.member")
 }
 
 function compareConversationMembers(

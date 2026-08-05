@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2Icon, Search } from "lucide-react"
 import { toast } from "sonner"
 
@@ -30,6 +31,7 @@ export function SendCardDialog({
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
+  const { t } = useLocale()
   const { conversations, sendConversationCard } = useClientData()
   const [keyword, setKeyword] = React.useState("")
   const [selectedConversationId, setSelectedConversationId] = React.useState("")
@@ -74,7 +76,9 @@ export function SendCardDialog({
       const conversation = conversations.find(
         (candidate) => candidate.id === selectedConversationId,
       )
-      toast.success(conversation ? `已发送到 ${conversation.name}` : "卡片已发送")
+      toast.success(
+        conversation ? t("sendCard.sentTo", { name: conversation.name }) : t("sendCard.sent"),
+      )
       setKeyword("")
       setSelectedConversationId("")
       onOpenChange(false)
@@ -91,18 +95,18 @@ export function SendCardDialog({
         showCloseButton={!submitting}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">发送到对话</DialogTitle>
+          <DialogTitle className="text-base">{t("sendCard.title")}</DialogTitle>
         </DialogHeader>
 
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              aria-label="搜索会话"
+              aria-label={t("sendCard.search")}
               className="pl-8"
               disabled={submitting}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="搜索会话"
+              placeholder={t("sendCard.search")}
               type="search"
               value={keyword}
             />
@@ -110,7 +114,7 @@ export function SendCardDialog({
 
           <div className="h-80 overflow-y-auto rounded-md border">
             <RadioGroup
-              aria-label="目标会话"
+              aria-label={t("sendCard.target")}
               className="grid-cols-[minmax(0,1fr)] gap-1 p-2"
               disabled={submitting}
               onValueChange={setSelectedConversationId}
@@ -138,7 +142,7 @@ export function SendCardDialog({
                         <ItemTitle className="max-w-full min-w-0">
                           <span className="min-w-0 truncate">{conversation.name}</span>
                           <Badge className="shrink-0" variant="secondary">
-                            {conversationTypeLabel(conversation.type)}
+                            {conversationTypeLabel(conversation.type, t)}
                           </Badge>
                         </ItemTitle>
                       </ItemContent>
@@ -155,7 +159,7 @@ export function SendCardDialog({
               })}
               {visibleConversations.length === 0 && (
                 <div className="px-3 py-10 text-center text-sm text-muted-foreground">
-                  没有匹配的会话
+                  {t("sendCard.noMatch")}
                 </div>
               )}
             </RadioGroup>
@@ -164,12 +168,12 @@ export function SendCardDialog({
           <DialogFooter>
             <DialogClose asChild>
               <Button disabled={submitting} type="button" variant="outline">
-                取消
+                {t("sendCard.cancel")}
               </Button>
             </DialogClose>
             <Button disabled={!selectedConversationId || submitting} type="submit">
               {submitting && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-              发送
+              {t("sendCard.send")}
             </Button>
           </DialogFooter>
         </form>
@@ -178,13 +182,16 @@ export function SendCardDialog({
   )
 }
 
-function conversationTypeLabel(type: ClientConversation["type"]) {
+function conversationTypeLabel(
+  type: ClientConversation["type"],
+  t: ReturnType<typeof useLocale>["t"],
+) {
   switch (type) {
     case "group":
-      return "群聊"
+      return t("sendCard.group")
     case "app":
       return "Agent"
     default:
-      return "私聊"
+      return t("sendCard.direct")
   }
 }

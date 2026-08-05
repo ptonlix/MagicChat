@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
 import { Bot, FolderClosed, MessagesSquare, Settings, UserRound, UsersRound } from "lucide-react"
+
+import { useLocale } from "@/components/locale-provider"
 import { type ClientConversation } from "@/lib/client-data-api"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { AppProfilePopover } from "@/components/app-profile-popover"
@@ -20,6 +22,7 @@ export function ConversationPanelHeader({
   currentUserId: string
   online?: boolean
 }) {
+  const { t } = useLocale()
   return (
     <header
       className="conversation-panel-header-surface flex h-14 shrink-0 items-center justify-between px-5"
@@ -36,28 +39,28 @@ export function ConversationPanelHeader({
           {conversation.type === "group" && (
             <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <UsersRound className="size-3" />
-              {getGroupMemberCount(conversation)} 人
+              {t("chat.header.memberCount", { count: getGroupMemberCount(conversation) })}
             </span>
           )}
           {conversation.type === "app" && (
             <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <Bot className="size-3" />
-              应用
+              {t("chat.header.app")}
             </span>
           )}
           {conversation.type === "direct" && (
             <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
               <UserRound className="size-3" />
-              私聊
+              {t("chat.header.privateChat")}
             </span>
           )}
           {conversation.type === "topic" && (
             <span
               className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground"
-              title={getTopicTypeLabel(conversation)}
+              title={getTopicTypeLabel(conversation, t)}
             >
               <MessagesSquare className="size-3 shrink-0" />
-              <span className="truncate">{getTopicTypeLabel(conversation)}</span>
+              <span className="truncate">{getTopicTypeLabel(conversation, t)}</span>
             </span>
           )}
         </div>
@@ -67,10 +70,10 @@ export function ConversationPanelHeader({
         {conversation.type === "group" && <AddGroupMembersDialog conversation={conversation} />}
         {conversation.type !== "topic" && (
           <Button
-            aria-label="历史附件"
+            aria-label={t("chat.header.attachments")}
             disabled
             size="icon-sm"
-            title="历史附件"
+            title={t("chat.header.attachments")}
             type="button"
             variant="ghost"
           >
@@ -80,9 +83,9 @@ export function ConversationPanelHeader({
         {conversation.type !== "topic" && (
           <ConversationInfoDrawer conversationId={conversation.id}>
             <Button
-              aria-label="会话设置"
+              aria-label={t("chat.header.settings")}
               size="icon-sm"
-              title="会话设置"
+              title={t("chat.header.settings")}
               type="button"
               variant="ghost"
             >
@@ -99,10 +102,12 @@ function getGroupMemberCount(conversation: ClientConversation) {
   return conversation.memberCount || conversation.members?.length || 0
 }
 
-function getTopicTypeLabel(conversation: ClientConversation) {
+function getTopicTypeLabel(conversation: ClientConversation, t: ReturnType<typeof useLocale>["t"]) {
   const parentConversationName = conversation.topic?.parentConversationName.trim()
 
-  return parentConversationName ? `话题 - ${parentConversationName}` : "话题"
+  return parentConversationName
+    ? t("chat.header.topicOf", { name: parentConversationName })
+    : t("chat.header.topic")
 }
 
 function ConversationPanelHeaderProfileAvatar({
@@ -114,6 +119,7 @@ function ConversationPanelHeaderProfileAvatar({
   currentUserId: string
   online?: boolean
 }) {
+  const { t } = useLocale()
   const avatar = <ConversationPanelHeaderAvatar conversation={conversation} online={online} />
 
   if (conversation.type === "topic") {
@@ -136,7 +142,7 @@ function ConversationPanelHeaderProfileAvatar({
     return (
       <UserProfilePopover
         fallbackProfile={otherMember}
-        triggerAriaLabel={`${conversation.name}资料`}
+        triggerAriaLabel={t("chat.header.profile", { name: conversation.name })}
         userId={otherMember.id}
       >
         {avatar}
@@ -157,7 +163,7 @@ function ConversationPanelHeaderProfileAvatar({
         name: appMember?.name || conversation.name,
         online: online ?? false,
       }}
-      triggerAriaLabel={`${conversation.name}资料`}
+      triggerAriaLabel={t("chat.header.profile", { name: conversation.name })}
     >
       {avatar}
     </AppProfilePopover>

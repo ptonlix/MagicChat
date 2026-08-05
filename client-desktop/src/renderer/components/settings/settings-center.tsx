@@ -13,18 +13,65 @@ import {
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/components/locale-provider"
+import type { TranslationKey } from "@/lib/i18n"
 import type { DesktopAppInfo, ServerProfile } from "@shared/bridge"
 
 const settingsSections = [
-  { id: "general", label: "通用", description: "启动与窗口行为", icon: MonitorCog },
-  { id: "notifications", label: "新消息通知", description: "提示音与内容隐私", icon: BellRing },
-  { id: "appearance", label: "外观与布局", description: "应用配色", icon: Palette },
-  { id: "storage", label: "存储空间", description: "本地消息缓存", icon: HardDriveDownload },
-  { id: "shortcuts", label: "快捷键", description: "全局操作组合键", icon: Keyboard },
-  { id: "updates", label: "软件更新", description: "检查与安装版本", icon: RefreshCw },
-  { id: "workspace", label: "工作空间", description: "服务器连接信息", icon: Server },
-  { id: "about", label: "关于即应", description: "版本与诊断", icon: CircleHelp },
-] as const
+  {
+    id: "general",
+    label: "settings.nav.general",
+    description: "settings.nav.general.desc",
+    icon: MonitorCog,
+  },
+  {
+    id: "notifications",
+    label: "settings.nav.notifications",
+    description: "settings.nav.notifications.desc",
+    icon: BellRing,
+  },
+  {
+    id: "appearance",
+    label: "settings.nav.appearance",
+    description: "settings.nav.appearance.desc",
+    icon: Palette,
+  },
+  {
+    id: "storage",
+    label: "settings.nav.storage",
+    description: "settings.nav.storage.desc",
+    icon: HardDriveDownload,
+  },
+  {
+    id: "shortcuts",
+    label: "settings.nav.shortcuts",
+    description: "settings.nav.shortcuts.desc",
+    icon: Keyboard,
+  },
+  {
+    id: "updates",
+    label: "settings.nav.updates",
+    description: "settings.nav.updates.desc",
+    icon: RefreshCw,
+  },
+  {
+    id: "workspace",
+    label: "settings.nav.workspace",
+    description: "settings.nav.workspace.desc",
+    icon: Server,
+  },
+  {
+    id: "about",
+    label: "settings.nav.about",
+    description: "settings.nav.about.desc",
+    icon: CircleHelp,
+  },
+] as const satisfies ReadonlyArray<{
+  id: string
+  label: TranslationKey
+  description: TranslationKey
+  icon: typeof MonitorCog
+}>
 
 export type SettingsSectionId = (typeof settingsSections)[number]["id"]
 
@@ -45,6 +92,7 @@ export function SettingsCenter({
   onOpenChange(open: boolean): void
   onSectionChange(section: SettingsSectionId): void
 }) {
+  const { t } = useLocale()
   const usesTitleBarOverlay = platform === "win32" || platform === "linux"
   const currentSection =
     settingsSections.find((section) => section.id === activeSection) ?? settingsSections[0]
@@ -91,15 +139,15 @@ export function SettingsCenter({
           }
         }}
       >
-        <DialogTitle className="sr-only">设置</DialogTitle>
-        <DialogDescription className="sr-only">管理即应桌面端设置</DialogDescription>
+        <DialogTitle className="sr-only">{t("settings.title")}</DialogTitle>
+        <DialogDescription className="sr-only">{t("settings.description")}</DialogDescription>
 
         <aside className="settings-center-sidebar">
           <div className="settings-center-profile">
-            <img alt="即应" src="/logo.png" />
+            <img alt={t("brand.name")} src="/logo.png" />
             <div>
               <strong>
-                即应
+                {t("brand.name")}
                 {appInfo && (
                   <span className="settings-center-profile-version">v{appInfo.version}</span>
                 )}
@@ -107,7 +155,7 @@ export function SettingsCenter({
               <span title={profile.displayName}>{profile.displayName}</span>
             </div>
           </div>
-          <nav aria-label="设置分类" className="settings-center-navigation">
+          <nav aria-label={t("settings.navLabel")} className="settings-center-navigation">
             {settingsSections.map((section) => {
               const Icon = section.icon
               const selected = section.id === activeSection
@@ -120,7 +168,7 @@ export function SettingsCenter({
                   type="button"
                 >
                   <Icon aria-hidden="true" size={18} />
-                  <span>{section.label}</span>
+                  <span>{t(section.label)}</span>
                 </button>
               )
             })}
@@ -130,14 +178,14 @@ export function SettingsCenter({
         <section className="settings-center-content">
           <header className="settings-center-content-header">
             <div>
-              <h2>{currentSection.label}</h2>
-              <p>{currentSection.description}</p>
+              <h2>{t(currentSection.label)}</h2>
+              <p>{t(currentSection.description)}</p>
             </div>
             <button
-              aria-label="关闭设置"
+              aria-label={t("settings.close")}
               className="settings-center-close"
               onClick={() => onOpenChange(false)}
-              title="关闭设置"
+              title={t("settings.close")}
               type="button"
             >
               <X aria-hidden="true" size={19} />

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { toast } from "sonner"
 
 import { SettingsCenter } from "@/components/settings/settings-center"
+import { LocaleProvider } from "@/components/locale-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { showScreenshotStartError } from "@/lib/screenshot-start-error"
 import type { DesktopBridge, ServerProfile } from "@shared/bridge"
@@ -52,20 +53,22 @@ describe("Toaster", () => {
       } satisfies Pick<DesktopBridge, "permissions">,
     })
     const view = render(
-      <>
-        <div className="desktop-frame">
-          <button type="button">背景操作</button>
-        </div>
-        <SettingsCenter
-          activeSection="general"
-          profile={profile}
-          onOpenChange={() => undefined}
-          onSectionChange={() => undefined}
-        >
-          <span>设置内容</span>
-        </SettingsCenter>
-        <Toaster />
-      </>,
+      <LocaleProvider>
+        <>
+          <div className="desktop-frame">
+            <button type="button">背景操作</button>
+          </div>
+          <SettingsCenter
+            activeSection="general"
+            profile={profile}
+            onOpenChange={() => undefined}
+            onSectionChange={() => undefined}
+          >
+            <span>设置内容</span>
+          </SettingsCenter>
+          <Toaster />
+        </>
+      </LocaleProvider>,
     )
 
     act(() => showScreenshotStartError("permission_denied"))

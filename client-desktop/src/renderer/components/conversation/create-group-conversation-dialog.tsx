@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2Icon, Search } from "lucide-react"
 import { toast } from "sonner"
 
@@ -44,14 +45,13 @@ export function CreateGroupConversationDialog({
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
+  const { t } = useLocale()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-5 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">发起群聊</DialogTitle>
-          <DialogDescription className="sr-only">
-            输入群聊名称并选择联系人或应用创建群聊
-          </DialogDescription>
+          <DialogTitle className="text-base">{t("createGroup.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("createGroup.desc")}</DialogDescription>
         </DialogHeader>
         <CreateGroupConversationForm
           apps={apps}
@@ -78,9 +78,10 @@ function CreateGroupConversationForm({
   onCreate: (name: string, memberIds: string[], appIds: string[]) => Promise<void>
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useLocale()
   const [creating, setCreating] = React.useState(false)
   const [keyword, setKeyword] = React.useState("")
-  const [name, setName] = React.useState("新建群聊")
+  const [name, setName] = React.useState(t("createGroup.defaultName"))
   const [tab, setTab] = React.useState<"users" | "apps">("users")
   const [selectedCandidateKeys, setSelectedCandidateKeys] = React.useState<Set<string>>(
     () => new Set(),
@@ -163,7 +164,7 @@ function CreateGroupConversationForm({
       await onCreate(trimmedName, memberIds, appIds)
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "创建群聊失败")
+      toast.error(error instanceof Error ? error.message : t("createGroup.failed"))
     } finally {
       setCreating(false)
     }
@@ -172,11 +173,11 @@ function CreateGroupConversationForm({
   return (
     <form className="grid gap-4" onSubmit={handleSubmit}>
       <div className="grid gap-2">
-        <Label htmlFor="create-group-name">群聊名称</Label>
+        <Label htmlFor="create-group-name">{t("createGroup.name")}</Label>
         <Input
           id="create-group-name"
           onChange={(event) => setName(event.target.value)}
-          placeholder="输入群聊名称"
+          placeholder={t("createGroup.namePlaceholder")}
           value={name}
         />
       </div>
@@ -189,16 +190,16 @@ function CreateGroupConversationForm({
       >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger disabled={creating} value="users">
-            成员
+            {t("createGroup.members")}
           </TabsTrigger>
           <TabsTrigger disabled={creating} value="apps">
-            应用
+            {t("createGroup.apps")}
           </TabsTrigger>
         </TabsList>
       </Tabs>
       <div className="grid gap-2">
         <Label htmlFor="create-group-member-search">
-          {tab === "apps" ? "选择应用" : "选择成员"}
+          {tab === "apps" ? t("createGroup.pickApps") : t("createGroup.pickMembers")}
         </Label>
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -206,7 +207,9 @@ function CreateGroupConversationForm({
             className="pl-8"
             id="create-group-member-search"
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder={tab === "apps" ? "搜索应用" : "搜索联系人"}
+            placeholder={
+              tab === "apps" ? t("createGroup.searchApps") : t("createGroup.searchContacts")
+            }
             type="search"
             value={keyword}
           />
@@ -221,12 +224,12 @@ function CreateGroupConversationForm({
       <DialogFooter>
         <DialogClose asChild>
           <Button disabled={creating} type="button" variant="outline">
-            取消
+            {t("createGroup.cancel")}
           </Button>
         </DialogClose>
         <Button disabled={!canCreate} type="submit">
           {creating && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-          创建
+          {t("createGroup.create")}
         </Button>
       </DialogFooter>
     </form>
@@ -244,10 +247,11 @@ const CreateGroupCandidateList = React.memo(function CreateGroupCandidateList({
   selectedCandidateKeys: Set<string>
   tab: "users" | "apps"
 }) {
+  const { t } = useLocale()
   return (
     <div className="h-64 overflow-y-auto rounded-md border">
       <ItemGroup
-        aria-label={tab === "apps" ? "群聊应用" : "群聊成员"}
+        aria-label={tab === "apps" ? t("createGroup.appsAria") : t("createGroup.membersAria")}
         className="gap-1 p-2 has-data-[size=sm]:gap-1"
         role="group"
       >
@@ -265,7 +269,7 @@ const CreateGroupCandidateList = React.memo(function CreateGroupCandidateList({
         })}
         {candidates.length === 0 && (
           <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            {tab === "apps" ? "没有匹配的应用" : "没有匹配的联系人"}
+            {tab === "apps" ? t("createGroup.noApps") : t("createGroup.noContacts")}
           </div>
         )}
       </ItemGroup>

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { Bell, BellOff, LoaderCircle, Pin, PinOff, Trash2 } from "lucide-react"
 
@@ -29,6 +30,7 @@ export function ConversationListItemMenu({
   pinned = false,
   pinning = false,
 }: ConversationListItemMenuProps) {
+  const { t } = useLocale()
   return (
     <ContextMenuPrimitive.Root>
       <ContextMenuPrimitive.Trigger asChild>{children}</ContextMenuPrimitive.Trigger>
@@ -61,7 +63,7 @@ export function ConversationListItemMenu({
               ) : (
                 <Pin aria-hidden="true" className="size-4" />
               )}
-              <span>{pinned ? "取消置顶" : "置顶对话"}</span>
+              <span>{pinned ? t("conversationItem.unpin") : t("conversationItem.pin")}</span>
             </ContextMenuPrimitive.Item>
           )}
           <ContextMenuPrimitive.Item
@@ -81,7 +83,7 @@ export function ConversationListItemMenu({
             ) : (
               <BellOff aria-hidden="true" className="size-4" />
             )}
-            <span>{muted ? "取消免打扰" : "消息免打扰"}</span>
+            <span>{muted ? t("conversationItem.unmute") : t("conversationItem.mute")}</span>
           </ContextMenuPrimitive.Item>
           <ContextMenuPrimitive.Item
             className={cn(
@@ -98,7 +100,7 @@ export function ConversationListItemMenu({
             ) : (
               <Trash2 aria-hidden="true" className="size-4" />
             )}
-            <span>删除对话</span>
+            <span>{t("conversationItem.delete")}</span>
           </ContextMenuPrimitive.Item>
         </ContextMenuPrimitive.Content>
       </ContextMenuPrimitive.Portal>

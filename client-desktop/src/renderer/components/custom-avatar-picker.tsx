@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2Icon, Minus, Plus, RotateCcw, Upload } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -47,6 +48,7 @@ export function CustomAvatarPicker({
   onSave,
   saving = false,
 }: CustomAvatarPickerProps) {
+  const { t } = useLocale()
   const cropFrameRef = React.useRef<HTMLDivElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const imageRef = React.useRef<HTMLImageElement>(null)
@@ -150,13 +152,13 @@ export function CustomAvatarPicker({
 
     if (!acceptedImageTypes.has(file.type)) {
       resetImage()
-      setError("请选择 PNG、JPG 或 WebP 图片")
+      setError(t("avatar.typeError"))
       return
     }
 
     if (file.size > avatarMaxSourceBytes) {
       resetImage()
-      setError("图片文件不能超过 5MiB")
+      setError(t("avatar.sizeError"))
       return
     }
 
@@ -176,13 +178,13 @@ export function CustomAvatarPicker({
 
     if (nextImageSize.width < avatarMinSourceSize || nextImageSize.height < avatarMinSourceSize) {
       resetImage()
-      setError("图片尺寸不能小于 64x64")
+      setError(t("avatar.minSizeError"))
       return
     }
 
     if (nextImageSize.width > avatarMaxSourceSize || nextImageSize.height > avatarMaxSourceSize) {
       resetImage()
-      setError("图片尺寸不能超过 4096x4096")
+      setError(t("avatar.maxSizeError"))
       return
     }
 
@@ -198,7 +200,7 @@ export function CustomAvatarPicker({
 
   function handleImageError() {
     resetImage()
-    setError("图片读取失败")
+    setError(t("avatar.readError"))
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
@@ -301,7 +303,7 @@ export function CustomAvatarPicker({
     })
 
     if (avatar.file.size > avatarMaxOutputBytes) {
-      setError("裁切后的头像文件不能超过 1MiB")
+      setError(t("avatar.croppedSizeError"))
       return
     }
 
@@ -320,7 +322,7 @@ export function CustomAvatarPicker({
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div
-          aria-label={sourceUrl ? "头像裁切区域" : undefined}
+          aria-label={sourceUrl ? t("avatar.cropArea") : undefined}
           className={cn(
             "relative aspect-square w-full overflow-hidden rounded-md bg-muted",
             sourceUrl ? "touch-none" : "bg-muted transition-colors hover:bg-muted/20",
@@ -366,8 +368,8 @@ export function CustomAvatarPicker({
               <span className="flex size-12 items-center justify-center rounded-md bg-background text-foreground shadow-xs">
                 <Upload className="size-5" />
               </span>
-              <span className="text-foreground">选择图片</span>
-              <span>PNG、JPG、WebP，最大 5MiB</span>
+              <span className="text-foreground">{t("avatar.chooseImage")}</span>
+              <span>{t("avatar.hint")}</span>
             </button>
           )}
           {!sourceUrl && (
@@ -378,22 +380,22 @@ export function CustomAvatarPicker({
         <div className="flex min-h-48 w-max items-stretch justify-between gap-3 sm:min-h-0 sm:flex-col sm:items-center">
           <div className="grid gap-2">
             <Button
-              aria-label="放大图片"
+              aria-label={t("avatar.zoomIn")}
               disabled={cropControlsDisabled || zoom >= avatarZoomMax}
               onClick={() => handleZoomChange(zoom + avatarZoomStep)}
               size="icon-sm"
-              title="放大图片"
+              title={t("avatar.zoomIn")}
               type="button"
               variant="outline"
             >
               <Plus className="size-4" />
             </Button>
             <Button
-              aria-label="缩小图片"
+              aria-label={t("avatar.zoomOut")}
               disabled={cropControlsDisabled || zoom <= avatarZoomMin}
               onClick={() => handleZoomChange(zoom - avatarZoomStep)}
               size="icon-sm"
-              title="缩小图片"
+              title={t("avatar.zoomOut")}
               type="button"
               variant="outline"
             >
@@ -401,11 +403,11 @@ export function CustomAvatarPicker({
             </Button>
           </div>
           <Button
-            aria-label="清除图片"
+            aria-label={t("avatar.clear")}
             disabled={interactionsDisabled || !sourceUrl}
             onClick={resetImage}
             size="icon-sm"
-            title="清除图片"
+            title={t("avatar.clear")}
             type="button"
             variant="outline"
           >
@@ -421,7 +423,7 @@ export function CustomAvatarPicker({
           type="button"
         >
           {saving && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-          保存
+          {t("avatar.save")}
         </Button>
       </div>
 

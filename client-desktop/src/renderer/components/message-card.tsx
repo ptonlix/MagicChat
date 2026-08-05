@@ -1,4 +1,5 @@
 import { Link } from "react-router"
+import { useLocale } from "@/components/locale-provider"
 
 import { Separator } from "@/components/ui/separator"
 import type { ClientCardMessageBody } from "@/lib/client-data-api"
@@ -13,6 +14,7 @@ export function MessageCard({
   interactive?: boolean
   mentionLabelResolver: MentionLabelResolver
 }) {
+  const { t } = useLocale()
   const target = interactive ? getCardTarget(card.url) : null
   const presentedCard = {
     ...card,
@@ -26,7 +28,7 @@ export function MessageCard({
   if (target?.type === "internal") {
     return (
       <Link
-        aria-label={`${presentedCard.title}，查看详情`}
+        aria-label={t("card.viewDetail", { title: presentedCard.title })}
         className={className}
         data-slot="message-card"
         to={target.href}
@@ -39,7 +41,7 @@ export function MessageCard({
   if (target?.type === "external") {
     return (
       <a
-        aria-label={`${presentedCard.title}，查看详情`}
+        aria-label={t("card.viewDetail", { title: presentedCard.title })}
         className={className}
         data-slot="message-card"
         href={target.href}

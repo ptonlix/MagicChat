@@ -11,6 +11,8 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
+
+import { useLocale } from "@/components/locale-provider"
 import type { ScreenshotConversationResult } from "@shared/screenshot-contract"
 import { getAvatarInitial } from "@/lib/avatar"
 import { cn } from "@/lib/utils"
@@ -123,6 +125,7 @@ export const ConversationPanelComposer = React.forwardRef<
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
   const settings = useDesktopSettings()
   const sendMessageShortcut = settings?.sendMessageShortcut ?? null
+  const { t } = useLocale()
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
   const [imageCaption, setImageCaption] = React.useState("")
@@ -153,9 +156,10 @@ export const ConversationPanelComposer = React.forwardRef<
     screenshotImportRef.current = importState
     void fetch(result.resourceUrl, { signal: importState.controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("截图结果已过期")
+        if (!response.ok) throw new Error(t("composer.screenshotExpired"))
         const blob = await response.blob()
-        if (blob.type !== "image/png" || blob.size === 0) throw new Error("截图结果无效")
+        if (blob.type !== "image/png" || blob.size === 0)
+          throw new Error(t("composer.screenshotInvalid"))
         if (!isCurrentScreenshotImport(importState, result.conversationId)) return
         await prepareSelectedImage(
           new File([blob], result.fileName, { lastModified: Date.now(), type: "image/png" }),
@@ -165,7 +169,7 @@ export const ConversationPanelComposer = React.forwardRef<
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return
         if (!isCurrentScreenshotImport(importState, result.conversationId)) return
-        toast.error(error instanceof Error ? error.message : "无法添加截图")
+        toast.error(error instanceof Error ? error.message : t("composer.addScreenshotError"))
       })
       .finally(() => {
         if (screenshotImportRef.current?.id === importState.id)
@@ -483,7 +487,7 @@ export const ConversationPanelComposer = React.forwardRef<
     if (sending || imagePreparing || screenshotStartingRef.current) return
     const screenshot = window.desktop?.screenshot
     if (!screenshot) {
-      toast.error("当前版本不支持屏幕截图")
+      toast.error(t("composer.screenshotUnsupported"))
       return
     }
     screenshotStartingRef.current = true
@@ -496,7 +500,7 @@ export const ConversationPanelComposer = React.forwardRef<
       }
     } catch {
       dismissScreenshotPermissionToast()
-      toast.error("无法启动截图")
+      toast.error(t("composer.screenshotStartError"))
     } finally {
       screenshotStartingRef.current = false
     }
@@ -579,7 +583,7 @@ export const ConversationPanelComposer = React.forwardRef<
         return
 
       if (compressedImage.size > imageMessageMaxBytes) {
-        toast.error("图片大于 2MB，无法上传")
+        toast.error(t("composer.imageTooLarge"))
         return
       }
 
@@ -592,7 +596,7 @@ export const ConversationPanelComposer = React.forwardRef<
         !isCurrentScreenshotImport(screenshotImport.importState, screenshotImport.conversationId)
       )
         return
-      toast.error(error instanceof Error ? error.message : "读取图片失败")
+      toast.error(error instanceof Error ? error.message : t("composer.readImageError"))
     } finally {
       if (preparationId === imagePreparationIdRef.current) setImagePreparing(false)
     }
@@ -670,15 +674,17 @@ export const ConversationPanelComposer = React.forwardRef<
             data-testid="conversation-reply-preview"
           >
             <div className="min-w-0">
-              <div className="truncate text-xs font-medium">回复 {replyTarget.author}</div>
+              <div className="truncate text-xs font-medium">
+                {t("composer.replyTo", { author: replyTarget.author })}
+              </div>
               <div className="truncate text-xs text-muted-foreground">{replyTarget.summary}</div>
             </div>
             <Button
-              aria-label="取消回复"
+              aria-label={t("composer.cancelReply")}
               disabled={sending}
               onClick={onCancelReply}
               size="icon-sm"
-              title="取消回复"
+              title={t("composer.cancelReply")}
               type="button"
               variant="ghost"
             >
@@ -698,7 +704,9 @@ export const ConversationPanelComposer = React.forwardRef<
               updateMentionTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
             }
             onPaste={handleComposerPaste}
-            placeholder={richTextMode ? "输入 Markdown 消息" : "输入消息"}
+            placeholder={
+              richTextMode ? t("composer.placeholderMarkdown") : t("composer.placeholder")
+            }
             readOnly={sending}
             className="max-h-48 min-h-24 resize-none"
           />
@@ -771,10 +779,10 @@ export const ConversationPanelComposer = React.forwardRef<
               onOpenChange={setExpressionPickerOpen}
             >
               <Button
-                aria-label="选择表情"
+                aria-label={t("composer.emoji")}
                 disabled={sending}
                 size="icon-sm"
-                title="选择表情"
+                title={t("composer.emoji")}
                 type="button"
                 variant="ghost"
               >
@@ -782,22 +790,22 @@ export const ConversationPanelComposer = React.forwardRef<
               </Button>
             </ExpressionPickerPopover>
             <Button
-              aria-label="上传文件"
+              aria-label={t("composer.upload")}
               disabled={sending}
               onClick={handleFileButtonClick}
               size="icon-sm"
-              title="上传文件"
+              title={t("composer.upload")}
               type="button"
               variant="ghost"
             >
               <Paperclip className="size-4" />
             </Button>
             <Button
-              aria-label="插入图片"
+              aria-label={t("composer.image")}
               disabled={sending || imagePreparing}
               onClick={handleImageButtonClick}
               size="icon-sm"
-              title="插入图片"
+              title={t("composer.image")}
               type="button"
               variant="ghost"
             >
@@ -808,24 +816,24 @@ export const ConversationPanelComposer = React.forwardRef<
               )}
             </Button>
             <Button
-              aria-label="截取屏幕"
+              aria-label={t("composer.screenshot")}
               disabled={sending || imagePreparing}
               onClick={() => void handleScreenshotButtonClick()}
               size="icon-sm"
-              title="截取屏幕"
+              title={t("composer.screenshot")}
               type="button"
               variant="ghost"
             >
               <ScanLine className="size-4" />
             </Button>
             <Toggle
-              aria-label="支持 markdown"
+              aria-label={t("composer.markdown")}
               className="size-8 p-0"
               disabled={sending}
               onPressedChange={onRichTextModeChange}
               pressed={richTextMode}
               size="sm"
-              title="支持 markdown"
+              title={t("composer.markdown")}
               type="button"
             >
               <MarkdownIcon className="size-4" />
@@ -833,11 +841,11 @@ export const ConversationPanelComposer = React.forwardRef<
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
-              aria-label="语音输入"
+              aria-label={t("composer.voice")}
               disabled={sending}
               onClick={() => setVoiceDialogOpen(true)}
               size="icon"
-              title="语音输入"
+              title={t("composer.voice")}
               type="button"
               variant="outline"
             >
@@ -845,7 +853,7 @@ export const ConversationPanelComposer = React.forwardRef<
             </Button>
             <Button
               type="button"
-              aria-label="发送消息"
+              aria-label={t("composer.send")}
               disabled={sending}
               onClick={handleSendMessage}
             >
@@ -854,7 +862,7 @@ export const ConversationPanelComposer = React.forwardRef<
               ) : (
                 <Send className="size-4" />
               )}
-              <span aria-hidden="true">发送</span>
+              <span aria-hidden="true">{t("composer.sendLabel")}</span>
             </Button>
           </div>
         </div>

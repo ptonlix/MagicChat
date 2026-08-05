@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react"
+import { useLocale } from "@/components/locale-provider"
 
 import type { ProjectTask } from "@/components/projects/project-types"
 import {
@@ -35,7 +36,7 @@ type Timeline = {
 }
 
 export function ProjectTaskGanttView({
-  emptyMessage = "暂无任务",
+  emptyMessage,
   onOpenTask,
   tasks,
 }: {
@@ -43,6 +44,7 @@ export function ProjectTaskGanttView({
   onOpenTask: (task: ProjectTask) => void
   tasks: ProjectTask[]
 }) {
+  const { t } = useLocale()
   const scheduledTasks = tasks
     .map((task) => ({ range: getProjectTaskDateRange(task), task }))
     .filter(
@@ -79,7 +81,7 @@ export function ProjectTaskGanttView({
                   variant="ghost"
                 >
                   <ChevronRight className="transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
-                  未设置日期
+                  {t("gantt.noDate")}
                   <Badge
                     className="ml-auto min-w-5 bg-background px-1.5 tabular-nums"
                     variant="secondary"
@@ -169,13 +171,14 @@ function GanttTaskColumn({
   }>
   timeline: Timeline
 }) {
+  const { t } = useLocale()
   return (
     <div
       className="sticky left-0 z-30 shrink-0 border-r bg-background"
       style={{ width: taskColumnWidth }}
     >
       <div className="sticky top-0 z-20 flex h-8 items-center border-b bg-background px-3 text-xs font-medium">
-        任务
+        {t("gantt.tasks")}
       </div>
       <div className="sticky top-8 z-20 flex h-8 items-center border-b bg-background px-3 text-[11px] text-muted-foreground">
         {formatShortDate(timeline.start)} - {formatShortDate(timeline.end)}
@@ -188,7 +191,8 @@ function GanttTaskColumn({
 }
 
 function GanttTimelineHeader({ timeline }: { timeline: Timeline }) {
-  const monthGroups = getMonthGroups(timeline)
+  const { t } = useLocale()
+  const monthGroups = getMonthGroups(timeline, t)
   const todayKey = formatDateKey(new Date())
 
   return (
@@ -311,6 +315,7 @@ function GanttTimelineTaskRow({
   task: ProjectTask
   timeline: Timeline
 }) {
+  const { t } = useLocale()
   const startOffset = differenceInCalendarDays(range.start, timeline.start)
   const duration = differenceInCalendarDays(range.end, range.start) + 1
   const left = (startOffset / timeline.unitDays) * timeline.cellWidth + 4
@@ -319,7 +324,7 @@ function GanttTimelineTaskRow({
   return (
     <div className="relative h-13 border-b last:border-b-0">
       <button
-        aria-label={`查看任务详情：${task.title}`}
+        aria-label={t("project.task.viewDetail", { title: task.title })}
         className={cn(
           "absolute top-2.5 z-10 flex h-8 cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-2 text-left text-xs font-medium shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
           getProjectTaskBlockClassName(task.status),
@@ -368,7 +373,7 @@ function createTimeline(ranges: Array<{ end: Date; start: Date }>): Timeline {
   return { cellWidth, end, start, totalDays, unitDays, units }
 }
 
-function getMonthGroups(timeline: Timeline) {
+function getMonthGroups(timeline: Timeline, t: ReturnType<typeof useLocale>["t"]) {
   const groups: Array<{
     key: string
     label: string
@@ -383,7 +388,7 @@ function getMonthGroups(timeline: Timeline) {
     } else {
       groups.push({
         key,
-        label: `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`,
+        label: t("gantt.yearMonth", { year: date.getFullYear(), month: date.getMonth() + 1 }),
         unitCount: 1,
       })
     }

@@ -26,6 +26,8 @@ type StoredConfig = {
 const defaultSettings: DesktopSettings = {
   autoLaunch: false,
   closeBehavior: "background",
+  fontScale: "normal",
+  language: "zh-CN",
   messageSoundEnabled: true,
   notificationPrivacy: "metadata",
   screenshotShortcut: DEFAULT_SCREENSHOT_SHORTCUT,
@@ -81,6 +83,9 @@ export class ConfigStore {
       if (!(["background", "quit"] as const).includes(next.closeBehavior))
         throw new Error("关闭行为无效")
       if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
+      if (next.language !== "zh-CN" && next.language !== "en") throw new Error("语言设置无效")
+      if (!(["normal", "medium", "large"] as const).includes(next.fontScale))
+        throw new Error("字体大小设置无效")
       if (!(["hidden", "metadata", "preview"] as const).includes(next.notificationPrivacy))
         throw new Error("通知隐私无效")
       if (next.screenshotShortcut !== null) {
@@ -216,6 +221,14 @@ function normalizeSettings(value: unknown, servers: ServerProfile[]): DesktopSet
       input.closeBehavior === "background" || input.closeBehavior === "quit"
         ? input.closeBehavior
         : defaultSettings.closeBehavior,
+    fontScale:
+      input.fontScale === "normal" || input.fontScale === "medium" || input.fontScale === "large"
+        ? input.fontScale
+        : defaultSettings.fontScale,
+    language:
+      input.language === "zh-CN" || input.language === "en"
+        ? input.language
+        : defaultSettings.language,
     messageSoundEnabled:
       typeof input.messageSoundEnabled === "boolean"
         ? input.messageSoundEnabled

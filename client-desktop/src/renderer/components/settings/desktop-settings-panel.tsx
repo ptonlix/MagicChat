@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Download, ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 
+import { useLocale } from "@/components/locale-provider"
 import { useTheme } from "@/components/theme-provider"
 import { clearManagedMessageCache } from "@/lib/messages"
 import {
@@ -13,6 +14,8 @@ import { releaseChannelLabel } from "@/release-channel"
 import type { AuthenticatedTarget } from "@shared/client-contract"
 import type {
   DesktopAppInfo,
+  DesktopFontScale,
+  DesktopLanguage,
   DesktopSettings,
   DesktopSettingsPatch,
   ServerProfile,
@@ -47,6 +50,7 @@ export function DesktopSettingsPanel({
   onRemoved(serverId: string): void
   onUpdaterChange(state: UpdaterState): void
 }) {
+  const { t } = useLocale()
   const { setTheme, theme } = useTheme()
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("general")
   const [settings, setSettings] = useState<DesktopSettings>()
@@ -78,12 +82,12 @@ export function DesktopSettingsPanel({
       setCacheStats(nextCacheStats)
     } catch {
       if (generation === loadGenerationRef.current) {
-        setSettingsLoadError("设置读取失败，请重试")
+        setSettingsLoadError(t("settings.loadError"))
       }
     } finally {
       if (generation === loadGenerationRef.current) setSettingsLoading(false)
     }
-  }, [target])
+  }, [t, target])
 
   useEffect(() => {
     void loadSettings()
@@ -93,7 +97,7 @@ export function DesktopSettingsPanel({
   }, [loadSettings])
 
   async function clearMessageCache() {
-    if (!window.confirm("清理当前账户的本地消息缓存？")) return
+    if (!window.confirm(t("settings.storage.confirm"))) return
     setCacheClearing(true)
     setSettingsError("")
     try {
@@ -101,7 +105,7 @@ export function DesktopSettingsPanel({
       if (!managed) await window.desktop.messageCache.clearUser(target)
       setCacheStats(await window.desktop.messageCache.getStats(target))
     } catch {
-      setSettingsError("本地消息缓存清理失败，请重试")
+      setSettingsError(t("settings.storage.error"))
     } finally {
       setCacheClearing(false)
     }
@@ -117,7 +121,7 @@ export function DesktopSettingsPanel({
       }
       window.dispatchEvent(new Event(DESKTOP_SETTINGS_CHANGED_EVENT))
     } catch {
-      setSettingsError("设置保存失败，请重试")
+      setSettingsError(t("settings.saveError"))
     }
   }
 
@@ -128,14 +132,15 @@ export function DesktopSettingsPanel({
       await window.desktop.servers.rename(profile.id, name)
       window.location.reload()
     } catch {
-      setRenameError("工作空间名称保存失败，请重试")
+      setRenameError(t("settings.workspace.error.rename"))
     } finally {
       setBusy(false)
     }
   }
 
   async function removeServer() {
-    if (!window.confirm(`移除“${profile.displayName}”及其本地会话、缓存和凭据？`)) return
+    if (!window.confirm(t("settings.workspace.remove.confirm", { name: profile.displayName })))
+      return
     setBusy(true)
     setRemoveError("")
     try {
@@ -143,7 +148,9 @@ export function DesktopSettingsPanel({
       onOpenChange(false)
       onRemoved(profile.id)
     } catch (reason) {
-      setRemoveError(reason instanceof Error ? reason.message : "移除服务器失败")
+      setRemoveError(
+        reason instanceof Error ? reason.message : t("settings.workspace.error.remove"),
+      )
     } finally {
       setBusy(false)
     }
@@ -161,13 +168,13 @@ export function DesktopSettingsPanel({
       {settingsLoading && !settings ? (
         <div className="settings-center-loading">
           <Sparkles aria-hidden="true" size={18} />
-          <span>正在准备设置</span>
+          <span>{t("settings.loading")}</span>
         </div>
       ) : !settings ? (
         <div className="settings-center-load-error" role="alert">
-          <strong>{settingsLoadError || "设置读取失败"}</strong>
+          <strong>{settingsLoadError || t("settings.loadError")}</strong>
           <button onClick={() => void loadSettings()} type="button">
-            重试
+            {t("settings.loadRetry")}
           </button>
         </div>
       ) : (
@@ -176,11 +183,11 @@ export function DesktopSettingsPanel({
 
           {activeSection === "general" && (
             <section aria-labelledby="settings-general-title" className="settings-group">
-              <h3 id="settings-general-title">通用设置</h3>
+              <h3 id="settings-general-title">{t("settings.general.title")}</h3>
               <label className="settings-row">
                 <span>
-                  <strong>开机自动启动</strong>
-                  <small>登录系统后在后台静默启动</small>
+                  <strong>{t("settings.general.autoLaunch")}</strong>
+                  <small>{t("settings.general.autoLaunch.desc")}</small>
                 </span>
                 <input
                   checked={settings.autoLaunch}
@@ -190,8 +197,8 @@ export function DesktopSettingsPanel({
               </label>
               <label className="settings-row">
                 <span>
-                  <strong>关闭窗口</strong>
-                  <small>选择点击关闭按钮后的行为</small>
+                  <strong>{t("settings.general.closeBehavior")}</strong>
+                  <small>{t("settings.general.closeBehavior.desc")}</small>
                 </span>
                 <select
                   value={settings.closeBehavior}
@@ -201,8 +208,43 @@ export function DesktopSettingsPanel({
                     })
                   }
                 >
-                  <option value="background">保持后台运行</option>
-                  <option value="quit">退出应用</option>
+                  <option value="background">
+                    {t("settings.general.closeBehavior.background")}
+                  </option>
+                  <option value="quit">{t("settings.general.closeBehavior.quit")}</option>
+                </select>
+              </label>
+              <label className="settings-row">
+                <span>
+                  <strong>{t("settings.general.language")}</strong>
+                  <small>{t("settings.general.language.desc")}</small>
+                </span>
+                <select
+                  aria-label={t("settings.general.language")}
+                  value={settings.language}
+                  onChange={(event) =>
+                    void updateSettings({ language: event.target.value as DesktopLanguage })
+                  }
+                >
+                  <option value="zh-CN">{t("settings.general.language.zhCN")}</option>
+                  <option value="en">{t("settings.general.language.en")}</option>
+                </select>
+              </label>
+              <label className="settings-row">
+                <span>
+                  <strong>{t("settings.general.fontScale")}</strong>
+                  <small>{t("settings.general.fontScale.desc")}</small>
+                </span>
+                <select
+                  aria-label={t("settings.general.fontScale")}
+                  value={settings.fontScale}
+                  onChange={(event) =>
+                    void updateSettings({ fontScale: event.target.value as DesktopFontScale })
+                  }
+                >
+                  <option value="normal">{t("settings.general.fontScale.normal")}</option>
+                  <option value="medium">{t("settings.general.fontScale.medium")}</option>
+                  <option value="large">{t("settings.general.fontScale.large")}</option>
                 </select>
               </label>
             </section>
@@ -210,14 +252,14 @@ export function DesktopSettingsPanel({
 
           {activeSection === "notifications" && (
             <section aria-labelledby="settings-notifications-title" className="settings-group">
-              <h3 id="settings-notifications-title">新消息通知</h3>
+              <h3 id="settings-notifications-title">{t("settings.notifications.title")}</h3>
               <label className="settings-row">
                 <span>
-                  <strong>新消息提示音</strong>
-                  <small>收到普通新消息时播放提示音</small>
+                  <strong>{t("settings.notifications.sound")}</strong>
+                  <small>{t("settings.notifications.sound.desc")}</small>
                 </span>
                 <input
-                  aria-label="新消息提示音"
+                  aria-label={t("settings.notifications.sound")}
                   checked={settings.messageSoundEnabled}
                   type="checkbox"
                   onChange={(event) =>
@@ -227,8 +269,8 @@ export function DesktopSettingsPanel({
               </label>
               <label className="settings-row">
                 <span>
-                  <strong>通知内容</strong>
-                  <small>敏感环境建议隐藏正文预览</small>
+                  <strong>{t("settings.notifications.privacy")}</strong>
+                  <small>{t("settings.notifications.privacy.desc")}</small>
                 </span>
                 <select
                   value={settings.notificationPrivacy}
@@ -239,9 +281,9 @@ export function DesktopSettingsPanel({
                     })
                   }
                 >
-                  <option value="hidden">隐藏通知内容</option>
-                  <option value="metadata">仅显示发送者或会话</option>
-                  <option value="preview">显示消息预览</option>
+                  <option value="hidden">{t("settings.notifications.privacy.hidden")}</option>
+                  <option value="metadata">{t("settings.notifications.privacy.metadata")}</option>
+                  <option value="preview">{t("settings.notifications.privacy.preview")}</option>
                 </select>
               </label>
             </section>
@@ -249,15 +291,19 @@ export function DesktopSettingsPanel({
 
           {activeSection === "appearance" && (
             <section aria-labelledby="settings-appearance-title" className="settings-group">
-              <h3 id="settings-appearance-title">应用配色</h3>
-              <div aria-label="应用配色" className="settings-theme-options" role="radiogroup">
+              <h3 id="settings-appearance-title">{t("settings.appearance.title")}</h3>
+              <div
+                aria-label={t("settings.appearance.title")}
+                className="settings-theme-options"
+                role="radiogroup"
+              >
                 {(
                   [
-                    ["system", "跟随系统"],
-                    ["light", "浅色"],
-                    ["dark", "深色"],
+                    ["system", "settings.appearance.system"],
+                    ["light", "settings.appearance.light"],
+                    ["dark", "settings.appearance.dark"],
                   ] as const
-                ).map(([value, label]) => (
+                ).map(([value, labelKey]) => (
                   <button
                     aria-checked={theme === value}
                     className="settings-theme-option"
@@ -267,7 +313,7 @@ export function DesktopSettingsPanel({
                     type="button"
                   >
                     <span aria-hidden="true" />
-                    {label}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
@@ -276,21 +322,21 @@ export function DesktopSettingsPanel({
 
           {activeSection === "storage" && (
             <section aria-labelledby="settings-storage-title" className="settings-group">
-              <h3 id="settings-storage-title">本地消息缓存</h3>
+              <h3 id="settings-storage-title">{t("settings.storage.title")}</h3>
               <div className="settings-row">
                 <span>
                   <strong>{formatCacheSize(cacheStats?.payloadBytes ?? 0)}</strong>
-                  <small>{cacheStatusText(cacheStats?.status)}</small>
+                  <small>{cacheStatusText(cacheStats?.status, t)}</small>
                 </span>
                 <button
-                  aria-label="清理本地消息缓存"
+                  aria-label={t("settings.storage.clear.aria")}
                   className="settings-secondary-button"
                   disabled={cacheClearing}
                   onClick={() => void clearMessageCache()}
                   type="button"
                 >
                   <Trash2 aria-hidden="true" size={16} />
-                  清理缓存
+                  {t("settings.storage.clear")}
                 </button>
               </div>
             </section>
@@ -298,40 +344,40 @@ export function DesktopSettingsPanel({
 
           {activeSection === "shortcuts" && (
             <section aria-labelledby="settings-shortcuts-title" className="settings-group">
-              <h3 id="settings-shortcuts-title">键盘快捷键</h3>
+              <h3 id="settings-shortcuts-title">{t("settings.shortcuts.title")}</h3>
               <div className="settings-row">
                 <span>
-                  <strong>全局搜索</strong>
-                  <small>在任意应用中按下即可唤起全局搜索</small>
+                  <strong>{t("settings.shortcuts.search")}</strong>
+                  <small>{t("settings.shortcuts.search.desc")}</small>
                 </span>
                 <ShortcutRecorder
                   defaultAccelerator={DEFAULT_SEARCH_SHORTCUT}
                   kind="search"
-                  label="全局搜索快捷键"
+                  labelKey="settings.shortcuts.search.aria"
                   platform={platform ?? "unknown"}
                 />
               </div>
               <div className="settings-row">
                 <span>
-                  <strong>发送消息</strong>
-                  <small>在聊天输入框中按下即可发送消息</small>
+                  <strong>{t("settings.shortcuts.sendMessage")}</strong>
+                  <small>{t("settings.shortcuts.sendMessage.desc")}</small>
                 </span>
                 <ShortcutRecorder
                   defaultAccelerator={DEFAULT_SEND_MESSAGE_SHORTCUT}
                   kind="sendMessage"
-                  label="发送消息快捷键"
+                  labelKey="settings.shortcuts.sendMessage.aria"
                   platform={platform ?? "unknown"}
                 />
               </div>
               <div className="settings-row">
                 <span>
-                  <strong>截图</strong>
-                  <small>在其他应用中也可以启动即应截图</small>
+                  <strong>{t("settings.shortcuts.screenshot")}</strong>
+                  <small>{t("settings.shortcuts.screenshot.desc")}</small>
                 </span>
                 <ShortcutRecorder
                   defaultAccelerator={DEFAULT_SCREENSHOT_SHORTCUT}
                   kind="screenshot"
-                  label="截图快捷键"
+                  labelKey="settings.shortcuts.screenshot.aria"
                   platform={platform ?? "unknown"}
                 />
               </div>
@@ -348,11 +394,11 @@ export function DesktopSettingsPanel({
 
           {activeSection === "workspace" && (
             <section aria-labelledby="settings-workspace-title" className="settings-group">
-              <h3 id="settings-workspace-title">工作空间</h3>
+              <h3 id="settings-workspace-title">{t("settings.workspace.title")}</h3>
               <label className="settings-row settings-row-stack">
                 <span>
-                  <strong>显示名称</strong>
-                  <small>仅影响此设备上的展示</small>
+                  <strong>{t("settings.workspace.displayName")}</strong>
+                  <small>{t("settings.workspace.displayName.desc")}</small>
                 </span>
                 <div className="settings-inline-form">
                   <input
@@ -365,14 +411,14 @@ export function DesktopSettingsPanel({
                     onClick={() => void renameServer()}
                     type="button"
                   >
-                    保存
+                    {t("settings.workspace.save")}
                   </button>
                 </div>
                 {renameError && <small className="settings-field-error">{renameError}</small>}
               </label>
               <div className="settings-row settings-server-row">
                 <span>
-                  <strong>服务器地址</strong>
+                  <strong>{t("settings.workspace.server")}</strong>
                   <small>
                     <code>{profile.normalizedUrl}</code>
                   </small>
@@ -383,7 +429,7 @@ export function DesktopSettingsPanel({
                   onClick={() => void removeServer()}
                   type="button"
                 >
-                  移除服务器
+                  {t("settings.workspace.remove")}
                 </button>
               </div>
               {removeError && <p role="alert">{removeError}</p>}
@@ -392,19 +438,20 @@ export function DesktopSettingsPanel({
 
           {activeSection === "about" && (
             <section aria-labelledby="settings-about-title" className="settings-group">
-              <h3 id="settings-about-title">关于即应</h3>
+              <h3 id="settings-about-title">{t("settings.about.title")}</h3>
               <div className="settings-about-brand">
-                <img alt="即应" src="/logo.png" />
+                <img alt={t("brand.name")} src="/logo.png" />
                 <div>
-                  <strong>即应</strong>
+                  <strong>{t("brand.name")}</strong>
                   <span>
                     {appInfo
                       ? `${appInfo.version} · ${appInfo.platform} ${appInfo.arch}`
-                      : "正在读取版本信息"}
+                      : t("settings.about.version.loading")}
                   </span>
                   {appInfo && (
                     <small>
-                      {releaseChannelLabel(appInfo.channel)} · 构建 {appInfo.build}
+                      {releaseChannelLabel(appInfo.channel, t)} · {t("settings.about.build")}{" "}
+                      {appInfo.build}
                     </small>
                   )}
                 </div>
@@ -414,7 +461,7 @@ export function DesktopSettingsPanel({
                 onClick={() => void window.desktop.diagnostics.export()}
                 type="button"
               >
-                导出脱敏诊断
+                {t("settings.about.export")}
               </button>
             </section>
           )}
@@ -430,11 +477,14 @@ function formatCacheSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
-function cacheStatusText(status: MessageCacheStats["status"] | undefined): string {
-  if (status === "available") return "缓存可用，不包含附件文件"
-  if (status === "rebuilding") return "正在重建缓存，在线聊天不受影响"
-  if (status === "degraded") return "缓存暂不可用，已切换为内存模式"
-  return "正在读取缓存状态"
+function cacheStatusText(
+  status: MessageCacheStats["status"] | undefined,
+  t: ReturnType<typeof useLocale>["t"],
+): string {
+  if (status === "available") return t("settings.storage.status.available")
+  if (status === "rebuilding") return t("settings.storage.status.rebuilding")
+  if (status === "degraded") return t("settings.storage.status.degraded")
+  return t("settings.storage.status.loading")
 }
 
 function DesktopUpdateSettingsSection({
@@ -446,16 +496,17 @@ function DesktopUpdateSettingsSection({
   onStateChange(state: UpdaterState): void
   state: UpdaterState
 }) {
+  const { t } = useLocale()
   const [updateActionError, setUpdateActionError] = useState("")
-  const { actionPending, runUpdateAction } = useDesktopUpdateAction(setUpdateActionError)
+  const { actionPending, runUpdateAction } = useDesktopUpdateAction(setUpdateActionError, t)
   const showMacManualUpdate =
     state.installationSource === "mac_app" &&
     Boolean(state.targetVersion) &&
     (state.status === "available" || state.status === "error")
   const manualDownloadLabel = showMacManualUpdate
-    ? "下载 macOS 安装包"
+    ? t("settings.update.manualDownload")
     : state.installMode === "manual" && (state.status === "available" || state.status === "manual")
-      ? (state.manualAction?.label ?? "下载安装包")
+      ? (state.manualAction?.label ?? t("settings.update.download"))
       : undefined
 
   function runSettingsUpdateAction(action: () => Promise<void>) {
@@ -465,13 +516,23 @@ function DesktopUpdateSettingsSection({
 
   return (
     <section aria-labelledby="settings-updates-title" className="settings-group">
-      <h3 id="settings-updates-title">软件更新</h3>
+      <h3 id="settings-updates-title">{t("settings.update.title")}</h3>
       <div className="settings-row settings-update-status">
         <span>
-          <strong>当前版本 {state.currentVersion || "正在读取"}</strong>
-          <small>{updateStatusText(state)}</small>
-          {state.targetVersion && <small>目标版本：{state.targetVersion}</small>}
-          <small>安装来源：{installationSourceLabel(state.installationSource)}</small>
+          <strong>
+            {t("settings.update.current", {
+              version: state.currentVersion || t("settings.update.current.loading"),
+            })}
+          </strong>
+          <small>{updateStatusText(state, t)}</small>
+          {state.targetVersion && (
+            <small>{t("settings.update.target", { version: state.targetVersion })}</small>
+          )}
+          <small>
+            {t("settings.update.source", {
+              label: installationSourceLabel(state.installationSource, t),
+            })}
+          </small>
         </span>
         <div className="settings-update-actions">
           {manualDownloadLabel && (
@@ -490,7 +551,7 @@ function DesktopUpdateSettingsSection({
             </button>
           )}
           <button
-            aria-label="检查更新"
+            aria-label={t("settings.update.check")}
             className="settings-secondary-button"
             disabled={
               actionPending ||
@@ -503,11 +564,11 @@ function DesktopUpdateSettingsSection({
                 onStateChange(await window.desktop.updater.check())
               })
             }
-            title="检查更新"
+            title={t("settings.update.check")}
             type="button"
           >
             <RefreshCw aria-hidden="true" size={16} />
-            检查更新
+            {t("settings.update.check")}
           </button>
         </div>
       </div>
@@ -523,7 +584,7 @@ function DesktopUpdateSettingsSection({
           type="button"
         >
           <ExternalLink aria-hidden="true" size={15} />
-          查看发布内容
+          {t("settings.update.release")}
         </button>
       )}
       {state.status === "available" && state.installMode === "ota" && (
@@ -539,14 +600,14 @@ function DesktopUpdateSettingsSection({
         >
           <Download aria-hidden="true" size={16} />
           {state.installationSource === "mac_app"
-            ? "下载并自动更新"
-            : `下载 ${state.targetVersion}`}
+            ? t("settings.update.downloadAuto")
+            : t("settings.update.download")}
         </button>
       )}
       {state.status === "downloaded" && (
         <div className="grid grid-cols-2 gap-2">
           <button className="settings-secondary-button" onClick={onClose} type="button">
-            稍后
+            {t("settings.update.later")}
           </button>
           <button
             className="settings-primary-button"
@@ -555,13 +616,13 @@ function DesktopUpdateSettingsSection({
               runSettingsUpdateAction(async () => {
                 const result = await window.desktop.updater.install()
                 if (result.status === "started") return
-                setUpdateActionError(getUpdateInstallErrorMessage(result.reason))
+                setUpdateActionError(getUpdateInstallErrorMessage(result.reason, t))
               })
             }
             type="button"
           >
             <Sparkles aria-hidden="true" size={16} />
-            安装并重启
+            {t("settings.update.install")}
           </button>
         </div>
       )}
@@ -576,17 +637,17 @@ function DesktopUpdateSettingsSection({
           }
           type="button"
         >
-          重试检查
+          {t("settings.update.retry")}
         </button>
       )}
       {showMacManualUpdate && (
         <div className="desktop-mac-update-guide">
-          <strong>手动更新 macOS</strong>
-          <p>自动更新不可用时，可以下载安装包覆盖当前版本，聊天记录和本地设置会保留。</p>
+          <strong>{t("settings.update.mac.title")}</strong>
+          <p>{t("settings.update.mac.desc")}</p>
           <ol>
-            <li>下载并打开 DMG 安装包</li>
-            <li>将 MagicChat 拖入“应用程序”，选择替换</li>
-            <li>重新打开 MagicChat，确认版本已更新</li>
+            <li>{t("settings.update.mac.step1")}</li>
+            <li>{t("settings.update.mac.step2")}</li>
+            <li>{t("settings.update.mac.step3")}</li>
           </ol>
         </div>
       )}

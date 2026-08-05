@@ -3,6 +3,7 @@ import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
+import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -57,6 +58,7 @@ export function LoginForm({
   passwordLoginEnabled?: boolean
   submitVariant?: "default" | "outline"
 }) {
+  const { t } = useLocale()
   const [rememberedCredentials] = useState(readRememberedLoginCredentials)
   const [account, setAccount] = useState(rememberedCredentials?.account ?? "")
   const [email, setEmail] = useState(readRememberedEmailCodeLoginEmail)
@@ -103,7 +105,7 @@ export function LoginForm({
         password,
       })
     } catch (loginError) {
-      toast.error(getLoginErrorMessage(loginError))
+      toast.error(getLoginErrorMessage(loginError, t))
     } finally {
       setPasswordLoginPending(false)
     }
@@ -117,13 +119,13 @@ export function LoginForm({
     setRequestCodePending(true)
     try {
       if (!onRequestEmailCode) {
-        throw new Error("邮箱验证码登录服务暂未接入")
+        throw new Error(t("login.emailCodeUnsupported"))
       }
       const result = await onRequestEmailCode(email.trim())
       setRetryCodeAfter(Math.max(1, Math.ceil(result.retryAfterSeconds)))
-      toast.success("验证码已发送")
+      toast.success(t("login.codeSent"))
     } catch (requestError) {
-      toast.error(getEmailCodeRequestErrorMessage(requestError))
+      toast.error(getEmailCodeRequestErrorMessage(requestError, t))
     } finally {
       setRequestCodePending(false)
     }
@@ -135,13 +137,13 @@ export function LoginForm({
     setEmailCodeLoginPending(true)
     try {
       if (!onEmailCodeLogin) {
-        throw new Error("邮箱验证码登录服务暂未接入")
+        throw new Error(t("login.emailCodeUnsupported"))
       }
       const normalizedEmail = email.trim()
       await onEmailCodeLogin({ code: emailCode, email: normalizedEmail })
       updateRememberedEmailCodeLoginEmail(normalizedEmail)
     } catch (loginError) {
-      toast.error(getLoginErrorMessage(loginError))
+      toast.error(getLoginErrorMessage(loginError, t))
     } finally {
       setEmailCodeLoginPending(false)
     }
@@ -168,12 +170,12 @@ export function LoginForm({
               >
                 {emailCodeLoginEnabled && (
                   <TabsTrigger disabled={pending} value="email-code">
-                    验证码登录
+                    {t("login.tabEmailCode")}
                   </TabsTrigger>
                 )}
                 {passwordLoginEnabled && (
                   <TabsTrigger disabled={pending} value="password">
-                    密码登录
+                    {t("login.tabPassword")}
                   </TabsTrigger>
                 )}
               </TabsList>
@@ -183,14 +185,14 @@ export function LoginForm({
                   <form onSubmit={handleEmailCodeSubmit}>
                     <FieldGroup className="gap-4">
                       <Field>
-                        <FieldLabel htmlFor="email-code-email">邮箱</FieldLabel>
+                        <FieldLabel htmlFor="email-code-email">{t("login.email")}</FieldLabel>
                         <Input
                           autoComplete="email"
                           disabled={pending}
                           id="email-code-email"
                           name="email"
                           onChange={(event) => setEmail(event.target.value)}
-                          placeholder="请输入邮箱"
+                          placeholder={t("login.emailPlaceholder")}
                           ref={emailInputRef}
                           required
                           type="email"
@@ -198,7 +200,7 @@ export function LoginForm({
                         />
                       </Field>
                       <Field>
-                        <FieldLabel htmlFor="email-code">验证码</FieldLabel>
+                        <FieldLabel htmlFor="email-code">{t("login.code")}</FieldLabel>
                         <InputGroup>
                           <InputGroupInput
                             autoComplete="one-time-code"
@@ -211,7 +213,7 @@ export function LoginForm({
                               setEmailCode(event.target.value.replace(/\D/g, "").slice(0, 8))
                             }
                             pattern="[0-9]{8}"
-                            placeholder="请输入 8 位验证码"
+                            placeholder={t("login.codePlaceholder")}
                             required
                             value={emailCode}
                           />
@@ -225,10 +227,10 @@ export function LoginForm({
                                 <Loader2Icon aria-hidden="true" className="animate-spin" />
                               )}
                               {requestCodePending
-                                ? "发送中"
+                                ? t("login.sending")
                                 : retryCodeAfter > 0
-                                  ? `${retryCodeAfter} 秒`
-                                  : "获取验证码"}
+                                  ? t("login.retryIn", { seconds: retryCodeAfter })
+                                  : t("login.getCode")}
                             </InputGroupButton>
                           </InputGroupAddon>
                         </InputGroup>
@@ -238,7 +240,7 @@ export function LoginForm({
                           {emailCodeLoginPending && (
                             <Loader2Icon aria-hidden="true" className="animate-spin" />
                           )}
-                          登录
+                          {t("login.signIn")}
                         </Button>
                       </Field>
                     </FieldGroup>
@@ -251,7 +253,7 @@ export function LoginForm({
                   <form onSubmit={handlePasswordSubmit}>
                     <FieldGroup className="gap-4">
                       <Field>
-                        <FieldLabel htmlFor="account">账号</FieldLabel>
+                        <FieldLabel htmlFor="account">{t("login.account")}</FieldLabel>
                         <Input
                           autoComplete="username"
                           disabled={pending}
@@ -260,14 +262,14 @@ export function LoginForm({
                           onChange={(event) => {
                             setAccount(event.target.value)
                           }}
-                          placeholder="输入账号"
+                          placeholder={t("login.accountPlaceholder")}
                           required
                           type="text"
                           value={account}
                         />
                       </Field>
                       <Field>
-                        <FieldLabel htmlFor="password">密码</FieldLabel>
+                        <FieldLabel htmlFor="password">{t("login.password")}</FieldLabel>
                         <InputGroup>
                           <InputGroupInput
                             autoComplete="current-password"
@@ -277,14 +279,16 @@ export function LoginForm({
                             onChange={(event) => {
                               setPassword(event.target.value)
                             }}
-                            placeholder="请输入密码"
+                            placeholder={t("login.passwordPlaceholder")}
                             required
                             type={showPassword ? "text" : "password"}
                             value={password}
                           />
                           <InputGroupAddon align="inline-end">
                             <InputGroupButton
-                              aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                              aria-label={
+                                showPassword ? t("login.hidePassword") : t("login.showPassword")
+                              }
                               aria-pressed={showPassword}
                               disabled={pending}
                               onClick={() => setShowPassword((visible) => !visible)}
@@ -302,14 +306,14 @@ export function LoginForm({
                           id="remember-credentials"
                           onCheckedChange={(checked) => setRememberCredentials(checked === true)}
                         />
-                        <Label htmlFor="remember-credentials">记住账号密码</Label>
+                        <Label htmlFor="remember-credentials">{t("login.remember")}</Label>
                       </div>
                       <Field>
                         <Button disabled={pending} type="submit" variant={submitVariant}>
                           {passwordLoginPending && (
                             <Loader2Icon aria-hidden="true" className="animate-spin" />
                           )}
-                          登录
+                          {t("login.signIn")}
                         </Button>
                       </Field>
                     </FieldGroup>
@@ -325,20 +329,20 @@ export function LoginForm({
   )
 }
 
-function getLoginErrorMessage(error: unknown) {
+function getLoginErrorMessage(error: unknown, t: ReturnType<typeof useLocale>["t"]) {
   if (error instanceof Error) {
     return error.message
   }
 
-  return "登录失败，请稍后重试"
+  return t("login.failed")
 }
 
-function getEmailCodeRequestErrorMessage(error: unknown) {
+function getEmailCodeRequestErrorMessage(error: unknown, t: ReturnType<typeof useLocale>["t"]) {
   if (error instanceof Error) {
     return error.message
   }
 
-  return "验证码发送失败，请稍后重试"
+  return t("login.codeSendFailed")
 }
 
 function readRememberedLoginCredentials(): RememberedLoginCredentials | null {

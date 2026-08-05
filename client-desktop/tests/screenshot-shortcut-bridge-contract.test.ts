@@ -379,6 +379,8 @@ function createManager() {
   const settings = {
     autoLaunch: false,
     closeBehavior: "background" as const,
+    fontScale: "normal" as const,
+    language: "zh-CN" as const,
     messageSoundEnabled: true,
     notificationPrivacy: "metadata" as const,
     screenshotShortcut: SCREENSHOT_SHORTCUT,

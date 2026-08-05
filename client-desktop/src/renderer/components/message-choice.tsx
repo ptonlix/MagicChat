@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import type { ClientChoiceMessageBody, ClientChoiceState } from "@/lib/client-data-api"
 import { formatMentionTemplateText, type MentionLabelResolver } from "@/lib/message-mentions"
@@ -25,6 +26,7 @@ export function MessageChoice({
   onRespond?: (optionIds: string[]) => Promise<void>
   showResponseCounts?: boolean
 }) {
+  const { t } = useLocale()
   const hasResponded = Boolean(choice?.myOptionIds.length)
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [submitting, setSubmitting] = React.useState(false)
@@ -114,7 +116,7 @@ export function MessageChoice({
       {voted ? (
         <div className="mt-3 border-t border-foreground/10 pt-3">
           <Button className="w-full" disabled size="sm" type="button" variant="outline">
-            已投票
+            {t("choice.voted")}
           </Button>
         </div>
       ) : (
@@ -127,7 +129,7 @@ export function MessageChoice({
             type="button"
             variant="outline"
           >
-            {submitting ? "提交中..." : "提交"}
+            {submitting ? t("choice.submitting") : t("choice.submit")}
           </Button>
         </div>
       )}

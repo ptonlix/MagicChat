@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { AudioLines, LoaderCircle, Mic, RotateCcw, Send, Square } from "lucide-react"
 
 import { VoiceRecordingPanel } from "@/components/conversation/conversation-voice-recorder"
@@ -35,6 +36,7 @@ export function VoiceInputDialog({
   open,
   sending,
 }: VoiceInputDialogProps) {
+  const { t } = useLocale()
   const [transcript, setTranscript] = React.useState("")
   const recording = useVoiceRecording({ onTranscript: setTranscript })
   const canChooseSendMethod = recording.status === "recorded"
@@ -82,10 +84,8 @@ export function VoiceInputDialog({
         onPointerDownOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">语音输入</DialogTitle>
-          <DialogDescription className="sr-only">
-            录制语音、修改识别文字，并选择发送语音或文字
-          </DialogDescription>
+          <DialogTitle className="text-base">{t("voice.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("voice.desc")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <VoiceRecordingPanel
@@ -96,17 +96,18 @@ export function VoiceInputDialog({
           {recording.error && <p className="text-sm text-destructive">{recording.error}</p>}
           {recording.transcriptionError && (
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              {recording.transcriptionError}，仍可发送语音或手动填写文字
+              {t("voice.transcriptionError", { error: recording.transcriptionError })}
             </p>
           )}
           {recording.status !== "idle" && (
             <p className="min-w-0 text-sm text-muted-foreground">
-              将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
+              {t("voice.sendTo")}{" "}
+              <span className="font-medium text-foreground">{conversationName}</span>
             </p>
           )}
           {recording.status !== "idle" && (
             <div className="grid gap-2">
-              <Label htmlFor="voice-input-transcript">文字内容</Label>
+              <Label htmlFor="voice-input-transcript">{t("voice.transcript")}</Label>
               <Textarea
                 id="voice-input-transcript"
                 className="max-h-48 min-h-28 resize-none"
@@ -114,7 +115,7 @@ export function VoiceInputDialog({
                 maxLength={5_000}
                 onChange={(event) => setTranscript(event.target.value)}
                 placeholder={
-                  canChooseSendMethod ? "可以修改识别结果，或直接发送" : "正在识别语音内容"
+                  canChooseSendMethod ? t("voice.transcriptHint") : t("voice.transcribing")
                 }
                 value={transcript}
               />
@@ -124,38 +125,40 @@ export function VoiceInputDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button disabled={sending} type="button" variant="outline">
-              取消
+              {t("voice.cancel")}
             </Button>
           </DialogClose>
           {recording.status === "idle" && (
             <Button disabled={sending} onClick={startRecording} type="button">
               <Mic />
-              开始录音
+              {t("voice.start")}
             </Button>
           )}
           {recording.status === "requesting" && (
             <Button disabled type="button">
               <LoaderCircle className="animate-spin" />
-              正在连接
+              {t("voice.connecting")}
             </Button>
           )}
           {recording.status === "recording" && (
             <Button onClick={recording.stopRecording} type="button" variant="destructive">
               <Square />
-              结束录音
+              {t("voice.stop")}
             </Button>
           )}
           {(recording.status === "processing" || recording.status === "transcribing") && (
             <Button disabled type="button">
               <LoaderCircle className="animate-spin" />
-              {recording.status === "transcribing" ? "正在识别" : "正在结束"}
+              {recording.status === "transcribing"
+                ? t("voice.transcribing2")
+                : t("voice.finishing")}
             </Button>
           )}
           {canChooseSendMethod && (
             <>
               <Button disabled={sending} onClick={startRecording} type="button" variant="outline">
                 <RotateCcw />
-                重新录音
+                {t("voice.retry")}
               </Button>
               <Button
                 disabled={!recording.recording || sending}
@@ -164,11 +167,11 @@ export function VoiceInputDialog({
                 variant="outline"
               >
                 {sending ? <LoaderCircle className="animate-spin" /> : <AudioLines />}
-                发送语音
+                {t("voice.sendAudio")}
               </Button>
               <Button disabled={!transcript.trim() || sending} onClick={sendText} type="button">
                 <Send />
-                发送文本
+                {t("voice.sendText")}
               </Button>
             </>
           )}

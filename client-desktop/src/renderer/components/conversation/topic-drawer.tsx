@@ -2,6 +2,8 @@ import * as React from "react"
 import { Bot, Ellipsis, LoaderCircle, MessageSquareOff, X } from "lucide-react"
 import { toast } from "sonner"
 
+import { useLocale } from "@/components/locale-provider"
+
 import {
   archiveConversationTopic,
   forwardConversationMessages,
@@ -119,6 +121,7 @@ export function TopicDrawer(props: TopicDrawerProps) {
 }
 
 function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerProps) {
+  const { t } = useLocale()
   const {
     contactApps,
     compactConversationMessages,
@@ -182,7 +185,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
       })
       .catch((requestError) => {
         if (active) {
-          setError(getClientDataErrorMessage(requestError, "加载话题失败"))
+          setError(getClientDataErrorMessage(requestError, t("topic.loadFailed")))
         }
       })
       .finally(() => {
@@ -191,7 +194,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     return () => {
       active = false
     }
-  }, [conversationId, ensureConversationMessages, open])
+  }, [conversationId, ensureConversationMessages, open, t])
 
   const sourceConversationId = detail?.parentConversation.id ?? ""
   const sourceMessageId = detail?.sourceMessage.id ?? ""
@@ -448,10 +451,10 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
         canParticipate: false,
         conversation: nextConversation,
       })
-      toast.success("已参与话题")
+      toast.success(t("topic.joined"))
       void refreshConversations().catch(() => undefined)
     } catch (requestError) {
-      toast.error(getClientDataErrorMessage(requestError, "参与话题失败"))
+      toast.error(getClientDataErrorMessage(requestError, t("topic.joinFailed")))
     } finally {
       setMutating(false)
     }
@@ -474,10 +477,10 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
         conversationId: targetConversationId,
       })
       setArchiveConfirmOpen(false)
-      toast.success("话题已关闭")
+      toast.success(t("topic.closed"))
       void refreshConversations().catch(() => undefined)
     } catch (requestError) {
-      toast.error(getClientDataErrorMessage(requestError, "关闭话题失败"))
+      toast.error(getClientDataErrorMessage(requestError, t("topic.closeFailed")))
     } finally {
       setMutating(false)
     }
@@ -540,7 +543,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
   function toggleSelectableMessage(messageId: string) {
     const selected = selectedMessageIds.has(messageId)
     if (!selected && selectedMessageIds.size >= maxSelectedMessages) {
-      toast.warning(`一次最多选择 ${maxSelectedMessages} 条消息`)
+      toast.warning(t("topic.maxSelected", { count: maxSelectedMessages }))
       return
     }
     toggleSelectedMessage(messageId)
@@ -559,9 +562,9 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
   }
 
   async function submitForwardOperation(targetConversationIds: string[]) {
-    if (!forwardOperation) throw new Error("转发操作不存在")
+    if (!forwardOperation) throw new Error(t("topic.forwardMissing"))
     if (forwardOperation.messageTypes.includes("choice")) {
-      throw new Error("选择消息不能转发")
+      throw new Error(t("topic.cannotForward"))
     }
     const result = await forwardConversationMessages(forwardOperation.sourceConversationId, {
       clientForwardId: forwardOperation.clientForwardId,
@@ -612,18 +615,18 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
         className="min-h-0 gap-0 overflow-hidden p-0 data-[side=right]:w-[80vw] data-[side=right]:sm:max-w-400"
         showCloseButton={false}
       >
-        <SheetTitle className="sr-only">话题</SheetTitle>
-        <SheetDescription className="sr-only">查看并参与当前消息创建的话题</SheetDescription>
+        <SheetTitle className="sr-only">{t("topic.title")}</SheetTitle>
+        <SheetDescription className="sr-only">{t("topic.description")}</SheetDescription>
         {loading ? (
           <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
             <LoaderCircle className="size-4 animate-spin" />
-            正在加载话题
+            {t("topic.loading")}
           </div>
         ) : error || !conversation ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-sm text-muted-foreground">
-            <span>{error || "话题不存在"}</span>
+            <span>{error || t("topic.notFound")}</span>
             <Button onClick={() => onOpenChange(false)} variant="secondary">
-              关闭
+              {t("topic.close")}
             </Button>
           </div>
         ) : (
@@ -643,7 +646,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
                     />
                   )}
                 <SheetClose asChild>
-                  <Button aria-label="关闭话题" size="icon-sm" variant="ghost">
+                  <Button aria-label={t("topic.close.aria")} size="icon-sm" variant="ghost">
                     <X className="size-4" />
                   </Button>
                 </SheetClose>
@@ -707,7 +710,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
             onStartMessageSelection={startMessageSelection}
             onRevokeMessage={(message) =>
               void revokeConversationMessage(conversation.id, message.id).catch((requestError) =>
-                toast.error(getClientDataErrorMessage(requestError, "撤回消息失败")),
+                toast.error(getClientDataErrorMessage(requestError, t("topic.revokeFailed"))),
               )
             }
             onSetMessageReaction={async (message, text, reacted) => {
@@ -725,12 +728,10 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
               !conversation.topic?.participating &&
               !conversation.topic?.archived ? (
                 <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-5 py-3">
-                  <span className="text-sm text-muted-foreground">
-                    参与后可发言，并在会话列表中看到该话题
-                  </span>
+                  <span className="text-sm text-muted-foreground">{t("topic.joinHint")}</span>
                   <Button disabled={mutating} onClick={() => void participate()} type="button">
                     {mutating && <LoaderCircle className="size-4 animate-spin" />}
-                    参与话题
+                    {t("topic.join")}
                   </Button>
                 </div>
               ) : undefined
@@ -739,8 +740,8 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
             readOnlyReason={
               conversation.canSend === false && !conversation.topic?.archived
                 ? conversation.topic?.parentConversationType === "app"
-                  ? "你当前无权直接使用此应用"
-                  : "当前会话不能发送消息"
+                  ? t("topic.noAccess")
+                  : t("topic.cannotSend")
                 : undefined
             }
             replyTarget={replyTarget}
@@ -889,6 +890,7 @@ export function TopicSourceChoiceSync({
 }
 
 export function TopicArchiveAction({ conversationId }: { conversationId: string }) {
+  const { t } = useLocale()
   const { getConversation, refreshConversations, updateMessageTopic } = useClientData()
   const [detail, setDetail] = React.useState<ClientTopicDetail | null>(null)
   const [saving, setSaving] = React.useState(false)
@@ -926,10 +928,10 @@ export function TopicArchiveAction({ conversationId }: { conversationId: string 
         canParticipate: false,
       })
       setConfirmOpen(false)
-      toast.success("话题已关闭")
+      toast.success(t("topic.closed"))
       void refreshConversations().catch(() => undefined)
     } catch (error) {
-      toast.error(getClientDataErrorMessage(error, "关闭话题失败"))
+      toast.error(getClientDataErrorMessage(error, t("topic.closeFailed")))
     } finally {
       setSaving(false)
     }
@@ -949,14 +951,15 @@ export function TopicArchiveAction({ conversationId }: { conversationId: string 
 }
 
 function TopicArchiveMenu({ disabled, onSelect }: { disabled: boolean; onSelect: () => void }) {
+  const { t } = useLocale()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label="更多操作"
+          aria-label={t("topic.moreActions")}
           disabled={disabled}
           size="icon-sm"
-          title="更多操作"
+          title={t("topic.moreActions")}
           type="button"
           variant="ghost"
         >
@@ -966,7 +969,7 @@ function TopicArchiveMenu({ disabled, onSelect }: { disabled: boolean; onSelect:
       <DropdownMenuContent align="end" className="w-36">
         <DropdownMenuItem disabled={disabled} onSelect={onSelect} variant="destructive">
           <MessageSquareOff />
-          关闭讨论
+          {t("topic.closeDiscussion")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -984,6 +987,7 @@ function TopicArchiveConfirmDialog({
   open: boolean
   saving: boolean
 }) {
+  const { t } = useLocale()
   return (
     <AlertDialog
       onOpenChange={(nextOpen) => {
@@ -993,13 +997,11 @@ function TopicArchiveConfirmDialog({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>确认关闭讨论</AlertDialogTitle>
-          <AlertDialogDescription>
-            关闭后仍可查看话题，但无法继续发言，其他人也无法再参与。
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t("topic.closeConfirm")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("topic.closeDesc")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={saving}>取消</AlertDialogCancel>
+          <AlertDialogCancel disabled={saving}>{t("topic.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             disabled={saving}
             onClick={(event) => {
@@ -1009,7 +1011,7 @@ function TopicArchiveConfirmDialog({
             variant="destructive"
           >
             {saving && <LoaderCircle className="size-4 animate-spin" />}
-            确认关闭
+            {t("topic.confirmClose")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1054,6 +1056,7 @@ export function TopicSourceBanner({
   sourceChoice?: ClientChoiceState | null
   sourceChoiceStatus?: "active" | "deleted" | "revoked"
 }) {
+  const { t } = useLocale()
   const [fetchedSource, setFetchedSource] = React.useState<ClientTopicSourceMessage | null>(null)
   const loadedSource = sourceMessage ?? fetchedSource
 
@@ -1117,7 +1120,7 @@ export function TopicSourceBanner({
         {loadedSource.sender.type === "app" ? (
           <Bot className="size-4" />
         ) : fromCurrentUser ? (
-          "我"
+          t("topic.me")
         ) : (
           getAvatarInitial(loadedSource.sender.name)
         )}
@@ -1140,7 +1143,7 @@ export function TopicSourceBanner({
     >
       {choiceUnavailable ? (
         <span className="text-muted-foreground">
-          {sourceChoiceStatus === "revoked" ? "该消息已被撤回" : "该消息已被删除"}
+          {sourceChoiceStatus === "revoked" ? t("topic.revoked") : t("topic.deleted")}
         </span>
       ) : (
         <MessageBodyRenderer
@@ -1191,7 +1194,9 @@ export function TopicSourceBanner({
     >
       {selectionMode && (
         <Checkbox
-          aria-label={`${selected ? "取消选择" : "选择"}${loadedSource.sender.name}的消息`}
+          aria-label={t(selected ? "topic.deselect" : "topic.select", {
+            name: loadedSource.sender.name,
+          })}
           checked={selected}
           className="absolute top-4 left-3"
           disabled={!selectable}

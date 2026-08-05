@@ -2,6 +2,8 @@ import * as React from "react"
 import { useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
+import { useLocale } from "@/components/locale-provider"
+
 import {
   createDirectorySelection,
   directoryItemKey,
@@ -35,6 +37,7 @@ import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { cn } from "@/lib/utils"
 
 export function ContactsPage() {
+  const { t } = useLocale()
   const { organizationName } = useAppInfo()
   const {
     contactApps,
@@ -134,7 +137,7 @@ export function ContactsPage() {
       const conversation = await openDirectConversation(contact.id)
       navigate(`/chat/${encodeURIComponent(conversation.id)}`)
     } catch {
-      toast.error("无法发起私聊")
+      toast.error(t("contacts.privateChatFailed"))
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
         currentItemKey === itemKey ? "" : currentItemKey,
@@ -150,7 +153,7 @@ export function ContactsPage() {
       const conversation = await openAppConversation(app.id)
       navigate(`/chat/${encodeURIComponent(conversation.id)}`)
     } catch {
-      toast.error("无法发起应用会话")
+      toast.error(t("contacts.appChatFailed"))
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
         currentItemKey === itemKey ? "" : currentItemKey,
@@ -167,7 +170,7 @@ export function ContactsPage() {
     try {
       setAppCredentials(await getClientAppCredentials(app.id))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载开发指南失败")
+      toast.error(error instanceof Error ? error.message : t("contacts.devGuideFailed"))
     } finally {
       setLoadingAccessInfoAppId("")
     }
@@ -182,7 +185,7 @@ export function ContactsPage() {
     try {
       setAppProfile(await getClientAppProfile(app.id))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载应用资料失败")
+      toast.error(error instanceof Error ? error.message : t("contacts.appInfoFailed"))
     } finally {
       setLoadingProfileAppId("")
     }
@@ -199,7 +202,7 @@ export function ContactsPage() {
         : await joinGroupConversation(group.id)
       navigate(`/chat/${encodeURIComponent(conversation.id)}`)
     } catch {
-      toast.error(group.joined ? "无法打开群聊" : "无法加入群聊")
+      toast.error(group.joined ? t("contacts.openGroupFailed") : t("contacts.joinGroupFailed"))
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
         currentItemKey === itemKey ? "" : currentItemKey,

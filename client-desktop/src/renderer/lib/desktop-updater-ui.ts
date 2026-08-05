@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from "react"
 
+import type { Translator } from "@/lib/i18n"
 import type { UpdaterInstallResult, UpdaterState } from "@shared/bridge"
 
-export function useDesktopUpdateAction(onError: (message: string) => void) {
+export function useDesktopUpdateAction(onError: (message: string) => void, t: Translator) {
   const [actionPending, setActionPending] = useState(false)
   const actionPendingRef = useRef(false)
 
@@ -14,52 +15,57 @@ export function useDesktopUpdateAction(onError: (message: string) => void) {
       try {
         await action()
       } catch {
-        onError("更新操作失败，请稍后重试")
+        onError(t("settings.update.actionFailed"))
       } finally {
         actionPendingRef.current = false
         setActionPending(false)
       }
     },
-    [onError],
+    [onError, t],
   )
 
   return { actionPending, runUpdateAction }
 }
 
-export function updateStatusText(state: UpdaterState): string {
-  if (state.status === "manual") return "当前通道或安装来源仅支持手动升级"
-  if (state.status === "unsupported") return "当前平台或架构不支持更新"
-  if (state.status === "installing") return "正在准备重启安装"
-  if (state.status === "downloading") return `正在下载 ${Math.round(state.progress ?? 0)}%`
+export function updateStatusText(state: UpdaterState, t: Translator): string {
+  if (state.status === "manual") return t("settings.update.status.manual")
+  if (state.status === "unsupported") return t("settings.update.status.unsupported")
+  if (state.status === "installing") return t("settings.update.status.installing")
+  if (state.status === "downloading") {
+    return t("settings.update.status.downloading", { percent: Math.round(state.progress ?? 0) })
+  }
   if (state.status === "error") {
     return state.errorCode === "platform_signature_required"
-      ? "自动安装受 macOS 安全策略限制，请使用安装包手动更新"
-      : `更新失败：${state.errorCode ?? "unknown"}`
+      ? t("settings.update.status.signatureRequired")
+      : t("settings.update.status.error", { code: state.errorCode ?? "unknown" })
   }
-  if (state.status === "idle") return "当前版本可继续使用"
-  return state.status === "checking"
-    ? "正在检查"
-    : state.status === "downloaded"
-      ? "更新已下载"
-      : `发现 ${state.targetVersion ?? "新版本"}`
+  if (state.status === "idle") return t("settings.update.status.idle")
+  if (state.status === "checking") return t("settings.update.status.checking")
+  if (state.status === "downloaded") return t("settings.update.status.downloaded")
+  return t("settings.update.status.available", {
+    version: state.targetVersion ?? t("settings.update.status.newVersion"),
+  })
 }
 
-export function getUpdateInstallErrorMessage(reason: UpdaterInstallResult["reason"]): string {
-  if (reason === "install_failed") return "自动安装未能启动，请重试检查或使用手动更新"
-  if (reason === "active_transfers") return "仍有文件正在传输，请完成或取消传输后重试"
-  if (reason === "install_in_progress") return "更新安装已在进行中"
-  if (reason === "not_downloaded") return "更新尚未下载完成，请稍后重试"
-  return "更新准备未完成，请稍后重试"
+export function getUpdateInstallErrorMessage(
+  reason: UpdaterInstallResult["reason"],
+  t: Translator,
+): string {
+  if (reason === "install_failed") return t("settings.update.error.installFailed")
+  if (reason === "active_transfers") return t("settings.update.error.activeTransfers")
+  if (reason === "install_in_progress") return t("settings.update.error.installInProgress")
+  if (reason === "not_downloaded") return t("settings.update.error.notDownloaded")
+  return t("settings.update.error.prepareFailed")
 }
 
-export function installationSourceLabel(source: UpdaterState["installationSource"]): string {
+export function installationSourceLabel(source: UpdaterState["installationSource"], t: Translator) {
   const labels: Record<UpdaterState["installationSource"], string> = {
     appimage: "Linux AppImage",
     deb: "Linux deb",
-    development: "开发运行",
-    mac_app: "macOS 应用",
+    development: t("settings.update.source.development"),
+    mac_app: t("settings.update.source.macApp"),
     nsis: "Windows NSIS",
-    unknown: "未知来源",
+    unknown: t("settings.update.source.unknown"),
   }
   return labels[source]
 }

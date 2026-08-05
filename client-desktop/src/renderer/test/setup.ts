@@ -1,6 +1,22 @@
 import "@testing-library/jest-dom/vitest"
 import { cleanup } from "@testing-library/react"
-import { afterEach } from "vitest"
+import { afterEach, vi } from "vitest"
+
+vi.mock("@/components/locale-provider", async () => {
+  const { createElement, Fragment } = await import("react")
+  const { translate } = await import("@/lib/i18n")
+  const value = {
+    fontScale: "normal" as const,
+    locale: "zh-CN" as const,
+    t: (key: string, params?: Record<string, string | number>) =>
+      translate("zh-CN", key as never, params),
+  }
+  return {
+    LocaleProvider: ({ children }: { children: React.ReactNode }) =>
+      createElement(Fragment, null, children),
+    useLocale: () => value,
+  }
+})
 
 function createMemoryStorage(): Storage {
   const items = new Map<string, string>()

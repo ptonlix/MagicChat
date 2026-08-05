@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Link } from "react-router"
 import { BriefcaseBusiness, Loader2, Plus, Search, Unlink } from "lucide-react"
 import { toast } from "sonner"
@@ -54,6 +55,7 @@ export function GroupConversationProjects({
   onConversationsChanged,
   onProjectsChanged,
 }: GroupConversationProjectsProps) {
+  const { t } = useLocale()
   const [bindDialogOpen, setBindDialogOpen] = useState(false)
   const [binding, setBinding] = useState(false)
   const [keyword, setKeyword] = useState("")
@@ -96,10 +98,10 @@ export function GroupConversationProjects({
     try {
       await bindGroupConversationProject(conversationId, selectedProjectId)
       setBindDialogOpen(false)
-      toast.success("项目已关联")
+      toast.success(t("groupProjects.linked"))
       await Promise.allSettled([onConversationsChanged(), onProjectsChanged()])
     } catch (error) {
-      toast.error(getErrorMessage(error, "关联项目失败"))
+      toast.error(getErrorMessage(error, t("groupProjects.linkFailed")))
     } finally {
       setBinding(false)
     }
@@ -114,10 +116,10 @@ export function GroupConversationProjects({
     try {
       await unbindGroupConversationProject(conversationId, unbindTarget.id)
       setUnbindTarget(null)
-      toast.success("已解除项目关联")
+      toast.success(t("groupProjects.unlinked"))
       await Promise.allSettled([onConversationsChanged(), onProjectsChanged()])
     } catch (error) {
-      toast.error(getErrorMessage(error, "解除项目关联失败"))
+      toast.error(getErrorMessage(error, t("groupProjects.unlinkFailed")))
     } finally {
       setUnbinding(false)
     }
@@ -127,13 +129,13 @@ export function GroupConversationProjects({
     <>
       <div className="grid gap-2">
         <div className="flex items-center justify-between gap-2">
-          <Label>项目（{linkedProjects.length}）</Label>
+          <Label>{t("groupProjects.label", { count: linkedProjects.length })}</Label>
           {canManage && (
             <Button
-              aria-label="关联项目"
+              aria-label={t("groupProjects.link")}
               onClick={() => handleBindDialogOpenChange(true)}
               size="icon-sm"
-              title="关联项目"
+              title={t("groupProjects.link")}
               type="button"
               variant="ghost"
             >
@@ -144,7 +146,7 @@ export function GroupConversationProjects({
         <div className="grid gap-1">
           {linkedProjects.length === 0 ? (
             <div className="rounded-md border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
-              暂无项目
+              {t("groupProjects.empty")}
             </div>
           ) : (
             linkedProjects.map((project) => (
@@ -162,8 +164,8 @@ export function GroupConversationProjects({
       <Dialog open={bindDialogOpen} onOpenChange={handleBindDialogOpenChange}>
         <DialogContent className="gap-4 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>关联项目</DialogTitle>
-            <DialogDescription>选择一个当前可访问的协作项目。</DialogDescription>
+            <DialogTitle>{t("groupProjects.title")}</DialogTitle>
+            <DialogDescription>{t("groupProjects.desc")}</DialogDescription>
           </DialogHeader>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -172,7 +174,7 @@ export function GroupConversationProjects({
               className="pl-8"
               disabled={binding}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="搜索项目"
+              placeholder={t("groupProjects.search")}
               type="search"
               value={keyword}
             />
@@ -181,7 +183,7 @@ export function GroupConversationProjects({
             <div className="p-2">
               {candidates.length === 0 ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">
-                  {keyword.trim() ? "没有匹配的项目" : "暂无可关联项目"}
+                  {keyword.trim() ? t("groupProjects.noMatch") : t("groupProjects.none")}
                 </div>
               ) : (
                 <RadioGroup
@@ -204,7 +206,7 @@ export function GroupConversationProjects({
           <DialogFooter>
             <DialogClose asChild>
               <Button disabled={binding} type="button" variant="outline">
-                取消
+                {t("groupProjects.cancel")}
               </Button>
             </DialogClose>
             <Button
@@ -213,7 +215,7 @@ export function GroupConversationProjects({
               type="button"
             >
               {binding && <Loader2 className="animate-spin" />}
-              确定
+              {t("groupProjects.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -229,13 +231,13 @@ export function GroupConversationProjects({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>解除项目关联</AlertDialogTitle>
+            <AlertDialogTitle>{t("groupProjects.unlinkTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`确定解除群聊与“${unbindTarget?.name ?? ""}”的关联吗？解除后，该群成员可能失去项目访问权限。`}
+              {t("groupProjects.unlinkDesc", { name: unbindTarget?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={unbinding}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={unbinding}>{t("groupProjects.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!canManage || unbinding}
               onClick={(event) => {
@@ -245,7 +247,7 @@ export function GroupConversationProjects({
               variant="destructive"
             >
               {unbinding && <Loader2 className="animate-spin" />}
-              解除关联
+              {t("groupProjects.unlink")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -296,6 +298,7 @@ function ProjectItem({
   onUnbind: () => void
   project: ClientConversationProject
 }) {
+  const { t } = useLocale()
   return (
     <div className="group/project flex min-w-0 items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
       <ProjectAvatar project={project} />
@@ -307,16 +310,16 @@ function ProjectItem({
           {project.name}
         </Link>
         <div className="truncate text-xs text-muted-foreground">
-          {project.description.trim() || "暂无说明"}
+          {project.description.trim() || t("groupProjects.noDescription")}
         </div>
       </div>
       {canUnbind && (
         <Button
-          aria-label={`解除 ${project.name} 的关联`}
+          aria-label={t("groupProjects.unlinkAria", { name: project.name })}
           className="transition-opacity sm:opacity-0 sm:group-hover/project:opacity-100 sm:focus-visible:opacity-100"
           onClick={onUnbind}
           size="icon-sm"
-          title="解除关联"
+          title={t("groupProjects.unlink")}
           type="button"
           variant="ghost"
         >

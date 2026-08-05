@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import { SelectionListAvatar } from "@/components/selection-list-avatar"
 import {
@@ -27,6 +28,8 @@ export function AppAccessUserCombobox({
   users: ContactUser[]
   value: ContactUser[]
 }) {
+  const { t } = useLocale()
+
   const anchor = useComboboxAnchor()
 
   return (
@@ -47,14 +50,14 @@ export function AppAccessUserCombobox({
             <ComboboxChip key={user.id}>{getContactDisplayName(user)}</ComboboxChip>
           ))}
           <ComboboxChipsInput
-            aria-label="选择可访问用户"
+            aria-label={t("accessUser.aria")}
             disabled={disabled}
-            placeholder={value.length > 0 ? "继续添加用户" : "搜索并选择用户"}
+            placeholder={value.length > 0 ? t("accessUser.add") : t("accessUser.search")}
           />
         </ComboboxChips>
       </div>
       <ComboboxContent anchor={anchor} container={portalContainer}>
-        <ComboboxEmpty>没有匹配的用户</ComboboxEmpty>
+        <ComboboxEmpty>{t("accessUser.empty")}</ComboboxEmpty>
         <ComboboxList>
           {(user: ContactUser) => {
             const displayName = getContactDisplayName(user)

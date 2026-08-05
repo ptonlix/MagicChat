@@ -70,6 +70,33 @@ describe("桌面配置存储", () => {
     expect(reopened.getSettings().sendMessageShortcut).toBeNull()
   })
 
+  it("持久化语言和字体大小设置", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await store.setSettings({ language: "en" })
+    await store.setSettings({ fontScale: "large" })
+
+    const reopened = new ConfigStore(directory)
+    await reopened.load()
+    expect(reopened.getSettings().language).toBe("en")
+    expect(reopened.getSettings().fontScale).toBe("large")
+  })
+
+  it("拒绝无效的语言与字体大小设置", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await expect(store.setSettings({ language: "fr" as never })).rejects.toThrow("语言设置无效")
+    await expect(store.setSettings({ fontScale: "huge" as never })).rejects.toThrow(
+      "字体大小设置无效",
+    )
+  })
+
   it("持久撤销已注销用户", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
     directories.push(directory)

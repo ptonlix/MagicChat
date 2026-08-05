@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { LoaderCircle } from "lucide-react"
 
 import { MentionCandidateMenu } from "@/components/conversation/mention-candidate-menu"
@@ -65,6 +66,7 @@ export function SendImageMessageDialog({
   open,
   sending,
 }: SendImageMessageDialogProps) {
+  const { t } = useLocale()
   const previewURL = useObjectURL(image)
   const captionInputRef = React.useRef<HTMLInputElement | null>(null)
   const previewDragRef = React.useRef<{
@@ -307,8 +309,8 @@ export function SendImageMessageDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">发送图片</DialogTitle>
-          <DialogDescription className="sr-only">确认发送图片到当前会话</DialogDescription>
+          <DialogTitle className="text-base">{t("sendImage.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("sendImage.desc")}</DialogDescription>
         </DialogHeader>
         {image && (
           <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto_auto] gap-3">
@@ -326,7 +328,7 @@ export function SendImageMessageDialog({
               <div className="relative h-full w-full">
                 {previewURL && (
                   <img
-                    alt="待发送图片预览"
+                    alt={t("sendImage.preview")}
                     className="absolute top-1/2 left-1/2 max-w-none rounded-sm object-contain select-none"
                     draggable={false}
                     onLoad={(event) => {
@@ -352,11 +354,12 @@ export function SendImageMessageDialog({
               </div>
             </div>
             <p className="min-w-0 text-sm text-muted-foreground">
-              将要发送到 <span className="font-medium text-foreground">{conversationName}</span>
+              {t("voice.sendTo")}{" "}
+              <span className="font-medium text-foreground">{conversationName}</span>
             </p>
             <div className="relative">
               <Input
-                aria-label="图片说明"
+                aria-label={t("sendImage.caption")}
                 disabled={sending}
                 maxLength={5000}
                 onChange={(event) =>
@@ -377,7 +380,7 @@ export function SendImageMessageDialog({
                     trigger: mentionCandidates.length > 0 ? getMentionTrigger(value, cursor) : null,
                   }))
                 }}
-                placeholder="添加图片说明"
+                placeholder={t("sendImage.captionPlaceholder")}
                 ref={captionInputRef}
                 value={caption}
               />
@@ -394,7 +397,7 @@ export function SendImageMessageDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button disabled={sending} type="button" variant="outline">
-              取消
+              {t("sendImage.cancel")}
             </Button>
           </DialogClose>
           <Button
@@ -403,7 +406,7 @@ export function SendImageMessageDialog({
             type="button"
           >
             {sending && <LoaderCircle className="size-4 animate-spin" />}
-            发送
+            {t("sendImage.send")}
           </Button>
         </DialogFooter>
       </DialogContent>

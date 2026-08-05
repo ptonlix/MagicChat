@@ -1,11 +1,12 @@
+import type { Translator, TranslationKey } from "@/lib/i18n"
 import type { DesktopAppInfo } from "@shared/bridge"
 
-const releaseChannelLabels = {
-  preview: "预览版",
-  stable: "正式版",
-  test: "开发版",
-} satisfies Record<DesktopAppInfo["channel"], string>
+const releaseChannelKeys: Record<DesktopAppInfo["channel"], TranslationKey> = {
+  preview: "settings.release.preview",
+  stable: "settings.release.stable",
+  test: "settings.release.test",
+}
 
-export function releaseChannelLabel(channel: DesktopAppInfo["channel"]): string {
-  return releaseChannelLabels[channel]
+export function releaseChannelLabel(channel: DesktopAppInfo["channel"], t: Translator): string {
+  return t(releaseChannelKeys[channel])
 }

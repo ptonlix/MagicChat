@@ -5,6 +5,21 @@ import { ConversationSidebar } from "@/components/conversation/conversation-side
 import { SidebarProvider } from "@/components/ui/sidebar"
 import type { ClientConversation, ClientUser } from "@/lib/client-data-api"
 
+vi.mock("@/components/locale-provider", async () => {
+  const { createElement, Fragment } = await import("react")
+  const { translate } = await import("@/lib/i18n")
+  return {
+    LocaleProvider: ({ children }: { children: React.ReactNode }) =>
+      createElement(Fragment, null, children),
+    useLocale: () => ({
+      fontScale: "normal",
+      locale: "zh-CN",
+      t: (key: string, params?: Record<string, string | number>) =>
+        translate("zh-CN", key as never, params),
+    }),
+  }
+})
+
 describe("ConversationSidebar", () => {
   afterEach(() => {
     vi.useRealTimers()

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 import {
@@ -47,14 +48,16 @@ import { listAllClientProjectMembers } from "@/lib/project-members"
 import { getClientProjectTask, listClientProjectTasks } from "@/lib/project-task-data-api"
 import { cn } from "@/lib/utils"
 
-const taskViews = [
-  { value: "list", label: "任务列表", icon: ListTodo },
-  { value: "board", label: "看板", icon: Columns3 },
-  { value: "calendar", label: "日历", icon: CalendarDays },
-  { value: "gantt", label: "甘特图", icon: ChartGantt },
-] as const
+function getTaskViews(t: ReturnType<typeof useLocale>["t"]) {
+  return [
+    { value: "list", label: t("project.view.list"), icon: ListTodo },
+    { value: "board", label: t("project.view.board"), icon: Columns3 },
+    { value: "calendar", label: t("project.view.calendar"), icon: CalendarDays },
+    { value: "gantt", label: t("project.view.gantt"), icon: ChartGantt },
+  ] as const
+}
 
-type TaskView = (typeof taskViews)[number]["value"]
+type TaskView = ReturnType<typeof getTaskViews>[number]["value"]
 
 const projectTaskViewStorageKey = "project-task-view"
 const projectTaskIdSearchParam = "taskId"
@@ -66,23 +69,30 @@ type TaskFilters = {
   statuses: ProjectTaskStatus[]
 }
 
-const statusOptions: Array<{ label: string; value: ProjectTaskStatus }> = [
-  { label: "待办", value: "todo" },
-  { label: "进行中", value: "in_progress" },
-  { label: "已完成", value: "done" },
-  { label: "已取消", value: "canceled" },
-]
+function getStatusOptions(t: ReturnType<typeof useLocale>["t"]): Array<{
+  label: string
+  value: ProjectTaskStatus
+}> {
+  return [
+    { label: t("project.filter.todo"), value: "todo" },
+    { label: t("project.filter.in_progress"), value: "in_progress" },
+    { label: t("project.filter.done"), value: "done" },
+    { label: t("project.filter.canceled"), value: "canceled" },
+  ]
+}
 
 const defaultTaskStatuses: ProjectTaskStatus[] = ["todo", "in_progress"]
 
-const priorityOptions: Array<{
+function getPriorityOptions(t: ReturnType<typeof useLocale>["t"]): Array<{
   label: string
   value: ProjectTaskPriority
-}> = [
-  { label: "低", value: 1 },
-  { label: "中", value: 2 },
-  { label: "高", value: 3 },
-]
+}> {
+  return [
+    { label: t("project.priority.low"), value: 1 },
+    { label: t("project.priority.medium"), value: 2 },
+    { label: t("project.priority.high"), value: 3 },
+  ]
+}
 
 function createDefaultTaskFilters(): TaskFilters {
   return {
@@ -100,7 +110,9 @@ function readStoredProjectTaskView(): TaskView {
 
   try {
     const value = window.localStorage.getItem(projectTaskViewStorageKey)
-    return taskViews.some((view) => view.value === value) ? (value as TaskView) : "list"
+    return getTaskViews((_key) => _key).some((view) => view.value === value)
+      ? (value as TaskView)
+      : "list"
   } catch {
     return "list"
   }
@@ -121,6 +133,7 @@ export function ProjectTasksTab({
   onTasksChanged: () => Promise<void>
   projectId: string
 }) {
+  const { t } = useLocale()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeView, setActiveView] = React.useState<TaskView>(readStoredProjectTaskView)
   const [fallbackActiveTask, setFallbackActiveTask] = React.useState<ProjectTask | null>(null)
@@ -150,7 +163,7 @@ export function ProjectTasksTab({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : "加载任务列表失败")
+          setError(loadError instanceof Error ? loadError.message : t("project.loadTasksFailed"))
         }
       })
       .finally(() => {
@@ -162,7 +175,7 @@ export function ProjectTasksTab({
     return () => {
       active = false
     }
-  }, [appliedFilters, projectId])
+  }, [appliedFilters, projectId, t])
 
   React.useEffect(() => {
     let active = true
@@ -223,20 +236,20 @@ export function ProjectTasksTab({
           },
           { replace: true },
         )
-        toast.error(loadError instanceof Error ? loadError.message : "加载任务详情失败")
+        toast.error(loadError instanceof Error ? loadError.message : t("project.loadTaskFailed"))
       })
 
     return () => {
       active = false
     }
-  }, [activeTaskId, fallbackActiveTask, loading, projectId, setSearchParams, tasks])
+  }, [activeTaskId, fallbackActiveTask, loading, projectId, setSearchParams, tasks, t])
 
   async function refreshTasks() {
     try {
       setTasks(await listAllProjectTasks(projectId, appliedFilters))
       setError("")
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "刷新任务列表失败")
+      setError(loadError instanceof Error ? loadError.message : t("project.refreshTasksFailed"))
     }
   }
 
@@ -327,19 +340,21 @@ export function ProjectTasksTab({
           {loading ? (
             <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
               <Spinner />
-              正在加载任务
+              {t("project.loadingTasks")}
             </div>
           ) : error ? (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-sm text-destructive">
               <span>{error}</span>
               <Button onClick={() => void refreshTasks()} variant="outline">
-                重新加载
+                {t("project.reload")}
               </Button>
             </div>
           ) : activeView === "board" || activeView === "gantt" ? (
             <TaskViewContent
               activeView={activeView}
-              emptyMessage={hasTaskFilters(appliedFilters) ? "没有匹配的任务" : "暂无任务"}
+              emptyMessage={
+                hasTaskFilters(appliedFilters) ? t("project.noTaskMatch") : t("project.noTasks")
+              }
               onOpenTask={handleOpenTask}
               onTaskStatusChange={handleTaskStatusChange}
               onTaskUpdated={handleTaskUpdated}
@@ -349,7 +364,9 @@ export function ProjectTasksTab({
             <ScrollArea className="min-h-0 flex-1">
               <TaskViewContent
                 activeView={activeView}
-                emptyMessage={hasTaskFilters(appliedFilters) ? "没有匹配的任务" : "暂无任务"}
+                emptyMessage={
+                  hasTaskFilters(appliedFilters) ? t("project.noTaskMatch") : t("project.noTasks")
+                }
                 onOpenTask={handleOpenTask}
                 onTaskStatusChange={handleTaskStatusChange}
                 onTaskUpdated={handleTaskUpdated}
@@ -406,6 +423,7 @@ function TaskToolbar({
   onSearch: () => void
   onViewChange: (view: TaskView) => void
 }) {
+  const { t } = useLocale()
   const selectedAssignees = members.filter((member) => filters.assigneeUserIds.includes(member.id))
 
   return (
@@ -438,10 +456,10 @@ function TaskToolbar({
         <div className="relative min-w-52 sm:min-w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label="搜索任务内容"
+            aria-label={t("project.searchTasks")}
             className="pl-8"
             onChange={(event) => onFiltersChange({ ...filters, keyword: event.target.value })}
-            placeholder="搜索任务内容"
+            placeholder={t("project.searchTasks")}
             type="search"
             value={filters.keyword}
           />
@@ -451,7 +469,7 @@ function TaskToolbar({
         <TaskViewSwitcher value={activeView} onValueChange={onViewChange} />
         <Button onClick={onCreateTask} type="button">
           <Plus />
-          创建任务
+          {t("project.createTask")}
         </Button>
       </div>
     </div>
@@ -490,17 +508,18 @@ function StatusFilter({
   onValueChange: (value: ProjectTaskStatus[]) => void
   value: ProjectTaskStatus[]
 }) {
+  const { t } = useLocale()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <FilterButton
           active={value.length > 0}
-          label={getFilterLabel("状态", value, statusOptions)}
-          prefix={value.length > 0 ? "状态" : undefined}
+          label={getFilterLabel(t("project.status"), value, getStatusOptions(t), t)}
+          prefix={value.length > 0 ? t("project.status") : undefined}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {statusOptions.map((option) => (
+        {getStatusOptions(t).map((option) => (
           <DropdownMenuCheckboxItem
             checked={value.includes(option.value)}
             key={option.value}
@@ -525,17 +544,18 @@ function PriorityFilter({
   onValueChange: (value: ProjectTaskPriority[]) => void
   value: ProjectTaskPriority[]
 }) {
+  const { t } = useLocale()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <FilterButton
           active={value.length > 0}
-          label={getFilterLabel("优先级", value, priorityOptions)}
-          prefix={value.length > 0 ? "优先级" : undefined}
+          label={getFilterLabel(t("project.priority"), value, getPriorityOptions(t), t)}
+          prefix={value.length > 0 ? t("project.priority") : undefined}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {priorityOptions.map((option) => (
+        {getPriorityOptions(t).map((option) => (
           <DropdownMenuCheckboxItem
             checked={value.includes(option.value)}
             key={option.value}
@@ -568,6 +588,7 @@ function AssigneeFilter({
   selectedAssignees: ClientProjectMember[]
   value: string[]
 }) {
+  const { t } = useLocale()
   const [query, setQuery] = React.useState("")
   const searchInputRef = React.useRef<HTMLInputElement | null>(null)
   const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -597,17 +618,17 @@ function AssigneeFilter({
             selectedAssignees.length === 1
               ? selectedAssignees[0].displayName
               : selectedAssignees.length > 1
-                ? `${selectedAssignees.length} 项`
-                : "负责人"
+                ? t("project.assigneeCount", { count: selectedAssignees.length })
+                : t("project.assignee")
           }
-          prefix={value.length > 0 ? "负责人" : undefined}
+          prefix={value.length > 0 ? t("project.assignee") : undefined}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
         <div className="relative mb-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label="搜索负责人"
+            aria-label={t("project.searchAssignee")}
             className="h-8 pl-8"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
@@ -615,7 +636,7 @@ function AssigneeFilter({
                 event.stopPropagation()
               }
             }}
-            placeholder="搜索负责人"
+            placeholder={t("project.searchAssignee")}
             ref={searchInputRef}
             value={query}
           />
@@ -637,13 +658,15 @@ function AssigneeFilter({
             <span className="min-w-0 flex-1 truncate">{member.displayName}</span>
           </DropdownMenuCheckboxItem>
         ))}
-        {loading && <DropdownMenuItem disabled>正在加载成员</DropdownMenuItem>}
-        {!loading && membersError && <DropdownMenuItem disabled>成员加载失败</DropdownMenuItem>}
+        {loading && <DropdownMenuItem disabled>{t("project.loadingMembers")}</DropdownMenuItem>}
+        {!loading && membersError && (
+          <DropdownMenuItem disabled>{t("project.membersLoadFailed")}</DropdownMenuItem>
+        )}
         {!loading && !membersError && members.length === 0 && (
-          <DropdownMenuItem disabled>暂无项目成员</DropdownMenuItem>
+          <DropdownMenuItem disabled>{t("project.noMembers")}</DropdownMenuItem>
         )}
         {!loading && !membersError && members.length > 0 && filteredMembers.length === 0 && (
-          <DropdownMenuItem disabled>没有匹配的成员</DropdownMenuItem>
+          <DropdownMenuItem disabled>{t("project.noMemberMatch")}</DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -705,6 +728,7 @@ function getFilterLabel<T extends string | number>(
   fallback: string,
   value: T[],
   options: Array<{ label: string; value: T }>,
+  t: ReturnType<typeof useLocale>["t"],
 ) {
   if (value.length === 0) {
     return fallback
@@ -712,7 +736,7 @@ function getFilterLabel<T extends string | number>(
   if (value.length === 1) {
     return options.find((option) => option.value === value[0])?.label ?? fallback
   }
-  return `${value.length} 项`
+  return t("project.assigneeCount", { count: value.length })
 }
 
 function updateFilterSelection<T>(value: T[], option: T, checked: boolean) {
@@ -738,9 +762,10 @@ function TaskViewSwitcher({
   onValueChange: (view: TaskView) => void
   value: TaskView
 }) {
+  const { t } = useLocale()
   return (
     <ToggleGroup
-      aria-label="任务视图"
+      aria-label={t("project.taskView")}
       className="shrink-0"
       onValueChange={(nextValue) => {
         if (nextValue) {
@@ -752,7 +777,7 @@ function TaskViewSwitcher({
       value={value}
       variant="outline"
     >
-      {taskViews.map((view) => {
+      {getTaskViews(t).map((view) => {
         const Icon = view.icon
 
         return (

@@ -1,5 +1,7 @@
 import * as React from "react"
 import { Upload } from "lucide-react"
+
+import { useLocale } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
 import {
   type ClientConversation,
@@ -373,6 +375,7 @@ export function ConversationPanel({
 }
 
 function ConversationFileDropOverlay({ kind }: { kind: DraggedFileKind }) {
+  const { t } = useLocale()
   const isImage = kind === "image"
 
   return (
@@ -386,9 +389,11 @@ function ConversationFileDropOverlay({ kind }: { kind: DraggedFileKind }) {
         <span className="flex size-11 items-center justify-center rounded-full bg-teal-500/15">
           <Upload aria-hidden="true" className="size-5" />
         </span>
-        <span className="text-sm font-medium">{isImage ? "松开发送图片" : "松开发送文件"}</span>
+        <span className="text-sm font-medium">
+          {isImage ? t("chat.panel.dragReleaseImage") : t("chat.panel.dragReleaseFile")}
+        </span>
         <span className="text-xs text-muted-foreground">
-          {isImage ? "支持 PNG、JPG 和 WebP" : "将作为附件发送"}
+          {isImage ? t("chat.panel.dragHintImage") : t("chat.panel.dragHintFile")}
         </span>
       </div>
     </div>
@@ -396,12 +401,13 @@ function ConversationFileDropOverlay({ kind }: { kind: DraggedFileKind }) {
 }
 
 function ConversationPanelEmptyState() {
+  const { t } = useLocale()
   return (
     <div
       className="flex flex-1 items-center justify-center self-stretch text-sm text-muted-foreground"
       data-testid="chat-empty-state"
     >
-      选择一个会话开始聊天
+      {t("chat.panel.empty")}
     </div>
   )
 }

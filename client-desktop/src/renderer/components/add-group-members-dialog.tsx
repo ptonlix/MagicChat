@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Search, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 
@@ -51,6 +52,7 @@ type AddGroupAppCandidate = Pick<ContactApp, "avatar" | "description" | "id" | "
 type AddGroupMemberCandidate = AddGroupUserCandidate | AddGroupAppCandidate
 
 export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogProps) {
+  const { t } = useLocale()
   const { addGroupConversationMembers, contactApps, contacts, me, refreshConversations } =
     useClientData()
   const [keyword, setKeyword] = React.useState("")
@@ -199,7 +201,7 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
       if (isGroupInvitePermissionError(error)) {
         await refreshConversations().catch(() => undefined)
       }
-      toast.error(error instanceof Error ? error.message : "添加成员失败")
+      toast.error(error instanceof Error ? error.message : t("addMember.failed"))
     } finally {
       setSubmitting(false)
     }
@@ -208,14 +210,20 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button aria-label="添加成员" size="icon-sm" title="添加成员" type="button" variant="ghost">
+        <Button
+          aria-label={t("addMember.add")}
+          size="icon-sm"
+          title={t("addMember.add")}
+          type="button"
+          variant="ghost"
+        >
           <UserPlus className="size-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="gap-5 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">添加成员</DialogTitle>
-          <DialogDescription className="sr-only">选择联系人添加到当前群聊</DialogDescription>
+          <DialogTitle className="text-base">{t("addMember.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("addMember.desc")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <Tabs
@@ -224,17 +232,17 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
           >
             <TabsList className={cn("grid w-full", canInviteApps ? "grid-cols-2" : "grid-cols-1")}>
               <TabsTrigger disabled={submitting} value="users">
-                成员
+                {t("addMember.members")}
               </TabsTrigger>
               {canInviteApps && (
                 <TabsTrigger disabled={submitting} value="apps">
-                  应用
+                  {t("addMember.apps")}
                 </TabsTrigger>
               )}
             </TabsList>
             <div className="grid gap-2">
               <Label htmlFor="add-group-member-search">
-                {activeTab === "apps" ? "选择应用" : "选择成员"}
+                {activeTab === "apps" ? t("addMember.pickApps") : t("addMember.pickMembers")}
               </Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -243,7 +251,9 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
                   disabled={submitting}
                   id="add-group-member-search"
                   onChange={(event) => setKeyword(event.target.value)}
-                  placeholder={activeTab === "apps" ? "搜索应用" : "搜索联系人"}
+                  placeholder={
+                    activeTab === "apps" ? t("addMember.searchApps") : t("addMember.searchContacts")
+                  }
                   type="search"
                   value={keyword}
                 />
@@ -252,7 +262,7 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
             <TabsContent value="users">
               <CandidateList
                 candidates={filteredUserCandidates}
-                emptyText="没有匹配的联系人"
+                emptyText={t("addMember.noContacts")}
                 existingMemberKeys={existingMemberKeys}
                 onToggle={toggleMember}
                 selectedMemberKeys={selectedMemberKeys}
@@ -262,7 +272,7 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
             <TabsContent value="apps">
               <CandidateList
                 candidates={filteredAppCandidates}
-                emptyText="没有匹配的应用"
+                emptyText={t("addMember.noApps")}
                 existingMemberKeys={existingMemberKeys}
                 onToggle={toggleMember}
                 selectedMemberKeys={selectedMemberKeys}
@@ -273,11 +283,11 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
           <DialogFooter>
             <DialogClose asChild>
               <Button disabled={submitting} type="button" variant="outline">
-                取消
+                {t("addMember.cancel")}
               </Button>
             </DialogClose>
             <Button disabled={newMemberCount === 0 || submitting} type="submit">
-              {submitting ? "添加中" : "添加"}
+              {submitting ? t("addMember.adding") : t("addMember.action")}
             </Button>
           </DialogFooter>
         </form>
@@ -307,10 +317,11 @@ function CandidateList({
   selectedMemberKeys: Set<string>
   submitting: boolean
 }) {
+  const { t } = useLocale()
   return (
     <div className="h-64 overflow-y-auto rounded-md border">
       <ItemGroup
-        aria-label="添加群聊成员"
+        aria-label={t("addMember.title")}
         className="gap-1 p-2 has-data-[size=sm]:gap-1"
         role="group"
       >

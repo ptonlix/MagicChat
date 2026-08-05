@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2, Plus, Search, Unlink } from "lucide-react"
 import { toast } from "sonner"
 
@@ -59,6 +60,7 @@ export function ProjectGroupAssociationsDialog({
   open: boolean
   project: ClientProjectDetail
 }) {
+  const { t } = useLocale()
   const [addOpen, setAddOpen] = React.useState(false)
   const [adding, setAdding] = React.useState(false)
   const [keyword, setKeyword] = React.useState("")
@@ -83,7 +85,7 @@ export function ProjectGroupAssociationsDialog({
       })
       .catch((error) => {
         if (active) {
-          setLoadError(getErrorMessage(error, "加载授权群组失败"))
+          setLoadError(getErrorMessage(error, t("groupAuth.loadFailed")))
         }
       })
       .finally(() => {
@@ -95,7 +97,7 @@ export function ProjectGroupAssociationsDialog({
     return () => {
       active = false
     }
-  }, [open, project.id])
+  }, [open, project.id, t])
 
   const linkedGroupIds = React.useMemo(
     () => new Set(linkedGroups.map((group) => group.id)),
@@ -146,10 +148,10 @@ export function ProjectGroupAssociationsDialog({
       await bindClientProjectGroup(project.id, selectedGroup.id)
       setLinkedGroups((current) => [toProjectGroup(selectedGroup), ...current])
       setAddOpen(false)
-      toast.success("群组已授权")
+      toast.success(t("groupAuth.authorized"))
       await onRelationsChanged()
     } catch (error) {
-      toast.error(getErrorMessage(error, "授权群组失败"))
+      toast.error(getErrorMessage(error, t("groupAuth.authorizeFailed")))
     } finally {
       setAdding(false)
     }
@@ -165,10 +167,10 @@ export function ProjectGroupAssociationsDialog({
       await unbindClientProjectGroup(project.id, unlinkTarget.id)
       setLinkedGroups((current) => current.filter((group) => group.id !== unlinkTarget.id))
       setUnlinkTarget(null)
-      toast.success("已取消群组授权")
+      toast.success(t("groupAuth.revoked"))
       await onRelationsChanged()
     } catch (error) {
-      toast.error(getErrorMessage(error, "取消群组授权失败"))
+      toast.error(getErrorMessage(error, t("groupAuth.revokeFailed")))
     } finally {
       setUnlinking(false)
     }
@@ -178,17 +180,17 @@ export function ProjectGroupAssociationsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-4 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>授权群组</DialogTitle>
-          <DialogDescription>已授权群组的成员可以访问这个项目。</DialogDescription>
+          <DialogTitle>{t("groupAuth.title")}</DialogTitle>
+          <DialogDescription>{t("groupAuth.desc")}</DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-between gap-2">
-          <Label>已授权群组（{linkedGroups.length}）</Label>
+          <Label>{t("groupAuth.label", { count: linkedGroups.length })}</Label>
           <Button
-            aria-label="添加授权群组"
+            aria-label={t("groupAuth.add")}
             disabled={loading || linkedGroups.length >= maxProjectGroupCount}
             onClick={openAddDialog}
             size="icon-sm"
-            title="添加授权群组"
+            title={t("groupAuth.add")}
             type="button"
             variant="ghost"
           >
@@ -200,14 +202,16 @@ export function ProjectGroupAssociationsDialog({
             {loading && (
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
-                正在加载
+                {t("groupAuth.loading")}
               </div>
             )}
             {!loading && loadError && (
               <div className="py-12 text-center text-sm text-destructive">{loadError}</div>
             )}
             {!loading && !loadError && linkedGroups.length === 0 && (
-              <div className="py-12 text-center text-sm text-muted-foreground">暂无授权群组</div>
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                {t("groupAuth.empty")}
+              </div>
             )}
             {!loading &&
               !loadError &&
@@ -226,15 +230,15 @@ export function ProjectGroupAssociationsDialog({
                     <ItemContent className="min-w-0">
                       <ItemTitle className="truncate">{group.name}</ItemTitle>
                       <ItemDescription className="truncate text-xs">
-                        {group.memberCount} 人
+                        {t("groupAuth.memberCount", { count: group.memberCount })}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       <Button
-                        aria-label={`取消 ${group.name} 的授权`}
+                        aria-label={t("groupAuth.revokeAria", { name: group.name })}
                         onClick={() => setUnlinkTarget(group)}
                         size="icon-sm"
-                        title="取消授权"
+                        title={t("groupAuth.revoke")}
                         type="button"
                         variant="ghost"
                       >
@@ -248,15 +252,15 @@ export function ProjectGroupAssociationsDialog({
         </ScrollArea>
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button">
-            关闭
+            {t("groupAuth.close")}
           </Button>
         </DialogFooter>
 
         <Dialog open={addOpen} onOpenChange={handleAddOpenChange}>
           <DialogContent className="gap-4 sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>添加授权群组</DialogTitle>
-              <DialogDescription>选择群组，点击确定后才会完成授权。</DialogDescription>
+              <DialogTitle>{t("groupAuth.addTitle")}</DialogTitle>
+              <DialogDescription>{t("groupAuth.addDesc")}</DialogDescription>
             </DialogHeader>
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -265,7 +269,7 @@ export function ProjectGroupAssociationsDialog({
                 className="pl-8"
                 disabled={adding}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索群组"
+                placeholder={t("groupAuth.search")}
                 type="search"
                 value={keyword}
               />
@@ -274,7 +278,7 @@ export function ProjectGroupAssociationsDialog({
               <div className="grid gap-1 p-2">
                 {candidates.length === 0 && (
                   <div className="py-12 text-center text-sm text-muted-foreground">
-                    {keyword.trim() ? "没有匹配的群组" : "暂无可授权群组"}
+                    {keyword.trim() ? t("groupAuth.noMatch") : t("groupAuth.none")}
                   </div>
                 )}
                 {candidates.length > 0 && (
@@ -309,7 +313,7 @@ export function ProjectGroupAssociationsDialog({
                             <ItemContent className="min-w-0">
                               <ItemTitle className="truncate">{group.name}</ItemTitle>
                               <ItemDescription className="truncate text-xs">
-                                {group.memberCount} 人
+                                {t("groupAuth.memberCount", { count: group.memberCount })}
                               </ItemDescription>
                             </ItemContent>
                             <ItemActions>
@@ -334,7 +338,7 @@ export function ProjectGroupAssociationsDialog({
                 type="button"
                 variant="outline"
               >
-                取消
+                {t("groupAuth.cancel")}
               </Button>
               <Button
                 disabled={adding || !selectedGroupId}
@@ -342,7 +346,7 @@ export function ProjectGroupAssociationsDialog({
                 type="button"
               >
                 {adding && <Loader2 className="animate-spin" />}
-                确定
+                {t("groupAuth.confirm")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -358,13 +362,13 @@ export function ProjectGroupAssociationsDialog({
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>取消群组授权</AlertDialogTitle>
+              <AlertDialogTitle>{t("groupAuth.revokeTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
-                {`确定取消“${unlinkTarget?.name ?? ""}”的项目授权吗？该群组成员可能失去项目访问权限。`}
+                {t("groupAuth.revokeDesc", { name: unlinkTarget?.name ?? "" })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={unlinking}>取消</AlertDialogCancel>
+              <AlertDialogCancel disabled={unlinking}>{t("groupAuth.cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 disabled={unlinking}
                 onClick={(event) => {
@@ -374,7 +378,7 @@ export function ProjectGroupAssociationsDialog({
                 variant="destructive"
               >
                 {unlinking && <Loader2 className="animate-spin" />}
-                取消授权
+                {t("groupAuth.revokeAction")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

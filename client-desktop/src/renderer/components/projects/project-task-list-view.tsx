@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import {
   ChevronsDown,
   ChevronsUp,
@@ -28,21 +29,8 @@ import {
 import { formatRelativeTime } from "@/lib/relative-time"
 import { cn } from "@/lib/utils"
 
-const priorityLabels = {
-  1: "低",
-  2: "中",
-  3: "高",
-} satisfies Record<ProjectTask["priority"], string>
-
-const statusLabels = {
-  todo: "待办",
-  in_progress: "进行中",
-  done: "已完成",
-  canceled: "已取消",
-} satisfies Record<ProjectTask["status"], string>
-
 export function ProjectTaskListView({
-  emptyMessage = "暂无任务",
+  emptyMessage,
   onOpenTask,
   onTaskUpdated,
   tasks,
@@ -52,6 +40,8 @@ export function ProjectTaskListView({
   onTaskUpdated: () => Promise<void>
   tasks: ProjectTask[]
 }) {
+  const { t } = useLocale()
+
   return (
     <>
       {tasks.length === 0 ? (
@@ -59,7 +49,7 @@ export function ProjectTaskListView({
           {emptyMessage}
         </div>
       ) : (
-        <ItemGroup aria-label="任务列表" className="gap-2">
+        <ItemGroup aria-label={t("project.task.list")} className="gap-2">
           {tasks.map((task) => (
             <TaskItem
               key={task.id}
@@ -83,6 +73,7 @@ function TaskItem({
   onUpdated: () => Promise<void>
   task: ProjectTask
 }) {
+  const { t } = useLocale()
   const closed = task.status === "done" || task.status === "canceled"
   const overdue = !closed && isPastDate(task.dueDate)
   const now = new Date()
@@ -128,7 +119,7 @@ function TaskItem({
           >
             <span className="flex w-full min-w-0 flex-wrap items-center gap-2">
               <button
-                aria-label={`查看任务详情：${task.title}`}
+                aria-label={t("project.task.viewDetail", { title: task.title })}
                 className="max-w-full min-w-0 cursor-pointer truncate text-left"
                 onClick={(event) => {
                   event.stopPropagation()
@@ -150,7 +141,7 @@ function TaskItem({
             </span>
           </ItemTitle>
           <ItemDescription className="line-clamp-1">
-            {task.description || "暂无细节描述"}
+            {task.description || t("project.task.noDetail")}
           </ItemDescription>
         </ItemContent>
         <ItemFooter className="flex-wrap justify-start gap-2">
@@ -173,7 +164,9 @@ function TaskItem({
           {task.assignee && (
             <Badge asChild variant="outline">
               <button
-                aria-label={`修改任务负责人，当前为${task.assignee.nickname || task.assignee.name}`}
+                aria-label={t("project.task.changeAssignee", {
+                  name: task.assignee.nickname || task.assignee.name,
+                })}
                 className={cn(
                   "cursor-pointer hover:ring-1 hover:ring-ring/50",
                   closed && "text-muted-foreground",
@@ -201,7 +194,7 @@ function TaskItem({
             </Badge>
           )}
           <TaskDateBadge
-            label="开始"
+            label={t("project.task.start")}
             onClick={(event) => {
               event.stopPropagation()
               setStartDateDialogOpen(true)
@@ -209,7 +202,7 @@ function TaskItem({
             value={task.startDate}
           />
           <TaskDateBadge
-            label="截止"
+            label={t("project.task.due")}
             onClick={(event) => {
               event.stopPropagation()
               setDueDateDialogOpen(true)
@@ -219,11 +212,11 @@ function TaskItem({
           />
           <div className="ml-auto flex shrink-0 items-center text-xs whitespace-nowrap text-muted-foreground">
             <time dateTime={task.createdAt} title={task.createdAt}>
-              {formatRelativeTime(task.createdAt, now)}创建
+              {t("project.task.created", { time: formatRelativeTime(task.createdAt, now) })}
             </time>
             <span>，</span>
             <time dateTime={task.updatedAt} title={task.updatedAt}>
-              {formatRelativeTime(task.updatedAt, now)}更新
+              {t("project.task.updated", { time: formatRelativeTime(task.updatedAt, now) })}
             </time>
           </div>
         </ItemFooter>
@@ -323,10 +316,17 @@ function StatusBadge({
   onClick: React.MouseEventHandler<HTMLButtonElement>
   status: ProjectTask["status"]
 }) {
+  const { t } = useLocale()
+  const statusLabels = {
+    todo: t("project.filter.todo"),
+    in_progress: t("project.filter.in_progress"),
+    done: t("project.filter.done"),
+    canceled: t("project.filter.canceled"),
+  } satisfies Record<ProjectTask["status"], string>
   return (
     <Badge asChild variant="outline">
       <button
-        aria-label={`修改任务状态，当前为${statusLabels[status]}`}
+        aria-label={t("project.task.changeStatus", { label: statusLabels[status] })}
         className={cn(
           "cursor-pointer hover:ring-1 hover:ring-ring/50",
           muted && "text-muted-foreground",
@@ -350,10 +350,16 @@ function PriorityBadge({
   onClick: React.MouseEventHandler<HTMLButtonElement>
   priority: ProjectTask["priority"]
 }) {
+  const { t } = useLocale()
+  const priorityLabels = {
+    1: t("project.priority.low"),
+    2: t("project.priority.medium"),
+    3: t("project.priority.high"),
+  } satisfies Record<ProjectTask["priority"], string>
   return (
     <Badge asChild variant="outline">
       <button
-        aria-label={`修改任务优先级，当前为${priorityLabels[priority]}`}
+        aria-label={t("project.task.changePriority", { label: priorityLabels[priority] })}
         className={cn(
           "cursor-pointer hover:ring-1 hover:ring-ring/50",
           muted && "text-muted-foreground",
@@ -385,6 +391,7 @@ function TaskDateBadge({
   overdue?: boolean
   value: string | null
 }) {
+  const { t } = useLocale()
   if (!value) {
     return null
   }
@@ -392,7 +399,7 @@ function TaskDateBadge({
   return (
     <Badge asChild variant={overdue ? "warning" : "outline"}>
       <button
-        aria-label={`修改任务${label}日期，当前为${value}`}
+        aria-label={t("project.task.changeDate", { label, value })}
         className={cn(
           "cursor-pointer hover:ring-1 hover:ring-ring/50",
           overdue && "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",

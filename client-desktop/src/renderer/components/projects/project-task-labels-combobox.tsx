@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import {
   Combobox,
@@ -27,6 +28,8 @@ export function ProjectTaskLabelsCombobox({
   portalContainer: React.RefObject<HTMLDivElement | null>
   value: string[]
 }) {
+  const { t } = useLocale()
+
   const [highlightedLabel, setHighlightedLabel] = React.useState<string | undefined>()
   const [query, setQuery] = React.useState("")
   const anchor = useComboboxAnchor()
@@ -71,15 +74,15 @@ export function ProjectTaskLabelsCombobox({
             <ComboboxChip key={label}>{label}</ComboboxChip>
           ))}
           <ComboboxChipsInput
-            aria-label="任务标签"
+            aria-label={t("labelCombo.aria")}
             disabled={disabled}
             onKeyDown={handleInputKeyDown}
-            placeholder={value.length > 0 ? "添加标签" : "输入或选择标签"}
+            placeholder={value.length > 0 ? t("labelCombo.add") : t("labelCombo.input")}
           />
         </ComboboxChips>
       </div>
       <ComboboxContent anchor={anchor} container={portalContainer}>
-        <ComboboxEmpty>{loading ? "正在加载标签" : "暂无候选标签"}</ComboboxEmpty>
+        <ComboboxEmpty>{loading ? t("labelCombo.loading") : t("labelCombo.empty")}</ComboboxEmpty>
         <ComboboxList>
           {(label: string) => (
             <ComboboxItem key={label} value={label}>

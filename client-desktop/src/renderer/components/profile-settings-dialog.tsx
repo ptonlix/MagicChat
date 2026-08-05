@@ -1,4 +1,5 @@
 import { useState, type SubmitEvent } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Camera, Loader2Icon, X } from "lucide-react"
 
 import { AvatarPickerDialog } from "@/components/avatar-picker-dialog"
@@ -58,6 +59,7 @@ function ProfileSettingsDialogContent({
   onNicknameSave?: (nickname: string) => Promise<void> | void
   user: ClientUser
 }) {
+  const { t } = useLocale()
   const [avatar, setAvatar] = useState(user.avatar)
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
   const [nickname, setNickname] = useState(user.nickname)
@@ -99,11 +101,16 @@ function ProfileSettingsDialogContent({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <DialogTitle className="text-base font-medium">个人资料</DialogTitle>
-          <DialogDescription className="sr-only">查看个人资料并编辑昵称和头像</DialogDescription>
+          <DialogTitle className="text-base font-medium">{t("profileSettings.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("profileSettings.desc")}</DialogDescription>
         </div>
         <DialogClose asChild>
-          <Button aria-label="关闭个人资料" size="icon-sm" type="button" variant="ghost">
+          <Button
+            aria-label={t("profileSettings.close")}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
             <X className="size-4" />
           </Button>
         </DialogClose>
@@ -113,7 +120,7 @@ function ProfileSettingsDialogContent({
         <div className="flex items-start gap-4" data-testid="profile-settings-identity-row">
           <Button
             aria-haspopup="dialog"
-            aria-label="更换头像"
+            aria-label={t("profileSettings.changeAvatar")}
             className="group/avatar-change relative h-auto overflow-hidden rounded-sm bg-muted p-0 hover:bg-background"
             onClick={() => setAvatarPickerOpen(true)}
             type="button"
@@ -136,14 +143,16 @@ function ProfileSettingsDialogContent({
             </span>
           </Button>
           <Field className="min-w-0 flex-1">
-            <FieldLabel htmlFor="profile-settings-nickname">昵称</FieldLabel>
+            <FieldLabel htmlFor="profile-settings-nickname">
+              {t("profileSettings.nickname")}
+            </FieldLabel>
             <div className="flex items-center gap-2">
               <Input
                 className="flex-1"
                 disabled={nicknameSaving}
                 id="profile-settings-nickname"
                 onChange={(event) => setNickname(event.target.value)}
-                placeholder="输入昵称"
+                placeholder={t("profileSettings.nicknamePlaceholder")}
                 value={nickname}
               />
               {nicknameChanged && (
@@ -153,7 +162,7 @@ function ProfileSettingsDialogContent({
                   type="button"
                 >
                   {nicknameSaving && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-                  提交
+                  {t("profileSettings.submit")}
                 </Button>
               )}
             </div>
@@ -161,19 +170,27 @@ function ProfileSettingsDialogContent({
         </div>
 
         <FieldGroup className="gap-4">
-          <ReadonlyProfileField id="profile-settings-name" label="姓名" value={user.name} />
-          <ReadonlyProfileField id="profile-settings-email" label="邮箱" value={user.email} />
+          <ReadonlyProfileField
+            id="profile-settings-name"
+            label={t("profileSettings.name")}
+            value={user.name}
+          />
+          <ReadonlyProfileField
+            id="profile-settings-email"
+            label={t("profileSettings.email")}
+            value={user.email}
+          />
           <ReadonlyProfileField
             id="profile-settings-phone"
-            label="手机号"
-            placeholder="未设置"
+            label={t("profileSettings.phone")}
+            placeholder={t("profileSettings.phonePlaceholder")}
             value={user.phone}
           />
         </FieldGroup>
 
         <div className="flex justify-end">
           <DialogClose asChild>
-            <Button type="button">关闭</Button>
+            <Button type="button">{t("profileSettings.closeBtn")}</Button>
           </DialogClose>
         </div>
       </form>

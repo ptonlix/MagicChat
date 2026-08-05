@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 
 import { ProjectMemberAvatar } from "@/components/projects/project-member-avatar"
 import {
@@ -15,7 +16,6 @@ import type { ClientProjectMember } from "@/lib/project-data-api"
 import { projectMemberMatchesQuery } from "@/lib/project-members"
 
 export function ProjectMemberCombobox({
-  ariaLabel = "任务负责人",
   disabled = false,
   loading = false,
   members,
@@ -33,6 +33,8 @@ export function ProjectMemberCombobox({
   showEmptyEmail?: boolean
   value: ClientProjectMember | null
 }) {
+  const { t } = useLocale()
+  const ariaLabel = t("project.assignee")
   const anchor = useComboboxAnchor()
 
   return (
@@ -50,7 +52,7 @@ export function ProjectMemberCombobox({
         <ComboboxInput
           aria-label={ariaLabel}
           className="w-full"
-          placeholder={loading ? "正在加载" : "未指派"}
+          placeholder={loading ? t("project.assignee.loading") : t("project.assignee.placeholder")}
           showClear
         >
           {value && (
@@ -61,7 +63,7 @@ export function ProjectMemberCombobox({
         </ComboboxInput>
       </div>
       <ComboboxContent anchor={anchor} container={portalContainer}>
-        <ComboboxEmpty>没有匹配的项目成员</ComboboxEmpty>
+        <ComboboxEmpty>{t("project.noMemberMatch2")}</ComboboxEmpty>
         <ComboboxList>
           {(member: ClientProjectMember) => (
             <ComboboxItem key={member.id} value={member}>

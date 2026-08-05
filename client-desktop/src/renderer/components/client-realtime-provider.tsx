@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -16,6 +17,7 @@ export function ClientRealtimeProvider({
   children: ReactNode
   client?: RealtimeClient
 }) {
+  const { t } = useLocale()
   const navigate = useNavigate()
   const { setAuthenticated } = useAppInfo()
   const { clearMessageScope } = useClientData()
@@ -73,7 +75,7 @@ export function ClientRealtimeProvider({
   useEffect(() => {
     if (snapshot.ready) {
       if (hasReadyOnce && reconnectingToastShownRef.current) {
-        toast.success("网络已恢复连接")
+        toast.success(t("realtime.reconnected"))
       }
       reconnectingToastShownRef.current = false
       return
@@ -81,9 +83,9 @@ export function ClientRealtimeProvider({
 
     if (snapshot.status === "reconnecting" && hasReadyOnce && !reconnectingToastShownRef.current) {
       reconnectingToastShownRef.current = true
-      toast.warning("网络断开，正在尝试重新连接")
+      toast.warning(t("realtime.disconnected"))
     }
-  }, [hasReadyOnce, snapshot.ready, snapshot.status])
+  }, [hasReadyOnce, snapshot.ready, snapshot.status, t])
 
   const sendRealtimeRequest = useCallback(
     (method: string, payload: unknown) => client.sendRequest(method, payload),

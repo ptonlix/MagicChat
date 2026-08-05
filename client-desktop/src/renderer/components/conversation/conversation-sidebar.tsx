@@ -46,15 +46,16 @@ import {
 } from "@/lib/client-data-state"
 import { createConversationMentionLabelResolver } from "@/lib/conversation-mention-labels"
 import type { ConversationDrafts } from "@/lib/conversation-drafts"
+import { useLocale } from "@/components/locale-provider"
 import type { DirectorySearchItem } from "@/lib/local-search"
 import { formatMentionTemplateText, type MentionLabelResolver } from "@/lib/message-mentions"
 import { cn } from "@/lib/utils"
 
 const conversationFilterOptions = [
-  { label: "全部", value: "all" },
-  { label: "未读", value: "unread" },
-  { label: "单聊", value: "direct" },
-  { label: "群聊", value: "group" },
+  { label: "sidebar.filter.all", value: "all" },
+  { label: "sidebar.filter.unread", value: "unread" },
+  { label: "sidebar.filter.direct", value: "direct" },
+  { label: "sidebar.filter.group", value: "group" },
 ] as const
 type ConversationFilter = (typeof conversationFilterOptions)[number]["value"]
 type ConversationListRow = { conversation: ClientConversation; nested: boolean }
@@ -94,6 +95,7 @@ export function ConversationSidebar({
   onSetConversationMuted: (conversationId: string, muted: boolean) => Promise<void>
   onSetConversationPinned: (conversationId: string, pinned: boolean) => Promise<void>
 }) {
+  const { t } = useLocale()
   const [mutingConversationId, setMutingConversationId] = React.useState("")
   const [pinningConversationId, setPinningConversationId] = React.useState("")
   const [dismissingConversationId, setDismissingConversationId] = React.useState("")
@@ -119,9 +121,11 @@ export function ConversationSidebar({
     setPinningConversationId(conversation.id)
     try {
       await onSetConversationPinned(conversation.id, pinned)
-      toast.success(pinned ? "会话已置顶" : "已取消置顶")
+      toast.success(pinned ? t("sidebar.pinned.toast") : t("sidebar.unpinned.toast"))
     } catch (error) {
-      toast.error(getClientDataErrorMessage(error, pinned ? "置顶会话失败" : "取消置顶失败"))
+      toast.error(
+        getClientDataErrorMessage(error, pinned ? t("sidebar.pinError") : t("sidebar.unpinError")),
+      )
     } finally {
       setPinningConversationId("")
     }
@@ -134,10 +138,10 @@ export function ConversationSidebar({
     setMutingConversationId(conversation.id)
     try {
       await onSetConversationMuted(conversation.id, muted)
-      toast.success(muted ? "消息免打扰已开启" : "消息免打扰已关闭")
+      toast.success(muted ? t("sidebar.muted.toast") : t("sidebar.unmuted.toast"))
     } catch (error) {
       toast.error(
-        getClientDataErrorMessage(error, muted ? "开启消息免打扰失败" : "取消消息免打扰失败"),
+        getClientDataErrorMessage(error, muted ? t("sidebar.muteError") : t("sidebar.unmuteError")),
       )
     } finally {
       setMutingConversationId("")
@@ -153,9 +157,9 @@ export function ConversationSidebar({
     try {
       await onDismissConversation(conversation.id)
       setDismissCandidate(null)
-      toast.success("对话已删除")
+      toast.success(t("sidebar.dismissed.toast"))
     } catch (error) {
-      toast.error(getClientDataErrorMessage(error, "删除对话失败"))
+      toast.error(getClientDataErrorMessage(error, t("sidebar.dismissError")))
     } finally {
       setDismissingConversationId("")
     }
@@ -191,8 +195,10 @@ export function ConversationSidebar({
         conversation,
         currentUser.id,
         mentionLabelResolver,
+        t,
       ),
       selected,
+      t,
     })
 
     return (
@@ -233,7 +239,7 @@ export function ConversationSidebar({
                   </span>
                   {conversation.topic?.archived && (
                     <span className="ml-1.5 shrink-0 text-[10px] font-normal text-muted-foreground">
-                      已关闭
+                      {t("sidebar.archived")}
                     </span>
                   )}
                 </span>
@@ -255,10 +261,10 @@ export function ConversationSidebar({
                 {((!nested && conversation.pinned) || conversation.notificationMuted) && (
                   <span className="mr-2 flex shrink-0 items-center gap-0.5">
                     {!nested && conversation.pinned && (
-                      <Pin aria-label="已置顶" className="size-3! shrink-0" />
+                      <Pin aria-label={t("sidebar.pinned")} className="size-3! shrink-0" />
                     )}
                     {conversation.notificationMuted && (
-                      <BellOff aria-label="消息免打扰已开启" className="size-3! shrink-0" />
+                      <BellOff aria-label={t("sidebar.muted.toast")} className="size-3! shrink-0" />
                     )}
                   </span>
                 )}
@@ -274,7 +280,7 @@ export function ConversationSidebar({
     <Sidebar className="border-r bg-background" collapsible="none">
       <SidebarHeader className="gap-0 p-0">
         <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-base font-medium">消息</h1>
+          <h1 className="text-base font-medium">{t("sidebar.title")}</h1>
           <div className="flex items-center gap-1">
             <GlobalSearchCommand
               contactApps={contactApps}
@@ -289,9 +295,9 @@ export function ConversationSidebar({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  aria-label="新建 Agent"
+                  aria-label={t("sidebar.newAgent")}
                   size="icon-sm"
-                  title="新建 Agent"
+                  title={t("sidebar.newAgent")}
                   type="button"
                   variant="ghost"
                 >
@@ -299,7 +305,9 @@ export function ConversationSidebar({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-32">
-                <DropdownMenuItem onSelect={onCreateGroup}>发起群聊</DropdownMenuItem>
+                <DropdownMenuItem onSelect={onCreateGroup}>
+                  {t("sidebar.startGroup")}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -310,10 +318,13 @@ export function ConversationSidebar({
             onValueChange={(value) => setConversationFilter(value as ConversationFilter)}
             value={conversationFilter}
           >
-            <TabsList aria-label="会话类型" className="grid w-full grid-cols-4">
+            <TabsList
+              aria-label={t("sidebar.conversationType")}
+              className="grid w-full grid-cols-4"
+            >
               {conversationFilterOptions.map((option) => (
                 <TabsTrigger key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -325,7 +336,7 @@ export function ConversationSidebar({
           <div className="px-2 pb-3" role="listbox">
             <div className="group/menu-item relative">
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                {getEmptyConversationFilterMessage(conversationFilter)}
+                {getEmptyConversationFilterMessage(conversationFilter, t)}
               </div>
             </div>
           </div>
@@ -351,13 +362,13 @@ export function ConversationSidebar({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除对话？</AlertDialogTitle>
-            <AlertDialogDescription>
-              删除后，该对话将暂时从列表中移除。收到新消息后会重新显示，聊天记录不会删除，也不会退出群聊。
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("sidebar.dismiss.title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("sidebar.dismiss.desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(dismissingConversationId)}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={Boolean(dismissingConversationId)}>
+              {t("sidebar.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={Boolean(dismissingConversationId)}
               onClick={(event) => {
@@ -366,7 +377,7 @@ export function ConversationSidebar({
               }}
               variant="destructive"
             >
-              {dismissingConversationId ? "删除中..." : "删除"}
+              {dismissingConversationId ? t("sidebar.dismissing") : t("sidebar.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -379,11 +390,12 @@ function getConversationListDescription(
   conversation: ClientConversation,
   currentUserId: string,
   mentionLabelResolver: MentionLabelResolver,
+  t: ReturnType<typeof useLocale>["t"],
 ) {
   const summary = conversation.lastMessageSummary.trim()
 
   if (!summary) {
-    return "暂无消息"
+    return t("sidebar.noMessages")
   }
 
   const description = formatMentionTemplateText(summary, mentionLabelResolver)
@@ -394,20 +406,24 @@ function getConversationListDescription(
     return description
   }
 
-  const senderName = getLastMessageSenderName(conversation, currentUserId)
+  const senderName = getLastMessageSenderName(conversation, currentUserId, t)
   return senderName ? `${senderName}：${description}` : description
 }
 
-function getLastMessageSenderName(conversation: ClientConversation, currentUserId: string) {
+function getLastMessageSenderName(
+  conversation: ClientConversation,
+  currentUserId: string,
+  t: ReturnType<typeof useLocale>["t"],
+) {
   const sender = conversation.lastMessageSender
   if (!sender) {
     return ""
   }
   if (sender.type === "system") {
-    return "系统"
+    return t("sidebar.system")
   }
   if (sender.type === "user" && sender.id === currentUserId) {
-    return "我"
+    return t("sidebar.me")
   }
 
   return sender.nickname.trim() || sender.name.trim()
@@ -421,6 +437,7 @@ function getConversationListPreview({
   lastMentionedSeq,
   messageDescription,
   selected,
+  t,
 }: {
   draftText: string | undefined
   hasUnreadMention: boolean
@@ -429,6 +446,7 @@ function getConversationListPreview({
   lastMentionedSeq: number
   messageDescription: string
   selected: boolean
+  t: ReturnType<typeof useLocale>["t"]
 }) {
   if (selected) {
     return {
@@ -439,21 +457,21 @@ function getConversationListPreview({
 
   if (hasUnreadChoice && lastChoiceSeq >= lastMentionedSeq) {
     return {
-      alertLabel: "[选择]",
-      description: messageDescription.replace(/(^|：)\[选择\]\s*/, "$1"),
+      alertLabel: t("sidebar.alert.choice"),
+      description: messageDescription.replace(/(^|[:：])\[(?:选择|Choice)\]\s*/, "$1"),
     }
   }
 
   if (hasUnreadMention) {
     return {
-      alertLabel: "[有人 @ 我]",
+      alertLabel: t("sidebar.alert.mention"),
       description: messageDescription,
     }
   }
 
   if (draftText !== undefined) {
     return {
-      alertLabel: "[草稿]",
+      alertLabel: t("sidebar.alert.draft"),
       description: draftText,
     }
   }
@@ -519,13 +537,19 @@ function hasUnreadMessages(conversation: ClientConversation) {
   )
 }
 
-function getEmptyConversationFilterMessage(filter: ConversationFilter) {
-  if (filter === "all") return "暂无会话"
-  const label = conversationFilterOptions.find((option) => option.value === filter)?.label ?? "会话"
-  return `暂无${label}`
+function getEmptyConversationFilterMessage(
+  filter: ConversationFilter,
+  t: ReturnType<typeof useLocale>["t"],
+) {
+  if (filter === "all") return t("sidebar.noConversations")
+  const label =
+    conversationFilterOptions.find((option) => option.value === filter)?.label ??
+    "sidebar.conversation"
+  return t("sidebar.noConversationsOf", { label: t(label) })
 }
 
 function ConversationListAvatar({ conversation }: { conversation: ClientConversation }) {
+  const { t } = useLocale()
   const sourceSender = conversation.topic?.sourceSender
   return (
     <div className="relative shrink-0">
@@ -552,7 +576,10 @@ function ConversationListAvatar({ conversation }: { conversation: ClientConversa
       {conversation.unreadCount > 0 && (
         <span className="absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/3">
           {conversation.notificationMuted ? (
-            <span aria-label="有未读消息" className="block size-2 rounded-full bg-rose-700" />
+            <span
+              aria-label={t("sidebar.unreadMessage")}
+              className="block size-2 rounded-full bg-rose-700"
+            />
           ) : (
             <ConversationUnreadBadge count={conversation.unreadCount} />
           )}
@@ -563,9 +590,10 @@ function ConversationListAvatar({ conversation }: { conversation: ClientConversa
 }
 
 function ConversationUnreadBadge({ count }: { count: number }) {
+  const { t } = useLocale()
   return (
     <Badge
-      aria-label={`${count} 条未读消息`}
+      aria-label={t("sidebar.unreadCount", { count })}
       className="h-4 bg-rose-700 px-1 py-0 text-[10px] leading-4 font-normal text-white dark:bg-rose-700"
       variant="destructive"
     >

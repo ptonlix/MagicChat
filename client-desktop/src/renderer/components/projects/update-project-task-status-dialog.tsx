@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Circle, CircleCheckBig, CircleDot, CircleX } from "lucide-react"
 import { toast } from "sonner"
 
@@ -17,37 +18,39 @@ import { Spinner } from "@/components/ui/spinner"
 import { updateClientProjectTask } from "@/lib/project-task-data-api"
 import { cn } from "@/lib/utils"
 
-const statusOptions: Array<{
+function getStatusOptions(t: ReturnType<typeof useLocale>["t"]): Array<{
   icon: React.ComponentType<{ className?: string }>
   iconClassName: string
   label: string
   value: ProjectTaskStatus
-}> = [
-  {
-    icon: Circle,
-    iconClassName: "text-amber-600",
-    label: "待办",
-    value: "todo",
-  },
-  {
-    icon: CircleDot,
-    iconClassName: "text-sky-600",
-    label: "进行中",
-    value: "in_progress",
-  },
-  {
-    icon: CircleCheckBig,
-    iconClassName: "text-emerald-600",
-    label: "已完成",
-    value: "done",
-  },
-  {
-    icon: CircleX,
-    iconClassName: "text-stone-400",
-    label: "已取消",
-    value: "canceled",
-  },
-]
+}> {
+  return [
+    {
+      icon: Circle,
+      iconClassName: "text-amber-600",
+      label: t("project.filter.todo"),
+      value: "todo",
+    },
+    {
+      icon: CircleDot,
+      iconClassName: "text-sky-600",
+      label: t("project.filter.in_progress"),
+      value: "in_progress",
+    },
+    {
+      icon: CircleCheckBig,
+      iconClassName: "text-emerald-600",
+      label: t("project.filter.done"),
+      value: "done",
+    },
+    {
+      icon: CircleX,
+      iconClassName: "text-stone-400",
+      label: t("project.filter.canceled"),
+      value: "canceled",
+    },
+  ]
+}
 
 export function UpdateProjectTaskStatusDialog({
   currentStatus,
@@ -64,6 +67,8 @@ export function UpdateProjectTaskStatusDialog({
   projectId: string
   taskId: string
 }) {
+  const { t } = useLocale()
+
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState(currentStatus)
 
@@ -88,9 +93,9 @@ export function UpdateProjectTaskStatusDialog({
       await updateClientProjectTask(projectId, taskId, { status })
       await onUpdated()
       onOpenChange(false)
-      toast.success("任务状态已更新")
+      toast.success(t("updateTask.status.saved"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "更新任务状态失败")
+      toast.error(error instanceof Error ? error.message : t("updateTask.status.failed"))
     } finally {
       setSaving(false)
     }
@@ -100,8 +105,8 @@ export function UpdateProjectTaskStatusDialog({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="gap-5">
         <DialogHeader>
-          <DialogTitle>修改状态</DialogTitle>
-          <DialogDescription className="sr-only">选择任务的新状态。</DialogDescription>
+          <DialogTitle>{t("updateTask.status.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("updateTask.status.desc")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <RadioGroup
@@ -109,7 +114,7 @@ export function UpdateProjectTaskStatusDialog({
             onValueChange={(value) => setStatus(value as ProjectTaskStatus)}
             value={status}
           >
-            {statusOptions.map((option) => {
+            {getStatusOptions(t).map((option) => {
               const Icon = option.icon
               const id = `task-status-${taskId}-${option.value}`
 
@@ -136,11 +141,11 @@ export function UpdateProjectTaskStatusDialog({
               type="button"
               variant="outline"
             >
-              取消
+              {t("updateTask.cancel")}
             </Button>
             <Button disabled={saving || status === currentStatus} type="submit">
               {saving && <Spinner />}
-              保存
+              {t("updateTask.save")}
             </Button>
           </DialogFooter>
         </form>

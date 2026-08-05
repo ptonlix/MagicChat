@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2Icon, Search } from "lucide-react"
 import { toast } from "sonner"
 
@@ -46,6 +47,7 @@ export function ForwardMessageDialog({
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
+  const { t } = useLocale()
   const [failedByConversationId, setFailedByConversationId] = React.useState<Map<string, string>>(
     () => new Map(),
   )
@@ -78,7 +80,7 @@ export function ForwardMessageDialog({
       const next = new Set(current)
       if (checked) {
         if (next.size >= maxForwardTargets) {
-          toast.warning(`一次最多选择 ${maxForwardTargets} 个会话`)
+          toast.warning(t("forward.maxTargets", { count: maxForwardTargets }))
           return current
         }
         next.add(conversationId)
@@ -119,7 +121,7 @@ export function ForwardMessageDialog({
         if (target.status === "sent") {
           sent.add(target.conversationId)
         } else {
-          failed.set(target.conversationId, target.error?.message ?? "转发失败")
+          failed.set(target.conversationId, target.error?.message ?? t("forward.failed"))
         }
       }
 
@@ -128,16 +130,16 @@ export function ForwardMessageDialog({
       setSelectedConversationIds(new Set(failed.keys()))
 
       if (result.failedCount === 0) {
-        toast.success(`已转发到 ${result.sentCount} 个会话`)
+        toast.success(t("forward.sent", { count: result.sentCount }))
         onComplete()
         onOpenChange(false)
       } else if (result.sentCount > 0) {
-        toast.warning(`已转发到 ${result.sentCount} 个会话，${result.failedCount} 个失败`)
+        toast.warning(t("forward.partial", { count: result.sentCount, failed: result.failedCount }))
       } else {
-        toast.error("转发失败，请检查目标会话后重试")
+        toast.error(t("forward.failedAll"))
       }
     } catch (error) {
-      toast.error(getClientDataErrorMessage(error, "转发消息失败"))
+      toast.error(getClientDataErrorMessage(error, t("forward.failedMessage")))
     } finally {
       setSubmitting(false)
     }
@@ -152,7 +154,9 @@ export function ForwardMessageDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-base">
-            {messageCount > 1 ? `转发 ${messageCount} 条消息` : "转发消息"}
+            {messageCount > 1
+              ? t("forward.title", { count: messageCount })
+              : t("forward.titleSingle")}
           </DialogTitle>
         </DialogHeader>
 
@@ -160,18 +164,21 @@ export function ForwardMessageDialog({
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              aria-label="搜索会话"
+              aria-label={t("forward.search")}
               className="pl-8"
               disabled={submitting}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="搜索会话"
+              placeholder={t("forward.search")}
               type="search"
               value={keyword}
             />
           </div>
 
           <div className="h-80 overflow-y-auto rounded-md border">
-            <ItemGroup aria-label="转发目标会话" className="gap-1 p-2 has-data-[size=sm]:gap-1">
+            <ItemGroup
+              aria-label={t("forward.targets")}
+              className="gap-1 p-2 has-data-[size=sm]:gap-1"
+            >
               {visibleConversations.map((conversation) => {
                 const checked = selectedConversationIds.has(conversation.id)
                 const sent = sentConversationIds.has(conversation.id)
@@ -197,12 +204,12 @@ export function ForwardMessageDialog({
                         <ItemTitle className="max-w-full">
                           <span className="truncate">{conversation.name}</span>
                           <Badge className="shrink-0" variant="secondary">
-                            {conversationTypeLabel(conversation.type)}
+                            {conversationTypeLabel(conversation.type, t)}
                           </Badge>
                         </ItemTitle>
                         {(error || sent) && (
                           <ItemDescription className={cn(error && "text-destructive")}>
-                            {error ?? "已转发"}
+                            {error ?? t("forward.done")}
                           </ItemDescription>
                         )}
                       </ItemContent>
@@ -223,7 +230,7 @@ export function ForwardMessageDialog({
               })}
               {visibleConversations.length === 0 && (
                 <div className="px-3 py-10 text-center text-sm text-muted-foreground">
-                  没有匹配的会话
+                  {t("forward.noMatch")}
                 </div>
               )}
             </ItemGroup>
@@ -231,17 +238,17 @@ export function ForwardMessageDialog({
 
           <DialogFooter className="items-center sm:justify-between">
             <span className="text-xs text-muted-foreground">
-              已选择 {selectedConversationIds.size} 个会话
+              {t("forward.selected", { count: selectedConversationIds.size })}
             </span>
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
                 <Button disabled={submitting} type="button" variant="outline">
-                  取消
+                  {t("forward.cancel")}
                 </Button>
               </DialogClose>
               <Button disabled={submitting || selectedConversationIds.size === 0} type="submit">
                 {submitting && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-                转发
+                {t("forward.action")}
                 {selectedConversationIds.size > 0 ? `（${selectedConversationIds.size}）` : ""}
               </Button>
             </div>
@@ -252,13 +259,16 @@ export function ForwardMessageDialog({
   )
 }
 
-function conversationTypeLabel(type: ClientConversation["type"]) {
+function conversationTypeLabel(
+  type: ClientConversation["type"],
+  t: ReturnType<typeof useLocale>["t"],
+) {
   switch (type) {
     case "group":
-      return "群聊"
+      return t("forward.typeGroup")
     case "app":
       return "Agent"
     default:
-      return "私聊"
+      return t("forward.typeDirect")
   }
 }

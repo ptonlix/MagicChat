@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ImageOff } from "lucide-react"
 
 import { readTemporaryFileURLs, type ClientImageMessageBody } from "@/lib/client-data-api"
@@ -35,6 +36,7 @@ const maxPreviewZoom = 2
 const previewZoomStep = 0.1
 
 export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
+  const { t } = useLocale()
   const previewDragRef = React.useRef<{
     offset: PreviewOffset
     pointerId: number
@@ -286,7 +288,7 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
         frame={thumbnailFrame}
         joinedCaption={hasCaption}
         icon={<ImageOff className="size-5" />}
-        text="图片加载失败"
+        text={t("imageMsg.loadFailed")}
       />
     )
   }
@@ -298,7 +300,7 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
   return (
     <>
       <button
-        aria-label="预览图片"
+        aria-label={t("imageMsg.preview")}
         className={cn(
           "relative block max-w-[65vw] overflow-hidden bg-muted text-left",
           hasCaption ? "rounded-t-sm" : "rounded-sm",
@@ -311,7 +313,7 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
           <MessageImageLoadingStatus frame={thumbnailFrame} joinedCaption={hasCaption} />
         )}
         <img
-          alt="图片消息"
+          alt={t("imageMsg.alt")}
           className={cn(
             "absolute inset-0 h-full w-full object-cover",
             hasCaption ? "rounded-t-sm" : "rounded-sm",
@@ -331,8 +333,8 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
           showCloseButton={false}
         >
           <DialogHeader className="sr-only">
-            <DialogTitle>图片预览</DialogTitle>
-            <DialogDescription>查看图片消息大图</DialogDescription>
+            <DialogTitle>{t("imageMsg.previewTitle")}</DialogTitle>
+            <DialogDescription>{t("imageMsg.previewDesc")}</DialogDescription>
           </DialogHeader>
           <div
             ref={setPreviewAreaElement}
@@ -346,7 +348,7 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
             onPointerUp={handlePreviewPointerEnd}
           >
             <img
-              alt="图片消息预览"
+              alt={t("imageMsg.previewAlt")}
               className={cn(
                 "select-none",
                 previewBaseSize
@@ -381,6 +383,7 @@ function MessageImageLoadingStatus({
   frame: PreviewSize
   joinedCaption?: boolean
 }) {
+  const { t } = useLocale()
   return (
     <div
       className={cn(
@@ -394,10 +397,10 @@ function MessageImageLoadingStatus({
         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background/60">
           <Spinner className="size-5" />
         </div>
-        <span className="text-xs font-medium">图片正在加载</span>
+        <span className="text-xs font-medium">{t("imageMsg.loading")}</span>
       </div>
       <span className="sr-only">
-        图片加载区域 {Math.round(frame.width)} x {Math.round(frame.height)}
+        {t("imageMsg.region", { w: Math.round(frame.width), h: Math.round(frame.height) })}
       </span>
     </div>
   )

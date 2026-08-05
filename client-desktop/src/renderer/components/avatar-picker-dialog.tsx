@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2Icon, X } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -57,6 +58,7 @@ function AvatarPickerDialogContent({
   onSaveCustomAvatar,
   selectedAvatar,
 }: Omit<AvatarPickerDialogProps, "open">) {
+  const { t } = useLocale()
   const [mode, setMode] = useState<"builtin" | "custom">(
     isBuiltinAvatar(selectedAvatar) ? "builtin" : "custom",
   )
@@ -97,12 +99,12 @@ function AvatarPickerDialogContent({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <DialogTitle className="text-base font-medium">选择头像</DialogTitle>
-          <DialogDescription className="sr-only">选择一个头像作为个人头像</DialogDescription>
+          <DialogTitle className="text-base font-medium">{t("avatarPicker.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("avatarPicker.desc")}</DialogDescription>
         </div>
         <DialogClose asChild>
           <Button
-            aria-label="关闭头像选择"
+            aria-label={t("avatarPicker.close")}
             disabled={saving}
             size="icon-sm"
             type="button"
@@ -116,10 +118,10 @@ function AvatarPickerDialogContent({
       <Tabs value={mode} onValueChange={(value) => setMode(value as "builtin" | "custom")}>
         <TabsList>
           <TabsTrigger disabled={saving} value="builtin">
-            系统头像
+            {t("avatarPicker.system")}
           </TabsTrigger>
           <TabsTrigger disabled={saving} value="custom">
-            自定义头像
+            {t("avatarPicker.custom")}
           </TabsTrigger>
         </TabsList>
 
@@ -130,7 +132,7 @@ function AvatarPickerDialogContent({
 
               return (
                 <Button
-                  aria-label={`选择头像 ${item.id}`}
+                  aria-label={t("avatarPicker.select", { id: item.id })}
                   aria-pressed={selected}
                   className="h-auto rounded-sm bg-background p-0.5 hover:bg-background data-[pressed=true]:ring-2 data-[pressed=true]:ring-ring"
                   data-pressed={selected}
@@ -156,7 +158,7 @@ function AvatarPickerDialogContent({
               type="button"
             >
               {saving && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-              保存
+              {t("avatarPicker.save")}
             </Button>
           </div>
         </TabsContent>

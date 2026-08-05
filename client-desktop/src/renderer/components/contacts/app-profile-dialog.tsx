@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Blocks, Camera, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -35,14 +36,16 @@ import {
 } from "@/lib/client-api/apps"
 import { cn } from "@/lib/utils"
 
-const visibilityOptions: Array<{
+function getVisibilityOptions(t: ReturnType<typeof useLocale>["t"]): Array<{
   label: string
   value: ClientAppVisibility
-}> = [
-  { label: "仅我自己", value: "creator" },
-  { label: "所有人", value: "public" },
-  { label: "部分用户", value: "restricted" },
-]
+}> {
+  return [
+    { label: t("createApp.visibility.creator"), value: "creator" },
+    { label: t("createApp.visibility.public"), value: "public" },
+    { label: t("createApp.visibility.restricted"), value: "restricted" },
+  ]
+}
 
 type AppProfileDialogProps = {
   app: ClientOwnedApp | null
@@ -83,6 +86,7 @@ function AppProfileDialogContent({
   onOpenChange,
   users,
 }: Omit<AppProfileDialogProps, "app" | "open"> & { app: ClientOwnedApp }) {
+  const { t } = useLocale()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const userComboboxPortal = React.useRef<HTMLDivElement>(null)
   const nameId = React.useId()
@@ -146,7 +150,7 @@ function AppProfileDialogContent({
     try {
       setPendingAvatar(await prepareAppAvatar(sourceFile))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "处理应用头像失败")
+      toast.error(error instanceof Error ? error.message : t("appProfile.avatarFailed"))
     } finally {
       setPreparingAvatar(false)
     }
@@ -177,10 +181,10 @@ function AppProfileDialogContent({
         syncDraftWithApp(updatedApp)
       }
 
-      toast.success("应用资料已保存")
+      toast.success(t("appProfile.saved"))
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存应用资料失败")
+      toast.error(error instanceof Error ? error.message : t("appProfile.saveFailed"))
     } finally {
       setSaving(false)
     }
@@ -199,13 +203,11 @@ function AppProfileDialogContent({
     >
       <div className="flex items-start justify-between gap-4">
         <DialogHeader>
-          <DialogTitle>修改应用资料</DialogTitle>
-          <DialogDescription className="sr-only">
-            修改应用头像、名称、描述和访问范围
-          </DialogDescription>
+          <DialogTitle>{t("appProfile.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("appProfile.desc")}</DialogDescription>
         </DialogHeader>
         <Button
-          aria-label="关闭修改应用资料"
+          aria-label={t("appProfile.close")}
           disabled={busy}
           onClick={() => onOpenChange(false)}
           size="icon-sm"
@@ -225,7 +227,7 @@ function AppProfileDialogContent({
           type="file"
         />
         <Button
-          aria-label="更换应用头像"
+          aria-label={t("appProfile.changeAvatar")}
           className="group/avatar-change relative h-auto overflow-hidden rounded-sm bg-muted p-0 hover:bg-background"
           disabled={busy}
           onClick={() => fileInputRef.current?.click()}
@@ -255,7 +257,7 @@ function AppProfileDialogContent({
           </span>
         </Button>
         <Field className="min-w-0 flex-1">
-          <FieldLabel htmlFor={nameId}>应用名称</FieldLabel>
+          <FieldLabel htmlFor={nameId}>{t("appProfile.name")}</FieldLabel>
           <Input
             disabled={busy}
             id={nameId}
@@ -268,20 +270,20 @@ function AppProfileDialogContent({
 
       <div className="grid gap-5">
         <Field>
-          <FieldLabel htmlFor={descriptionId}>应用描述</FieldLabel>
+          <FieldLabel htmlFor={descriptionId}>{t("appProfile.description")}</FieldLabel>
           <Textarea
             className="min-h-28 resize-none"
             disabled={busy}
             id={descriptionId}
             maxLength={2000}
             onChange={(event) => setDraftDescription(event.target.value)}
-            placeholder="未填写应用描述"
+            placeholder={t("appProfile.descriptionPlaceholder")}
             value={draftDescription}
           />
         </Field>
 
         <div className="grid gap-2">
-          <Label id={visibilityLabelId}>访问范围</Label>
+          <Label id={visibilityLabelId}>{t("appProfile.visibility")}</Label>
           <Select
             disabled={busy}
             onValueChange={(value) => setDraftVisibility(value as ClientAppVisibility)}
@@ -291,7 +293,7 @@ function AppProfileDialogContent({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {visibilityOptions.map((option) => (
+              {getVisibilityOptions(t).map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -302,7 +304,7 @@ function AppProfileDialogContent({
 
         {draftVisibility === "restricted" && (
           <div className="grid gap-2">
-            <Label>可访问用户</Label>
+            <Label>{t("appProfile.accessibleUsers")}</Label>
             <AppAccessUserCombobox
               disabled={busy}
               onValueChange={setSelectedUsers}
@@ -310,7 +312,9 @@ function AppProfileDialogContent({
               users={grantableUsers}
               value={selectedUsers}
             />
-            <p className="text-xs text-muted-foreground">已选择 {selectedUsers.length} 名用户</p>
+            <p className="text-xs text-muted-foreground">
+              {t("appProfile.selectedUsers", { count: selectedUsers.length })}
+            </p>
           </div>
         )}
       </div>
@@ -322,11 +326,11 @@ function AppProfileDialogContent({
           type="button"
           variant="secondary"
         >
-          关闭
+          {t("appProfile.closeBtn")}
         </Button>
         <Button disabled={!canSave} onClick={() => void handleSave()} type="button">
           {saving && <Spinner />}
-          保存
+          {t("appProfile.save")}
         </Button>
       </DialogFooter>
       <div className="absolute top-0 left-0 size-0" ref={userComboboxPortal} />

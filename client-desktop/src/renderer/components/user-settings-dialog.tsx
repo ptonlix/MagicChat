@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Loader2Icon, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ export function UserSettingsDialog({ onOpenChange, open }: UserSettingsDialogPro
 }
 
 function UserSettingsDialogContent() {
+  const { t } = useLocale()
   const [notificationPermission, setNotificationPermission] =
     useState<BrowserNotificationPermission>(() => getBrowserNotificationPermission())
   const [notificationRequesting, setNotificationRequesting] = useState(false)
@@ -53,11 +55,11 @@ function UserSettingsDialogContent() {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <DialogTitle className="text-base font-medium">设置</DialogTitle>
-          <DialogDescription className="sr-only">管理个人设置</DialogDescription>
+          <DialogTitle className="text-base font-medium">{t("userSettings.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("userSettings.desc")}</DialogDescription>
         </div>
         <DialogClose asChild>
-          <Button aria-label="关闭设置" size="icon-sm" type="button" variant="ghost">
+          <Button aria-label={t("userSettings.close")} size="icon-sm" type="button" variant="ghost">
             <X className="size-4" />
           </Button>
         </DialogClose>
@@ -65,9 +67,9 @@ function UserSettingsDialogContent() {
 
       <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
         <div className="min-w-0">
-          <div className="text-sm font-medium">桌面通知</div>
+          <div className="text-sm font-medium">{t("userSettings.desktopNotifications")}</div>
           <div className="text-xs text-muted-foreground">
-            {getNotificationPermissionText(notificationPermission)}
+            {getNotificationPermissionText(notificationPermission, t)}
           </div>
         </div>
         {notificationPermission === "default" && (
@@ -79,29 +81,32 @@ function UserSettingsDialogContent() {
             type="button"
           >
             {notificationRequesting && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-            开启桌面通知
+            {t("userSettings.enable")}
           </Button>
         )}
       </div>
 
       <div className="flex justify-end">
         <DialogClose asChild>
-          <Button type="button">关闭</Button>
+          <Button type="button">{t("userSettings.closeBtn")}</Button>
         </DialogClose>
       </div>
     </DialogContent>
   )
 }
 
-function getNotificationPermissionText(permission: BrowserNotificationPermission) {
+function getNotificationPermissionText(
+  permission: BrowserNotificationPermission,
+  t: ReturnType<typeof useLocale>["t"],
+) {
   switch (permission) {
     case "granted":
-      return "桌面通知已开启"
+      return t("userSettings.status.enabled")
     case "denied":
-      return "通知权限已被浏览器阻止"
+      return t("userSettings.status.blocked")
     case "unsupported":
-      return "当前浏览器不支持桌面通知"
+      return t("userSettings.status.unsupported")
     default:
-      return "尚未开启"
+      return t("userSettings.status.off")
   }
 }

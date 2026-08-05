@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { ArrowDown, LoaderCircle, MessageCircle } from "lucide-react"
 import { type ClientConversation } from "@/lib/client-data-api"
 import { type MentionLabelResolver } from "@/lib/message-mentions"
@@ -83,6 +84,7 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
   onToggleMessageSelection?: (message: ConversationPanelMessage) => void
   pendingLatestMessageCount?: number
 }) {
+  const { t } = useLocale()
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const contentResizeObserverRef = React.useRef<ResizeObserver | null>(null)
   const nearBottomRef = React.useRef(true)
@@ -378,7 +380,7 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
         data-testid="conversation-history-loading"
       >
         <LoaderCircle className="size-4 animate-spin" />
-        <span>正在加载消息</span>
+        <span>{t("history.loading")}</span>
       </div>
     )
   }
@@ -415,7 +417,7 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
             {loading && (
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <LoaderCircle className="size-3.5 animate-spin" />
-                <span>正在加载话题回复</span>
+                <span>{t("history.loadingTopics")}</span>
               </div>
             )}
             {error && <div className="text-center text-xs text-muted-foreground">{error}</div>}
@@ -436,8 +438,8 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
             <MessageCircle className="size-14 text-muted-foreground/25" />
           </EmptyMedia>
           <EmptyHeader>
-            <EmptyTitle>暂无消息</EmptyTitle>
-            <EmptyDescription>发送第一条消息开始对话</EmptyDescription>
+            <EmptyTitle>{t("history.empty")}</EmptyTitle>
+            <EmptyDescription>{t("history.emptyHint")}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </div>
@@ -468,7 +470,7 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
               data-testid="conversation-history-loading-before"
             >
               <LoaderCircle className="size-3.5 animate-spin" />
-              <span>正在加载更早消息</span>
+              <span>{t("history.loadingEarlier")}</span>
             </div>
           )}
           {messages.map((message, index) => (
@@ -516,7 +518,7 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
               data-testid="conversation-history-loading-after"
             >
               <LoaderCircle className="size-3.5 animate-spin" />
-              <span>正在加载更新消息</span>
+              <span>{t("history.loadingNewer")}</span>
             </div>
           )}
         </div>
@@ -532,9 +534,9 @@ export const ConversationPanelHistory = React.memo(function ConversationPanelHis
           <ArrowDown className="size-4" />
           {historyMode
             ? externalPendingLatestMessageCount > 0
-              ? `返回最新消息（${externalPendingLatestMessageCount} 条新消息）`
-              : "返回最新消息"
-            : `${pendingNewMessageCount} 条新消息`}
+              ? t("history.backToLatestNew", { count: externalPendingLatestMessageCount })
+              : t("history.backToLatest")
+            : t("history.newMessages", { count: pendingNewMessageCount })}
         </Button>
       )}
     </div>

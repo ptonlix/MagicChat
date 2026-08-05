@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Camera, Ellipsis, Link2, Loader2, Pencil, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -58,6 +59,7 @@ export function ProjectSettingsMenu({
   project: ClientProjectDetail
   user: ClientUser
 }) {
+  const { t } = useLocale()
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -73,10 +75,10 @@ export function ProjectSettingsMenu({
     try {
       await deleteClientProject(project.id)
       setDeleteOpen(false)
-      toast.success("项目已删除")
+      toast.success(t("project.deleted"))
       await onProjectDeleted()
     } catch (error) {
-      toast.error(getErrorMessage(error, "删除项目失败"))
+      toast.error(getErrorMessage(error, t("project.deleteFailed")))
     } finally {
       setDeleting(false)
     }
@@ -87,9 +89,9 @@ export function ProjectSettingsMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            aria-label="项目设置"
+            aria-label={t("project.settings")}
             size="icon-sm"
-            title="项目设置"
+            title={t("project.settings")}
             type="button"
             variant="ghost"
           >
@@ -99,14 +101,14 @@ export function ProjectSettingsMenu({
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem disabled={!canManage} onSelect={() => setEditOpen(true)}>
             <Pencil />
-            修改信息
+            {t("project.editInfo")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!canManage || project.isPersonal}
             onSelect={() => setGroupsOpen(true)}
           >
             <Link2 />
-            授权群组
+            {t("project.authorizeGroups")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -115,7 +117,7 @@ export function ProjectSettingsMenu({
             variant="destructive"
           >
             <Trash2 />
-            删除项目
+            {t("project.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -147,13 +149,13 @@ export function ProjectSettingsMenu({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除项目</AlertDialogTitle>
+            <AlertDialogTitle>{t("project.delete")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`确定删除“${project.name}”吗？项目内的任务也将一并删除，此操作无法撤销。`}
+              {t("project.delete.desc", { name: project.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("project.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!canManage || project.isPersonal || deleting}
               onClick={(event) => {
@@ -163,7 +165,7 @@ export function ProjectSettingsMenu({
               variant="destructive"
             >
               {deleting && <Loader2 className="animate-spin" />}
-              删除项目
+              {t("project.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -185,6 +187,7 @@ function EditProjectDialog({
   project: ClientProjectDetail
   user: ClientUser
 }) {
+  const { t } = useLocale()
   const [avatarPickerOpen, setAvatarPickerOpen] = React.useState(false)
   const [description, setDescription] = React.useState(project.description)
   const [name, setName] = React.useState(project.name)
@@ -221,10 +224,10 @@ function EditProjectDialog({
         await uploadClientProjectAvatar(project.id, pendingAvatar.file)
       }
       onOpenChange(false)
-      toast.success("项目信息已保存")
+      toast.success(t("project.infoSaved"))
       await onProjectUpdated()
     } catch (error) {
-      toast.error(getErrorMessage(error, "保存项目信息失败"))
+      toast.error(getErrorMessage(error, t("project.infoSaveFailed")))
     } finally {
       setSaving(false)
     }
@@ -235,13 +238,13 @@ function EditProjectDialog({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="gap-5 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>修改项目信息</DialogTitle>
-            <DialogDescription>修改项目头像、名称和描述。</DialogDescription>
+            <DialogTitle>{t("project.edit.title")}</DialogTitle>
+            <DialogDescription>{t("project.edit.desc")}</DialogDescription>
           </DialogHeader>
           <form className="grid gap-5" onSubmit={handleSubmit}>
             <div className="flex items-start gap-4">
               <Button
-                aria-label="修改项目头像"
+                aria-label={t("project.editAvatar")}
                 className="group/avatar-change relative h-auto overflow-hidden rounded-md bg-muted p-0 hover:bg-muted"
                 disabled={saving || project.isPersonal}
                 onClick={() => setAvatarPickerOpen(true)}
@@ -261,7 +264,7 @@ function EditProjectDialog({
                 )}
               </Button>
               <div className="grid min-w-0 flex-1 gap-2">
-                <Label htmlFor={`edit-project-name-${project.id}`}>项目名称</Label>
+                <Label htmlFor={`edit-project-name-${project.id}`}>{t("project.name")}</Label>
                 <Input
                   disabled={saving || project.isPersonal}
                   id={`edit-project-name-${project.id}`}
@@ -270,18 +273,20 @@ function EditProjectDialog({
                   value={name}
                 />
                 {!project.isPersonal && name.length > 0 && !trimmedName && (
-                  <p className="text-xs text-destructive">项目名称不能为空</p>
+                  <p className="text-xs text-destructive">{t("project.nameEmpty")}</p>
                 )}
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor={`edit-project-description-${project.id}`}>项目描述</Label>
+              <Label htmlFor={`edit-project-description-${project.id}`}>
+                {t("project.description")}
+              </Label>
               <Textarea
                 className="min-h-28 resize-none"
                 disabled={saving}
                 id={`edit-project-description-${project.id}`}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="暂无说明"
+                placeholder={t("project.descriptionPlaceholder")}
                 value={description}
               />
             </div>
@@ -292,11 +297,11 @@ function EditProjectDialog({
                 type="button"
                 variant="outline"
               >
-                取消
+                {t("project.cancel")}
               </Button>
               <Button disabled={!canSave} type="submit">
                 {saving && <Loader2 className="animate-spin" />}
-                保存
+                {t("project.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -310,13 +315,18 @@ function EditProjectDialog({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <DialogTitle className="text-base font-medium">上传项目头像</DialogTitle>
-              <DialogDescription className="sr-only">
-                上传并裁切一张图片作为项目头像
-              </DialogDescription>
+              <DialogTitle className="text-base font-medium">
+                {t("project.avatar.title")}
+              </DialogTitle>
+              <DialogDescription className="sr-only">{t("project.avatar.desc")}</DialogDescription>
             </div>
             <DialogClose asChild>
-              <Button aria-label="关闭项目头像选择" size="icon-sm" type="button" variant="ghost">
+              <Button
+                aria-label={t("project.avatar.close")}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
                 <X className="size-4" />
               </Button>
             </DialogClose>

@@ -1,4 +1,5 @@
 import { useCallback, type RefObject } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { toast } from "sonner"
 
 import {
@@ -34,6 +35,7 @@ export function useConversationSenders({
     updater: (state: ClientConversationMessageState) => ClientConversationMessageState,
   ) => void
 }) {
+  const { t } = useLocale()
   const sendConversationText = useCallback(
     async (
       conversationId: string,
@@ -61,7 +63,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送消息失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendMessageFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -74,6 +76,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 
@@ -104,7 +107,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送富文本消息失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendRichTextFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -117,6 +120,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 
@@ -143,7 +147,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送链接失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendLinkFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -156,6 +160,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 
@@ -195,7 +200,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送卡片失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendCardFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -208,6 +213,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 
@@ -233,7 +239,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送文件失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendFileFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -246,6 +252,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 
@@ -273,7 +280,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送图片失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendImageFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -286,6 +293,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 
@@ -317,7 +325,7 @@ export function useConversationSenders({
         mergeIncomingConversationMessage(message, { markLoaded: true })
         return message
       } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, "发送语音失败"))
+        toast.error(getClientDataErrorMessage(error, t("data.sendVoiceFailed")))
         return null
       } finally {
         updateConversationMessageState(conversationId, (currentState) => ({
@@ -330,6 +338,7 @@ export function useConversationSenders({
       conversationMessageStatesRef,
       mergeIncomingConversationMessage,
       updateConversationMessageState,
+      t,
     ],
   )
 

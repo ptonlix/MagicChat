@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { toast } from "sonner"
 
 import { ProjectMemberCombobox } from "@/components/projects/project-member-combobox"
@@ -32,6 +33,8 @@ export function UpdateProjectTaskAssigneeDialog({
   projectId: string
   taskId: string
 }) {
+  const { t } = useLocale()
+
   const [assigneeUserId, setAssigneeUserId] = React.useState(currentAssignee?.id ?? "")
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
@@ -53,7 +56,7 @@ export function UpdateProjectTaskAssigneeDialog({
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : "加载项目成员失败")
+          setError(loadError instanceof Error ? loadError.message : t("project.members.loadFailed"))
         }
       })
       .finally(() => {
@@ -65,7 +68,7 @@ export function UpdateProjectTaskAssigneeDialog({
     return () => {
       active = false
     }
-  }, [open, projectId])
+  }, [open, projectId, t])
 
   const fallbackAssignee = createFallbackMember(currentAssignee)
   const memberOptions =
@@ -101,9 +104,9 @@ export function UpdateProjectTaskAssigneeDialog({
       })
       await onUpdated()
       onOpenChange(false)
-      toast.success("任务负责人已更新")
+      toast.success(t("updateTask.assignee.saved"))
     } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : "更新任务负责人失败")
+      toast.error(saveError instanceof Error ? saveError.message : t("updateTask.assignee.failed"))
     } finally {
       setSaving(false)
     }
@@ -113,8 +116,8 @@ export function UpdateProjectTaskAssigneeDialog({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>修改负责人</DialogTitle>
-          <DialogDescription className="sr-only">选择任务的新负责人。</DialogDescription>
+          <DialogTitle>{t("updateTask.assignee.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("updateTask.assignee.desc")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <ProjectMemberCombobox
@@ -135,11 +138,11 @@ export function UpdateProjectTaskAssigneeDialog({
               type="button"
               variant="outline"
             >
-              取消
+              {t("updateTask.cancel")}
             </Button>
             <Button disabled={saving || loading || unchanged} type="submit">
               {saving && <Spinner />}
-              保存
+              {t("updateTask.save")}
             </Button>
           </DialogFooter>
         </form>

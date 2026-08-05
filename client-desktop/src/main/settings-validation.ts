@@ -3,6 +3,8 @@ import type { DesktopSettingsPatch } from "@shared/bridge"
 const allowedDesktopSettings = new Set([
   "autoLaunch",
   "closeBehavior",
+  "fontScale",
+  "language",
   "messageSoundEnabled",
   "notificationPrivacy",
 ])
@@ -18,6 +20,17 @@ export function parseDesktopSettingsPatch(value: unknown): DesktopSettingsPatch 
   }
   if (input.messageSoundEnabled !== undefined && typeof input.messageSoundEnabled !== "boolean") {
     throw new Error("新消息提示音设置无效")
+  }
+  if (input.language !== undefined && input.language !== "zh-CN" && input.language !== "en") {
+    throw new Error("语言设置无效")
+  }
+  if (
+    input.fontScale !== undefined &&
+    input.fontScale !== "normal" &&
+    input.fontScale !== "medium" &&
+    input.fontScale !== "large"
+  ) {
+    throw new Error("字体大小设置无效")
   }
   if (
     input.closeBehavior !== undefined &&
@@ -38,6 +51,8 @@ export function parseDesktopSettingsPatch(value: unknown): DesktopSettingsPatch 
   return {
     ...(input.autoLaunch === undefined ? {} : { autoLaunch: input.autoLaunch }),
     ...(input.closeBehavior === undefined ? {} : { closeBehavior: input.closeBehavior }),
+    ...(input.fontScale === undefined ? {} : { fontScale: input.fontScale }),
+    ...(input.language === undefined ? {} : { language: input.language }),
     ...(input.messageSoundEnabled === undefined
       ? {}
       : { messageSoundEnabled: input.messageSoundEnabled }),

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { LoaderCircle, Mic, RotateCcw, Square } from "lucide-react"
 
 import { VoiceRecordingPanel } from "@/components/conversation/conversation-voice-recorder"
@@ -27,6 +28,7 @@ export function SmartVoiceInputDialog({
   onOpenChange,
   open,
 }: SmartVoiceInputDialogProps) {
+  const { t } = useLocale()
   const [transcript, setTranscript] = React.useState("")
   const recording = useVoiceRecording()
 
@@ -60,10 +62,8 @@ export function SmartVoiceInputDialog({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">智能语音输入</DialogTitle>
-          <DialogDescription className="sr-only">
-            将实时识别的语音文字采纳到消息输入框
-          </DialogDescription>
+          <DialogTitle className="text-base">{t("smartVoice.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("smartVoice.desc")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <VoiceRecordingPanel
@@ -76,44 +76,42 @@ export function SmartVoiceInputDialog({
             {recording.status === "idle" && (
               <Button onClick={handleStartRecording} type="button">
                 <Mic />
-                开始录音
+                {t("smartVoice.start")}
               </Button>
             )}
             {recording.status === "requesting" && (
               <Button disabled type="button">
                 <LoaderCircle className="animate-spin" />
-                正在连接
+                {t("smartVoice.connecting")}
               </Button>
             )}
             {recording.status === "processing" && (
               <Button disabled type="button">
                 <LoaderCircle className="animate-spin" />
-                正在生成
+                {t("smartVoice.generating")}
               </Button>
             )}
             {recording.status === "recording" && (
               <Button onClick={recording.stopRecording} type="button" variant="destructive">
                 <Square />
-                结束录音
+                {t("smartVoice.stop")}
               </Button>
             )}
             {recording.status === "recorded" && (
               <Button onClick={handleStartRecording} type="button" variant="outline">
                 <RotateCcw />
-                重新录制
+                {t("smartVoice.retry")}
               </Button>
             )}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="smart-voice-transcript">识别文字</Label>
+            <Label htmlFor="smart-voice-transcript">{t("smartVoice.transcript")}</Label>
             <Textarea
               id="smart-voice-transcript"
               className="max-h-64 min-h-36 resize-none"
               onChange={(event) => setTranscript(event.target.value)}
               placeholder={
-                recording.status === "idle"
-                  ? "开始录音后，识别文字将在这里实时显示"
-                  : "正在等待语音识别结果"
+                recording.status === "idle" ? t("smartVoice.hint") : t("smartVoice.waiting")
               }
               readOnly={recording.status === "idle"}
               value={transcript}
@@ -123,11 +121,11 @@ export function SmartVoiceInputDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline">
-              取消
+              {t("smartVoice.cancel")}
             </Button>
           </DialogClose>
           <Button disabled={!transcript.trim()} onClick={handleAccept} type="button">
-            采纳
+            {t("smartVoice.adopt")}
           </Button>
         </DialogFooter>
       </DialogContent>

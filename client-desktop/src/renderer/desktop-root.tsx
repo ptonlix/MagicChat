@@ -24,6 +24,7 @@ import { toast } from "sonner"
 import { configureDesktopHost } from "@/lib/desktop-host"
 import { RealtimeClient } from "@/lib/realtime-client"
 import { ThemeProvider } from "@/components/theme-provider"
+import { LocaleProvider, useLocale } from "@/components/locale-provider"
 import { DesktopSettingsPanel } from "@/components/settings/desktop-settings-panel"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -57,18 +58,20 @@ export function DesktopRoot() {
 
   return (
     <ThemeProvider>
-      <TooltipProvider>
-        <div className="desktop-frame">
-          <DesktopTitlebar platform={platform} />
-          <div className="desktop-content">
-            <DesktopRootContent platform={platform} />
+      <LocaleProvider>
+        <TooltipProvider>
+          <div className="desktop-frame">
+            <DesktopTitlebar platform={platform} />
+            <div className="desktop-content">
+              <DesktopRootContent platform={platform} />
+            </div>
           </div>
-        </div>
-        <Toaster
-          offset={{ top: "calc(var(--desktop-titlebar-height) + 12px)" }}
-          position="top-center"
-        />
-      </TooltipProvider>
+          <Toaster
+            offset={{ top: "calc(var(--desktop-titlebar-height) + 12px)" }}
+            position="top-center"
+          />
+        </TooltipProvider>
+      </LocaleProvider>
     </ThemeProvider>
   )
 }
@@ -93,12 +96,17 @@ function useDesktopPlatform() {
 }
 
 function DesktopTitlebar({ platform }: { platform?: string }) {
+  const { t } = useLocale()
   return (
     <div className="desktop-titlebar-drag-region">
       {platform && platform !== "darwin" && (
         <div className="desktop-titlebar-brand">
-          <img alt={platform === "win32" ? "" : "即应"} draggable={false} src="/logo.png" />
-          {platform === "win32" && <span>即应</span>}
+          <img
+            alt={platform === "win32" ? "" : t("brand.name")}
+            draggable={false}
+            src="/logo.png"
+          />
+          {platform === "win32" && <span>{t("brand.name")}</span>}
         </div>
       )}
     </div>
@@ -106,6 +114,7 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
 }
 
 function DesktopRootContent({ platform }: { platform?: string }) {
+  const { t } = useLocale()
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [messageSoundEnabled, setMessageSoundEnabled] = useState(true)
@@ -127,7 +136,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
     )
     const unsubscribeUnknownServer = window.desktop.navigation.subscribeUnknownServer(
       ({ serverId }) => {
-        window.alert(`链接指向尚未配置的服务器 ${serverId}，请先添加并确认服务器地址。`)
+        window.alert(t("startup.unknownServer", { serverId }))
         setSelectedId(undefined)
       },
     )
@@ -135,7 +144,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
       active = false
       unsubscribeUnknownServer()
     }
-  }, [])
+  }, [t])
 
   async function select(id: string) {
     await window.desktop.servers.select(id)
@@ -158,7 +167,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
   return (
     <>
       {loading ? (
-        <StatusPage text="正在启动即应" />
+        <StatusPage text={t("startup.starting")} />
       ) : selected ? (
         <DesktopWorkspace
           key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
@@ -304,7 +313,8 @@ function DesktopUpdatePrompt({
   onStateChange(state: UpdaterState): void
   state: UpdaterState
 }) {
-  const { actionPending, runUpdateAction } = useDesktopUpdateAction(showUpdateActionToast)
+  const { t } = useLocale()
+  const { actionPending, runUpdateAction } = useDesktopUpdateAction(showUpdateActionToast, t)
   const hasNewVersion =
     Boolean(state.targetVersion) &&
     ["available", "downloaded", "downloading", "error", "installing"].includes(state.status)
@@ -321,7 +331,7 @@ function DesktopUpdatePrompt({
       }
       if (state.status === "downloaded") {
         const result = await window.desktop.updater.install()
-        if (result.status !== "started") toast.error(getUpdateInstallErrorMessage(result.reason))
+        if (result.status !== "started") toast.error(getUpdateInstallErrorMessage(result.reason, t))
         return
       }
       if (state.status === "error") {
@@ -342,7 +352,7 @@ function DesktopUpdatePrompt({
         : state.status === "downloading" || state.status === "installing"
           ? RefreshCw
           : Download
-  const label = updatePromptLabel(state)
+  const label = updatePromptLabel(state, t)
   const actionDisabled =
     actionPending || state.status === "downloading" || state.status === "installing"
 
@@ -354,7 +364,9 @@ function DesktopUpdatePrompt({
             aria-disabled={actionDisabled}
             className="desktop-update-prompt"
             onClick={handleUpdateAction}
-            title={state.targetVersion ? `${label} · 即应 ${state.targetVersion}` : label}
+            title={
+              state.targetVersion ? `${label} · ${t("brand.name")} ${state.targetVersion}` : label
+            }
             type="button"
           >
             <Icon
@@ -397,6 +409,7 @@ function DesktopHostedApp({
   onOpenSettings(): void
   onUpdaterChange(state: UpdaterState): void
 }) {
+  const { t } = useLocale()
   const [ready, setReady] = useState(false)
   const [pendingExternalUrl, setPendingExternalUrl] = useState<string>()
   const messageSoundEnabledRef = useRef(messageSoundEnabled)
@@ -471,7 +484,7 @@ function DesktopHostedApp({
       window.dispatchEvent(new PopStateEvent("popstate"))
     })
     const restoreLinkNavigation = installDesktopLinkNavigation((url) => {
-      void requestExternalLink(url).catch(() => toast.error("无法使用系统浏览器打开该链接"))
+      void requestExternalLink(url).catch(() => toast.error(t("startup.openLinkError")))
     })
     window.addEventListener("magicchat:authenticated", authenticated)
     setReady(true)
@@ -485,7 +498,7 @@ function DesktopHostedApp({
       restoreFetch()
       restoreMessageCacheTarget()
     }
-  }, [onAuthenticated, onOpenSettings, profile, target])
+  }, [onAuthenticated, onOpenSettings, profile, t, target])
 
   return (
     <>
@@ -494,14 +507,14 @@ function DesktopHostedApp({
           updatePrompt={<DesktopUpdatePrompt state={updater} onStateChange={onUpdaterChange} />}
         />
       ) : (
-        <StatusPage detail={profile.displayName} text="正在连接工作空间" />
+        <StatusPage detail={profile.displayName} text={t("startup.connecting")} />
       )}
       <ExternalLinkConfirmationDialog
         onConfirm={(url) => {
           setPendingExternalUrl(undefined)
           void window.desktop.shell
             .openExternal(url)
-            .catch(() => toast.error("无法使用系统浏览器打开该链接"))
+            .catch(() => toast.error(t("startup.openLinkError")))
         }}
         onOpenChange={(open) => {
           if (!open) setPendingExternalUrl(undefined)
@@ -512,15 +525,18 @@ function DesktopHostedApp({
   )
 }
 
-function updatePromptLabel(state: UpdaterState): string {
-  if (state.status === "downloading") return `下载中 ${Math.round(state.progress ?? 0)}%`
-  if (state.status === "downloaded") return "重启更新"
-  if (state.status === "installing") return "正在更新"
-  if (state.status === "error") return "更新失败"
-  return "新版本"
+function updatePromptLabel(state: UpdaterState, t: ReturnType<typeof useLocale>["t"]): string {
+  if (state.status === "downloading") {
+    return t("settings.update.prompt.downloading", { percent: Math.round(state.progress ?? 0) })
+  }
+  if (state.status === "downloaded") return t("settings.update.prompt.downloaded")
+  if (state.status === "installing") return t("settings.update.prompt.installing")
+  if (state.status === "error") return t("settings.update.prompt.error")
+  return t("settings.update.prompt.available")
 }
 
 function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
+  const { t } = useLocale()
   const [url, setUrl] = useState("")
   const [name, setName] = useState("")
   const [error, setError] = useState("")
@@ -533,7 +549,7 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
     try {
       onAdded(await window.desktop.servers.add(url, name || undefined))
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "无法添加服务器")
+      setError(reason instanceof Error ? reason.message : t("setup.addServerError"))
     } finally {
       setBusy(false)
     }
@@ -544,9 +560,9 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
       <div className="server-setup-shell">
         <section className="server-setup-hero">
           <div className="server-setup-brand">
-            <img alt="即应" src="/logo.png" />
+            <img alt={t("brand.name")} src="/logo.png" />
             <div>
-              <strong>即应</strong>
+              <strong>{t("brand.name")}</strong>
               <span>Desktop</span>
             </div>
           </div>
@@ -555,15 +571,8 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
             <span className="server-setup-eyebrow">
               <Sparkles size={14} />A BETTER WAY TO WORK
             </span>
-            <h1>
-              从沟通到行动，
-              <br />
-              让协作持续向前
-            </h1>
-            <p>
-              即应是一款面向企业团队的沟通与协作平台。它把聊天、AI
-              应用、项目与任务放进同一个上下文，让沟通不止被看见，更能继续向前。
-            </p>
+            <h1>{t("setup.brandSlogan")}</h1>
+            <p>{t("setup.brandDesc")}</p>
           </div>
 
           <div className="server-setup-benefits">
@@ -572,8 +581,8 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
                 <MessageCircleMore size={17} />
               </span>
               <div>
-                <strong>即时沟通</strong>
-                <p>消息、文件与上下文始终保持同步</p>
+                <strong>{t("setup.feature.chat.title")}</strong>
+                <p>{t("setup.feature.chat.desc")}</p>
               </div>
             </div>
             <div>
@@ -581,8 +590,8 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
                 <UsersRound size={17} />
               </span>
               <div>
-                <strong>团队协作</strong>
-                <p>联系人、项目与会话集中在一处</p>
+                <strong>{t("setup.feature.team.title")}</strong>
+                <p>{t("setup.feature.team.desc")}</p>
               </div>
             </div>
             <div>
@@ -590,34 +599,34 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
                 <ShieldCheck size={17} />
               </span>
               <div>
-                <strong>安全连接</strong>
-                <p>凭据仅发送到你确认的工作空间</p>
+                <strong>{t("setup.feature.security.title")}</strong>
+                <p>{t("setup.feature.security.desc")}</p>
               </div>
             </div>
           </div>
 
           <div className="server-setup-hero-footer">
             <span />
-            即应 · 企业协作空间
+            {t("setup.brand")}
           </div>
         </section>
 
         <section className="server-setup-form-panel">
           <div className="server-setup-form-card">
             <div className="server-setup-form-heading">
-              <span>连接团队空间</span>
-              <h2>开始使用即应</h2>
-              <p>输入管理员提供的服务器地址，即可进入你的团队工作空间。</p>
+              <span>{t("setup.connectWorkspace")}</span>
+              <h2>{t("setup.getStarted")}</h2>
+              <p>{t("setup.getStarted.desc")}</p>
             </div>
 
             <form onSubmit={(event) => void submit(event)}>
               <label>
                 <span>
-                  <strong>服务器地址</strong>
-                  <small>必填</small>
+                  <strong>{t("setup.serverAddress")}</strong>
+                  <small>{t("setup.required")}</small>
                 </span>
                 <input
-                  aria-label="服务器地址"
+                  aria-label={t("setup.serverAddress")}
                   autoFocus
                   required
                   type="url"
@@ -628,27 +637,27 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
               </label>
               <label>
                 <span>
-                  <strong>显示名称</strong>
-                  <small>可选</small>
+                  <strong>{t("setup.displayName")}</strong>
+                  <small>{t("setup.optional")}</small>
                 </span>
                 <input
-                  aria-label="显示名称"
+                  aria-label={t("setup.displayName")}
                   maxLength={120}
-                  placeholder="例如：产品团队"
+                  placeholder={t("setup.placeholder")}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                 />
               </label>
               {error && <p role="alert">{error}</p>}
               <button disabled={busy} type="submit">
-                <span>{busy ? "正在验证连接" : "连接并继续"}</span>
+                <span>{busy ? t("setup.verifying") : t("setup.connect")}</span>
                 <ArrowRight size={17} />
               </button>
             </form>
 
             <div className="server-setup-security">
               <LockKeyhole size={14} />
-              <span>仅连接你信任的服务器地址</span>
+              <span>{t("setup.trustedOnly")}</span>
             </div>
           </div>
         </section>
@@ -658,5 +667,6 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
 }
 
 function StatusPage({ detail, text }: { detail?: string; text: string }) {
-  return <BrandLoadingScreen detail={detail ?? "正在准备你的桌面工作空间"} message={text} />
+  const { t } = useLocale()
+  return <BrandLoadingScreen detail={detail ?? t("setup.preparingWorkspace")} message={text} />
 }

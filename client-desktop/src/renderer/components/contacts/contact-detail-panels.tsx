@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Bot, Loader2Icon, Mail, Phone, UserPen, UserRound, UsersRound } from "lucide-react"
 import { toast } from "sonner"
 
@@ -45,6 +46,7 @@ export function AppDetailPanel({
   startingConversation: boolean
   viewingAccessInfo?: boolean
 }) {
+  const { t } = useLocale()
   const deleteConfirmationId = useId()
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -57,10 +59,10 @@ export function AppDetailPanel({
     setDeleting(true)
     try {
       await onDelete()
-      toast.success("应用已删除")
+      toast.success(t("app.deleted"))
       setDeleteOpen(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除应用失败")
+      toast.error(error instanceof Error ? error.message : t("app.deleteFailed"))
     } finally {
       setDeleting(false)
     }
@@ -90,20 +92,20 @@ export function AppDetailPanel({
         <div className="grid gap-1 text-sm">
           <ContactDetailRow
             icon={<Bot className="size-4 text-muted-foreground" />}
-            label="类型"
-            value="应用"
+            label={t("app.type")}
+            value={t("app.typeValue")}
           />
           {developer && (
             <ContactDetailRow
               icon={<UserRound className="size-4 text-muted-foreground" />}
-              label="开发者"
+              label={t("app.developer")}
               value={<UserProfilePopoverLink profile={developer} />}
             />
           )}
           <ContactDetailRow
             icon={<UserRound className="size-4 text-muted-foreground" />}
-            label="状态"
-            value={app.online ? "在线" : "离线"}
+            label={t("app.status")}
+            value={app.online ? t("app.online") : t("app.offline")}
           />
         </div>
         <div className="grid gap-2">
@@ -114,7 +116,7 @@ export function AppDetailPanel({
             type="button"
           >
             {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-            发消息
+            {t("app.sendMessage")}
           </Button>
           {onViewAccessInfo && onEditProfile && (
             <div className="grid gap-2">
@@ -128,7 +130,7 @@ export function AppDetailPanel({
                 {editingProfile ? (
                   <Loader2Icon aria-hidden="true" className="animate-spin" />
                 ) : null}
-                修改资料
+                {t("app.editProfile")}
               </Button>
               <Button
                 className="w-full"
@@ -140,7 +142,7 @@ export function AppDetailPanel({
                 {viewingAccessInfo ? (
                   <Loader2Icon aria-hidden="true" className="animate-spin" />
                 ) : null}
-                开发指南
+                {t("app.devGuide")}
               </Button>
               {onDelete && (
                 <Button
@@ -150,7 +152,7 @@ export function AppDetailPanel({
                   type="button"
                   variant="destructive"
                 >
-                  删除应用
+                  {t("app.delete")}
                 </Button>
               )}
             </div>
@@ -167,13 +169,13 @@ export function AppDetailPanel({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除应用</AlertDialogTitle>
-            <AlertDialogDescription>
-              删除后应用将无法继续使用，并会退出所有会话；由应用创建的群聊会转交给可用成员，没有可用成员时将被解散。此操作无法撤销。
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("app.deleteConfirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("app.deleteDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-2">
-            <Label htmlFor={deleteConfirmationId}>{`请输入应用名称“${app.name}”以确认删除`}</Label>
+            <Label htmlFor={deleteConfirmationId}>
+              {t("app.deleteConfirmInput", { name: app.name })}
+            </Label>
             <Input
               autoFocus
               disabled={deleting}
@@ -183,7 +185,7 @@ export function AppDetailPanel({
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("app.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting || deleteConfirmation !== app.name}
               onClick={(event) => {
@@ -193,7 +195,7 @@ export function AppDetailPanel({
               variant="destructive"
             >
               {deleting && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-              删除应用
+              {t("app.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -211,6 +213,7 @@ export function GroupDetailPanel({
   onStartConversation: () => void
   startingConversation: boolean
 }) {
+  const { t } = useLocale()
   return (
     <div className={CONTACT_DETAIL_PANEL_CLASS} data-testid="contact-detail-panel">
       <div className="flex flex-col gap-5">
@@ -223,20 +226,22 @@ export function GroupDetailPanel({
           />
           <div>
             <div className="text-base font-medium">{group.name}</div>
-            <div className="mt-1 text-sm text-muted-foreground">{group.memberCount} 人群聊</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {t("app.memberCountGroup", { count: group.memberCount })}
+            </div>
           </div>
         </div>
 
         <div className="grid gap-1 text-sm">
           <ContactDetailRow
             icon={<UsersRound className="size-4 text-muted-foreground" />}
-            label="类型"
-            value="群组"
+            label={t("app.type")}
+            value={t("app.groupType")}
           />
           <ContactDetailRow
             icon={<UserRound className="size-4 text-muted-foreground" />}
-            label="状态"
-            value={group.joined ? "已加入" : "未加入"}
+            label={t("app.status")}
+            value={group.joined ? t("app.joined") : t("app.notJoined")}
           />
         </div>
         <Button
@@ -246,7 +251,7 @@ export function GroupDetailPanel({
           type="button"
         >
           {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-          {group.joined ? "发消息" : "加入群聊"}
+          {group.joined ? t("app.sendMessage") : t("app.joinGroup")}
         </Button>
       </div>
     </div>
@@ -264,6 +269,7 @@ export function ContactDetailPanel({
   onStartConversation: () => void
   startingConversation: boolean
 }) {
+  const { t } = useLocale()
   const displayName = getContactDisplayName(contact)
 
   return (
@@ -286,22 +292,22 @@ export function ContactDetailPanel({
         <div className="grid gap-1 text-sm">
           <ContactDetailRow
             icon={<UserRound className="size-4 text-muted-foreground" />}
-            label="姓名"
+            label={t("app.contactName")}
             value={contact.name}
           />
           <ContactDetailRow
             icon={<UserPen className="size-4 text-muted-foreground" />}
-            label="昵称"
+            label={t("app.contactNickname")}
             value={contact.nickname}
           />
           <ContactDetailRow
             icon={<Mail className="size-4 text-muted-foreground" />}
-            label="邮箱"
+            label={t("app.contactEmail")}
             value={contact.email}
           />
           <ContactDetailRow
             icon={<Phone className="size-4 text-muted-foreground" />}
-            label="手机"
+            label={t("app.contactPhone")}
             value={contact.phone ? formatContactPhone(contact.phone) : ""}
           />
         </div>
@@ -313,7 +319,7 @@ export function ContactDetailPanel({
             type="button"
           >
             {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-            发消息
+            {t("app.sendMessage")}
           </Button>
         )}
       </div>
@@ -322,12 +328,13 @@ export function ContactDetailPanel({
 }
 
 export function ContactEmptyState() {
+  const { t } = useLocale()
   return (
     <div
       className="flex flex-1 items-center justify-center self-stretch text-sm text-muted-foreground"
       data-testid="contact-empty-state"
     >
-      选择一个联系人查看详情
+      {t("app.emptyContactDetail")}
     </div>
   )
 }
@@ -341,8 +348,9 @@ function ContactDetailRow({
   label: string
   value: ReactNode
 }) {
+  const { t } = useLocale()
   const hasValue = typeof value !== "string" || Boolean(value.trim())
-  const displayValue = hasValue ? value : "未设置"
+  const displayValue = hasValue ? value : t("app.notSet")
 
   return (
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">

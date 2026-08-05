@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Copy, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
 
@@ -42,6 +43,7 @@ export function AppCredentialsDialog({
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
+  const { t } = useLocale()
   const [resetOpen, setResetOpen] = React.useState(false)
   const [resetting, setResetting] = React.useState(false)
 
@@ -62,9 +64,9 @@ export function AppCredentialsDialog({
       const nextCredentials = await regenerateClientAppSecret(app.id)
       onCredentialsChange(nextCredentials)
       setResetOpen(false)
-      toast.success("连接密钥已重置")
+      toast.success(t("credentials.reset"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "重置连接密钥失败")
+      toast.error(error instanceof Error ? error.message : t("credentials.resetFailed"))
     } finally {
       setResetting(false)
     }
@@ -85,16 +87,14 @@ export function AppCredentialsDialog({
           onPointerDownOutside={(event) => event.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>开发指南</DialogTitle>
-            <DialogDescription className="sr-only">
-              查看应用开发接入信息和连接凭据
-            </DialogDescription>
+            <DialogTitle>{t("credentials.title")}</DialogTitle>
+            <DialogDescription className="sr-only">{t("credentials.desc")}</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
-            <CredentialField copyable label="应用 ID" value={app.id} />
-            <CredentialField copyable label="WebSocket 地址" value={webSocketURL} />
-            <CredentialField copyable label="连接密钥" value={connectionSecret} />
+            <CredentialField copyable label={t("credentials.appId")} value={app.id} />
+            <CredentialField copyable label={t("credentials.wsUrl")} value={webSocketURL} />
+            <CredentialField copyable label={t("credentials.secret")} value={connectionSecret} />
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -105,10 +105,10 @@ export function AppCredentialsDialog({
               variant="secondary"
             >
               <RotateCcw />
-              重置连接密钥
+              {t("credentials.resetAction")}
             </Button>
             <Button disabled={resetting} onClick={() => onOpenChange(false)} type="button">
-              关闭
+              {t("credentials.close")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -124,13 +124,11 @@ export function AppCredentialsDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>重置连接密钥</AlertDialogTitle>
-            <AlertDialogDescription>
-              重置后旧密钥立即失效，应用现有的 WebSocket 连接也会被断开。确定继续吗？
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("credentials.resetAction")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("credentials.resetDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={resetting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={resetting}>{t("credentials.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={resetting}
               onClick={(event) => {
@@ -140,7 +138,7 @@ export function AppCredentialsDialog({
               variant="destructive"
             >
               {resetting && <Spinner />}
-              确认重置
+              {t("credentials.confirmReset")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -158,14 +156,15 @@ function CredentialField({
   label: string
   value: string
 }) {
+  const { t } = useLocale()
   const inputId = React.useId()
 
   async function handleCopy() {
     try {
       await writeHostClipboardText(value)
-      toast.success(`${label}已复制`)
+      toast.success(t("credentials.copied", { label }))
     } catch {
-      toast.error(`${label}复制失败`)
+      toast.error(t("credentials.copyFailed", { label }))
     }
   }
 
@@ -176,10 +175,10 @@ function CredentialField({
         <Input className="min-w-0 flex-1 font-mono! text-xs" id={inputId} readOnly value={value} />
         {copyable && (
           <Button
-            aria-label={`复制${label}`}
+            aria-label={t("credentials.copy", { label })}
             onClick={() => void handleCopy()}
             size="icon"
-            title={`复制${label}`}
+            title={t("credentials.copy", { label })}
             type="button"
             variant="outline"
           >

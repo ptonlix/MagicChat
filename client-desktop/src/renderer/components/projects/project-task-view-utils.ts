@@ -1,3 +1,4 @@
+import { useLocale } from "@/components/locale-provider"
 import type {
   ProjectTask,
   ProjectTaskPriority,
@@ -6,38 +7,40 @@ import type {
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000
 
-export const projectTaskStatusDetails = {
-  todo: {
-    label: "待办",
-    softClassName:
-      "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
-    solidClassName: "bg-amber-600 text-white dark:bg-amber-700",
-  },
-  in_progress: {
-    label: "进行中",
-    softClassName:
-      "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100",
-    solidClassName: "bg-sky-600 text-white dark:bg-sky-700",
-  },
-  done: {
-    label: "已完成",
-    softClassName:
-      "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
-    solidClassName: "bg-emerald-600 text-white dark:bg-emerald-700",
-  },
-  canceled: {
-    label: "已取消",
-    softClassName:
-      "border-stone-200 bg-stone-50 text-stone-950 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-100",
-    solidClassName: "bg-stone-500 text-white dark:bg-stone-600",
-  },
-} satisfies Record<
-  ProjectTaskStatus,
-  { label: string; softClassName: string; solidClassName: string }
->
+export function getProjectTaskStatusDetails(t: ReturnType<typeof useLocale>["t"]) {
+  return {
+    todo: {
+      label: t("project.filter.todo"),
+      softClassName:
+        "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
+      solidClassName: "bg-amber-600 text-white dark:bg-amber-700",
+    },
+    in_progress: {
+      label: t("project.filter.in_progress"),
+      softClassName:
+        "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100",
+      solidClassName: "bg-sky-600 text-white dark:bg-sky-700",
+    },
+    done: {
+      label: t("project.filter.done"),
+      softClassName:
+        "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
+      solidClassName: "bg-emerald-600 text-white dark:bg-emerald-700",
+    },
+    canceled: {
+      label: t("project.filter.canceled"),
+      softClassName:
+        "border-stone-200 bg-stone-50 text-stone-950 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-100",
+      solidClassName: "bg-stone-500 text-white dark:bg-stone-600",
+    },
+  } satisfies Record<
+    ProjectTaskStatus,
+    { label: string; softClassName: string; solidClassName: string }
+  >
+}
 
 export function getProjectTaskBlockClassName(status: ProjectTaskStatus) {
-  return projectTaskStatusDetails[status].solidClassName
+  return getProjectTaskStatusDetails((_key) => "")[status].solidClassName
 }
 
 export function getProjectTaskBlockHoverClassName(status: ProjectTaskStatus) {
@@ -53,11 +56,13 @@ export function getProjectTaskBlockHoverClassName(status: ProjectTaskStatus) {
   }
 }
 
-export const projectTaskPriorityLabels = {
-  1: "低",
-  2: "中",
-  3: "高",
-} satisfies Record<ProjectTaskPriority, string>
+export function getProjectTaskPriorityLabels(t: ReturnType<typeof useLocale>["t"]) {
+  return {
+    1: t("project.priority.low"),
+    2: t("project.priority.medium"),
+    3: t("project.priority.high"),
+  } satisfies Record<ProjectTaskPriority, string>
+}
 
 export function parseDateKey(value: string | null) {
   if (!value) {

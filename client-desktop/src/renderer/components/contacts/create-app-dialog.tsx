@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Blocks, Camera, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -28,14 +29,16 @@ import {
 import { prepareAppAvatar, type PreparedAppAvatar } from "@/lib/app-avatar-processing"
 import { cn } from "@/lib/utils"
 
-const visibilityOptions: Array<{
+function getVisibilityOptions(t: ReturnType<typeof useLocale>["t"]): Array<{
   label: string
   value: ClientAppVisibility
-}> = [
-  { label: "仅我自己", value: "creator" },
-  { label: "所有人", value: "public" },
-  { label: "部分用户", value: "restricted" },
-]
+}> {
+  return [
+    { label: t("createApp.visibility.creator"), value: "creator" },
+    { label: t("createApp.visibility.public"), value: "public" },
+    { label: t("createApp.visibility.restricted"), value: "restricted" },
+  ]
+}
 
 type CreateAppDialogProps = {
   currentUserId: string
@@ -72,6 +75,7 @@ function CreateAppDialogContent({
   onOpenChange,
   users,
 }: Pick<CreateAppDialogProps, "currentUserId" | "onCreated" | "onOpenChange" | "users">) {
+  const { t } = useLocale()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const userComboboxPortal = React.useRef<HTMLDivElement>(null)
   const nameId = React.useId()
@@ -106,7 +110,7 @@ function CreateAppDialogContent({
     try {
       setPendingAvatar(await prepareAppAvatar(sourceFile))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "处理头像失败")
+      toast.error(error instanceof Error ? error.message : t("createApp.avatarFailed"))
     } finally {
       setPreparingAvatar(false)
     }
@@ -130,7 +134,7 @@ function CreateAppDialogContent({
       })
     } catch (error) {
       setCreating(false)
-      toast.error(error instanceof Error ? error.message : "创建应用失败")
+      toast.error(error instanceof Error ? error.message : t("createApp.failed"))
       return
     }
 
@@ -147,12 +151,12 @@ function CreateAppDialogContent({
     }
 
     setCreating(false)
-    toast.success("应用创建成功")
+    toast.success(t("createApp.created"))
     if (avatarUploadError) {
       toast.error(
         avatarUploadError instanceof Error
-          ? `应用已创建，但头像上传失败：${avatarUploadError.message}`
-          : "应用已创建，但头像上传失败",
+          ? t("createApp.avatarUploadFailedDetail", { error: avatarUploadError.message })
+          : t("createApp.avatarUploadFailed"),
       )
     }
     onOpenChange(false)
@@ -172,10 +176,10 @@ function CreateAppDialogContent({
     >
       <div className="flex items-start justify-between gap-4">
         <DialogHeader>
-          <DialogTitle>创建应用</DialogTitle>
+          <DialogTitle>{t("createApp.title")}</DialogTitle>
         </DialogHeader>
         <Button
-          aria-label="关闭创建应用"
+          aria-label={t("createApp.close")}
           disabled={creating}
           onClick={() => onOpenChange(false)}
           size="icon-sm"
@@ -196,7 +200,7 @@ function CreateAppDialogContent({
             type="file"
           />
           <Button
-            aria-label="上传应用头像"
+            aria-label={t("createApp.uploadAvatar")}
             className="group/avatar-change relative h-auto overflow-hidden rounded-sm bg-muted p-0 hover:bg-background"
             disabled={creating || preparingAvatar}
             onClick={() => fileInputRef.current?.click()}
@@ -206,7 +210,7 @@ function CreateAppDialogContent({
             <Avatar className="size-17 rounded-sm bg-muted after:rounded-sm">
               {pendingAvatar && (
                 <AvatarImage
-                  alt={name.trim() || "应用头像预览"}
+                  alt={name.trim() || t("createApp.avatarPreview")}
                   className="rounded-sm object-cover"
                   src={pendingAvatar.previewUrl}
                 />
@@ -226,7 +230,7 @@ function CreateAppDialogContent({
             </span>
           </Button>
           <Field className="min-w-0 flex-1">
-            <FieldLabel htmlFor={nameId}>应用名称</FieldLabel>
+            <FieldLabel htmlFor={nameId}>{t("createApp.name")}</FieldLabel>
             <div className="flex items-center gap-2">
               <Input
                 autoFocus
@@ -235,7 +239,7 @@ function CreateAppDialogContent({
                 id={nameId}
                 maxLength={120}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="输入应用名称"
+                placeholder={t("createApp.namePlaceholder")}
                 required
                 value={name}
               />
@@ -244,20 +248,20 @@ function CreateAppDialogContent({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor={descriptionId}>应用描述</Label>
+          <Label htmlFor={descriptionId}>{t("createApp.description")}</Label>
           <Textarea
             className="min-h-28 resize-none"
             disabled={creating}
             id={descriptionId}
             maxLength={2000}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="简单介绍这个应用的用途"
+            placeholder={t("createApp.descriptionPlaceholder")}
             value={description}
           />
         </div>
 
         <div className="grid gap-2">
-          <Label id={visibilityLabelId}>访问范围</Label>
+          <Label id={visibilityLabelId}>{t("createApp.visibility")}</Label>
           <RadioGroup
             aria-labelledby={visibilityLabelId}
             className="grid gap-2 sm:grid-cols-3"
@@ -265,7 +269,7 @@ function CreateAppDialogContent({
             onValueChange={(value) => setVisibility(value as ClientAppVisibility)}
             value={visibility}
           >
-            {visibilityOptions.map((option) => {
+            {getVisibilityOptions(t).map((option) => {
               const id = `create-app-visibility-${option.value}`
 
               return (
@@ -287,7 +291,7 @@ function CreateAppDialogContent({
 
         {visibility === "restricted" && (
           <div className="grid gap-2">
-            <Label>可访问用户</Label>
+            <Label>{t("createApp.accessibleUsers")}</Label>
             <AppAccessUserCombobox
               disabled={creating}
               onValueChange={setSelectedUsers}
@@ -295,7 +299,9 @@ function CreateAppDialogContent({
               users={grantableUsers}
               value={selectedUsers}
             />
-            <p className="text-xs text-muted-foreground">已选择 {selectedUsers.length} 名用户</p>
+            <p className="text-xs text-muted-foreground">
+              {t("createApp.selectedUsers", { count: selectedUsers.length })}
+            </p>
           </div>
         )}
 
@@ -306,11 +312,11 @@ function CreateAppDialogContent({
             type="button"
             variant="outline"
           >
-            取消
+            {t("createApp.cancel")}
           </Button>
           <Button disabled={!canSubmit} type="submit">
             {creating && <Spinner />}
-            创建应用
+            {t("createApp.action")}
           </Button>
         </DialogFooter>
       </form>

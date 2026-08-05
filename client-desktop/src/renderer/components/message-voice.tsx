@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useLocale } from "@/components/locale-provider"
 import { AudioLines, ChevronDown, ChevronUp, LoaderCircle, Pause, Play } from "lucide-react"
 import { toast } from "sonner"
 
@@ -20,6 +21,7 @@ const playbackStartTimeoutMS = 15_000
 type PlaybackState = "error" | "idle" | "loading" | "paused" | "playing"
 
 export function MessageVoice({ voice }: MessageVoiceProps) {
+  const { t } = useLocale()
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
   const abortRef = React.useRef<AbortController | null>(null)
   const objectURLRef = React.useRef<string | null>(null)
@@ -59,7 +61,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
     objectURLRef.current = null
   }
 
-  function failPlayback(message = "语音播放失败，请重试") {
+  function failPlayback(message: string) {
     if (playbackStateRef.current === "error") return
     playbackAttemptRef.current += 1
     updatePlaybackState("error")
@@ -153,7 +155,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
         updatePlaybackState("paused")
         return
       }
-      failPlayback("语音加载或解码失败，请重试")
+      failPlayback(t("messageVoice.loadFailed"))
     }
   }
 
@@ -187,7 +189,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
           ) {
             return
           }
-          failPlayback()
+          failPlayback(t("messageVoice.playFailed"))
         }}
         onPause={() => {
           if (playbackStateRef.current === "playing") updatePlaybackState("paused")
@@ -201,7 +203,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
         </div>
         <div className="grid min-w-0 flex-1 gap-1">
           <Slider
-            aria-label="语音播放进度"
+            aria-label={t("messageVoice.progress")}
             disabled={playbackState === "error" || playbackState === "loading"}
             max={durationSeconds}
             min={0}
@@ -211,25 +213,31 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
           />
           <div className="text-xs leading-snug text-muted-foreground tabular-nums">
             {playbackState === "error"
-              ? "播放失败，可重试"
-              : `${Math.max(1, Math.ceil(durationSeconds))} 秒`}
+              ? t("messageVoice.playError")
+              : t("messageVoice.seconds", { seconds: Math.max(1, Math.ceil(durationSeconds)) })}
           </div>
         </div>
         <Button
           aria-label={
             playbackState === "loading"
-              ? "正在加载语音"
+              ? t("messageVoice.loading")
               : playbackState === "playing"
-                ? "暂停语音"
+                ? t("messageVoice.pause")
                 : playbackState === "error"
-                  ? "重试语音"
-                  : "播放语音"
+                  ? t("messageVoice.retry")
+                  : t("messageVoice.play")
           }
           className="hover:bg-background/70 data-[state=open]:bg-background/70 dark:hover:bg-background/70 dark:data-[state=open]:bg-background/70"
           disabled={playbackState === "loading"}
           onClick={() => void handlePlayToggle()}
           size="icon-sm"
-          title={playbackState === "playing" ? "暂停" : playbackState === "error" ? "重试" : "播放"}
+          title={
+            playbackState === "playing"
+              ? t("messageVoice.pauseShort")
+              : playbackState === "error"
+                ? t("messageVoice.retryShort")
+                : t("messageVoice.playShort")
+          }
           type="button"
           variant="ghost"
         >
@@ -251,7 +259,7 @@ export function MessageVoice({ voice }: MessageVoiceProps) {
             type="button"
             variant="ghost"
           >
-            语音转写
+            {t("messageVoice.transcript")}
             {transcriptExpanded ? <ChevronUp /> : <ChevronDown />}
           </Button>
           {transcriptExpanded && (
