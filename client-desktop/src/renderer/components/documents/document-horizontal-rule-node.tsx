@@ -41,7 +41,8 @@ export function DocumentHorizontalRuleNodeView({ editor, node, updateAttributes 
             disabled={!editable}
             type="button"
           >
-            <hr
+            <span
+              aria-hidden
               className="document-horizontal-rule__line"
               style={{
                 borderTopStyle: lineStyle,

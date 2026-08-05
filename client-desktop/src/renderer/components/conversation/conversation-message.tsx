@@ -146,6 +146,10 @@ export const MessageBubble = React.memo(function MessageBubble({
   const copyText = getMessageCopyText(message, mentionLabelResolver)
   const bubbleRef = React.useRef<HTMLDivElement | null>(null)
   const selectedCopyTextRef = React.useRef("")
+  const handleContentSizeChange = React.useCallback(
+    () => onContentSizeChange?.(message.id),
+    [message.id, onContentSizeChange],
+  )
   function handleMessageContextMenu() {
     selectedCopyTextRef.current = getSelectedTextWithinElement(bubbleRef.current)
   }
@@ -217,7 +221,7 @@ export const MessageBubble = React.memo(function MessageBubble({
         <CollapsibleMessageContent
           enabled={!selectionMode}
           key={message.id}
-          onSizeChange={() => onContentSizeChange?.(message.id)}
+          onSizeChange={handleContentSizeChange}
           variant={message.body.type}
         >
           <MessageBodyRenderer

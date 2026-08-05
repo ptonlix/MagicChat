@@ -8,7 +8,7 @@ import TaskList from "@tiptap/extension-task-list"
 import { TableKit } from "@tiptap/extension-table"
 import TextAlign from "@tiptap/extension-text-align"
 import { Color, TextStyle } from "@tiptap/extension-text-style"
-import { EditorContent, useEditor, type Editor } from "@tiptap/react"
+import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import { toast } from "sonner"
@@ -136,9 +136,9 @@ export function DocumentEditor({
         TableKit.configure({ table: { resizable: true } }),
         Placeholder.configure({ placeholder: "开始撰写文档..." }),
       ],
-      shouldRerenderOnTransaction: true,
+      shouldRerenderOnTransaction: false,
     },
-    [collaborationDocument, collaborationProvider, collaborationUser, readOnly],
+    [collaborationDocument, collaborationProvider, collaborationUser?.id, readOnly],
   )
   const imageResolutions = useDocumentImageResolutions(editor)
 
@@ -226,6 +226,10 @@ function DocumentToolbar({ editor }: { editor: Editor }) {
   const [formatPainterActive, setFormatPainterActive] = React.useState(false)
   const formatPainterRef = React.useRef<TextFormatSnapshot | null>(null)
   const formatPainterSourceRef = React.useRef<SelectionRange | null>(null)
+  useEditorState({
+    editor,
+    selector: ({ transactionNumber }) => transactionNumber,
+  })
   const paragraphAlign = editor.getAttributes("paragraph").textAlign as string | undefined
   const headingAlign = editor.getAttributes("heading").textAlign as string | undefined
   const activeAlign = paragraphAlign ?? headingAlign
@@ -999,6 +1003,10 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
     nodeSize: number
     pos: number
   } | null>(null)
+  useEditorState({
+    editor,
+    selector: ({ transactionNumber }) => transactionNumber,
+  })
 
   const handleNodeChange = React.useCallback<NonNullable<DragHandleProps["onNodeChange"]>>(
     ({ node, pos }) => {

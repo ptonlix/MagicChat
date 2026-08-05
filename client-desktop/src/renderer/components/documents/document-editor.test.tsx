@@ -210,6 +210,25 @@ describe("DocumentEditor", () => {
     expect(screen.getByText("4 × 5")).toBeVisible()
   })
 
+  it("编辑器事务只刷新工具栏订阅，不依赖编辑器根组件重渲染", async () => {
+    renderEditor(
+      <DocumentEditor
+        collaborationDocument={new Y.Doc()}
+        onTitleBlur={() => undefined}
+        onTitleChange={() => undefined}
+        title="事务状态"
+      />,
+    )
+
+    const body = await screen.findByLabelText("文档正文")
+    body.focus()
+    fireEvent.click(screen.getByRole("button", { name: "粗体" }))
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "粗体" })).toHaveAttribute("aria-pressed", "true"),
+    )
+  })
+
   it("分割线插入后可调整粗细和样式并同步到 Yjs", async () => {
     const user = userEvent.setup()
     const document = createTaskDocument()
@@ -222,7 +241,13 @@ describe("DocumentEditor", () => {
       />,
     )
 
-    await user.click(await screen.findByRole("button", { name: "设置分割线" }))
+    const ruleButton = await screen.findByRole("button", { name: "设置分割线" })
+    expect(ruleButton.querySelector("hr")).toBeNull()
+    expect(ruleButton.querySelector(".document-horizontal-rule__line")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    )
+    await user.click(ruleButton)
     await user.click(screen.getByRole("button", { name: "分割线粗细" }))
     await user.click(await screen.findByRole("menuitem", { name: "4px 分割线" }))
     await waitFor(() =>

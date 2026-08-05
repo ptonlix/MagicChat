@@ -117,7 +117,18 @@ function DocumentWorkspace({
   const [collaborationProvider, setCollaborationProvider] = React.useState<HocuspocusProvider>()
   const [onlineUsers, setOnlineUsers] = React.useState<DocumentPresenceUser[]>([])
   const [sheetOpen, setSheetOpen] = React.useState(false)
+  const collaborationUserRef = React.useRef(collaborationUser)
+  const collaborationProviderRef = React.useRef<HocuspocusProvider | undefined>(undefined)
+  const publishedCollaborationUserRef = React.useRef<DocumentPresenceUser | undefined>(undefined)
   const refreshAccountDataRef = React.useRef({ refreshMe, refreshProjects })
+  const publishCollaborationUser = React.useCallback(
+    (provider: HocuspocusProvider, user: DocumentPresenceUser) => {
+      if (publishedCollaborationUserRef.current === user) return
+      provider.setAwarenessField("user", user)
+      publishedCollaborationUserRef.current = user
+    },
+    [],
+  )
   const titleController = React.useMemo(
     () =>
       new DocumentTitleController(document.title, (title) =>
@@ -144,6 +155,9 @@ function DocumentWorkspace({
   React.useEffect(() => {
     refreshAccountDataRef.current = { refreshMe, refreshProjects }
   }, [refreshMe, refreshProjects])
+  React.useEffect(() => {
+    collaborationUserRef.current = collaborationUser
+  }, [collaborationUser])
   React.useEffect(() => {
     if (ydocDestroyTimer.current) clearTimeout(ydocDestroyTimer.current)
     return () => {
@@ -187,7 +201,7 @@ function DocumentWorkspace({
       document: ydoc,
       name: document.id,
       onAwarenessChange: ({ states }) => {
-        if (active) setOnlineUsers(normalizeDocumentPresenceUsers(states, collaborationUser.id))
+        if (active) setOnlineUsers(normalizeDocumentPresenceUsers(states, collaborationId))
       },
       onAuthenticationFailed: handlePermissionDenied,
       onClose: ({ event }) => {
@@ -217,7 +231,9 @@ function DocumentWorkspace({
       websocketProvider,
     })
     collaboration.provider = provider
-    provider.setAwarenessField("user", collaborationUser)
+    collaborationProviderRef.current = provider
+    publishedCollaborationUserRef.current = undefined
+    publishCollaborationUser(provider, collaborationUserRef.current)
     setCollaborationProvider(provider)
     // 注入共享 WebSocket 后 Provider 不会自动绑定事件，必须显式 attach 才会开始认证和同步。
     provider.attach()
@@ -229,12 +245,29 @@ function DocumentWorkspace({
     sharedTitle.observe(observeTitle)
     return () => {
       active = false
+      if (collaborationProviderRef.current === provider) {
+        collaborationProviderRef.current = undefined
+        publishedCollaborationUserRef.current = undefined
+      }
       setCollaborationProvider((current) => (current === provider ? undefined : current))
       setOnlineUsers([])
       sharedTitle.unobserve(observeTitle)
       stopCollaboration()
     }
-  }, [bodyController, collaborationUser, document.id, target, titleController, ydoc])
+  }, [
+    bodyController,
+    collaborationId,
+    document.id,
+    publishCollaborationUser,
+    target,
+    titleController,
+    ydoc,
+  ])
+
+  React.useEffect(() => {
+    const provider = collaborationProviderRef.current
+    if (provider) publishCollaborationUser(provider, collaborationUser)
+  }, [collaborationUser, publishCollaborationUser])
 
   React.useEffect(() => {
     if (blocker.state !== "blocked") return

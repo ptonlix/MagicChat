@@ -161,6 +161,7 @@
 }
 
 .document-editor .tiptap .document-horizontal-rule__line {
+  display: block;
   width: 100%;
   margin: 0;
   border: 0;

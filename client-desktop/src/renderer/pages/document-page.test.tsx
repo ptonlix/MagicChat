@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   currentRefreshMe: undefined as unknown as () => Promise<void>,
   currentRefreshProjects: undefined as unknown as () => Promise<void>,
+  currentMe: undefined as
+    | { avatar: string; id: string; name: string; nickname: string }
+    | undefined,
   refreshMe: vi.fn(),
   refreshProjects: vi.fn(),
   setAwarenessField: vi.fn(),
@@ -81,7 +84,7 @@ vi.mock("@/components/documents/document-editor", () => ({
 }))
 vi.mock("@/lib/client-data-context", () => ({
   useClientData: () => ({
-    me: { avatar: "", id: "user-1", name: "陈富东", nickname: "" },
+    me: mocks.currentMe,
     refreshMe: mocks.currentRefreshMe,
     refreshProjects: mocks.currentRefreshProjects,
   }),
@@ -137,6 +140,7 @@ describe("DocumentPage", () => {
     mocks.listClientDocuments.mockReset().mockResolvedValue([document])
     mocks.passedCollaborationProvider = undefined
     mocks.providerOptions = undefined
+    mocks.currentMe = { avatar: "", id: "user-1", name: "陈富东", nickname: "" }
     mocks.refreshMe.mockReset().mockResolvedValue(undefined)
     mocks.refreshProjects.mockReset().mockResolvedValue(undefined)
     mocks.currentRefreshMe = mocks.refreshMe
@@ -260,6 +264,38 @@ describe("DocumentPage", () => {
     })
     await screen.findByRole("button", { name: "查看 1 位在线成员" })
 
+    expect(mocks.attachProvider).toHaveBeenCalledOnce()
+    expect(mocks.destroyProvider).not.toHaveBeenCalled()
+    expect(mocks.destroyWebsocketProvider).not.toHaveBeenCalled()
+  })
+
+  it("当前用户资料变化时只更新 awareness，不重建协作 Provider", async () => {
+    renderPage()
+    await screen.findByRole("textbox", { name: "文档页面标题" })
+    await waitFor(() => expect(mocks.attachProvider).toHaveBeenCalledOnce())
+
+    mocks.currentMe = {
+      avatar: "/assets/avatars/updated.webp",
+      id: "user-1",
+      name: "陈富东（新名称）",
+      nickname: "",
+    }
+    act(() => {
+      mocks.providerOptions?.onAwarenessChange?.({
+        states: [{ clientId: 1, user: { color: "#112233", id: "user-2", name: "李四" } }],
+      })
+    })
+
+    await waitFor(() =>
+      expect(mocks.setAwarenessField).toHaveBeenLastCalledWith(
+        "user",
+        expect.objectContaining({
+          avatar: "/assets/avatars/updated.webp",
+          id: "user-1",
+          name: "陈富东（新名称）",
+        }),
+      ),
+    )
     expect(mocks.attachProvider).toHaveBeenCalledOnce()
     expect(mocks.destroyProvider).not.toHaveBeenCalled()
     expect(mocks.destroyWebsocketProvider).not.toHaveBeenCalled()
