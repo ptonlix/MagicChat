@@ -33,7 +33,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { NotificationDot } from "@/components/ui/notification-dot"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,28 +137,22 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
 function ProductWebsiteLink() {
   const { t } = useLocale()
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            asChild
-            className="rounded-md hover:bg-transparent hover:text-teal-500 dark:hover:bg-transparent"
-            size="icon-sm"
-            variant="ghost"
-          >
-            <a
-              aria-label={t("nav.website")}
-              href="https://jiying.chat/"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <Globe2 aria-hidden="true" className="size-4" />
-            </a>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">{t("nav.website.short")}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      asChild
+      className="rounded-md hover:bg-transparent hover:text-teal-500 dark:hover:bg-transparent"
+      size="icon-sm"
+      variant="ghost"
+    >
+      <a
+        aria-label={t("nav.website")}
+        href="https://jiying.chat/"
+        rel="noopener noreferrer"
+        target="_blank"
+        title={t("nav.website.short")}
+      >
+        <Globe2 aria-hidden="true" className="size-4" />
+      </a>
+    </Button>
   )
 }
 
