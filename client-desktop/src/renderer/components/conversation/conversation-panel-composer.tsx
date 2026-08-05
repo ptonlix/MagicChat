@@ -30,6 +30,8 @@ import {
 } from "@/lib/image-message"
 import type { ConversationDraftMention } from "@/lib/conversation-drafts"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
+import { useDesktopSettings } from "@/hooks/use-desktop-settings"
+import { acceleratorMatchesKeyboardEvent } from "@/lib/shortcut-recorder"
 import {
   createDraftMentionTemplate,
   createMentionCandidates,
@@ -119,6 +121,8 @@ export const ConversationPanelComposer = React.forwardRef<
   const [voiceDialogOpen, setVoiceDialogOpen] = React.useState(false)
   const [mentionTrigger, setMentionTrigger] = React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
+  const settings = useDesktopSettings()
+  const sendMessageShortcut = settings?.sendMessageShortcut ?? null
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
   const [imageCaption, setImageCaption] = React.useState("")
@@ -357,6 +361,15 @@ export const ConversationPanelComposer = React.forwardRef<
 
     if (sending) {
       event.preventDefault()
+      return
+    }
+
+    if (
+      sendMessageShortcut &&
+      acceleratorMatchesKeyboardEvent(sendMessageShortcut, event.nativeEvent)
+    ) {
+      event.preventDefault()
+      handleSendMessage()
       return
     }
 

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   openPermissionSettings: vi.fn(),
   screenshotStart: vi.fn(),
   screenshotSubscriber: undefined as ((result: ScreenshotConversationResult) => void) | undefined,
+  settingsGet: vi.fn(),
   toastDismiss: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
@@ -58,6 +59,15 @@ describe("ConversationPanelComposer 截图", () => {
     mocks.screenshotSubscriber = undefined
     mocks.openPermissionSettings.mockResolvedValue(true)
     mocks.screenshotStart.mockResolvedValue({ sessionId: "session-1", status: "started" })
+    mocks.settingsGet.mockResolvedValue({
+      autoLaunch: false,
+      closeBehavior: "background",
+      messageSoundEnabled: true,
+      notificationPrivacy: "metadata",
+      screenshotShortcut: "CommandOrControl+Shift+A",
+      searchShortcut: "CommandOrControl+Shift+F",
+      sendMessageShortcut: "CommandOrControl+Enter",
+    })
     Object.defineProperty(window, "desktop", {
       configurable: true,
       value: {
@@ -70,6 +80,9 @@ describe("ConversationPanelComposer 截图", () => {
             mocks.screenshotSubscriber = listener
             return mocks.unsubscribe
           },
+        },
+        settings: {
+          get: mocks.settingsGet,
         },
       },
     })
@@ -224,24 +237,76 @@ describe("ConversationPanelComposer 截图", () => {
     expect(mocks.compressImage).not.toHaveBeenCalled()
     expect(screen.queryByRole("dialog")).toBeNull()
   })
+
+  it("发送消息快捷键 Cmd/Ctrl+Enter 发送草稿且 Shift+Enter 换行", async () => {
+    const user = userEvent.setup()
+    const onSendMessage = vi.fn()
+    render(composerElement(conversation, { draft: "你好", onSendMessage }))
+
+    const input = screen.getByPlaceholderText("输入消息")
+    await user.click(input)
+    await user.keyboard("{Meta>}{Enter}{/Meta}")
+    expect(onSendMessage).toHaveBeenCalledWith("你好")
+
+    await user.keyboard("{Control>}{Enter}{/Control}")
+    expect(onSendMessage).toHaveBeenCalledTimes(2)
+
+    onSendMessage.mockClear()
+    await user.keyboard("{Shift>}{Enter}{/Shift}")
+    expect(onSendMessage).not.toHaveBeenCalled()
+  })
+
+  it("禁用发送消息快捷键后 Ctrl+Enter 插入换行而不发送", async () => {
+    mocks.settingsGet.mockResolvedValue({
+      autoLaunch: false,
+      closeBehavior: "background",
+      messageSoundEnabled: true,
+      notificationPrivacy: "metadata",
+      screenshotShortcut: "CommandOrControl+Shift+A",
+      searchShortcut: "CommandOrControl+Shift+F",
+      sendMessageShortcut: null,
+    })
+    const user = userEvent.setup()
+    const onSendMessage = vi.fn()
+    const onDraftChange = vi.fn()
+    render(composerElement(conversation, { draft: "你好", onDraftChange, onSendMessage }))
+
+    const input = screen.getByPlaceholderText("输入消息")
+    await user.click(input)
+    await user.keyboard("{Control>}{Enter}{/Control}")
+
+    expect(onSendMessage).not.toHaveBeenCalled()
+    expect(onDraftChange).toHaveBeenCalled()
+  })
 })
 
 function renderComposer() {
   return render(composerElement(conversation))
 }
 
-function composerElement(currentConversation: ClientConversation) {
+function composerElement(
+  currentConversation: ClientConversation,
+  {
+    draft = "",
+    onDraftChange = vi.fn(),
+    onSendMessage = vi.fn(),
+  }: {
+    draft?: string
+    onDraftChange?: (draft: string) => void
+    onSendMessage?: (content?: string) => void
+  } = {},
+) {
   return (
     <ConversationPanelComposer
       conversation={currentConversation}
-      draft=""
+      draft={draft}
       draftMentions={[]}
       onCancelReply={vi.fn()}
-      onDraftChange={vi.fn()}
+      onDraftChange={onDraftChange}
       onRichTextModeChange={vi.fn()}
       onSendFile={vi.fn().mockResolvedValue(null)}
       onSendImage={vi.fn().mockResolvedValue(null)}
-      onSendMessage={vi.fn()}
+      onSendMessage={onSendMessage}
       onSendVoice={vi.fn().mockResolvedValue(null)}
       replyTarget={null}
       richTextMode={false}

@@ -459,7 +459,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(screen.getByRole("button", { name: "快捷键" }))
     expect(screen.getByText("截图")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "修改截图快捷键" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "截图快捷键" })).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "软件更新" }))
     expect(screen.getByRole("button", { name: "检查更新" })).toBeInTheDocument()
@@ -485,7 +485,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(screen.getByRole("button", { name: "快捷键" }))
-    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    const recorder = await screen.findByRole("button", { name: "截图快捷键" })
     await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
 
     await user.click(recorder)
@@ -493,14 +493,14 @@ describe("桌面设置服务器管理", () => {
     fireEvent.keyDown(recorder, { code: "KeyS", key: "s", metaKey: true, shiftKey: true })
 
     await waitFor(() =>
-      expect(bridge.shortcuts.setScreenshot).toHaveBeenCalledWith("Command+Shift+S"),
+      expect(bridge.shortcuts.set).toHaveBeenCalledWith("screenshot", "Command+Shift+S"),
     )
     expect(recorder).toHaveTextContent("⌘⇧S")
   })
 
   it("快捷键冲突时显示错误并恢复原组合", async () => {
     const bridge = createDesktopBridge()
-    vi.mocked(bridge.shortcuts.setScreenshot).mockResolvedValueOnce({
+    vi.mocked(bridge.shortcuts.set).mockResolvedValueOnce({
       state: {
         accelerator: "CommandOrControl+Shift+A",
         recording: false,
@@ -517,7 +517,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(screen.getByRole("button", { name: "快捷键" }))
-    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    const recorder = await screen.findByRole("button", { name: "截图快捷键" })
     await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
     await user.click(recorder)
     fireEvent.keyDown(recorder, { code: "KeyS", key: "s", metaKey: true, shiftKey: true })
@@ -528,7 +528,7 @@ describe("桌面设置服务器管理", () => {
 
   it("原快捷键恢复失败时展示准确提示", async () => {
     const bridge = createDesktopBridge()
-    vi.mocked(bridge.shortcuts.setScreenshot).mockResolvedValueOnce({
+    vi.mocked(bridge.shortcuts.set).mockResolvedValueOnce({
       state: {
         accelerator: "CommandOrControl+Shift+A",
         recording: false,
@@ -545,7 +545,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(screen.getByRole("button", { name: "快捷键" }))
-    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    const recorder = await screen.findByRole("button", { name: "截图快捷键" })
     await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
     await user.click(recorder)
     fireEvent.keyDown(recorder, { code: "KeyS", key: "s", metaKey: true, shiftKey: true })
@@ -568,7 +568,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(screen.getByRole("button", { name: "快捷键" }))
-    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    const recorder = await screen.findByRole("button", { name: "截图快捷键" })
     await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
     await user.click(recorder)
     await user.click(screen.getByRole("button", { name: "关闭设置" }))
@@ -595,16 +595,16 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
     await user.click(screen.getByRole("button", { name: "快捷键" }))
-    const recorder = await screen.findByRole("button", { name: "修改截图快捷键" })
+    const recorder = await screen.findByRole("button", { name: "截图快捷键" })
     await waitFor(() => expect(recorder).toHaveTextContent("⌘⇧A"))
 
     await user.click(screen.getByRole("button", { name: "禁用截图快捷键" }))
-    await waitFor(() => expect(bridge.shortcuts.setScreenshot).toHaveBeenCalledWith(null))
+    await waitFor(() => expect(bridge.shortcuts.set).toHaveBeenCalledWith("screenshot", null))
     expect(recorder).toHaveTextContent("未设置")
 
     await user.click(screen.getByRole("button", { name: "恢复默认截图快捷键" }))
     await waitFor(() =>
-      expect(bridge.shortcuts.setScreenshot).toHaveBeenCalledWith("CommandOrControl+Shift+A"),
+      expect(bridge.shortcuts.set).toHaveBeenCalledWith("screenshot", "CommandOrControl+Shift+A"),
     )
     expect(recorder).toHaveTextContent("⌘⇧A")
 
@@ -1155,6 +1155,8 @@ function createDesktopBridge(
     messageSoundEnabled: true,
     notificationPrivacy: "metadata" as const,
     screenshotShortcut: "CommandOrControl+Shift+A",
+    searchShortcut: "CommandOrControl+Shift+F",
+    sendMessageShortcut: "CommandOrControl+Enter",
     selectedServerId: profile.id,
   }
   return {
@@ -1251,15 +1253,21 @@ function createDesktopBridge(
         recording: false,
         registered: true,
       }),
-      getState: vi.fn().mockResolvedValue({
-        accelerator: "CommandOrControl+Shift+A",
+      getState: vi.fn().mockImplementation(async (kind: string) => ({
+        accelerator:
+          kind === "search"
+            ? "CommandOrControl+Shift+F"
+            : kind === "sendMessage"
+              ? "CommandOrControl+Enter"
+              : "CommandOrControl+Shift+A",
         recording: false,
-        registered: true,
-      }),
-      setScreenshot: vi.fn().mockImplementation(async (accelerator) => ({
+        registered: kind !== "sendMessage",
+      })),
+      set: vi.fn().mockImplementation(async (_kind: string, accelerator: string | null) => ({
         state: { accelerator, recording: false, registered: accelerator !== null },
         status: "updated",
       })),
+      subscribeSearchOpen: vi.fn().mockReturnValue(vi.fn()),
     },
     servers: {
       add: vi.fn(),

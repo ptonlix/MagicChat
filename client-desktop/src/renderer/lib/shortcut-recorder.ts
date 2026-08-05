@@ -19,6 +19,46 @@ export function acceleratorFromKeyboardEvent(
   }
 }
 
+/**
+ * 判断键盘事件是否命中已配置的快捷键组合。
+ * CommandOrControl 同时接受 Cmd（meta）或 Ctrl 按下。
+ */
+export function acceleratorMatchesKeyboardEvent(
+  accelerator: string,
+  event: Pick<KeyboardEvent, "altKey" | "code" | "ctrlKey" | "metaKey" | "shiftKey">,
+): boolean {
+  let tokens: string[]
+  try {
+    tokens = normalizeShortcutAccelerator(accelerator).split("+")
+  } catch {
+    return false
+  }
+  const keyToken = tokens.at(-1)
+  const modifiers = tokens.slice(0, -1)
+  if (!keyToken || shortcutKeyFromCode(event.code) !== keyToken) return false
+
+  const commandOrControl = modifiers.includes("CommandOrControl")
+  const command = modifiers.includes("Command")
+  const control = modifiers.includes("Control")
+  const superKey = modifiers.includes("Super")
+  const alt = modifiers.includes("Alt")
+  const shift = modifiers.includes("Shift")
+
+  const primaryPressed = commandOrControl
+    ? event.metaKey || event.ctrlKey
+    : command || superKey
+      ? event.metaKey
+      : control
+        ? event.ctrlKey
+        : false
+  if (!primaryPressed) return false
+  if (!commandOrControl && event.metaKey !== (command || superKey)) return false
+  if (!commandOrControl && event.ctrlKey !== control) return false
+  if (event.altKey !== alt) return false
+  if (event.shiftKey !== shift) return false
+  return true
+}
+
 function shortcutKeyFromCode(code: string): string | undefined {
   if (/^Key[A-Z]$/.test(code)) return code.slice(3)
   if (/^Digit[0-9]$/.test(code)) return code.slice(5)

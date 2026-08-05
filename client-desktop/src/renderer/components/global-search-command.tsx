@@ -209,6 +209,15 @@ export function GlobalSearchCommand({
     return () => window.removeEventListener("keydown", handleSearchShortcut)
   }, [])
 
+  React.useEffect(() => {
+    const shortcuts = window.desktop?.shortcuts
+    if (!shortcuts?.subscribeSearchOpen) return
+    return shortcuts.subscribeSearchOpen(() => {
+      setOpen(true)
+      window.requestAnimationFrame(() => inputRef.current?.focus())
+    })
+  }, [])
+
   function close() {
     setOpen(false)
     setKeyword("")

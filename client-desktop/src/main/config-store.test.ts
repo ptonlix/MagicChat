@@ -33,6 +33,8 @@ describe("桌面配置存储", () => {
     await store.load()
 
     expect(store.getSettings().screenshotShortcut).toBe("CommandOrControl+Shift+A")
+    expect(store.getSettings().searchShortcut).toBe("CommandOrControl+Shift+F")
+    expect(store.getSettings().sendMessageShortcut).toBe("CommandOrControl+Enter")
   })
 
   it("持久化修改和禁用的截图快捷键", async () => {
@@ -51,6 +53,21 @@ describe("桌面配置存储", () => {
       await readFile(path.join(directory, "desktop-config.json"), "utf8"),
     ) as { settings: { screenshotShortcut?: unknown } }
     expect(persisted.settings.screenshotShortcut).toBeNull()
+  })
+
+  it("持久化修改和禁用的搜索与发送消息快捷键", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await store.setSettings({ searchShortcut: "Control+Alt+F" })
+    await store.setSettings({ sendMessageShortcut: null })
+
+    const reopened = new ConfigStore(directory)
+    await reopened.load()
+    expect(reopened.getSettings().searchShortcut).toBe("Control+Alt+F")
+    expect(reopened.getSettings().sendMessageShortcut).toBeNull()
   })
 
   it("持久撤销已注销用户", async () => {

@@ -4,6 +4,8 @@ import path from "node:path"
 import type { DesktopSettings, ServerProfile } from "@shared/bridge"
 import {
   DEFAULT_SCREENSHOT_SHORTCUT,
+  DEFAULT_SEARCH_SHORTCUT,
+  DEFAULT_SEND_MESSAGE_SHORTCUT,
   normalizeShortcutAccelerator,
 } from "@shared/shortcut-contract"
 
@@ -27,6 +29,8 @@ const defaultSettings: DesktopSettings = {
   messageSoundEnabled: true,
   notificationPrivacy: "metadata",
   screenshotShortcut: DEFAULT_SCREENSHOT_SHORTCUT,
+  searchShortcut: DEFAULT_SEARCH_SHORTCUT,
+  sendMessageShortcut: DEFAULT_SEND_MESSAGE_SHORTCUT,
 }
 
 export class ConfigStore {
@@ -81,6 +85,12 @@ export class ConfigStore {
         throw new Error("通知隐私无效")
       if (next.screenshotShortcut !== null) {
         next.screenshotShortcut = normalizeShortcutAccelerator(next.screenshotShortcut)
+      }
+      if (next.searchShortcut !== null) {
+        next.searchShortcut = normalizeShortcutAccelerator(next.searchShortcut)
+      }
+      if (next.sendMessageShortcut !== null) {
+        next.sendMessageShortcut = normalizeShortcutAccelerator(next.sendMessageShortcut)
       }
       const nextConfig = { ...this.config, settings: next }
       await this.persist(nextConfig)
@@ -217,16 +227,26 @@ function normalizeSettings(value: unknown, servers: ServerProfile[]): DesktopSet
         ? input.notificationPrivacy
         : defaultSettings.notificationPrivacy,
     screenshotShortcut:
-      input.screenshotShortcut === null ? null : normalizeStoredShortcut(input.screenshotShortcut),
+      input.screenshotShortcut === null
+        ? null
+        : normalizeStoredShortcut(input.screenshotShortcut, DEFAULT_SCREENSHOT_SHORTCUT),
+    searchShortcut:
+      input.searchShortcut === null
+        ? null
+        : normalizeStoredShortcut(input.searchShortcut, DEFAULT_SEARCH_SHORTCUT),
+    sendMessageShortcut:
+      input.sendMessageShortcut === null
+        ? null
+        : normalizeStoredShortcut(input.sendMessageShortcut, DEFAULT_SEND_MESSAGE_SHORTCUT),
     ...(selectedServerId ? { selectedServerId } : {}),
   }
 }
 
-function normalizeStoredShortcut(value: unknown): string {
+function normalizeStoredShortcut(value: unknown, fallback: string): string {
   try {
     return normalizeShortcutAccelerator(value)
   } catch {
-    return DEFAULT_SCREENSHOT_SHORTCUT
+    return fallback
   }
 }
 

@@ -118,5 +118,7 @@ function createSettings(
     messageSoundEnabled,
     notificationPrivacy,
     screenshotShortcut: "CommandOrControl+Shift+A",
+    searchShortcut: "CommandOrControl+Shift+F",
+    sendMessageShortcut: "CommandOrControl+Enter",
   }
 }

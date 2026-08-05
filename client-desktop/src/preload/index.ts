@@ -116,10 +116,19 @@ const bridge: DesktopBridge = {
       subscribe<ScreenshotStartFailure>(IPC.screenshotStartFailed, listener),
   },
   shortcuts: {
-    beginRecording: () => ipcRenderer.invoke(IPC.shortcutRecordingBegin),
+    beginRecording: (kind) => ipcRenderer.invoke(IPC.shortcutRecordingBegin, kind),
     cancelRecording: () => ipcRenderer.invoke(IPC.shortcutRecordingCancel),
-    getState: () => ipcRenderer.invoke(IPC.shortcutsGetState),
-    setScreenshot: (accelerator) => ipcRenderer.invoke(IPC.shortcutScreenshotSet, accelerator),
+    getState: (kind) => ipcRenderer.invoke(IPC.shortcutsGetState, kind),
+    set: (kind, accelerator) =>
+      ipcRenderer.invoke(
+        kind === "screenshot"
+          ? IPC.shortcutScreenshotSet
+          : kind === "search"
+            ? IPC.shortcutSearchSet
+            : IPC.shortcutSendMessageSet,
+        accelerator,
+      ),
+    subscribeSearchOpen: (listener) => subscribe(IPC.searchOpen, listener),
   },
   servers: {
     add: (url, name) => ipcRenderer.invoke(IPC.serversAdd, url, name),

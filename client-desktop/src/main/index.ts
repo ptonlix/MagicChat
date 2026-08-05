@@ -25,7 +25,7 @@ import { prepareUpdateInstall } from "@main/update-install-lifecycle"
 import { StartupHealth } from "@main/startup-health"
 import { WindowController } from "@main/window-controller"
 import { ScreenshotController } from "@main/screenshot-controller"
-import { ScreenshotShortcutManager } from "@main/screenshot-shortcut"
+import { ShortcutManager } from "@main/shortcut-manager"
 import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
 registerPrivilegedSchemes()
@@ -127,7 +127,7 @@ async function start(): Promise<void> {
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
     prepareInstall: () => prepareUpdateInstall({ messageCache, windows }),
   })
-  const shortcuts = new ScreenshotShortcutManager({
+  const shortcuts = new ShortcutManager({
     diagnostics,
     screenshots,
     store,

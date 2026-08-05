@@ -19,8 +19,14 @@ import type {
   UpdaterState,
 } from "@shared/bridge"
 import type { MessageCacheStats } from "@shared/message-cache-contract"
+import { DESKTOP_SETTINGS_CHANGED_EVENT } from "@/hooks/use-desktop-settings"
 import { SettingsCenter, type SettingsSectionId } from "./settings-center"
 import { ShortcutRecorder } from "./shortcut-recorder"
+import {
+  DEFAULT_SCREENSHOT_SHORTCUT,
+  DEFAULT_SEARCH_SHORTCUT,
+  DEFAULT_SEND_MESSAGE_SHORTCUT,
+} from "@shared/shortcut-contract"
 
 export function DesktopSettingsPanel({
   platform,
@@ -109,6 +115,7 @@ export function DesktopSettingsPanel({
       if (patch.messageSoundEnabled !== undefined) {
         onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
       }
+      window.dispatchEvent(new Event(DESKTOP_SETTINGS_CHANGED_EVENT))
     } catch {
       setSettingsError("设置保存失败，请重试")
     }
@@ -293,10 +300,39 @@ export function DesktopSettingsPanel({
               <h3 id="settings-shortcuts-title">键盘快捷键</h3>
               <div className="settings-row">
                 <span>
+                  <strong>全局搜索</strong>
+                  <small>在任意应用中按下即可唤起全局搜索</small>
+                </span>
+                <ShortcutRecorder
+                  defaultAccelerator={DEFAULT_SEARCH_SHORTCUT}
+                  kind="search"
+                  label="全局搜索快捷键"
+                  platform={platform ?? "unknown"}
+                />
+              </div>
+              <div className="settings-row">
+                <span>
+                  <strong>发送消息</strong>
+                  <small>在聊天输入框中按下即可发送消息</small>
+                </span>
+                <ShortcutRecorder
+                  defaultAccelerator={DEFAULT_SEND_MESSAGE_SHORTCUT}
+                  kind="sendMessage"
+                  label="发送消息快捷键"
+                  platform={platform ?? "unknown"}
+                />
+              </div>
+              <div className="settings-row">
+                <span>
                   <strong>截图</strong>
                   <small>在其他应用中也可以启动即应截图</small>
                 </span>
-                <ShortcutRecorder platform={platform ?? "unknown"} />
+                <ShortcutRecorder
+                  defaultAccelerator={DEFAULT_SCREENSHOT_SHORTCUT}
+                  kind="screenshot"
+                  label="截图快捷键"
+                  platform={platform ?? "unknown"}
+                />
               </div>
             </section>
           )}

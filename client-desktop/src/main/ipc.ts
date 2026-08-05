@@ -40,7 +40,8 @@ import {
 } from "@shared/document-collaboration-contract"
 import type { DocumentCollaborationController } from "@main/document-collaboration-controller"
 import { parseExternalWebLink } from "@shared/external-link"
-import type { ScreenshotShortcutManager } from "@main/screenshot-shortcut"
+import type { ShortcutManager } from "@main/shortcut-manager"
+import type { ShortcutKind } from "@shared/shortcut-contract"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -55,7 +56,7 @@ export type IpcDependencies = {
   profiles: ServerProfiles
   realtime: RealtimeController
   sessions: SessionController
-  shortcuts: ScreenshotShortcutManager
+  shortcuts: ShortcutManager
   store: ConfigStore
   system: SystemIntegration
   uploads: StreamingUploadController
@@ -165,11 +166,21 @@ export function registerIpc(deps: IpcDependencies): () => void {
     if (remaining.notificationPrivacy !== undefined) deps.system.refreshTray()
     return settings
   })
-  register(IPC.shortcutsGetState, () => deps.shortcuts.getState())
-  register(IPC.shortcutRecordingBegin, (event) => deps.shortcuts.beginRecording(event.sender.id))
+  register(IPC.shortcutsGetState, (_event, kind) =>
+    deps.shortcuts.getState(parseShortcutKind(kind)),
+  )
+  register(IPC.shortcutRecordingBegin, (event, kind) =>
+    deps.shortcuts.beginRecording(event.sender.id, parseShortcutKind(kind)),
+  )
   register(IPC.shortcutRecordingCancel, (event) => deps.shortcuts.cancelRecording(event.sender.id))
   register(IPC.shortcutScreenshotSet, (event, accelerator) =>
-    deps.shortcuts.setScreenshot(event.sender.id, accelerator),
+    deps.shortcuts.set("screenshot", event.sender.id, accelerator),
+  )
+  register(IPC.shortcutSearchSet, (event, accelerator) =>
+    deps.shortcuts.set("search", event.sender.id, accelerator),
+  )
+  register(IPC.shortcutSendMessageSet, (event, accelerator) =>
+    deps.shortcuts.set("sendMessage", event.sender.id, accelerator),
   )
   register(IPC.transportRequest, async (event, rawTarget, rawRequest) => {
     const authTarget = target(rawTarget)
@@ -367,6 +378,11 @@ function asId(value: unknown): string {
 }
 function asRequestId(value: unknown): string {
   return asId(value)
+}
+
+function parseShortcutKind(value: unknown): ShortcutKind {
+  if (value === "screenshot" || value === "search" || value === "sendMessage") return value
+  throw new Error("快捷键类型无效")
 }
 
 function target(value: unknown): AuthenticatedTarget {

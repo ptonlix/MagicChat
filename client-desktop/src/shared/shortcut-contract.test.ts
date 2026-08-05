@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest"
 
-import { formatShortcutAccelerator, normalizeShortcutAccelerator } from "@shared/shortcut-contract"
+import {
+  DEFAULT_SCREENSHOT_SHORTCUT,
+  DEFAULT_SEARCH_SHORTCUT,
+  DEFAULT_SEND_MESSAGE_SHORTCUT,
+  formatShortcutAccelerator,
+  normalizeShortcutAccelerator,
+} from "@shared/shortcut-contract"
 
-describe("截图快捷键契约", () => {
+describe("快捷键契约", () => {
+  it("提供截图、搜索与发送消息的默认组合", () => {
+    expect(DEFAULT_SCREENSHOT_SHORTCUT).toBe("CommandOrControl+Shift+A")
+    expect(DEFAULT_SEARCH_SHORTCUT).toBe("CommandOrControl+Shift+F")
+    expect(DEFAULT_SEND_MESSAGE_SHORTCUT).toBe("CommandOrControl+Enter")
+  })
+
   it("规范化修饰键顺序和字母大小写", () => {
     expect(normalizeShortcutAccelerator("Shift+Control+s")).toBe("Control+Shift+S")
   })

@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { IPC, type DesktopBridge } from "@shared/bridge"
-import type { ScreenshotStartFailure } from "@shared/screenshot-contract"
 
 const electronMocks = vi.hoisted(() => {
   const exposed = new Map<string, unknown>()
@@ -66,10 +65,15 @@ vi.mock("electron", () => ({
 }))
 
 import { registerIpc, type IpcDependencies } from "@main/ipc"
-import { ScreenshotShortcutManager, SCREENSHOT_SHORTCUT } from "@main/screenshot-shortcut"
+import {
+  SCREENSHOT_SHORTCUT,
+  SEARCH_SHORTCUT,
+  SEND_MESSAGE_SHORTCUT,
+  ShortcutManager,
+} from "@main/shortcut-manager"
 import "@preload/index"
 
-describe("全局截图快捷键错误提示契约", () => {
+describe("全局快捷键桥接契约", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     electronMocks.rendererListeners.clear()
@@ -81,34 +85,34 @@ describe("全局截图快捷键错误提示契约", () => {
     })
   })
 
-  it("Preload 订阅固定事件并暴露快捷键配置方法", () => {
+  it("Preload 订阅搜索事件并暴露快捷键配置方法", () => {
     const desktop = electronMocks.exposed.get("desktop") as DesktopBridge | undefined
     const listener = vi.fn()
 
-    const unsubscribe = desktop?.screenshot.subscribeStartFailed(listener)
-    const ipcListener = electronMocks.rendererListeners.get(IPC.screenshotStartFailed)
-    if (!ipcListener) throw new Error("截图启动失败事件未订阅")
-    const failure: ScreenshotStartFailure = { code: "permission_denied" }
-    ipcListener({}, failure)
+    const unsubscribe = desktop?.shortcuts.subscribeSearchOpen(listener)
+    const ipcListener = electronMocks.rendererListeners.get(IPC.searchOpen)
+    if (!ipcListener) throw new Error("搜索打开事件未订阅")
+    ipcListener({})
 
-    expect(listener).toHaveBeenCalledWith(failure)
+    expect(listener).toHaveBeenCalledOnce()
     unsubscribe?.()
-    expect(electronMocks.rendererRemoveListener).toHaveBeenCalledWith(
-      IPC.screenshotStartFailed,
-      ipcListener,
-    )
+    expect(electronMocks.rendererRemoveListener).toHaveBeenCalledWith(IPC.searchOpen, ipcListener)
 
-    void desktop?.shortcuts.getState()
-    void desktop?.shortcuts.beginRecording()
+    void desktop?.shortcuts.getState("screenshot")
+    void desktop?.shortcuts.beginRecording("search")
     void desktop?.shortcuts.cancelRecording()
-    void desktop?.shortcuts.setScreenshot("Control+Alt+S")
-    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutsGetState)
-    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutRecordingBegin)
+    void desktop?.shortcuts.set("screenshot", "Control+Alt+S")
+    void desktop?.shortcuts.set("search", "Control+Shift+F")
+    void desktop?.shortcuts.set("sendMessage", "Control+Enter")
+    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutsGetState, "screenshot")
+    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutRecordingBegin, "search")
     expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutRecordingCancel)
     expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutScreenshotSet, "Control+Alt+S")
+    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutSearchSet, "Control+Shift+F")
+    expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.shortcutSendMessageSet, "Control+Enter")
   })
 
-  it("Main 注册快捷键并把启动错误发送给 Renderer", async () => {
+  it("Main 注册截图快捷键并把启动错误发送给 Renderer", async () => {
     const { manager, screenshots, windows } = createManager()
     screenshots.start.mockResolvedValue({ code: "permission_denied", status: "error" })
     manager.start()
@@ -125,11 +129,27 @@ describe("全局截图快捷键错误提示契约", () => {
     expect(electronMocks.unregisterShortcut).toHaveBeenCalledWith(SCREENSHOT_SHORTCUT)
   })
 
+  it("全局搜索快捷键唤起窗口并打开搜索", () => {
+    const { manager, windows } = createManager()
+    manager.start()
+
+    electronMocks.shortcutCallbacks.get(SEARCH_SHORTCUT)?.()
+
+    expect(windows.show).toHaveBeenCalledOnce()
+    expect(windows.send).toHaveBeenCalledWith(IPC.searchOpen)
+
+    manager.dispose()
+    expect(electronMocks.unregisterShortcut).toHaveBeenCalledWith(SEARCH_SHORTCUT)
+  })
+
   it("录制时暂停快捷键并在取消后恢复", () => {
     const { manager } = createManager()
     manager.start()
 
-    expect(manager.beginRecording(7)).toMatchObject({ recording: true, registered: false })
+    expect(manager.beginRecording(7, "screenshot")).toMatchObject({
+      recording: true,
+      registered: false,
+    })
     expect(electronMocks.unregisterShortcut).toHaveBeenCalledWith(SCREENSHOT_SHORTCUT)
     expect(manager.cancelRecording(7)).toMatchObject({ recording: false, registered: true })
   })
@@ -138,7 +158,7 @@ describe("全局截图快捷键错误提示契约", () => {
     const { manager, store } = createManager()
     manager.start()
 
-    const result = await manager.setScreenshot(7, "Alt+Control+s")
+    const result = await manager.set("screenshot", 7, "Alt+Control+s")
 
     expect(result).toEqual({
       state: { accelerator: "Control+Alt+S", recording: false, registered: true },
@@ -151,10 +171,10 @@ describe("全局截图快捷键错误提示契约", () => {
   it("候选组合冲突时恢复录制前快捷键", async () => {
     const { manager, store } = createManager()
     manager.start()
-    manager.beginRecording(7)
+    manager.beginRecording(7, "screenshot")
     electronMocks.registerShortcut.mockReturnValueOnce(false).mockReturnValueOnce(true)
 
-    const result = await manager.setScreenshot(7, "Control+Alt+S")
+    const result = await manager.set("screenshot", 7, "Control+Alt+S")
 
     expect(result.status).toBe("conflict")
     expect(result.state).toEqual({
@@ -168,10 +188,10 @@ describe("全局截图快捷键错误提示契约", () => {
   it("候选和原组合都无法注册时返回恢复失败", async () => {
     const { manager } = createManager()
     manager.start()
-    manager.beginRecording(7)
+    manager.beginRecording(7, "screenshot")
     electronMocks.registerShortcut.mockReturnValueOnce(false).mockReturnValueOnce(false)
 
-    const result = await manager.setScreenshot(7, "Control+Alt+S")
+    const result = await manager.set("screenshot", 7, "Control+Alt+S")
 
     expect(result).toEqual({
       state: {
@@ -186,17 +206,21 @@ describe("全局截图快捷键错误提示契约", () => {
   it("支持禁用并在保存失败时恢复原快捷键", async () => {
     const { manager } = createManager()
     manager.start()
-    await manager.setScreenshot(7, null)
-    expect(manager.getState()).toEqual({ accelerator: null, recording: false, registered: false })
+    await manager.set("screenshot", 7, null)
+    expect(manager.getState("screenshot")).toEqual({
+      accelerator: null,
+      recording: false,
+      registered: false,
+    })
 
     const second = createManager()
     second.manager.start()
-    second.manager.beginRecording(8)
+    second.manager.beginRecording(8, "screenshot")
     second.store.setSettings.mockRejectedValueOnce(new Error("persist failed"))
-    await expect(second.manager.setScreenshot(8, "Control+Alt+S")).resolves.toMatchObject({
+    await expect(second.manager.set("screenshot", 8, "Control+Alt+S")).resolves.toMatchObject({
       status: "save_failed",
     })
-    expect(second.manager.getState()).toMatchObject({
+    expect(second.manager.getState("screenshot")).toMatchObject({
       accelerator: SCREENSHOT_SHORTCUT,
       recording: false,
       registered: true,
@@ -206,11 +230,11 @@ describe("全局截图快捷键错误提示契约", () => {
   it("持久化失败且原组合无法恢复时返回恢复失败", async () => {
     const { manager, store } = createManager()
     manager.start()
-    manager.beginRecording(9)
+    manager.beginRecording(9, "screenshot")
     store.setSettings.mockRejectedValueOnce(new Error("persist failed"))
     electronMocks.registerShortcut.mockReturnValueOnce(true).mockReturnValueOnce(false)
 
-    await expect(manager.setScreenshot(9, "Control+Alt+S")).resolves.toEqual({
+    await expect(manager.set("screenshot", 9, "Control+Alt+S")).resolves.toEqual({
       state: {
         accelerator: SCREENSHOT_SHORTCUT,
         recording: false,
@@ -218,6 +242,72 @@ describe("全局截图快捷键错误提示契约", () => {
       },
       status: "restore_failed",
     })
+  })
+
+  it("发送消息快捷键只持久化且不注册全局", async () => {
+    const { manager, store } = createManager()
+    manager.start()
+
+    const result = await manager.set("sendMessage", 7, "Control+Enter")
+
+    expect(result).toEqual({
+      state: { accelerator: "Control+Enter", recording: false, registered: false },
+      status: "updated",
+    })
+    expect(store.setSettings).toHaveBeenCalledWith({ sendMessageShortcut: "Control+Enter" })
+    expect(electronMocks.registerShortcut).not.toHaveBeenCalledWith("Control+Enter")
+
+    await manager.set("sendMessage", 7, null)
+    expect(store.setSettings).toHaveBeenCalledWith({ sendMessageShortcut: null })
+    expect(manager.getState("sendMessage").accelerator).toBeNull()
+  })
+
+  it("发送消息快捷键设置相同组合时不误报冲突", async () => {
+    const { manager } = createManager()
+    manager.start()
+    await manager.set("sendMessage", 7, "Control+Enter")
+    manager.beginRecording(7, "sendMessage")
+
+    const result = await manager.set("sendMessage", 7, "Control+Enter")
+
+    expect(result.status).toBe("updated")
+    expect(manager.getState("sendMessage").recording).toBe(false)
+  })
+
+  it("录制一种快捷键时切换另一种会恢复前者的全局注册", () => {
+    const { manager } = createManager()
+    manager.start()
+    manager.beginRecording(7, "search")
+    expect(electronMocks.unregisterShortcut).toHaveBeenCalledWith(SEARCH_SHORTCUT)
+
+    manager.beginRecording(7, "sendMessage")
+
+    expect(electronMocks.registerShortcut).toHaveBeenCalledWith(
+      SEARCH_SHORTCUT,
+      expect.any(Function),
+    )
+    expect(manager.getState("search").recording).toBe(false)
+    expect(manager.getState("search").registered).toBe(true)
+    expect(manager.getState("sendMessage").recording).toBe(true)
+
+    manager.cancelRecording(7)
+    expect(manager.getState("sendMessage").recording).toBe(false)
+  })
+
+  it("录制时设置另一种快捷键会恢复前者的全局注册", async () => {
+    const { manager, store } = createManager()
+    manager.start()
+    manager.beginRecording(7, "search")
+
+    const result = await manager.set("sendMessage", 7, "Control+Enter")
+
+    expect(result.status).toBe("updated")
+    expect(electronMocks.registerShortcut).toHaveBeenCalledWith(
+      SEARCH_SHORTCUT,
+      expect.any(Function),
+    )
+    expect(manager.getState("search").registered).toBe(true)
+    expect(store.setSettings).toHaveBeenCalledWith({ sendMessageShortcut: "Control+Enter" })
   })
 
   it("快捷键 IPC 拒绝不可信发送方", async () => {
@@ -276,7 +366,7 @@ function createIpcDependencies(shortcuts: { releaseOwner: ReturnType<typeof vi.f
       cancelRecording: vi.fn(),
       getState: vi.fn(),
       releaseOwner: shortcuts.releaseOwner,
-      setScreenshot: vi.fn(),
+      set: vi.fn(),
     },
     updater: { subscribe: vi.fn(() => unsubscribeUpdater) },
     uploads: { releaseOwner: vi.fn() },
@@ -292,6 +382,8 @@ function createManager() {
     messageSoundEnabled: true,
     notificationPrivacy: "metadata" as const,
     screenshotShortcut: SCREENSHOT_SHORTCUT,
+    searchShortcut: SEARCH_SHORTCUT,
+    sendMessageShortcut: SEND_MESSAGE_SHORTCUT,
   }
   const store = {
     getSettings: vi.fn(() => settings),
@@ -299,7 +391,7 @@ function createManager() {
   }
   const windows = { send: vi.fn(), show: vi.fn() }
   return {
-    manager: new ScreenshotShortcutManager({ diagnostics, screenshots, store, windows }),
+    manager: new ShortcutManager({ diagnostics, screenshots, store, windows }),
     screenshots,
     store,
     windows,

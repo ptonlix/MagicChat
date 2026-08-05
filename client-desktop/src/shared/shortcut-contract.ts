@@ -1,21 +1,28 @@
 export const DEFAULT_SCREENSHOT_SHORTCUT = "CommandOrControl+Shift+A"
 
-export type ScreenshotShortcutState = Readonly<{
+export const DEFAULT_SEARCH_SHORTCUT = "CommandOrControl+Shift+F"
+
+export const DEFAULT_SEND_MESSAGE_SHORTCUT = "CommandOrControl+Enter"
+
+export type ShortcutKind = "screenshot" | "search" | "sendMessage"
+
+export type ShortcutState = Readonly<{
   accelerator: string | null
   recording: boolean
   registered: boolean
 }>
 
-export type ScreenshotShortcutUpdateResult = Readonly<{
-  state: ScreenshotShortcutState
+export type ShortcutUpdateResult = Readonly<{
+  state: ShortcutState
   status: "conflict" | "restore_failed" | "save_failed" | "updated"
 }>
 
 export interface ShortcutBridge {
-  beginRecording(): Promise<ScreenshotShortcutState>
-  cancelRecording(): Promise<ScreenshotShortcutState>
-  getState(): Promise<ScreenshotShortcutState>
-  setScreenshot(accelerator: string | null): Promise<ScreenshotShortcutUpdateResult>
+  beginRecording(kind: ShortcutKind): Promise<ShortcutState>
+  cancelRecording(): Promise<ShortcutState>
+  getState(kind: ShortcutKind): Promise<ShortcutState>
+  set(kind: ShortcutKind, accelerator: string | null): Promise<ShortcutUpdateResult>
+  subscribeSearchOpen(listener: () => void): () => void
 }
 
 const MODIFIER_ORDER = ["CommandOrControl", "Command", "Control", "Super", "Alt", "Shift"] as const

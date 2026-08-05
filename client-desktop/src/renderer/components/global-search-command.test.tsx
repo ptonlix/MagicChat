@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { GlobalSearchCommand } from "@/components/global-search-command"
 import type {
@@ -15,6 +15,33 @@ import type { DirectorySearchItem } from "@/lib/local-search"
 import type { MessageSearchProvider } from "@/lib/client-search"
 
 describe("GlobalSearchCommand", () => {
+  afterEach(() => {
+    delete (window as { desktop?: unknown }).desktop
+  })
+
+  it("订阅全局搜索事件并打开搜索框", async () => {
+    const listeners: Array<() => void> = []
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: {
+        shortcuts: {
+          subscribeSearchOpen: (listener: () => void) => {
+            listeners.push(listener)
+            return () => {
+              const index = listeners.indexOf(listener)
+              if (index >= 0) listeners.splice(index, 1)
+            }
+          },
+        },
+      },
+    })
+    renderSearch([])
+    expect(listeners).toHaveLength(1)
+
+    act(() => listeners[0]())
+    expect(await screen.findByRole("combobox", { name: "搜索所有内容" })).toBeInTheDocument()
+  })
+
   it("switches between combined, directory, and conversation scopes", async () => {
     const user = userEvent.setup()
     renderSearch([createConversation({ name: "产品对话" })], vi.fn(), {
