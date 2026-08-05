@@ -152,6 +152,7 @@ export function DesktopSettingsPanel({
   return (
     <SettingsCenter
       activeSection={activeSection}
+      appInfo={appInfo}
       platform={platform}
       profile={profile}
       onOpenChange={onOpenChange}

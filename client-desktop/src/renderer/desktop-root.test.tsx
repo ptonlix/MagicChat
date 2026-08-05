@@ -442,6 +442,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await waitFor(() => expect(screen.getByText("v0.1.0")).toBeInTheDocument())
     expect(screen.getByText("开机自动启动")).toBeInTheDocument()
     expect(screen.getByText("关闭窗口")).toBeInTheDocument()
 

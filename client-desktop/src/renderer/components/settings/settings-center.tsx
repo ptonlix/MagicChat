@@ -13,7 +13,7 @@ import {
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import type { ServerProfile } from "@shared/bridge"
+import type { DesktopAppInfo, ServerProfile } from "@shared/bridge"
 
 const settingsSections = [
   { id: "general", label: "通用", description: "启动与窗口行为", icon: MonitorCog },
@@ -30,6 +30,7 @@ export type SettingsSectionId = (typeof settingsSections)[number]["id"]
 
 export function SettingsCenter({
   activeSection,
+  appInfo,
   children,
   platform,
   profile,
@@ -37,6 +38,7 @@ export function SettingsCenter({
   onSectionChange,
 }: {
   activeSection: SettingsSectionId
+  appInfo?: DesktopAppInfo
   children: ReactNode
   platform?: string
   profile: ServerProfile
@@ -96,7 +98,12 @@ export function SettingsCenter({
           <div className="settings-center-profile">
             <img alt="即应" src="/logo.png" />
             <div>
-              <strong>即应</strong>
+              <strong>
+                即应
+                {appInfo && (
+                  <span className="settings-center-profile-version">v{appInfo.version}</span>
+                )}
+              </strong>
               <span title={profile.displayName}>{profile.displayName}</span>
             </div>
           </div>

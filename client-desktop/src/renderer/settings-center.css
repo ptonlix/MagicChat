@@ -56,9 +56,18 @@
 }
 
 .settings-center-profile strong {
+  align-items: baseline;
+  display: flex;
   font-size: 14px;
   font-weight: 650;
+  gap: 6px;
   letter-spacing: 0;
+  min-width: 0;
+}
+
+.settings-center-profile-version {
+  flex-shrink: 0;
+  font-weight: 500;
 }
 
 .settings-center-profile span {
