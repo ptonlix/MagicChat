@@ -334,6 +334,16 @@ const zhCN = {
   "composer.send": "发送消息",
   "composer.sendLabel": "发送",
 
+  "screenshot.error.permissionDenied":
+    "截图需要屏幕录制权限，请前往“系统设置 > 隐私与安全性 > 屏幕录制”允许 MagicChat",
+  "screenshot.error.captureTimeout": "屏幕截图响应超时，请重试",
+  "screenshot.error.unsupportedMultiDisplay": "当前桌面环境暂不支持多显示器截图",
+  "screenshot.error.captureUnavailable": "当前没有可用的屏幕截图来源",
+  "screenshot.error.unknown": "无法完成屏幕截图",
+  "screenshot.openSettings": "前往设置",
+  "screenshot.openSettingsUnsupported": "当前系统不支持直接打开屏幕录制设置",
+  "screenshot.openSettingsFailed": "无法打开系统设置，请手动允许屏幕录制权限",
+
   "startup.starting": "正在启动即应",
   "startup.connecting": "正在连接工作空间",
   "startup.unknownServer": "链接指向尚未配置的服务器 {serverId}，请先添加并确认服务器地址。",
@@ -1657,6 +1667,19 @@ const en: Record<TranslationKey, string> = {
   "composer.voice": "Voice input",
   "composer.send": "Send message",
   "composer.sendLabel": "Send",
+
+  "screenshot.error.permissionDenied":
+    "Screen recording permission is required to take a screenshot. Allow MagicChat under System Settings > Privacy & Security > Screen Recording",
+  "screenshot.error.captureTimeout": "Screenshot timed out, please try again",
+  "screenshot.error.unsupportedMultiDisplay":
+    "Multi-display screenshots are not supported in this desktop environment",
+  "screenshot.error.captureUnavailable": "No screen capture source is currently available",
+  "screenshot.error.unknown": "Could not complete the screenshot",
+  "screenshot.openSettings": "Go to Settings",
+  "screenshot.openSettingsUnsupported":
+    "This system does not support opening the screen recording settings directly",
+  "screenshot.openSettingsFailed":
+    "Could not open system settings, please allow screen recording permission manually",
 
   "startup.starting": "Starting MagicChat",
   "startup.connecting": "Connecting to workspace",

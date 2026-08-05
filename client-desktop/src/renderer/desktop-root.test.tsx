@@ -126,7 +126,10 @@ describe("桌面设置服务器管理", () => {
       mocks.screenshotStartFailureSubscriber?.({ code: "permission_denied" })
     })
 
-    expect(mocks.showScreenshotStartError).toHaveBeenCalledWith("permission_denied")
+    expect(mocks.showScreenshotStartError).toHaveBeenCalledWith(
+      "permission_denied",
+      expect.any(Function),
+    )
     view.unmount()
     expect(mocks.screenshotStartFailureUnsubscribe).toHaveBeenCalledOnce()
   })

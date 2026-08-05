@@ -495,7 +495,7 @@ export const ConversationPanelComposer = React.forwardRef<
     try {
       const result = await screenshot.start({ conversationId: conversation.id })
       if (result.status === "error") {
-        showScreenshotStartError(result.code)
+        showScreenshotStartError(result.code, t)
       } else {
         dismissScreenshotPermissionToast()
       }

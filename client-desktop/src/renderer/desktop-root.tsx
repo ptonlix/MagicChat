@@ -48,17 +48,10 @@ import "./settings-center.css"
 export function DesktopRoot() {
   const platform = useDesktopPlatform()
 
-  useEffect(
-    () =>
-      window.desktop.screenshot.subscribeStartFailed(({ code }) => {
-        showScreenshotStartError(code)
-      }),
-    [],
-  )
-
   return (
     <ThemeProvider>
       <LocaleProvider>
+        <ScreenshotStartFailedBridge />
         <TooltipProvider>
           <div className="desktop-frame">
             <DesktopTitlebar platform={platform} />
@@ -78,7 +71,6 @@ export function DesktopRoot() {
 
 function useDesktopPlatform() {
   const [platform, setPlatform] = useState<string>()
-
   useEffect(() => {
     let mounted = true
     void window.desktop.app.info().then(
@@ -93,6 +85,24 @@ function useDesktopPlatform() {
   }, [])
 
   return platform
+}
+
+function ScreenshotStartFailedBridge() {
+  const { t } = useLocale()
+  const latestTRef = useRef(t)
+  useEffect(() => {
+    latestTRef.current = t
+  }, [t])
+  useEffect(
+    () =>
+      window.desktop.screenshot.subscribeStartFailed(({ code }) => {
+        // 语言/字号变化只影响文案，不重新订阅宿主事件
+        showScreenshotStartError(code, latestTRef.current)
+      }),
+    [],
+  )
+
+  return null
 }
 
 function DesktopTitlebar({ platform }: { platform?: string }) {

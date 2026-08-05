@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { toast } from "sonner"
 
 import { SettingsCenter } from "@/components/settings/settings-center"
-import { LocaleProvider } from "@/components/locale-provider"
+import { LocaleProvider, useLocale } from "@/components/locale-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { showScreenshotStartError } from "@/lib/screenshot-start-error"
 import type { DesktopBridge, ServerProfile } from "@shared/bridge"
@@ -15,6 +15,15 @@ const profile: ServerProfile = {
   displayName: "测试服务器",
   id: "server-1",
   normalizedUrl: "https://chat.example.com",
+}
+
+function ScreenshotPermissionToastTrigger() {
+  const { t } = useLocale()
+  return (
+    <button type="button" onClick={() => showScreenshotStartError("permission_denied", t)}>
+      触发截图权限提示
+    </button>
+  )
 }
 
 describe("Toaster", () => {
@@ -66,12 +75,13 @@ describe("Toaster", () => {
           >
             <span>设置内容</span>
           </SettingsCenter>
+          <ScreenshotPermissionToastTrigger />
           <Toaster />
         </>
       </LocaleProvider>,
     )
 
-    act(() => showScreenshotStartError("permission_denied"))
+    fireEvent.click(screen.getByRole("button", { name: "触发截图权限提示" }))
 
     const applicationFrame = document.querySelector<HTMLElement>(".desktop-frame")
     expect(applicationFrame).toHaveAttribute("inert")

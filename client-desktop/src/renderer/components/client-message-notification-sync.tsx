@@ -37,7 +37,10 @@ const enableNotificationToastId = "enable-browser-message-notifications"
 
 export function ClientMessageNotificationSync() {
   const { t } = useLocale()
-  const enableNotificationToastText = t("notification.enableHint")
+  const latestTRef = React.useRef(t)
+  React.useEffect(() => {
+    latestTRef.current = t
+  }, [t])
   const location = useLocation()
   const navigate = useNavigate()
   const { subscribeRealtimeEvent } = useRealtime()
@@ -87,7 +90,7 @@ export function ClientMessageNotificationSync() {
           conversation,
           me,
           sender: message.sender,
-          t,
+          t: latestTRef.current,
         })
         const body = `${senderName}: ${getMessageNotificationSummary({
           appsById: contactAppsById,
@@ -95,7 +98,7 @@ export function ClientMessageNotificationSync() {
           conversation,
           me,
           message,
-          t,
+          t: latestTRef.current,
         })}`
 
         if (
@@ -110,7 +113,7 @@ export function ClientMessageNotificationSync() {
         }
 
         if (getBrowserNotificationPermission() !== "granted") {
-          toast.info(enableNotificationToastText, {
+          toast.info(latestTRef.current("notification.enableHint"), {
             id: enableNotificationToastId,
           })
           return
@@ -119,14 +122,14 @@ export function ClientMessageNotificationSync() {
         const notified = showBrowserMessageNotification({
           body,
           tag: message.id,
-          title: t("notification.title"),
+          title: latestTRef.current("notification.title"),
           onClick: () => {
             window.focus()
             navigate(`/chat/${encodeURIComponent(message.conversationId)}`)
           },
         })
         if (!notified) {
-          toast.info(enableNotificationToastText, {
+          toast.info(latestTRef.current("notification.enableHint"), {
             id: enableNotificationToastId,
           })
         }
@@ -138,10 +141,8 @@ export function ClientMessageNotificationSync() {
     contactAppsById,
     contacts,
     conversations,
-    enableNotificationToastText,
     me,
     navigate,
-    t,
     subscribeRealtimeEvent,
     visibleConversationId,
   ])
