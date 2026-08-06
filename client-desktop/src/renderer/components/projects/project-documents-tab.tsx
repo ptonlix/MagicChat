@@ -14,8 +14,8 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core"
 import {
+  AppWindow,
   Ellipsis,
-  ExternalLink,
   FileText,
   Folder,
   FolderOpen,
@@ -649,7 +649,7 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
                 disabled={props.openingWindowId === props.node.id}
                 onSelect={() => props.onOpenWindow(props.node)}
               >
-                <ExternalLink />
+                <AppWindow />
                 在新窗口打开
               </DropdownMenuItem>
             )}

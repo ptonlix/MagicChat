@@ -243,6 +243,16 @@ describe("DocumentPage", () => {
     const router = renderPage()
     await screen.findByRole("textbox", { name: "顶部文档标题" })
 
+    expect(
+      screen
+        .getByRole("button", { name: "打开新窗口并返回" })
+        .querySelector("svg.lucide-app-window"),
+    ).toBeInTheDocument()
+    expect(
+      screen
+        .getByRole("button", { name: "打开当前文档并返回" })
+        .querySelector("svg.lucide-app-window"),
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "打开新窗口并返回" }))
     await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1"))
     await waitFor(() =>

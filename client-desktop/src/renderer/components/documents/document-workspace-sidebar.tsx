@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { ArrowLeft, ExternalLink, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
+import { AppWindow, ArrowLeft, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -111,7 +111,7 @@ export function DocumentWorkspaceSidebar({
           onClick={onOpenInWindow}
           variant="outline"
         >
-          {openingWindow ? <Loader2 className="animate-spin" /> : <ExternalLink />}
+          {openingWindow ? <Loader2 className="animate-spin" /> : <AppWindow />}
           {isDocumentWindow ? "在新窗口打开当前文档" : "打开当前文档并返回"}
         </Button>
       </div>

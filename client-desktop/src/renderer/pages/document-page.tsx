@@ -1,6 +1,6 @@
 import * as React from "react"
 import { HocuspocusProvider, WebSocketStatus } from "@hocuspocus/provider"
-import { ExternalLink, FileText, Loader2, Menu, RefreshCw, Users } from "lucide-react"
+import { AppWindow, FileText, Loader2, Menu, RefreshCw, Users } from "lucide-react"
 import { Link, useBlocker, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 import * as Y from "yjs"
@@ -419,7 +419,7 @@ function DocumentWorkspace({
             title={isDocumentWindow ? "在新窗口打开文档" : "打开新窗口并返回"}
             variant="ghost"
           >
-            {openingWindow ? <Loader2 className="animate-spin" /> : <ExternalLink />}
+            {openingWindow ? <Loader2 className="animate-spin" /> : <AppWindow />}
           </Button>
           <DocumentOnlineUsers users={onlineUsers} />
         </header>
