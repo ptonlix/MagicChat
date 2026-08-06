@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { AppWindow, ArrowLeft, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
+import { ArrowLeft, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -17,8 +17,6 @@ export function DocumentWorkspaceSidebar({
   getEditVersion,
   onAllowConfirmedNavigation,
   onBeforeNavigate,
-  onOpenInWindow,
-  openingWindow,
   projectId,
   projectName,
 }: {
@@ -27,8 +25,6 @@ export function DocumentWorkspaceSidebar({
   getEditVersion(): number
   onAllowConfirmedNavigation(): void
   onBeforeNavigate(confirmedVersion?: number): boolean
-  onOpenInWindow(): void
-  openingWindow: boolean
   projectId: string
   projectName: string
 }) {
@@ -103,16 +99,6 @@ export function DocumentWorkspaceSidebar({
         >
           {creating ? <Loader2 className="animate-spin" /> : <Plus />}
           {t("document.newDoc")}
-        </Button>
-        <Button
-          aria-label={isDocumentWindow ? "在新窗口打开当前文档" : "打开当前文档并返回"}
-          className="w-full"
-          disabled={openingWindow}
-          onClick={onOpenInWindow}
-          variant="outline"
-        >
-          {openingWindow ? <Loader2 className="animate-spin" /> : <AppWindow />}
-          {isDocumentWindow ? "在新窗口打开当前文档" : "打开当前文档并返回"}
         </Button>
       </div>
       <nav

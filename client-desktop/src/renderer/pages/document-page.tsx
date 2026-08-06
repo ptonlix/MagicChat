@@ -346,8 +346,6 @@ function DocumentWorkspace({
       getEditVersion={getEditVersion}
       onAllowConfirmedNavigation={allowConfirmedNavigation}
       onBeforeNavigate={confirmLeave}
-      onOpenInWindow={() => void openInWindow()}
-      openingWindow={openingWindow}
       projectId={project.id}
       projectName={project.name}
     />
