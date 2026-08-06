@@ -574,10 +574,12 @@
   font-family: var(--font-mono);
   font-size: 12px;
   height: 36px;
+  max-width: 100%;
+  min-width: 180px;
   justify-content: center;
   padding-right: 36px;
   position: relative;
-  width: 180px;
+  width: fit-content;
 }
 
 .send-message-shortcut-select > [data-slot="select-value"] {
@@ -593,7 +595,7 @@
 }
 
 .send-message-shortcut-menu {
-  min-width: 180px;
+  min-width: max(180px, var(--radix-select-trigger-width, 180px));
 }
 
 .send-message-shortcut-menu [data-slot="select-item"] {

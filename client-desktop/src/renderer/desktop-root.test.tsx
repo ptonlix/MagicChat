@@ -476,6 +476,24 @@ describe("桌面设置服务器管理", () => {
     expect(mocks.restoreFetch).not.toHaveBeenCalled()
   })
 
+  it.each(["win32", "linux"] as const)(
+    "%s 英文界面下完整显示发送消息快捷键文案",
+    async (platform) => {
+      const bridge = createDesktopBridge(undefined, undefined, platform)
+      Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
+      const user = userEvent.setup()
+      render(<DesktopRoot />)
+
+      await user.click(await screen.findByRole("button", { name: "打开设置" }))
+      await user.selectOptions(screen.getByRole("combobox", { name: "语言" }), "en")
+      await waitFor(() => expect(screen.getByRole("button", { name: "Shortcuts" })).toBeVisible())
+      await user.click(screen.getByRole("button", { name: "Shortcuts" }))
+
+      const picker = await screen.findByRole("combobox", { name: "Send message shortcut" })
+      expect(picker).toHaveTextContent("↵ send / Ctrl + ↵ new line")
+    },
+  )
+
   it("字体大小设置应用到根元素字号", async () => {
     const bridge = createDesktopBridge()
     Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
@@ -1270,7 +1288,7 @@ function createDesktopBridge(
     notificationPrivacy: "metadata" as const,
     screenshotShortcut: "CommandOrControl+Shift+A",
     searchShortcut: "CommandOrControl+Shift+F",
-    sendMessageShortcut: "CommandOrControl+Enter",
+    sendMessageShortcut: "Enter",
     selectedServerId: profile.id,
   }
   return {
@@ -1372,7 +1390,7 @@ function createDesktopBridge(
           kind === "search"
             ? "CommandOrControl+Shift+F"
             : kind === "sendMessage"
-              ? "CommandOrControl+Enter"
+              ? settings.sendMessageShortcut
               : "CommandOrControl+Shift+A",
         recording: false,
         registered: kind !== "sendMessage",
