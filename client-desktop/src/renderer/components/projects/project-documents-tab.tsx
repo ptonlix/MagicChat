@@ -650,7 +650,7 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
                 onSelect={() => props.onOpenWindow(props.node)}
               >
                 <AppWindow />
-                在新窗口打开
+                新窗口打开
               </DropdownMenuItem>
             )}
             <DropdownMenuItem

@@ -48,6 +48,7 @@ describe("DocumentWorkspaceSidebar", () => {
     )
     expect(window.location.pathname).toBe(`/documents/document/${activeDocument.id}`)
     expect(screen.getByRole("treeitem", { name: "当前文档" })).toBeDisabled()
+    expect(screen.queryByText("项目")).not.toBeInTheDocument()
   })
 
   it("子窗口新建文档后为新文档创建独立窗口", async () => {

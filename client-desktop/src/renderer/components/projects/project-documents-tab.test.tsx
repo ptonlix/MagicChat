@@ -94,9 +94,9 @@ describe("ProjectDocumentsTab", () => {
     await screen.findByRole("link", { name: /产品需求文档/ })
     await user.click(screen.getByRole("button", { name: /操作.*产品需求文档/ }))
     expect(
-      screen.getByRole("menuitem", { name: "在新窗口打开" }).querySelector("svg.lucide-app-window"),
+      screen.getByRole("menuitem", { name: "新窗口打开" }).querySelector("svg.lucide-app-window"),
     ).toBeInTheDocument()
-    await user.click(screen.getByRole("menuitem", { name: "在新窗口打开" }))
+    await user.click(screen.getByRole("menuitem", { name: "新窗口打开" }))
 
     await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(base.id, "server-1"))
     expect(screen.getByRole("link", { name: /产品需求文档/ })).toHaveAttribute(

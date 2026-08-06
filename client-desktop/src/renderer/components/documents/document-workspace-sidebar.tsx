@@ -107,12 +107,7 @@ export function DocumentWorkspaceSidebar({
 
   return (
     <aside className="no-drag flex h-full w-full shrink-0 flex-col overflow-hidden bg-background text-foreground">
-      {isDocumentWindow ? (
-        <div className="mx-2 mt-2 flex h-10 items-center gap-2 rounded-md px-2">
-          <ArrowLeft className="size-4" />
-          <span className="truncate text-sm font-semibold">{projectName}</span>
-        </div>
-      ) : (
+      {!isDocumentWindow && (
         <Link
           aria-label={t("document.backToProjectAria", { name: projectName })}
           className="mx-2 mt-2 flex h-10 items-center gap-2 rounded-md px-2 hover:bg-accent focus-visible:ring-2"
