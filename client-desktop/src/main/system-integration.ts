@@ -24,12 +24,18 @@ export class SystemIntegration {
   private tray?: Tray
   private trayMessages: ReadonlyArray<TrayMessage> = []
   private readonly granted = new Set<"microphone" | "notifications">()
+  private readonly handleNativeThemeUpdated = () => this.syncThemeBackground()
 
   constructor(
     private readonly store: ConfigStore,
     private readonly windows: WindowController,
     private readonly platform: NodeJS.Platform = process.platform,
-  ) {}
+    private readonly additionalThemeWindows: ReadonlyArray<{
+      setThemeBackground(dark: boolean): void
+    }> = [],
+  ) {
+    nativeTheme.on("updated", this.handleNativeThemeUpdated)
+  }
 
   createTray(iconPath: string): boolean {
     try {
@@ -47,7 +53,17 @@ export class SystemIntegration {
 
   setThemeSource(source: DesktopThemeSource): void {
     nativeTheme.themeSource = source
-    this.windows.setThemeBackground(nativeTheme.shouldUseDarkColors)
+    this.syncThemeBackground()
+  }
+
+  dispose(): void {
+    nativeTheme.off("updated", this.handleNativeThemeUpdated)
+  }
+
+  private syncThemeBackground(): void {
+    const dark = nativeTheme.shouldUseDarkColors
+    this.windows.setThemeBackground(dark)
+    for (const windows of this.additionalThemeWindows) windows.setThemeBackground(dark)
   }
 
   async setAutoLaunch(enabled: boolean): Promise<void> {

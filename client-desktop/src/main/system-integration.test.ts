@@ -7,6 +7,12 @@ const electronMocks = vi.hoisted(() => ({
   createImage: vi.fn(),
   menuTemplates: [] as Array<ReadonlyArray<{ enabled?: boolean; label?: string; type?: string }>>,
   openExternal: vi.fn(),
+  nativeTheme: {
+    off: vi.fn(),
+    on: vi.fn(),
+    shouldUseDarkColors: false,
+    themeSource: "system",
+  },
   tray: {
     on: vi.fn(),
     popUpContextMenu: vi.fn(),
@@ -27,6 +33,7 @@ vi.mock("electron", () => ({
     ),
   },
   nativeImage: { createFromPath: electronMocks.createImage },
+  nativeTheme: electronMocks.nativeTheme,
   session: {},
   shell: { openExternal: electronMocks.openExternal },
   systemPreferences: {},
@@ -69,6 +76,9 @@ describe("SystemIntegration", () => {
     electronMocks.createImage.mockReset()
     electronMocks.menuTemplates.length = 0
     electronMocks.openExternal.mockReset().mockResolvedValue(undefined)
+    electronMocks.nativeTheme.shouldUseDarkColors = false
+    electronMocks.nativeTheme.off.mockReset()
+    electronMocks.nativeTheme.on.mockReset()
   })
 
   afterEach(() => vi.restoreAllMocks())
@@ -168,5 +178,31 @@ describe("SystemIntegration", () => {
       }),
     ).rejects.toThrow("目标服务器不存在")
     expect(store.setSettings).not.toHaveBeenCalled()
+  })
+
+  it("切换主题时同步文档窗口", () => {
+    const documentWindows = { setThemeBackground: vi.fn() }
+    const windows = { setThemeBackground: vi.fn() }
+    const system = new SystemIntegration(
+      {} as ConfigStore,
+      windows as unknown as WindowController,
+      "win32",
+      [documentWindows],
+    )
+
+    electronMocks.nativeTheme.shouldUseDarkColors = true
+    system.setThemeSource("dark")
+
+    expect(windows.setThemeBackground).toHaveBeenCalledWith(true)
+    expect(documentWindows.setThemeBackground).toHaveBeenCalledWith(true)
+
+    electronMocks.nativeTheme.shouldUseDarkColors = false
+    const updated = electronMocks.nativeTheme.on.mock.calls.at(-1)?.[1] as (() => void) | undefined
+    updated?.()
+    expect(windows.setThemeBackground).toHaveBeenLastCalledWith(false)
+    expect(documentWindows.setThemeBackground).toHaveBeenLastCalledWith(false)
+
+    system.dispose()
+    expect(electronMocks.nativeTheme.off).toHaveBeenCalledWith("updated", updated)
   })
 })

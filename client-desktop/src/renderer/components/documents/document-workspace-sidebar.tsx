@@ -9,7 +9,13 @@ import { createClientDocument, listClientDocuments } from "@/lib/document-data-a
 import { buildDocumentTree, collectFolderIds, type DocumentTreeNode } from "@/lib/document-tree"
 import { cn } from "@/lib/utils"
 import { useDesktopTarget } from "@/hooks/use-desktop-target"
-import { documentNavigationPath, parseDocumentWindowLocation } from "@/lib/document-window-route"
+import {
+  documentNavigationPath,
+  documentWindowFeedbackMessage,
+  DocumentWindowOpenError,
+  parseDocumentWindowLocation,
+  requestDocumentWindow,
+} from "@/lib/document-window-route"
 
 export function DocumentWorkspaceSidebar({
   activeDocumentId,
@@ -37,6 +43,28 @@ export function DocumentWorkspaceSidebar({
   const [error, setError] = React.useState("")
   const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set())
   const [loading, setLoading] = React.useState(true)
+  const [openingDocumentId, setOpeningDocumentId] = React.useState<string>()
+
+  async function openDocumentInWindow(documentId: string): Promise<boolean> {
+    if (openingDocumentId) return false
+    setOpeningDocumentId(documentId)
+    try {
+      const result = await requestDocumentWindow(documentId, target.id)
+      toast.success(result.status === "focused" ? "已聚焦已有文档窗口" : "文档窗口已打开")
+      return true
+    } catch (reason) {
+      const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
+      toast.error(
+        documentWindowFeedbackMessage(
+          code,
+          reason instanceof Error ? reason.message : "文档窗口暂时不可用",
+        ),
+      )
+      return false
+    } finally {
+      setOpeningDocumentId(undefined)
+    }
+  }
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -55,17 +83,21 @@ export function DocumentWorkspaceSidebar({
   React.useEffect(() => void load(), [load])
 
   async function createDocument() {
-    if (!onBeforeNavigate() || creating) return
-    const confirmedVersion = getEditVersion()
+    if (creating || (!isDocumentWindow && !onBeforeNavigate())) return
+    const confirmedVersion = isDocumentWindow ? undefined : getEditVersion()
     setCreating(true)
     try {
       const created = await createClientDocument(projectId, {
         kind: "document",
         title: t("document.untitled"),
       })
-      if (!onBeforeNavigate(confirmedVersion)) return
-      onAllowConfirmedNavigation()
-      navigate(documentNavigationPath(created.id, target.id))
+      if (isDocumentWindow) {
+        await openDocumentInWindow(created.id)
+      } else {
+        if (!onBeforeNavigate(confirmedVersion)) return
+        onAllowConfirmedNavigation()
+        navigate(documentNavigationPath(created.id, target.id))
+      }
     } catch (createError) {
       toast.error(createError instanceof Error ? createError.message : t("document.createFailed"))
     } finally {
@@ -128,6 +160,7 @@ export function DocumentWorkspaceSidebar({
             depth={0}
             expanded={expanded}
             nodes={documents}
+            onOpenDocument={(documentId) => void openDocumentInWindow(documentId)}
             onToggle={(id) =>
               setExpanded((current) => {
                 const next = new Set(current)
@@ -137,6 +170,8 @@ export function DocumentWorkspaceSidebar({
               })
             }
             serverId={target.id}
+            standaloneWindow={isDocumentWindow}
+            openingDocumentId={openingDocumentId}
           />
         )}
       </nav>
@@ -150,16 +185,22 @@ function SidebarTree({
   depth,
   expanded,
   nodes,
+  onOpenDocument,
   onToggle,
+  openingDocumentId,
   serverId,
+  standaloneWindow,
 }: {
   activeDocumentId: string
   activeTitle: string
   depth: number
   expanded: ReadonlySet<string>
   nodes: ReadonlyArray<DocumentTreeNode>
+  onOpenDocument(documentId: string): void
   onToggle(id: string): void
+  openingDocumentId?: string
   serverId: string
+  standaloneWindow: boolean
 }) {
   return (
     <div role={depth === 0 ? "tree" : "group"}>
@@ -188,30 +229,91 @@ function SidebarTree({
                 depth={depth + 1}
                 expanded={expanded}
                 nodes={node.children}
+                onOpenDocument={onOpenDocument}
                 onToggle={onToggle}
+                openingDocumentId={openingDocumentId}
                 serverId={serverId}
+                standaloneWindow={standaloneWindow}
               />
             )}
           </div>
         ) : (
-          <Link
-            aria-current={activeDocumentId === node.id ? "page" : undefined}
-            className={cn(
-              "flex h-9 items-center gap-2 rounded-md pr-2 text-sm hover:bg-accent focus-visible:ring-2",
-              activeDocumentId === node.id && "bg-accent font-medium",
-            )}
+          <DocumentSidebarItem
+            active={activeDocumentId === node.id}
+            depth={depth}
+            documentId={node.id}
             key={node.id}
-            role="treeitem"
-            style={{ paddingLeft: depth * 16 + 24 }}
-            to={documentNavigationPath(node.id, serverId)}
-          >
-            <FileText className="size-4 shrink-0 text-sky-600" />
-            <span className="truncate">
-              {activeDocumentId === node.id ? activeTitle : node.title}
-            </span>
-          </Link>
+            onOpenDocument={onOpenDocument}
+            opening={openingDocumentId === node.id}
+            serverId={serverId}
+            standaloneWindow={standaloneWindow}
+            title={activeDocumentId === node.id ? activeTitle : node.title}
+          />
         ),
       )}
     </div>
+  )
+}
+
+function DocumentSidebarItem({
+  active,
+  depth,
+  documentId,
+  onOpenDocument,
+  opening,
+  serverId,
+  standaloneWindow,
+  title,
+}: {
+  active: boolean
+  depth: number
+  documentId: string
+  onOpenDocument(documentId: string): void
+  opening: boolean
+  serverId: string
+  standaloneWindow: boolean
+  title: string
+}) {
+  const className = cn(
+    "flex h-9 w-full items-center gap-2 rounded-md pr-2 text-left text-sm hover:bg-accent focus-visible:ring-2",
+    active && "bg-accent font-medium",
+  )
+  const content = (
+    <>
+      {opening ? (
+        <Loader2 className="size-4 shrink-0 animate-spin text-sky-600" />
+      ) : (
+        <FileText className="size-4 shrink-0 text-sky-600" />
+      )}
+      <span className="truncate">{title}</span>
+    </>
+  )
+
+  if (standaloneWindow)
+    return (
+      <button
+        aria-current={active ? "page" : undefined}
+        aria-label={active ? title : `在新窗口打开：${title}`}
+        className={className}
+        disabled={active || opening}
+        onClick={() => onOpenDocument(documentId)}
+        role="treeitem"
+        style={{ paddingLeft: depth * 16 + 24 }}
+        type="button"
+      >
+        {content}
+      </button>
+    )
+
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={className}
+      role="treeitem"
+      style={{ paddingLeft: depth * 16 + 24 }}
+      to={documentNavigationPath(documentId, serverId)}
+    >
+      {content}
+    </Link>
   )
 }

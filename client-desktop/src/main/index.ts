@@ -1,5 +1,5 @@
 import path from "node:path"
-import { app, dialog, powerMonitor, screen } from "electron"
+import { app, dialog, nativeTheme, powerMonitor, screen } from "electron"
 import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
@@ -88,7 +88,6 @@ async function start(): Promise<void> {
   })
   screenshots.installProtocol()
   const unregisterScreenshotIpc = screenshots.registerIpc()
-  const system = new SystemIntegration(store, windows)
   const proxyAuth = new ProxyAuthPrompt(windows, iconPath)
   const realtime = new RealtimeController(profiles, sessions, proxyAuth)
   const asr = new ASRController(profiles, sessions, proxyAuth)
@@ -103,11 +102,13 @@ async function start(): Promise<void> {
     developmentUrl: process.env.ELECTRON_RENDERER_URL,
     getMainWindow: () => windows.current(),
     iconPath,
+    initialDarkTheme: nativeTheme.shouldUseDarkColors,
     preloadPath: path.resolve(__dirname, "../preload/index.cjs"),
     profiles,
     state: documentWindowState,
     store,
   })
+  const system = new SystemIntegration(store, windows, process.platform, [documentWindows])
   const trayAvailable = system.createTray(trayIconPath)
   if (
     !trayAvailable &&
@@ -268,6 +269,7 @@ async function start(): Promise<void> {
     screen.removeListener("display-metrics-changed", cancelScreenshotForDisplayChange)
     screenshots.dispose()
     documentWindows.dispose()
+    system.dispose()
     updater.dispose()
   })
   process.on("uncaughtException", (error) => void diagnostics.record("main", error.name))

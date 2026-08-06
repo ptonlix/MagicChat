@@ -77,14 +77,7 @@ export class WindowController {
 
   setThemeBackground(dark: boolean): void {
     const window = this.current()
-    window?.setBackgroundColor(dark ? "#09090b" : "#ffffff")
-    if (window && process.platform !== "darwin") {
-      window.setTitleBarOverlay({
-        color: "#00000000",
-        height: DESKTOP_TITLEBAR_HEIGHT,
-        symbolColor: dark ? "#fafafa" : "#18181b",
-      })
-    }
+    if (window) setTrustedWindowTheme(window, dark, process.platform)
   }
 
   send(channel: string, payload?: unknown): void {
@@ -117,6 +110,20 @@ export class WindowController {
     if (action === "hide") this.mainWindow?.hide()
     else app.quit()
   }
+}
+
+export function setTrustedWindowTheme(
+  window: Pick<BrowserWindow, "setBackgroundColor" | "setTitleBarOverlay">,
+  dark: boolean,
+  platform: NodeJS.Platform,
+): void {
+  window.setBackgroundColor(dark ? "#09090b" : "#ffffff")
+  if (platform === "darwin") return
+  window.setTitleBarOverlay({
+    color: "#00000000",
+    height: DESKTOP_TITLEBAR_HEIGHT,
+    symbolColor: dark ? "#fafafa" : "#18181b",
+  })
 }
 
 export type TrustedWindowSecurityOptions = Readonly<{

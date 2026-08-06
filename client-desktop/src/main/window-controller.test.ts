@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { getMainWindowTitleBarOptions } from "@main/window-controller"
+import { getMainWindowTitleBarOptions, setTrustedWindowTheme } from "@main/window-controller"
 import { DESKTOP_TITLEBAR_HEIGHT } from "@shared/bridge"
 
 describe("主窗口标题栏", () => {
@@ -19,6 +19,19 @@ describe("主窗口标题栏", () => {
         symbolColor: "#18181b",
       },
       titleBarStyle: "hidden",
+    })
+  })
+
+  it("深色主题同步窗口背景和系统控制键颜色", () => {
+    const window = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn() }
+
+    setTrustedWindowTheme(window, true, "win32")
+
+    expect(window.setBackgroundColor).toHaveBeenCalledWith("#09090b")
+    expect(window.setTitleBarOverlay).toHaveBeenCalledWith({
+      color: "#00000000",
+      height: DESKTOP_TITLEBAR_HEIGHT,
+      symbolColor: "#fafafa",
     })
   })
 })

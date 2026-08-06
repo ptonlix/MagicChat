@@ -66,6 +66,10 @@ isolation、sandbox、webSecurity 和 CSP，并且只加载带有 `serverId`、`
 本地 `magicchat-app://app/` 路由。远程导航、任意新窗口和伪造 Origin、Header、Cookie、脚本
 均在 Main/Preload 边界拒绝。
 
+文档窗口身份在创建后固定绑定单个 `serverId + userId + documentId`，不允许在原窗口内切换
+到其他文档。子窗口侧边栏选择或新建其他文档时，只能通过同一窄 Bridge 创建或聚焦目标文档
+窗口，当前窗口路由保持不变，确保 Main 索引、导航白名单、协作 owner 和状态键始终一致。
+
 开发模式的文档窗口复用受控的 Vite Renderer 地址；生产模式的本地协议在 SPA 路由回退时将
 Renderer 入口资源规范化到协议根路径，确保带文档路由的 URL 不会把 JS/CSS 解析到
 `documents/document/assets` 等不存在的目录。
@@ -85,6 +89,10 @@ workArea 夹紧，显示器拔除或完全离屏才回退到主窗口所在显�
 标题、消息、凭据、Cookie、Token 或完整 URL。该方案不新增 Server API、数据库、文档协作协议
 或迁移，也不提供同一窗口内的聊天/文档分屏；普通文档链接仍在当前窗口导航，需要并行聊天时
 通过受控入口再次打开独立文档窗口。
+
+普通退出和 OTA 安装会在关闭文档窗口后等待最终 bounds 写入队列完成，再进入不可逆资源清理。
+文档窗口创建时使用当前原生深浅色主题，并与主窗口一起响应后续主题切换，避免深色模式下出现
+白色背景闪烁或系统窗口控制键对比度不足。
 
 ## Renderer 独立策略
 

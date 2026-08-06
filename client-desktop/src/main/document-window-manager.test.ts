@@ -57,9 +57,11 @@ const mocks = vi.hoisted(() => {
   }
   const windows: Array<InstanceType<typeof FakeWindow>> = []
   const showMessageBox = vi.fn()
+  const setTrustedWindowTheme = vi.fn()
   return {
     FakeWindow,
     showMessageBox,
+    setTrustedWindowTheme,
     windows,
     reset() {
       nextWindowId = 2
@@ -92,6 +94,7 @@ vi.mock("electron", () => ({
 vi.mock("@main/window-controller", () => ({
   getMainWindowTitleBarOptions: vi.fn(() => ({ titleBarStyle: "hidden" })),
   installTrustedWindowSecurity: vi.fn(),
+  setTrustedWindowTheme: mocks.setTrustedWindowTheme,
 }))
 
 import {
@@ -222,6 +225,47 @@ describe("DocumentWindowManager", () => {
     expect(mainWindow.isDestroyed()).toBe(false)
     expect(mocks.windows).toHaveLength(1)
     expect(manager.size()).toBe(1)
+  })
+
+  it("退出关闭窗口前等待最终 bounds 写入完成", async () => {
+    let resolveWrite!: () => void
+    mocks.stateSet.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve
+        }),
+    )
+    const manager = createManager(createMainWindow())
+    await manager.open(1, { documentId, serverId: target.id })
+
+    let settled = false
+    const closing = manager.requestCloseAll().then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveWrite()
+    await closing
+    expect(settled).toBe(true)
+  })
+
+  it("创建和切换文档窗口时同步原生主题", async () => {
+    const manager = createManager(
+      createMainWindow(),
+      undefined,
+      undefined,
+      target.id,
+      undefined,
+      true,
+    )
+
+    await manager.open(1, { documentId, serverId: target.id })
+    const child = mocks.windows[0]!
+    expect(mocks.setTrustedWindowTheme).toHaveBeenCalledWith(child, true, process.platform)
+
+    manager.setThemeBackground(false)
+    expect(mocks.setTrustedWindowTheme).toHaveBeenLastCalledWith(child, false, process.platform)
   })
 
   it("限制同一认证目标最多八个窗口并在关闭后允许重建", async () => {
@@ -470,6 +514,7 @@ function createManager(
   profiles: unknown = { require: vi.fn(() => ({ ...target })) },
   selectedServerId = target.id,
   developmentUrl?: string,
+  initialDarkTheme?: boolean,
 ) {
   return new DocumentWindowManager({
     collaboration: collaboration as DocumentWindowManagerDependencies["collaboration"],
@@ -477,6 +522,7 @@ function createManager(
     developmentUrl,
     getMainWindow: () => mainWindow as never,
     iconPath: "/app/logo.png",
+    initialDarkTheme,
     preloadPath: "/app/preload.cjs",
     profiles: profiles as DocumentWindowManagerDependencies["profiles"],
     state: {

@@ -25,7 +25,11 @@ import type {
 } from "@main/document-window-state"
 import type { DocumentCollaborationController } from "@main/document-collaboration-controller"
 import type { ServerProfiles } from "@main/server-profiles"
-import { getMainWindowTitleBarOptions, installTrustedWindowSecurity } from "@main/window-controller"
+import {
+  getMainWindowTitleBarOptions,
+  installTrustedWindowSecurity,
+  setTrustedWindowTheme,
+} from "@main/window-controller"
 
 type DocumentWindowEntry = {
   boundsPersistTimer?: ReturnType<typeof setTimeout>
@@ -49,6 +53,7 @@ export type DocumentWindowManagerDependencies = {
   developmentUrl?: string
   getMainWindow(): BrowserWindow | undefined
   iconPath: string
+  initialDarkTheme?: boolean
   preloadPath: string
   profiles: Pick<ServerProfiles, "require">
   state: DocumentWindowStateStore
@@ -63,9 +68,13 @@ type DocumentWindowOwnerTarget = Readonly<{
 export class DocumentWindowManager {
   private readonly entries = new Map<string, DocumentWindowEntry>()
   private readonly ownerTargets = new Map<number, DocumentWindowOwnerTarget>()
+  private readonly pendingStateWrites = new Set<Promise<void>>()
+  private darkTheme: boolean
   private disposed = false
 
-  constructor(private readonly deps: DocumentWindowManagerDependencies) {}
+  constructor(private readonly deps: DocumentWindowManagerDependencies) {
+    this.darkTheme = deps.initialDarkTheme ?? false
+  }
 
   async open(ownerId: number, rawRequest: unknown): Promise<DocumentWindowOpenResponse> {
     if (this.disposed) return failedDocumentWindowResponse("disposed", "文档窗口能力已关闭")
@@ -139,6 +148,7 @@ export class DocumentWindowManager {
         y: bounds.y,
       })
       window.removeMenu()
+      setTrustedWindowTheme(window, this.darkTheme, process.platform)
     } catch {
       return failedDocumentWindowResponse("load_failed", "文档窗口创建失败，请稍后重试")
     }
@@ -210,9 +220,20 @@ export class DocumentWindowManager {
     if (this.disposed) return true
     for (const entry of [...this.entries.values()]) {
       if (this.entries.get(entry.key) !== entry) continue
-      if (!(await this.requestClose(entry))) return false
+      if (!(await this.requestClose(entry))) {
+        await this.flushStateWrites()
+        return false
+      }
     }
+    await this.flushStateWrites()
     return true
+  }
+
+  setThemeBackground(dark: boolean): void {
+    this.darkTheme = dark
+    for (const entry of this.entries.values()) {
+      if (!entry.window.isDestroyed()) setTrustedWindowTheme(entry.window, dark, process.platform)
+    }
   }
 
   dispose(): void {
@@ -403,9 +424,21 @@ export class DocumentWindowManager {
         bounds,
         displayId: display.id,
       }
-      void this.deps.state.set(entry.key, state).catch(() => undefined)
+      this.trackStateWrite(this.deps.state.set(entry.key, state))
     } catch {
       // 窗口正在销毁或系统屏幕信息暂不可用时，不阻断关闭流程。
+    }
+  }
+
+  private trackStateWrite(write: Promise<void>): void {
+    const tracked = write.catch(() => undefined)
+    this.pendingStateWrites.add(tracked)
+    void tracked.finally(() => this.pendingStateWrites.delete(tracked))
+  }
+
+  private async flushStateWrites(): Promise<void> {
+    while (this.pendingStateWrites.size > 0) {
+      await Promise.all([...this.pendingStateWrites])
     }
   }
 
