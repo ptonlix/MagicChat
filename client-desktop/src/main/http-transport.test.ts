@@ -167,6 +167,45 @@ describe("HttpTransport 认证目标隔离", () => {
     }
   })
 
+  it("匿名目标只能访问精确登录和只读启动接口，不能修改或注销当前账号", async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ success: true }))
+    const transport = createTransport(fetch)
+    const protectedRequests = [
+      { method: "PATCH", path: "/api/client/me" },
+      { method: "POST", path: "/api/client/me/avatar" },
+      { method: "POST", path: "/api/client/auth/logout" },
+    ] as const
+
+    for (const [index, protectedRequest] of protectedRequests.entries()) {
+      await expect(
+        transport.request(
+          1,
+          { ...target, userId: "anonymous" },
+          {
+            ...request,
+            ...protectedRequest,
+            requestId: `protected-${index}`,
+          },
+        ),
+      ).rejects.toMatchObject({ code: "invalid_request", message: "认证目标已失效" })
+    }
+    expect(fetch).not.toHaveBeenCalled()
+
+    await expect(
+      transport.request(
+        1,
+        { ...target, userId: "anonymous" },
+        {
+          ...request,
+          method: "POST",
+          path: "/api/client/auth/login",
+          requestId: "login",
+        },
+      ),
+    ).resolves.toMatchObject({ status: 200 })
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
   it("认证响应切换账号时通知文档窗口关闭旧 Server 资源", async () => {
     const profile = {
       id: target.id,

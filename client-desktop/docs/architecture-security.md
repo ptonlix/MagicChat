@@ -75,10 +75,13 @@ Yjs/Hocuspocus、标题保存和离开保护；它不挂载聊天 `ClientDataPro
 聊天事件同步、消息通知同步、聊天轮询、托盘消息或角标更新。文档协作仍通过现有
 `document-collaboration-controller`，每个子窗口使用独立 WebContents owner；关闭、崩溃、加载
 失败、WebContents 销毁、401、注销、账号切换、Server Profile 删除和应用退出都会幂等清理对应
-owner 的协作 session、队列和监听器，不影响其他 Server 的窗口。
+owner 的协作 session、队列和监听器，不影响其他 Server 的窗口。普通应用退出会先请求所有文档
+窗口执行现有未同步关闭确认；用户取消时终止退出并保留窗口，确认后才进入不可逆资源清理。
+OTA 安装也在调用平台安装退出前完成同一确认，避免更新流程绕过未同步保护。
 
-窗口状态仅持久化按认证 Target/文档隔离的 bounds 和显示器元数据，使用最小 `760x560`，恢复
-时按当前显示器 workArea 夹紧，显示器拔除或完全离屏则回退到默认位置。状态文件不保存正文、
+窗口状态仅持久化按认证 Target/文档隔离的 bounds 和显示器元数据，使用最小 `760x560`。移动
+和缩放事件采用防抖写入并在关闭时刷新最终状态；恢复时优先使用仍存在的已保存显示器，并按其
+workArea 夹紧，显示器拔除或完全离屏才回退到主窗口所在显示器的默认位置。状态文件不保存正文、
 标题、消息、凭据、Cookie、Token 或完整 URL。该方案不新增 Server API、数据库、文档协作协议
 或迁移，也不提供同一窗口内的聊天/文档分屏；普通文档链接仍在当前窗口导航，需要并行聊天时
 通过受控入口再次打开独立文档窗口。
@@ -105,6 +108,10 @@ Session 仍使用 Server ID 隔离，以保证移除服务器时可以定向清�
 每个 Server ID 使用独立的 `persist:magicchat-server-<id>` Session partition。
 Main 只接受已保存的 Server 以及相对 `/api/client/` 路径，并限制请求方法、Header、
 超时和响应大小。Cookie 和认证材料不返回 Renderer。
+
+匿名 Target 仅能调用精确的只读启动接口和登录接口：`GET /api/client/info`、
+`GET /api/client/me` 以及固定的账号/邮箱验证码登录 POST。资料修改、头像上传、注销和其他
+业务接口必须匹配 Profile 当前不可变用户 Target，不能用匿名或旧用户 Target 借用 Session Cookie。
 
 受认证头像、消息图片和音频通过 `magicchat-media://` 读取。Main 使用对应 Server
 Session 请求资源并过滤响应 Header；Renderer 不拼接认证 Header，也不能读取 Cookie。

@@ -145,7 +145,7 @@ async function start(): Promise<void> {
   const uploads = new StreamingUploadController(profiles, sessions)
   const updater = new UpdaterService({
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
-    prepareInstall: () => prepareUpdateInstall({ messageCache, windows }),
+    prepareInstall: () => prepareUpdateInstall({ documentWindows, messageCache, windows }),
   })
   const shortcuts = new ShortcutManager({
     diagnostics,
@@ -207,7 +207,7 @@ async function start(): Promise<void> {
     event.preventDefault()
     proxyAuth.show(callback, authInfo.host)
   })
-  let cleanupStarted = false
+  let quitState: "idle" | "preparing" | "ready" = "idle"
   let transferExitConfirmed = false
   app.on("before-quit", (event) => {
     if (updater.isInstallIntent()) {
@@ -222,9 +222,10 @@ async function start(): Promise<void> {
       void files.cleanup()
       return
     }
-    if (cleanupStarted) return
+    if (quitState === "ready") return
+    event.preventDefault()
+    if (quitState === "preparing") return
     if (!transferExitConfirmed && (files.hasActiveTransfers() || uploads.hasActiveTransfers())) {
-      event.preventDefault()
       const choice = dialog.showMessageBoxSync({
         type: "warning",
         buttons: ["继续传输", "取消传输并退出"],
@@ -235,19 +236,27 @@ async function start(): Promise<void> {
       if (choice === 0) return
       transferExitConfirmed = true
     }
-    cleanupStarted = true
-    screenshots.dispose()
-    windows.prepareToQuit()
-    http.cancelAll()
-    asr.closeAll()
-    documentWindows.dispose()
-    documentCollaboration.shutdown()
-    auth.dispose()
-    realtime.closeAll()
-    event.preventDefault()
-    void Promise.all([files.cleanup(), messageCache.close()]).finally(() => {
-      updater.dispose()
-      app.quit()
+    quitState = "preparing"
+    void documentWindows.requestCloseAll().then((confirmed) => {
+      if (!confirmed) {
+        quitState = "idle"
+        transferExitConfirmed = false
+        windows.cancelPrepareToQuit()
+        return
+      }
+      screenshots.dispose()
+      windows.prepareToQuit()
+      http.cancelAll()
+      asr.closeAll()
+      documentWindows.dispose()
+      documentCollaboration.shutdown()
+      auth.dispose()
+      realtime.closeAll()
+      void Promise.all([files.cleanup(), messageCache.close()]).finally(() => {
+        updater.dispose()
+        quitState = "ready"
+        app.quit()
+      })
     })
   })
   app.once("will-quit", () => {

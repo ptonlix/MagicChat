@@ -28,6 +28,11 @@ import type { ServerProfiles } from "@main/server-profiles"
 import { getMainWindowTitleBarOptions, installTrustedWindowSecurity } from "@main/window-controller"
 
 type DocumentWindowEntry = {
+  boundsPersistTimer?: ReturnType<typeof setTimeout>
+  closeRequest?: Readonly<{
+    promise: Promise<boolean>
+    resolve(closed: boolean): void
+  }>
   documentId: string
   key: string
   serverId: string
@@ -201,6 +206,15 @@ export class DocumentWindowManager {
     this.ownerTargets.delete(ownerId)
   }
 
+  async requestCloseAll(): Promise<boolean> {
+    if (this.disposed) return true
+    for (const entry of [...this.entries.values()]) {
+      if (this.entries.get(entry.key) !== entry) continue
+      if (!(await this.requestClose(entry))) return false
+    }
+    return true
+  }
+
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
@@ -233,10 +247,15 @@ export class DocumentWindowManager {
   }
 
   private resolveBounds(key: string): DocumentWindowRectangle {
-    const display = this.getMainDisplay()
-    const mainBounds = this.deps.getMainWindow()?.getBounds()
     const saved = this.deps.state.get(key)
+    const display = this.getSavedDisplay(saved) ?? this.getMainDisplay()
+    const mainBounds = this.deps.getMainWindow()?.getBounds()
     return resolveDocumentWindowBounds(saved?.bounds, display.workArea, mainBounds)
+  }
+
+  private getSavedDisplay(state: DocumentWindowPersistedState | undefined): Display | undefined {
+    if (state?.displayId === undefined) return undefined
+    return screen.getAllDisplays().find((display) => String(display.id) === String(state.displayId))
   }
 
   private getMainDisplay(): Display {
@@ -255,8 +274,9 @@ export class DocumentWindowManager {
     window.on("ready-to-show", () => {
       if (!this.disposed && !window.isDestroyed()) this.focus(window)
     })
-    window.on("resize", () => this.persistBounds(entry))
-    window.on("move", () => this.persistBounds(entry))
+    window.on("resize", () => this.schedulePersistBounds(entry))
+    window.on("move", () => this.schedulePersistBounds(entry))
+    window.on("close", () => this.flushPersistBounds(entry))
     window.on("closed", () => this.cleanup(entry, false))
     window.webContents.on("will-prevent-unload", (event) => {
       void this.confirmBeforeUnload(entry, event)
@@ -311,9 +331,12 @@ export class DocumentWindowManager {
         // Electron 的 destroy() 不会再次触发 beforeunload，确认放弃后可以可靠关闭窗口。
         event.preventDefault()
         entry.window.destroy()
+      } else {
+        this.resolveCloseRequest(entry, false)
       }
     } catch {
       // 对话框异常时保留 beforeunload 拦截，避免未同步编辑被静默丢弃。
+      this.resolveCloseRequest(entry, false)
     } finally {
       entry.closeConfirmationPending = false
     }
@@ -325,6 +348,49 @@ export class DocumentWindowManager {
       return
     }
     this.cleanup(entry, true)
+  }
+
+  private requestClose(entry: DocumentWindowEntry): Promise<boolean> {
+    if (entry.window.isDestroyed()) {
+      this.cleanup(entry, false)
+      return Promise.resolve(true)
+    }
+    if (entry.closeRequest) return entry.closeRequest.promise
+
+    let resolve!: (closed: boolean) => void
+    const promise = new Promise<boolean>((complete) => {
+      resolve = complete
+    })
+    entry.closeRequest = Object.freeze({ promise, resolve })
+    try {
+      entry.window.close()
+    } catch {
+      this.resolveCloseRequest(entry, false)
+    }
+    return promise
+  }
+
+  private resolveCloseRequest(entry: DocumentWindowEntry, closed: boolean): void {
+    const request = entry.closeRequest
+    if (!request) return
+    entry.closeRequest = undefined
+    request.resolve(closed)
+  }
+
+  private schedulePersistBounds(entry: DocumentWindowEntry): void {
+    if (entry.boundsPersistTimer) clearTimeout(entry.boundsPersistTimer)
+    entry.boundsPersistTimer = setTimeout(() => {
+      entry.boundsPersistTimer = undefined
+      this.persistBounds(entry)
+    }, 200)
+  }
+
+  private flushPersistBounds(entry: DocumentWindowEntry): void {
+    if (entry.boundsPersistTimer) {
+      clearTimeout(entry.boundsPersistTimer)
+      entry.boundsPersistTimer = undefined
+    }
+    this.persistBounds(entry)
   }
 
   private persistBounds(entry: DocumentWindowEntry): void {
@@ -351,11 +417,14 @@ export class DocumentWindowManager {
 
   private cleanup(entry: DocumentWindowEntry, destroy: boolean): void {
     if (this.entries.get(entry.key) !== entry) return
+    if (entry.boundsPersistTimer) clearTimeout(entry.boundsPersistTimer)
+    entry.boundsPersistTimer = undefined
     this.entries.delete(entry.key)
     this.ownerTargets.delete(entry.window.webContents.id)
     this.deps.collaboration.closeOwner(entry.window.webContents.id)
     if (!entry.loadFailed) this.persistBounds(entry)
     if (destroy && !entry.window.isDestroyed()) entry.window.destroy()
+    this.resolveCloseRequest(entry, true)
   }
 }
 

@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => {
   let nextWindowId = 2
   let rejectNextLoad = false
+  const primaryDisplay = {
+    bounds: { height: 900, width: 1440, x: 0, y: 0 },
+    id: "display-1",
+    workArea: { height: 820, width: 1280, x: 0, y: 0 },
+  }
+  const displays = [primaryDisplay]
+  const stateGet = vi.fn()
+  const stateSet = vi.fn().mockResolvedValue(undefined)
   class FakeWindow {
     readonly webContents = {
       id: nextWindowId++,
@@ -38,9 +46,12 @@ const mocks = vi.hoisted(() => {
       this.destroyed = true
       this.listeners.get("closed")?.()
     })
-    readonly close = vi.fn(() => this.destroy())
+    readonly close = vi.fn(() => {
+      this.listeners.get("close")?.()
+      this.destroy()
+    })
 
-    constructor() {
+    constructor(readonly options: Record<string, unknown>) {
       windows.push(this)
     }
   }
@@ -53,11 +64,18 @@ const mocks = vi.hoisted(() => {
     reset() {
       nextWindowId = 2
       rejectNextLoad = false
+      displays.splice(0, displays.length, primaryDisplay)
+      stateGet.mockReset()
+      stateSet.mockReset().mockResolvedValue(undefined)
       windows.length = 0
     },
     rejectNextLoad() {
       rejectNextLoad = true
     },
+    displays,
+    primaryDisplay,
+    stateGet,
+    stateSet,
   }
 })
 
@@ -66,11 +84,8 @@ vi.mock("electron", () => ({
   BrowserWindow: mocks.FakeWindow,
   dialog: { showMessageBox: mocks.showMessageBox },
   screen: {
-    getDisplayNearestPoint: vi.fn(() => ({
-      bounds: { height: 900, width: 1440, x: 0, y: 0 },
-      id: "display-1",
-      workArea: { height: 820, width: 1280, x: 0, y: 0 },
-    })),
+    getAllDisplays: vi.fn(() => mocks.displays),
+    getDisplayNearestPoint: vi.fn(() => mocks.primaryDisplay),
   },
 }))
 
@@ -308,6 +323,87 @@ describe("DocumentWindowManager", () => {
     expect(manager.size()).toBe(0)
   })
 
+  it("应用退出请求等待未同步确认，取消时保留窗口，确认后再关闭", async () => {
+    const manager = createManager(createMainWindow())
+    await manager.open(1, { documentId, serverId: target.id })
+    const child = mocks.windows[0]!
+    const listener = child.webContentsListeners.get("will-prevent-unload")
+    child.close.mockImplementation(() => listener?.({ preventDefault: vi.fn() }))
+    mocks.showMessageBox
+      .mockResolvedValueOnce({ response: 0 })
+      .mockResolvedValueOnce({ response: 1 })
+
+    await expect(manager.requestCloseAll()).resolves.toBe(false)
+    expect(child.destroy).not.toHaveBeenCalled()
+    expect(manager.size()).toBe(1)
+
+    await expect(manager.requestCloseAll()).resolves.toBe(true)
+    expect(child.destroy).toHaveBeenCalledOnce()
+    expect(manager.size()).toBe(0)
+  })
+
+  it("连续移动和缩放只合并持久化最新窗口状态", async () => {
+    vi.useFakeTimers()
+    try {
+      const manager = createManager(createMainWindow())
+      await manager.open(1, { documentId, serverId: target.id })
+      const child = mocks.windows[0]!
+
+      for (let index = 0; index < 100; index += 1) {
+        child.listeners.get("move")?.()
+        child.listeners.get("resize")?.()
+      }
+      expect(mocks.stateSet).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(200)
+      expect(mocks.stateSet).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("防抖等待期间关闭窗口会立即保存最终状态并取消延迟写入", async () => {
+    vi.useFakeTimers()
+    try {
+      const manager = createManager(createMainWindow())
+      await manager.open(1, { documentId, serverId: target.id })
+      const child = mocks.windows[0]!
+
+      child.listeners.get("move")?.()
+      child.listeners.get("resize")?.()
+      child.close()
+
+      expect(mocks.stateSet).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(500)
+      expect(mocks.stateSet).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("优先在仍存在的已保存显示器恢复窗口，显示器移除后回退主屏", async () => {
+    const secondaryDisplay = {
+      bounds: { height: 900, width: 1440, x: 1440, y: 0 },
+      id: "display-2",
+      workArea: { height: 820, width: 1280, x: 1440, y: 0 },
+    }
+    mocks.displays.push(secondaryDisplay)
+    mocks.stateGet.mockReturnValue({
+      bounds: { height: 640, width: 900, x: 1600, y: 80 },
+      displayId: secondaryDisplay.id,
+    })
+
+    const manager = createManager(createMainWindow())
+    await manager.open(1, { documentId, serverId: target.id })
+    expect(mocks.windows[0]?.options).toMatchObject({ x: 1600, y: 80 })
+
+    manager.dispose()
+    mocks.displays.splice(1)
+    const fallback = createManager(createMainWindow())
+    await fallback.open(1, { documentId, serverId: target.id })
+    expect(mocks.windows[1]?.options).toMatchObject({ x: 160, y: 0 })
+  })
+
   it("账号切换后旧文档 owner 不能借用新用户 Target 开新窗口", async () => {
     const mainWindow = createMainWindow() as unknown as {
       webContents: { id: number }
@@ -384,8 +480,8 @@ function createManager(
     preloadPath: "/app/preload.cjs",
     profiles: profiles as DocumentWindowManagerDependencies["profiles"],
     state: {
-      get: vi.fn(),
-      set: vi.fn().mockResolvedValue(undefined),
+      get: mocks.stateGet,
+      set: mocks.stateSet,
       delete: vi.fn().mockResolvedValue(undefined),
     },
     store: {

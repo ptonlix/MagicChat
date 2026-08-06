@@ -61,7 +61,7 @@ export class HttpTransport {
     const profile = this.profiles.require(target.id)
     if (
       profile.normalizedUrl !== target.normalizedUrl ||
-      (!isUnauthenticatedPath(request.path) &&
+      (!isUnauthenticatedRequest(request) &&
         (!target.userId || target.userId === "anonymous" || profile.lastUserId !== target.userId))
     )
       throw new ClientTransportError("invalid_request", "认证目标已失效")
@@ -100,7 +100,7 @@ export class HttpTransport {
         : contentType.startsWith("text/")
           ? new TextDecoder().decode(bytes)
           : bytes
-      if (response.ok && isAuthenticationResponse(request.path, body)) {
+      if (response.ok && isAuthenticationResponse(request, body)) {
         const previousUserId = profile.lastUserId
         await this.profiles.recordUser(profile.id, body.data.user.id)
         if (previousUserId && previousUserId !== body.data.user.id)
@@ -145,8 +145,16 @@ export class HttpTransport {
   }
 }
 
-function isUnauthenticatedPath(path: string): boolean {
-  return path.startsWith("/api/client/auth/") || isClientMePath(path) || path === "/api/client/info"
+function isUnauthenticatedRequest(request: ClientRequest): boolean {
+  const pathname = clientPathname(request.path)
+  if (request.method === "GET")
+    return pathname === "/api/client/info" || pathname === "/api/client/me"
+  if (request.method !== "POST") return false
+  return [
+    "/api/client/auth/login",
+    "/api/client/auth/email-code/request",
+    "/api/client/auth/email-code/login",
+  ].includes(pathname)
 }
 
 type PendingHttpRequest = {
@@ -163,14 +171,15 @@ function pendingKey(ownerId: number, requestId: string): string {
 }
 
 function isAuthenticationResponse(
-  path: string,
+  request: ClientRequest,
   body: unknown,
 ): body is { data: { user: { id: string } } } {
+  const pathname = clientPathname(request.path)
   if (
     !(
-      path.includes("/auth/login") ||
-      path.includes("/auth/email-code/login") ||
-      isClientMePath(path)
+      (request.method === "GET" && pathname === "/api/client/me") ||
+      (request.method === "POST" &&
+        ["/api/client/auth/login", "/api/client/auth/email-code/login"].includes(pathname))
     )
   )
     return false
@@ -178,12 +187,8 @@ function isAuthenticationResponse(
   return typeof value?.data?.user?.id === "string"
 }
 
-function isClientMePath(path: string): boolean {
-  return (
-    path === "/api/client/me" ||
-    path.startsWith("/api/client/me/") ||
-    path.startsWith("/api/client/me?")
-  )
+function clientPathname(path: string): string {
+  return path.split("?", 1)[0]
 }
 
 function validateRequest(request: ClientRequest): void {
