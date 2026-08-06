@@ -25,6 +25,7 @@ describe("桌面配置存储", () => {
           closeBehavior: "background",
           messageSoundEnabled: true,
           notificationPrivacy: "metadata",
+          sendMessageShortcut: "Control+K",
         },
       }),
     )
@@ -71,6 +72,10 @@ describe("桌面配置存储", () => {
 
     await reopened.setSettings({ sendMessageShortcut: null })
     expect(reopened.getSettings().sendMessageShortcut).toBeNull()
+
+    await expect(reopened.setSettings({ sendMessageShortcut: "Control+K" })).rejects.toThrow(
+      "发送消息快捷键不受支持",
+    )
   })
 
   it("持久化语言和字体大小设置", async () => {

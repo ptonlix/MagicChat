@@ -247,6 +247,9 @@ describe("全局快捷键桥接契约", () => {
   it("发送消息快捷键只持久化且不注册全局", async () => {
     const { manager, store } = createManager()
     manager.start()
+    await expect(manager.set("sendMessage", 7, "Control+K")).rejects.toThrow(
+      "发送消息快捷键不受支持",
+    )
     await manager.set("sendMessage", 7, "Control+Enter")
     store.setSettings.mockClear()
 

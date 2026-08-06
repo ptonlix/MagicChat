@@ -82,12 +82,22 @@ export function normalizeShortcutAccelerator(value: unknown): string {
 
 export function normalizeSendMessageShortcutAccelerator(value: unknown): string {
   if (value === "Enter") return value
-  return normalizeShortcutAccelerator(value)
+  const normalized = normalizeShortcutAccelerator(value)
+  if (
+    normalized === ALTERNATE_SEND_MESSAGE_SHORTCUT ||
+    normalized === "Control+Enter" ||
+    normalized === "Command+Enter"
+  ) {
+    return normalized
+  }
+  throw new Error("发送消息快捷键不受支持")
 }
 
 export function formatShortcutAccelerator(accelerator: string | null, platform: string): string {
   if (!accelerator) return "未设置"
-  const tokens = normalizeSendMessageShortcutAccelerator(accelerator).split("+")
+  const tokens = (
+    accelerator === "Enter" ? accelerator : normalizeShortcutAccelerator(accelerator)
+  ).split("+")
   const isMac = platform === "darwin"
   return tokens
     .map((token) => {

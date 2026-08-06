@@ -28,7 +28,11 @@ describe("快捷键契约", () => {
 
   it("发送消息快捷键单独支持无修饰键的 Enter", () => {
     expect(normalizeSendMessageShortcutAccelerator("Enter")).toBe("Enter")
-    expect(normalizeSendMessageShortcutAccelerator("Control+k")).toBe("Control+K")
+    expect(normalizeSendMessageShortcutAccelerator("Control+Enter")).toBe("Control+Enter")
+    expect(normalizeSendMessageShortcutAccelerator("CommandOrControl+Enter")).toBe(
+      "CommandOrControl+Enter",
+    )
+    expect(() => normalizeSendMessageShortcutAccelerator("Control+k")).toThrow("不受支持")
     expect(() => normalizeShortcutAccelerator("Enter")).toThrow("格式无效")
   })
 
