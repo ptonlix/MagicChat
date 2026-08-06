@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => {
   let nextWindowId = 2
+  let rejectNextLoad = false
   class FakeWindow {
     readonly webContents = {
       id: nextWindowId++,
@@ -15,7 +16,12 @@ const mocks = vi.hoisted(() => {
     destroyed = false
     minimized = false
     readonly bounds = { height: 760, width: 1120, x: 160, y: 30 }
-    readonly loadURL = vi.fn().mockResolvedValue(undefined)
+    readonly loadURL = vi.fn(async (_url: string) => {
+      if (rejectNextLoad) {
+        rejectNextLoad = false
+        throw new Error("模拟文档窗口加载失败")
+      }
+    })
     readonly removeMenu = vi.fn()
     readonly show = vi.fn()
     readonly focus = vi.fn()
@@ -44,7 +50,11 @@ const mocks = vi.hoisted(() => {
     windows,
     reset() {
       nextWindowId = 2
+      rejectNextLoad = false
       windows.length = 0
+    },
+    rejectNextLoad() {
+      rejectNextLoad = true
     },
   }
 })
@@ -280,6 +290,18 @@ describe("DocumentWindowManager", () => {
 
     expect(manager.size()).toBe(0)
     expect(child.loadURL).toHaveBeenLastCalledWith("magicchat-app://app/recovery.html")
+  })
+
+  it("首屏加载失败时返回稳定错误，并将窗口置于恢复页", async () => {
+    const manager = createManager(createMainWindow())
+    mocks.rejectNextLoad()
+
+    await expect(manager.open(1, { documentId, serverId: target.id })).resolves.toMatchObject({
+      error: { code: "load_failed" },
+      ok: false,
+    })
+    expect(manager.size()).toBe(0)
+    expect(mocks.windows[0]?.loadURL).toHaveBeenLastCalledWith("magicchat-app://app/recovery.html")
   })
 })
 

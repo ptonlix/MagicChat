@@ -9,13 +9,7 @@ import { createClientDocument, listClientDocuments } from "@/lib/document-data-a
 import { buildDocumentTree, collectFolderIds, type DocumentTreeNode } from "@/lib/document-tree"
 import { cn } from "@/lib/utils"
 import { useDesktopTarget } from "@/hooks/use-desktop-target"
-import {
-  documentNavigationPath,
-  documentWindowFeedbackMessage,
-  DocumentWindowOpenError,
-  parseDocumentWindowLocation,
-  requestDocumentWindow,
-} from "@/lib/document-window-route"
+import { documentNavigationPath, parseDocumentWindowLocation } from "@/lib/document-window-route"
 
 export function DocumentWorkspaceSidebar({
   activeDocumentId,
@@ -23,6 +17,8 @@ export function DocumentWorkspaceSidebar({
   getEditVersion,
   onAllowConfirmedNavigation,
   onBeforeNavigate,
+  onOpenInWindow,
+  openingWindow,
   projectId,
   projectName,
 }: {
@@ -31,6 +27,8 @@ export function DocumentWorkspaceSidebar({
   getEditVersion(): number
   onAllowConfirmedNavigation(): void
   onBeforeNavigate(confirmedVersion?: number): boolean
+  onOpenInWindow(): void
+  openingWindow: boolean
   projectId: string
   projectName: string
 }) {
@@ -39,7 +37,6 @@ export function DocumentWorkspaceSidebar({
   const target = useDesktopTarget()
   const isDocumentWindow = parseDocumentWindowLocation().kind === "document"
   const [creating, setCreating] = React.useState(false)
-  const [openingWindow, setOpeningWindow] = React.useState(false)
   const [documents, setDocuments] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
   const [error, setError] = React.useState("")
   const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set())
@@ -80,25 +77,6 @@ export function DocumentWorkspaceSidebar({
     }
   }
 
-  async function openActiveDocumentInWindow() {
-    if (openingWindow) return
-    setOpeningWindow(true)
-    try {
-      const result = await requestDocumentWindow(activeDocumentId, target.id)
-      toast.success(result.status === "focused" ? "已聚焦已有文档窗口" : "文档窗口已打开")
-    } catch (reason) {
-      const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
-      toast.error(
-        documentWindowFeedbackMessage(
-          code,
-          reason instanceof Error ? reason.message : "文档窗口暂时不可用",
-        ),
-      )
-    } finally {
-      setOpeningWindow(false)
-    }
-  }
-
   return (
     <aside className="no-drag flex h-full w-full shrink-0 flex-col overflow-hidden bg-background text-foreground">
       {isDocumentWindow ? (
@@ -127,14 +105,14 @@ export function DocumentWorkspaceSidebar({
           {t("document.newDoc")}
         </Button>
         <Button
-          aria-label="在新窗口打开当前文档"
+          aria-label={isDocumentWindow ? "在新窗口打开当前文档" : "打开当前文档并返回"}
           className="w-full"
           disabled={openingWindow}
-          onClick={() => void openActiveDocumentInWindow()}
+          onClick={onOpenInWindow}
           variant="outline"
         >
           {openingWindow ? <Loader2 className="animate-spin" /> : <ExternalLink />}
-          在新窗口打开当前文档
+          {isDocumentWindow ? "在新窗口打开当前文档" : "打开当前文档并返回"}
         </Button>
       </div>
       <nav

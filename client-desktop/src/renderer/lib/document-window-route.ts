@@ -12,10 +12,32 @@ export type DocumentWindowRouteContext = Readonly<{
   serverId: string
 }>
 
+type DocumentNavigationLocation = Readonly<Pick<Location, "hash" | "pathname" | "search">>
+
+let lastNonDocumentRoute: string | undefined
+
 export type DocumentWindowRouteState =
   | Readonly<{ kind: "none" }>
   | Readonly<{ kind: "document"; context: DocumentWindowRouteContext }>
   | Readonly<{ kind: "invalid"; message: string }>
+
+export function isDocumentRoutePath(pathname: string): boolean {
+  return pathname === "/documents/document" || pathname.startsWith("/documents/document/")
+}
+
+export function rememberLastNonDocumentRoute(location: DocumentNavigationLocation): void {
+  if (isDocumentRoutePath(location.pathname)) return
+
+  const route = `${location.pathname}${location.search}${location.hash}`
+  if (!isInternalRoute(route)) return
+  lastNonDocumentRoute = route
+}
+
+export function getDocumentReturnPath(fallback: string): string {
+  return lastNonDocumentRoute && isInternalRoute(lastNonDocumentRoute)
+    ? lastNonDocumentRoute
+    : fallback
+}
 
 export class DocumentWindowOpenError extends Error {
   readonly code: DocumentWindowErrorCode | "bridge_unavailable"
@@ -87,6 +109,10 @@ export function documentNavigationPath(documentId: string, serverId: string): st
 
 export function documentWindowPath(documentId: string, serverId: string): string {
   return `/documents/document/${encodeURIComponent(documentId)}?serverId=${encodeURIComponent(serverId)}&window=document`
+}
+
+function isInternalRoute(route: string): boolean {
+  return route.startsWith("/") && !route.startsWith("//")
 }
 
 export function documentWindowFeedbackMessage(

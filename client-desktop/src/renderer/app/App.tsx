@@ -1,5 +1,5 @@
-import { lazy, Suspense, type ReactNode } from "react"
-import { Navigate, Outlet, Route, Routes } from "react-router"
+import { lazy, Suspense, useEffect, type ReactNode } from "react"
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router"
 
 import { AppLayout } from "@/components/app-layout"
 import { ClientConversationRealtimeSync } from "@/components/client-conversation-realtime-sync"
@@ -14,7 +14,11 @@ import { ChatPage } from "@/pages/chat-page"
 import { ContactsPage } from "@/pages/contacts-page"
 import { LoginPage } from "@/pages/login-page"
 import { ProjectsPage } from "@/pages/projects-page"
-import { documentWindowPath, type DocumentWindowRouteContext } from "@/lib/document-window-route"
+import {
+  documentWindowPath,
+  rememberLastNonDocumentRoute,
+  type DocumentWindowRouteContext,
+} from "@/lib/document-window-route"
 
 const DocumentRoute = lazy(() => import("@/pages/document-route"))
 
@@ -27,6 +31,7 @@ export function App({
 }) {
   return (
     <AppInfoProvider>
+      <DocumentNavigationMemory disabled={Boolean(documentWindow)} />
       <ClientBrandMetadata />
       {documentWindow ? (
         <DocumentRoutes context={documentWindow} />
@@ -35,6 +40,17 @@ export function App({
       )}
     </AppInfoProvider>
   )
+}
+
+function DocumentNavigationMemory({ disabled }: { disabled: boolean }) {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (disabled) return
+    rememberLastNonDocumentRoute(location)
+  }, [disabled, location])
+
+  return null
 }
 
 function NormalRoutes({ updatePrompt }: { updatePrompt?: ReactNode }) {

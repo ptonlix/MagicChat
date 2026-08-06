@@ -138,6 +138,17 @@ body,
 .desktop-content > div > div {
   min-height: 100%;
 }
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 1ms;
+  }
+}
 .server-setup {
   align-items: stretch;
   background: var(--background);

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { HocuspocusProvider, WebSocketStatus } from "@hocuspocus/provider"
 import { ExternalLink, FileText, Loader2, Menu, RefreshCw, Users } from "lucide-react"
-import { Link, useBlocker, useParams } from "react-router"
+import { Link, useBlocker, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 import * as Y from "yjs"
 
@@ -31,6 +31,8 @@ import { getClientProject, type ClientProjectDetail } from "@/lib/project-data-a
 import { useDocumentData } from "@/lib/document-data-context"
 import {
   documentWindowFeedbackMessage,
+  getDocumentReturnPath,
+  parseDocumentWindowLocation,
   DocumentWindowOpenError,
   requestDocumentWindow,
 } from "@/lib/document-window-route"
@@ -97,6 +99,7 @@ function DocumentWorkspace({
   project: ClientProjectDetail
 }) {
   const target = useDesktopTarget()
+  const navigate = useNavigate()
   const { me, refreshMe, refreshProjects } = useDocumentData()
   const collaborationAvatar = me?.avatar ?? document.updatedBy.avatar
   const collaborationId = me?.id ?? document.updatedBy.id
@@ -123,6 +126,7 @@ function DocumentWorkspace({
   const [onlineUsers, setOnlineUsers] = React.useState<DocumentPresenceUser[]>([])
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [openingWindow, setOpeningWindow] = React.useState(false)
+  const isDocumentWindow = parseDocumentWindowLocation().kind === "document"
   const collaborationUserRef = React.useRef(collaborationUser)
   const collaborationProviderRef = React.useRef<HocuspocusProvider | undefined>(undefined)
   const publishedCollaborationUserRef = React.useRef<DocumentPresenceUser | undefined>(undefined)
@@ -306,10 +310,14 @@ function DocumentWorkspace({
   const saveTitle = () => void titleController.flush().catch(() => toast.error("保存文档标题失败"))
   const openInWindow = async () => {
     if (openingWindow) return
+    const returnPath = isDocumentWindow
+      ? undefined
+      : getDocumentReturnPath(`/projects/${encodeURIComponent(project.id)}/documents`)
     setOpeningWindow(true)
     try {
       const result = await requestDocumentWindow(document.id, target.id)
       toast.success(result.status === "focused" ? "已聚焦已有文档窗口" : "文档窗口已打开")
+      if (returnPath) navigate(returnPath, { replace: true, viewTransition: true })
     } catch (reason) {
       const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
       toast.error(
@@ -338,6 +346,8 @@ function DocumentWorkspace({
       getEditVersion={getEditVersion}
       onAllowConfirmedNavigation={allowConfirmedNavigation}
       onBeforeNavigate={confirmLeave}
+      onOpenInWindow={() => void openInWindow()}
+      openingWindow={openingWindow}
       projectId={project.id}
       projectName={project.name}
     />
@@ -402,11 +412,11 @@ function DocumentWorkspace({
             </Button>
           )}
           <Button
-            aria-label="在新窗口打开文档"
+            aria-label={isDocumentWindow ? "在新窗口打开文档" : "打开新窗口并返回"}
             disabled={openingWindow}
             onClick={() => void openInWindow()}
             size="icon-sm"
-            title="在新窗口打开文档"
+            title={isDocumentWindow ? "在新窗口打开文档" : "打开新窗口并返回"}
             variant="ghost"
           >
             {openingWindow ? <Loader2 className="animate-spin" /> : <ExternalLink />}

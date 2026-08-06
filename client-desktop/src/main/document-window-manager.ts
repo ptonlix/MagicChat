@@ -153,9 +153,14 @@ export class DocumentWindowManager {
     )
     this.installLifecycle(entry)
     installTrustedWindowSecurity(window)
-    void Promise.resolve(
-      window.loadURL(buildDocumentWindowLoadUrl(request, app.isPackaged, this.deps.developmentUrl)),
-    ).catch(() => this.handleLoadFailure(entry))
+    try {
+      await window.loadURL(
+        buildDocumentWindowLoadUrl(request, app.isPackaged, this.deps.developmentUrl),
+      )
+    } catch {
+      this.handleLoadFailure(entry)
+      return failedDocumentWindowResponse("load_failed", "文档窗口加载失败，请稍后重试")
+    }
     return createdDocumentWindowResponse("created")
   }
 

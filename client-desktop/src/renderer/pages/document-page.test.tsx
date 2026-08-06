@@ -234,7 +234,7 @@ describe("DocumentPage", () => {
     expect(mocks.destroyWebsocketProvider).toHaveBeenCalledOnce()
   })
 
-  it("标题区的新窗口入口只调用窄 Bridge，并保留当前页面", async () => {
+  it("标题区的新窗口入口等待 Bridge 成功后返回项目文档列表", async () => {
     const openDocumentWindow = vi.fn().mockResolvedValue({
       ok: true,
       result: { status: "created" },
@@ -243,9 +243,35 @@ describe("DocumentPage", () => {
     const router = renderPage()
     await screen.findByRole("textbox", { name: "顶部文档标题" })
 
-    fireEvent.click(screen.getByRole("button", { name: "在新窗口打开文档" }))
+    fireEvent.click(screen.getByRole("button", { name: "打开新窗口并返回" }))
     await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1"))
-    expect(router.state.location.pathname).toBe(`/documents/document/${document.id}`)
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project-1/documents"),
+    )
+  })
+
+  it("子窗口中的新窗口入口只聚焦文档，不改变当前路由", async () => {
+    const initialUrl = window.location.href
+    window.history.pushState(
+      {},
+      "",
+      `/documents/document/${document.id}?serverId=server-1&window=document`,
+    )
+    const openDocumentWindow = vi.fn().mockResolvedValue({
+      ok: true,
+      result: { status: "focused" },
+    })
+    vi.stubGlobal("desktop", { navigation: { openDocumentWindow } })
+    try {
+      const router = renderPage()
+      await screen.findByRole("textbox", { name: "顶部文档标题" })
+
+      fireEvent.click(screen.getByRole("button", { name: "在新窗口打开文档" }))
+      await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1"))
+      expect(router.state.location.pathname).toBe(`/documents/document/${document.id}`)
+    } finally {
+      window.history.pushState({}, "", initialUrl)
+    }
   })
 
   it("发布并消费 awareness，在正常卸载时清空在线状态并销毁 Provider", async () => {
@@ -347,6 +373,7 @@ function renderPage(strictMode = false) {
         path: "/documents/document/:documentId",
         element: <DocumentPage />,
       },
+      { path: "/projects/:projectId/documents", element: <div>项目页面</div> },
       { path: "/projects/:projectId", element: <div>项目页面</div> },
     ],
     { initialEntries: [`/documents/document/${document.id}`] },
