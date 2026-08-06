@@ -129,8 +129,9 @@ describe("HttpTransport 重定向边界", () => {
 })
 
 describe("HttpTransport 认证目标隔离", () => {
-  it("拒绝匿名或旧用户访问非认证接口", async () => {
-    const transport = createTransport(vi.fn().mockResolvedValue(jsonResponse({ success: true })))
+  it("允许匿名目标读取公开的客户端信息", async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ success: true }))
+    const transport = createTransport(fetch)
 
     await expect(
       transport.request(
@@ -138,10 +139,32 @@ describe("HttpTransport 认证目标隔离", () => {
         { ...target, userId: "anonymous" },
         {
           ...request,
-          path: "/api/client/projects",
+          path: "/api/client/info",
         },
       ),
-    ).rejects.toMatchObject({ code: "invalid_request", message: "认证目标已失效" })
+    ).resolves.toMatchObject({ status: 200 })
+    expect(fetch).toHaveBeenCalledWith(
+      "https://chat.example.com/api/client/info",
+      expect.any(Object),
+    )
+  })
+
+  it("拒绝匿名或旧用户访问非认证接口", async () => {
+    const transport = createTransport(vi.fn().mockResolvedValue(jsonResponse({ success: true })))
+
+    for (const [index, path] of ["/api/client/projects", "/api/client/info/private"].entries()) {
+      await expect(
+        transport.request(
+          1,
+          { ...target, userId: "anonymous" },
+          {
+            ...request,
+            path,
+            requestId: `invalid-${index}`,
+          },
+        ),
+      ).rejects.toMatchObject({ code: "invalid_request", message: "认证目标已失效" })
+    }
   })
 
   it("认证响应切换账号时通知文档窗口关闭旧 Server 资源", async () => {

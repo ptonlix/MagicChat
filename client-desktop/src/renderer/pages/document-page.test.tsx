@@ -167,6 +167,7 @@ describe("DocumentPage", () => {
     expect(title).toHaveValue("陈富东测试")
     expect(title).not.toHaveAttribute("maxlength")
     expect(title.closest("main")).toHaveClass("h-svh", "pt-10")
+    expect(title.closest("main")).not.toHaveClass("no-drag")
     expect(screen.getByRole("link", { name: "返回项目：即应产品迭代" })).toHaveAttribute(
       "href",
       "/projects/project-1/documents",

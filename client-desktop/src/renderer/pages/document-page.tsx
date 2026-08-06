@@ -351,7 +351,7 @@ function DocumentWorkspace({
     />
   )
   return (
-    <main className="no-drag flex h-svh min-h-0 min-w-0 overflow-hidden bg-muted/40 pt-10">
+    <main className="flex h-svh min-h-0 min-w-0 overflow-hidden bg-muted/40 pt-10">
       <ClientDocumentTitle disableMessageAlert title={titleText} />
       <aside className="hidden w-72 shrink-0 border-r md:block">{sidebar}</aside>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background/40">

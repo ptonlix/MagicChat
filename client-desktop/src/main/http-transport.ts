@@ -61,7 +61,7 @@ export class HttpTransport {
     const profile = this.profiles.require(target.id)
     if (
       profile.normalizedUrl !== target.normalizedUrl ||
-      (!isAuthenticationPath(request.path) &&
+      (!isUnauthenticatedPath(request.path) &&
         (!target.userId || target.userId === "anonymous" || profile.lastUserId !== target.userId))
     )
       throw new ClientTransportError("invalid_request", "认证目标已失效")
@@ -145,8 +145,8 @@ export class HttpTransport {
   }
 }
 
-function isAuthenticationPath(path: string): boolean {
-  return path.startsWith("/api/client/auth/") || isClientMePath(path)
+function isUnauthenticatedPath(path: string): boolean {
+  return path.startsWith("/api/client/auth/") || isClientMePath(path) || path === "/api/client/info"
 }
 
 type PendingHttpRequest = {
