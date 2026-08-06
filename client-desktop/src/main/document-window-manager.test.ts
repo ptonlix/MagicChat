@@ -45,8 +45,10 @@ const mocks = vi.hoisted(() => {
     }
   }
   const windows: Array<InstanceType<typeof FakeWindow>> = []
+  const showMessageBox = vi.fn()
   return {
     FakeWindow,
+    showMessageBox,
     windows,
     reset() {
       nextWindowId = 2
@@ -62,6 +64,7 @@ const mocks = vi.hoisted(() => {
 vi.mock("electron", () => ({
   app: { isPackaged: false },
   BrowserWindow: mocks.FakeWindow,
+  dialog: { showMessageBox: mocks.showMessageBox },
   screen: {
     getDisplayNearestPoint: vi.fn(() => ({
       bounds: { height: 900, width: 1440, x: 0, y: 0 },
@@ -277,6 +280,31 @@ describe("DocumentWindowManager", () => {
     expect(collaboration.closeOwner).toHaveBeenCalledTimes(1)
     manager.dispose()
     manager.dispose()
+    expect(manager.size()).toBe(0)
+  })
+
+  it("关闭未同步文档时取消保留窗口，确认放弃后允许关闭", async () => {
+    const mainWindow = createMainWindow()
+    const manager = createManager(mainWindow)
+    await manager.open(1, { documentId, serverId: target.id })
+    const child = mocks.windows[0]!
+    const listener = child.webContentsListeners.get("will-prevent-unload")
+    mocks.showMessageBox
+      .mockResolvedValueOnce({ response: 0 })
+      .mockResolvedValueOnce({ response: 1 })
+
+    const cancelEvent = { preventDefault: vi.fn() }
+    listener?.(cancelEvent)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(cancelEvent.preventDefault).not.toHaveBeenCalled()
+    expect(child.destroy).not.toHaveBeenCalled()
+    expect(manager.size()).toBe(1)
+
+    const confirmEvent = { preventDefault: vi.fn() }
+    listener?.(confirmEvent)
+    await vi.waitFor(() => expect(child.destroy).toHaveBeenCalledOnce())
+    expect(confirmEvent.preventDefault).toHaveBeenCalledOnce()
+    expect(mocks.showMessageBox).toHaveBeenCalledTimes(2)
     expect(manager.size()).toBe(0)
   })
 

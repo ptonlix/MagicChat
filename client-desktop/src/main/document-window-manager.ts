@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, type Display } from "electron"
+import { app, BrowserWindow, dialog, screen, type Display, type Event } from "electron"
 
 import type { AuthenticatedTarget } from "@shared/client-contract"
 import {
@@ -35,6 +35,7 @@ type DocumentWindowEntry = {
   userId: string
   window: BrowserWindow
   loadFailed: boolean
+  closeConfirmationPending: boolean
 }
 
 export type DocumentWindowManagerDependencies = {
@@ -145,6 +146,7 @@ export class DocumentWindowManager {
       targetKey: target,
       userId,
       window,
+      closeConfirmationPending: false,
     }
     this.entries.set(key, entry)
     this.ownerTargets.set(
@@ -256,6 +258,9 @@ export class DocumentWindowManager {
     window.on("resize", () => this.persistBounds(entry))
     window.on("move", () => this.persistBounds(entry))
     window.on("closed", () => this.cleanup(entry, false))
+    window.webContents.on("will-prevent-unload", (event) => {
+      void this.confirmBeforeUnload(entry, event)
+    })
     window.webContents.on("render-process-gone", (_event, details) => {
       void this.deps.diagnostics.record("renderer", details.reason)
       this.cleanup(entry, true)
@@ -277,6 +282,41 @@ export class DocumentWindowManager {
       void Promise.resolve(entry.window.loadURL("magicchat-app://app/recovery.html")).catch(
         () => undefined,
       )
+  }
+
+  private async confirmBeforeUnload(entry: DocumentWindowEntry, event: Event): Promise<void> {
+    if (
+      entry.closeConfirmationPending ||
+      this.entries.get(entry.key) !== entry ||
+      entry.window.isDestroyed()
+    )
+      return
+
+    entry.closeConfirmationPending = true
+    try {
+      const result = await dialog.showMessageBox(entry.window, {
+        buttons: ["取消", "放弃修改"],
+        cancelId: 0,
+        defaultId: 0,
+        message: "文档尚未同步完成，确定要放弃未同步修改并关闭吗？",
+        noLink: true,
+        title: "关闭文档",
+        type: "warning",
+      })
+      if (
+        result.response === 1 &&
+        this.entries.get(entry.key) === entry &&
+        !entry.window.isDestroyed()
+      ) {
+        // Electron 的 destroy() 不会再次触发 beforeunload，确认放弃后可以可靠关闭窗口。
+        event.preventDefault()
+        entry.window.destroy()
+      }
+    } catch {
+      // 对话框异常时保留 beforeunload 拦截，避免未同步编辑被静默丢弃。
+    } finally {
+      entry.closeConfirmationPending = false
+    }
   }
 
   private closeEntry(entry: DocumentWindowEntry): void {
