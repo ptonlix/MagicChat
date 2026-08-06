@@ -19,6 +19,12 @@ describe("快捷键录制转换", () => {
         "win32",
       ),
     ).toBe("Control+Alt+S")
+    expect(
+      acceleratorFromKeyboardEvent(
+        { altKey: false, code: "NumpadEnter", ctrlKey: true, metaKey: false, shiftKey: false },
+        "win32",
+      ),
+    ).toBe("Control+Enter")
   })
 
   it("拒绝没有主修饰键或只有修饰键的输入", () => {
@@ -57,6 +63,15 @@ describe("快捷键匹配", () => {
         shiftKey: false,
       }),
     ).toBe(false)
+    expect(
+      acceleratorMatchesKeyboardEvent("Enter", {
+        altKey: false,
+        code: "NumpadEnter",
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+      }),
+    ).toBe(true)
   })
 
   it("CommandOrControl 同时接受 Cmd 或 Ctrl", () => {

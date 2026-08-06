@@ -81,6 +81,7 @@ function shortcutKeyFromCode(code: string): string | undefined {
     Enter: "Enter",
     Home: "Home",
     Insert: "Insert",
+    NumpadEnter: "Enter",
     PageDown: "PageDown",
     PageUp: "PageUp",
     Space: "Space",

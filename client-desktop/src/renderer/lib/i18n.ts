@@ -1406,7 +1406,7 @@ const en: Record<TranslationKey, string> = {
   "settings.shortcuts.sendMessage": "Send message",
   "settings.shortcuts.sendMessage.desc": "Send the message in the chat input",
   "settings.shortcuts.sendMessage.aria": "Send message shortcut",
-  "settings.shortcuts.sendMessage.preset": "{send} to send / {newline} for new line",
+  "settings.shortcuts.sendMessage.preset": "{send} send / {newline} line",
   "settings.shortcuts.screenshot": "Screenshot",
   "settings.shortcuts.screenshot.desc": "Start screenshotting from any app",
   "settings.shortcuts.screenshot.aria": "Screenshot shortcut",

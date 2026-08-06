@@ -28,11 +28,14 @@ export function SendMessageShortcutPicker({ platform }: { platform: string }) {
       async (nextState) => {
         if (!active) return
         if (
-          nextState.accelerator !== null &&
+          nextState.accelerator !== DEFAULT_SEND_MESSAGE_SHORTCUT &&
           nextState.accelerator !== ALTERNATE_SEND_MESSAGE_SHORTCUT
         ) {
           try {
-            const result = await window.desktop.shortcuts.set("sendMessage", null)
+            const result = await window.desktop.shortcuts.set(
+              "sendMessage",
+              DEFAULT_SEND_MESSAGE_SHORTCUT,
+            )
             if (!active) return
             setState(result.state)
             if (result.status === "updated") {
@@ -60,8 +63,7 @@ export function SendMessageShortcutPicker({ platform }: { platform: string }) {
     setError("")
     setPending(true)
     try {
-      const accelerator = value === DEFAULT_SEND_MESSAGE_SHORTCUT ? null : value
-      const result = await window.desktop.shortcuts.set("sendMessage", accelerator)
+      const result = await window.desktop.shortcuts.set("sendMessage", value)
       setState(result.state)
       if (result.status === "updated") {
         window.dispatchEvent(new Event(DESKTOP_SETTINGS_CHANGED_EVENT))
