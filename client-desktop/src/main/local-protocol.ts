@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import { net, protocol } from "electron"
+import { protocol } from "electron"
 import type { ServerProfiles } from "@main/server-profiles"
 import type { SessionController } from "@main/session-controller"
 import { isAllowedDesktopMediaPath } from "@shared/media-resource-path"
@@ -77,7 +77,19 @@ export function installLocalProtocol(
         },
       })
     } catch {
-      if (!path.extname(relative)) return net.fetch("magicchat-app://app/index.html")
+      if (!path.extname(relative)) {
+        try {
+          const body = await readFile(path.join(root, "index.html"), "utf8")
+          return new Response(rewriteRendererEntryAssetPaths(body), {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "X-Content-Type-Options": "nosniff",
+            },
+          })
+        } catch {
+          return new Response("Not found", { status: 404 })
+        }
+      }
       return new Response("Not found", { status: 404 })
     }
   })
@@ -127,4 +139,8 @@ export function installLocalProtocol(
       return new Response("Not found", { status: 404 })
     }
   })
+}
+
+export function rewriteRendererEntryAssetPaths(html: string): string {
+  return html.replace(/(["'])\.\/(assets\/|favicon(?:\.[^"']+)?)\b/g, "$1/$2")
 }

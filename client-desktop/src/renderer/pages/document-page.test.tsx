@@ -89,6 +89,13 @@ vi.mock("@/lib/client-data-context", () => ({
     refreshProjects: mocks.currentRefreshProjects,
   }),
 }))
+vi.mock("@/lib/document-data-context", () => ({
+  useDocumentData: () => ({
+    me: mocks.currentMe,
+    refreshMe: mocks.currentRefreshMe,
+    refreshProjects: mocks.currentRefreshProjects,
+  }),
+}))
 vi.mock("@/lib/document-data-api", () => ({
   createClientDocument: mocks.createClientDocument,
   getClientDocument: mocks.getClientDocument,
@@ -148,7 +155,10 @@ describe("DocumentPage", () => {
     mocks.updateCollaborativeDocumentTitle.mockReset().mockResolvedValue(document.title)
   })
 
-  afterEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
 
   it("避开 Desktop 标题栏并同时展示返回入口、文档标题和同步状态", async () => {
     renderPage()
@@ -222,6 +232,20 @@ describe("DocumentPage", () => {
     mocks.providerOptions?.onClose?.({ event: { code: 4403 } })
     expect(mocks.destroyProvider).toHaveBeenCalledOnce()
     expect(mocks.destroyWebsocketProvider).toHaveBeenCalledOnce()
+  })
+
+  it("标题区的新窗口入口只调用窄 Bridge，并保留当前页面", async () => {
+    const openDocumentWindow = vi.fn().mockResolvedValue({
+      ok: true,
+      result: { status: "created" },
+    })
+    vi.stubGlobal("desktop", { navigation: { openDocumentWindow } })
+    const router = renderPage()
+    await screen.findByRole("textbox", { name: "顶部文档标题" })
+
+    fireEvent.click(screen.getByRole("button", { name: "在新窗口打开文档" }))
+    await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1"))
+    expect(router.state.location.pathname).toBe(`/documents/document/${document.id}`)
   })
 
   it("发布并消费 awareness，在正常卸载时清空在线状态并销毁 Provider", async () => {

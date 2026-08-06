@@ -42,6 +42,10 @@ import { ExternalLinkConfirmationDialog } from "@/components/external-link-confi
 import { configureMessageCacheTarget } from "@/lib/messages"
 import { parseExternalWebLink } from "@shared/external-link"
 import { DesktopTargetProvider } from "@/components/desktop-target-provider"
+import {
+  parseDocumentWindowLocation,
+  type DocumentWindowRouteContext,
+} from "@/lib/document-window-route"
 
 import "./settings-center.css"
 
@@ -125,6 +129,7 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
 
 function DesktopRootContent({ platform }: { platform?: string }) {
   const { t } = useLocale()
+  const documentWindowRoute = useMemo(() => parseDocumentWindowLocation(), [])
   const latestTRef = useRef(t)
   useEffect(() => {
     latestTRef.current = t
@@ -145,7 +150,11 @@ function DesktopRootContent({ platform }: { platform?: string }) {
         if (!active) return
         setProfiles(items)
         setMessageSoundEnabled(settings.messageSoundEnabled)
-        setSelectedId(settings.selectedServerId ?? items[0]?.id)
+        setSelectedId(
+          documentWindowRoute.kind === "document"
+            ? documentWindowRoute.context.serverId
+            : (settings.selectedServerId ?? items[0]?.id),
+        )
         setLoading(false)
       },
     )
@@ -159,7 +168,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
       active = false
       unsubscribeUnknownServer()
     }
-  }, [])
+  }, [documentWindowRoute])
 
   async function select(id: string) {
     await window.desktop.servers.select(id)
@@ -183,9 +192,15 @@ function DesktopRootContent({ platform }: { platform?: string }) {
     <>
       {loading ? (
         <StatusPage text={t("startup.starting")} />
+      ) : documentWindowRoute.kind === "invalid" ? (
+        <DocumentWindowStartupError message={documentWindowRoute.message} />
       ) : selected ? (
         <DesktopWorkspace
           key={`${selected.id}:${selected.lastUserId ?? "anonymous"}`}
+          documentMode={documentWindowRoute.kind === "document"}
+          documentWindow={
+            documentWindowRoute.kind === "document" ? documentWindowRoute.context : undefined
+          }
           messageSoundEnabled={messageSoundEnabled}
           platform={platform}
           profile={selected}
@@ -194,6 +209,8 @@ function DesktopRootContent({ platform }: { platform?: string }) {
           onRemoved={removed}
           onUpdaterChange={setUpdater}
         />
+      ) : documentWindowRoute.kind === "document" ? (
+        <DocumentWindowStartupError message="目标服务器不存在，无法打开文档窗口。" />
       ) : (
         <ServerSetup onAdded={added} />
       )}
@@ -202,6 +219,8 @@ function DesktopRootContent({ platform }: { platform?: string }) {
 }
 
 function DesktopWorkspace({
+  documentMode,
+  documentWindow,
   messageSoundEnabled,
   platform,
   profile,
@@ -210,6 +229,8 @@ function DesktopWorkspace({
   onRemoved,
   onUpdaterChange,
 }: {
+  documentMode: boolean
+  documentWindow?: DocumentWindowRouteContext
   messageSoundEnabled: boolean
   platform?: string
   profile: ServerProfile
@@ -232,6 +253,8 @@ function DesktopWorkspace({
   const routerContext = useMemo<DesktopRoutedWorkspaceContextValue>(
     () => ({
       messageSoundEnabled,
+      documentMode,
+      documentWindow,
       onAuthenticated: setUserId,
       onOpenSettings: openSettings,
       onUpdaterChange,
@@ -239,7 +262,16 @@ function DesktopWorkspace({
       target,
       updater,
     }),
-    [messageSoundEnabled, onUpdaterChange, openSettings, profile, target, updater],
+    [
+      documentMode,
+      documentWindow,
+      messageSoundEnabled,
+      onUpdaterChange,
+      openSettings,
+      profile,
+      target,
+      updater,
+    ],
   )
 
   return (
@@ -264,6 +296,8 @@ function DesktopWorkspace({
 }
 
 type DesktopRoutedWorkspaceContextValue = {
+  documentMode: boolean
+  documentWindow?: DocumentWindowRouteContext
   messageSoundEnabled: boolean
   profile: ServerProfile
   target: AuthenticatedTarget
@@ -408,6 +442,8 @@ function DesktopUpdatePrompt({
 }
 
 function DesktopHostedApp({
+  documentMode,
+  documentWindow,
   messageSoundEnabled,
   profile,
   target,
@@ -416,6 +452,8 @@ function DesktopHostedApp({
   onOpenSettings,
   onUpdaterChange,
 }: {
+  documentMode: boolean
+  documentWindow?: DocumentWindowRouteContext
   messageSoundEnabled: boolean
   profile: ServerProfile
   target: AuthenticatedTarget
@@ -440,7 +478,9 @@ function DesktopHostedApp({
   useEffect(() => {
     // 语言/字号变化不应重建宿主（fetch/缓存目标/实时连接/订阅）
     const restoreFetch = installDesktopFetch(target)
-    const restoreMessageCacheTarget = configureMessageCacheTarget(target)
+    const restoreMessageCacheTarget = documentMode
+      ? () => undefined
+      : configureMessageCacheTarget(target)
     const requestExternalLink = async (url: string) => {
       const link = parseExternalWebLink(url)
       if (!link) throw new Error("只允许打开 HTTP 或 HTTPS 外部链接")
@@ -452,12 +492,14 @@ function DesktopHostedApp({
     }
     const restoreHost = configureDesktopHost({
       cancelThirdPartyLogin: (transactionId) => window.desktop.auth.cancel(transactionId),
-      createRealtimeClient: (options) =>
-        new RealtimeClient({
-          ...options,
-          createWebSocket: () => new DesktopWebSocket(target),
-          url: "desktop://realtime",
-        }),
+      createRealtimeClient: documentMode
+        ? undefined
+        : (options) =>
+            new RealtimeClient({
+              ...options,
+              createWebSocket: () => new DesktopWebSocket(target),
+              url: "desktop://realtime",
+            }),
       downloadTemporaryFile: async (fileId, fileName) => {
         await window.desktop.files.download(
           target,
@@ -474,18 +516,28 @@ function DesktopHostedApp({
       requestNotificationPermission: async () =>
         (await window.desktop.permissions.request("notifications")) ? "granted" : "denied",
       resolveResourceUrl: (url) => resolveDesktopResourceUrl(profile, url),
-      setBadge: (count) => {
-        void window.desktop.badge.set(count)
-      },
-      setTrayMessages: (messages) => {
-        void window.desktop.tray
-          .setMessages(messages.map((message) => ({ ...message, serverId: profile.id })))
-          .catch(() => undefined)
-      },
-      showMessageNotification: (input) => {
-        void window.desktop.notifications.show({ ...input, target, workspace: profile.displayName })
-        return true
-      },
+      setBadge: documentMode
+        ? undefined
+        : (count) => {
+            void window.desktop.badge.set(count)
+          },
+      setTrayMessages: documentMode
+        ? undefined
+        : (messages) => {
+            void window.desktop.tray
+              .setMessages(messages.map((message) => ({ ...message, serverId: profile.id })))
+              .catch(() => undefined)
+          },
+      showMessageNotification: documentMode
+        ? undefined
+        : (input) => {
+            void window.desktop.notifications.show({
+              ...input,
+              target,
+              workspace: profile.displayName,
+            })
+            return true
+          },
       subscribeThirdPartyLoginFinished: (listener) =>
         window.desktop.auth.subscribeFinished(listener),
       writeClipboardPng: (bytes) => window.desktop.clipboard.writePng(bytes),
@@ -520,12 +572,13 @@ function DesktopHostedApp({
       restoreFetch()
       restoreMessageCacheTarget()
     }
-  }, [onAuthenticated, onOpenSettings, profile, target])
+  }, [documentMode, documentWindow, onAuthenticated, onOpenSettings, profile, target])
 
   return (
     <>
       {ready ? (
         <App
+          documentWindow={documentWindow}
           updatePrompt={<DesktopUpdatePrompt state={updater} onStateChange={onUpdaterChange} />}
         />
       ) : (
@@ -691,4 +744,15 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
 function StatusPage({ detail, text }: { detail?: string; text: string }) {
   const { t } = useLocale()
   return <BrandLoadingScreen detail={detail ?? t("setup.preparingWorkspace")} message={text} />
+}
+
+function DocumentWindowStartupError({ message }: { message: string }) {
+  return (
+    <main className="flex h-svh min-h-0 items-center justify-center px-6 pt-10">
+      <section className="max-w-sm space-y-4 border bg-background p-8 text-center">
+        <h1 className="text-lg font-semibold">无法打开文档窗口</h1>
+        <p className="text-sm text-muted-foreground">{message}</p>
+      </section>
+    </main>
+  )
 }

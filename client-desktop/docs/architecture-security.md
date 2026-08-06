@@ -53,6 +53,36 @@ sessionId 隔离；页面卸载、WebContents 销毁、注销、认证失效、S
 外链流程的远程导航和任意新窗口。CSP 禁止远程脚本、对象、Frame 和 Renderer 直接发起
 任意网络连接。外部 HTTP 图片仍不得自动加载。
 
+## 文档独立窗口
+
+Desktop 文档窗口是由 Main 创建的独立顶层 `BrowserWindow`，主窗口仍负责聊天、通知、托盘和
+角标。Renderer 只能通过 `DesktopBridge.navigation.openDocumentWindow(documentId, serverId)`
+请求打开窗口；Preload 不暴露通用 URL、BrowserWindow、窗口选项或任意 IPC channel。
+
+窗口请求必须经过可信 IPC sender 校验，并绑定已保存的 Server Profile、当前 `lastUserId` 和
+文档 UUID。Main 使用 `serverId + userId + documentId` 建立幂等索引，同一认证 Target 最多
+打开 8 个文档窗口；重复请求只聚焦已有窗口。子窗口使用与主窗口一致的 preload、context
+isolation、sandbox、webSecurity 和 CSP，并且只加载带有 `serverId`、`window=document` 的
+本地 `magicchat-app://app/` 路由。远程导航、任意新窗口和伪造 Origin、Header、Cookie、脚本
+均在 Main/Preload 边界拒绝。
+
+开发模式的文档窗口复用受控的 Vite Renderer 地址；生产模式的本地协议在 SPA 路由回退时将
+Renderer 入口资源规范化到协议根路径，确保带文档路由的 URL 不会把 JS/CSS 解析到
+`documents/document/assets` 等不存在的目录。
+
+文档子窗口使用专用的文档认证/数据宿主，只加载当前用户、项目和文档数据，并复用文档 REST、
+Yjs/Hocuspocus、标题保存和离开保护；它不挂载聊天 `ClientDataProvider`、普通 realtime、
+聊天事件同步、消息通知同步、聊天轮询、托盘消息或角标更新。文档协作仍通过现有
+`document-collaboration-controller`，每个子窗口使用独立 WebContents owner；关闭、崩溃、加载
+失败、WebContents 销毁、401、注销、账号切换、Server Profile 删除和应用退出都会幂等清理对应
+owner 的协作 session、队列和监听器，不影响其他 Server 的窗口。
+
+窗口状态仅持久化按认证 Target/文档隔离的 bounds 和显示器元数据，使用最小 `760x560`，恢复
+时按当前显示器 workArea 夹紧，显示器拔除或完全离屏则回退到默认位置。状态文件不保存正文、
+标题、消息、凭据、Cookie、Token 或完整 URL。该方案不新增 Server API、数据库、文档协作协议
+或迁移，也不提供同一窗口内的聊天/文档分屏；普通文档链接仍在当前窗口导航，需要并行聊天时
+通过受控入口再次打开独立文档窗口。
+
 ## Renderer 独立策略
 
 Desktop 首轮功能以 `client-web` 提交

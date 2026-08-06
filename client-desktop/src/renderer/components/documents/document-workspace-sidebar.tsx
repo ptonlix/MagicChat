@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { ArrowLeft, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
+import { ArrowLeft, ExternalLink, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button"
 import { createClientDocument, listClientDocuments } from "@/lib/document-data-api"
 import { buildDocumentTree, collectFolderIds, type DocumentTreeNode } from "@/lib/document-tree"
 import { cn } from "@/lib/utils"
+import { useDesktopTarget } from "@/hooks/use-desktop-target"
+import {
+  documentNavigationPath,
+  documentWindowFeedbackMessage,
+  DocumentWindowOpenError,
+  parseDocumentWindowLocation,
+  requestDocumentWindow,
+} from "@/lib/document-window-route"
 
 export function DocumentWorkspaceSidebar({
   activeDocumentId,
@@ -28,7 +36,10 @@ export function DocumentWorkspaceSidebar({
 }) {
   const { t } = useLocale()
   const navigate = useNavigate()
+  const target = useDesktopTarget()
+  const isDocumentWindow = parseDocumentWindowLocation().kind === "document"
   const [creating, setCreating] = React.useState(false)
+  const [openingWindow, setOpeningWindow] = React.useState(false)
   const [documents, setDocuments] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
   const [error, setError] = React.useState("")
   const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set())
@@ -61,7 +72,7 @@ export function DocumentWorkspaceSidebar({
       })
       if (!onBeforeNavigate(confirmedVersion)) return
       onAllowConfirmedNavigation()
-      navigate(`/documents/document/${encodeURIComponent(created.id)}`)
+      navigate(documentNavigationPath(created.id, target.id))
     } catch (createError) {
       toast.error(createError instanceof Error ? createError.message : t("document.createFailed"))
     } finally {
@@ -69,17 +80,43 @@ export function DocumentWorkspaceSidebar({
     }
   }
 
+  async function openActiveDocumentInWindow() {
+    if (openingWindow) return
+    setOpeningWindow(true)
+    try {
+      const result = await requestDocumentWindow(activeDocumentId, target.id)
+      toast.success(result.status === "focused" ? "已聚焦已有文档窗口" : "文档窗口已打开")
+    } catch (reason) {
+      const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
+      toast.error(
+        documentWindowFeedbackMessage(
+          code,
+          reason instanceof Error ? reason.message : "文档窗口暂时不可用",
+        ),
+      )
+    } finally {
+      setOpeningWindow(false)
+    }
+  }
+
   return (
     <aside className="no-drag flex h-full w-full shrink-0 flex-col overflow-hidden bg-background text-foreground">
-      <Link
-        aria-label={t("document.backToProjectAria", { name: projectName })}
-        className="mx-2 mt-2 flex h-10 items-center gap-2 rounded-md px-2 hover:bg-accent focus-visible:ring-2"
-        to={`/projects/${encodeURIComponent(projectId)}/documents`}
-      >
-        <ArrowLeft className="size-4" />
-        <span className="truncate text-sm font-semibold">{projectName}</span>
-      </Link>
-      <div className="px-3 py-2">
+      {isDocumentWindow ? (
+        <div className="mx-2 mt-2 flex h-10 items-center gap-2 rounded-md px-2">
+          <ArrowLeft className="size-4" />
+          <span className="truncate text-sm font-semibold">{projectName}</span>
+        </div>
+      ) : (
+        <Link
+          aria-label={t("document.backToProjectAria", { name: projectName })}
+          className="mx-2 mt-2 flex h-10 items-center gap-2 rounded-md px-2 hover:bg-accent focus-visible:ring-2"
+          to={`/projects/${encodeURIComponent(projectId)}/documents`}
+        >
+          <ArrowLeft className="size-4" />
+          <span className="truncate text-sm font-semibold">{projectName}</span>
+        </Link>
+      )}
+      <div className="grid gap-2 px-3 py-2">
         <Button
           className="w-full"
           disabled={creating}
@@ -88,6 +125,16 @@ export function DocumentWorkspaceSidebar({
         >
           {creating ? <Loader2 className="animate-spin" /> : <Plus />}
           {t("document.newDoc")}
+        </Button>
+        <Button
+          aria-label="在新窗口打开当前文档"
+          className="w-full"
+          disabled={openingWindow}
+          onClick={() => void openActiveDocumentInWindow()}
+          variant="outline"
+        >
+          {openingWindow ? <Loader2 className="animate-spin" /> : <ExternalLink />}
+          在新窗口打开当前文档
         </Button>
       </div>
       <nav
@@ -125,6 +172,7 @@ export function DocumentWorkspaceSidebar({
                 return next
               })
             }
+            serverId={target.id}
           />
         )}
       </nav>
@@ -139,6 +187,7 @@ function SidebarTree({
   expanded,
   nodes,
   onToggle,
+  serverId,
 }: {
   activeDocumentId: string
   activeTitle: string
@@ -146,6 +195,7 @@ function SidebarTree({
   expanded: ReadonlySet<string>
   nodes: ReadonlyArray<DocumentTreeNode>
   onToggle(id: string): void
+  serverId: string
 }) {
   return (
     <div role={depth === 0 ? "tree" : "group"}>
@@ -175,6 +225,7 @@ function SidebarTree({
                 expanded={expanded}
                 nodes={node.children}
                 onToggle={onToggle}
+                serverId={serverId}
               />
             )}
           </div>
@@ -188,7 +239,7 @@ function SidebarTree({
             key={node.id}
             role="treeitem"
             style={{ paddingLeft: depth * 16 + 24 }}
-            to={`/documents/document/${encodeURIComponent(node.id)}`}
+            to={documentNavigationPath(node.id, serverId)}
           >
             <FileText className="size-4 shrink-0 text-sky-600" />
             <span className="truncate">

@@ -39,6 +39,7 @@ import {
   parseDocumentUuid,
 } from "@shared/document-collaboration-contract"
 import type { DocumentCollaborationController } from "@main/document-collaboration-controller"
+import type { DocumentWindowManager } from "@main/document-window-manager"
 import { parseExternalWebLink } from "@shared/external-link"
 import type { ShortcutManager } from "@main/shortcut-manager"
 import type { ShortcutKind } from "@shared/shortcut-contract"
@@ -49,6 +50,7 @@ export type IpcDependencies = {
   credentials: CredentialStore
   diagnostics: Diagnostics
   documentCollaboration: DocumentCollaborationController
+  documentWindows?: DocumentWindowManager
   files: FileService
   http: HttpTransport
   messageCache: MessageCacheService
@@ -71,6 +73,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   const markUnauthorized = (authTarget: AuthenticatedTarget) => {
     deps.asr.closeTarget(authTarget)
     deps.documentCollaboration.closeTarget(authTarget)
+    deps.documentWindows?.closeTarget(authTarget)
     handleUnauthorizedCacheLifecycle(authTarget, {
       broadcastUnauthorized: (target) => broadcast(IPC.realtimeUnauthorized, target),
       clearUserBestEffort: (target) => deps.messageCache.clearUserBestEffort(target),
@@ -125,6 +128,10 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.documentCollaborationClose, (event, sessionId) =>
     deps.documentCollaboration.close(event.sender.id, parseDocumentSessionId(sessionId)),
   )
+  if (deps.documentWindows)
+    register(IPC.documentWindowOpen, (event, rawRequest) =>
+      deps.documentWindows?.open(event.sender.id, rawRequest),
+    )
   register(IPC.appearanceThemeSet, (_event, source) =>
     deps.system.setThemeSource(themeSource(source)),
   )
@@ -199,6 +206,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
       deps.http.cancelTarget(authTarget)
       deps.asr.closeTarget(authTarget)
       deps.documentCollaboration.closeTarget(authTarget)
+      deps.documentWindows?.closeTarget(authTarget)
       deps.realtime.close(authTarget)
       deps.messageCache.clearUserBestEffort(authTarget)
     }
@@ -271,9 +279,12 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.messageCacheClearConversation, (_event, scope) =>
     deps.messageCache.clearConversation(scope),
   )
-  register(IPC.messageCacheClearUser, (_event, cacheTarget) =>
-    deps.messageCache.clearUser(cacheTarget),
-  )
+  register(IPC.messageCacheClearUser, (_event, cacheTarget) => {
+    const authTarget = target(cacheTarget)
+    const result = deps.messageCache.clearUser(authTarget)
+    deps.documentWindows?.closeTarget(authTarget)
+    return result
+  })
   register(IPC.messageCacheCommitAfter, (_event, scope, commit) =>
     deps.messageCache.commitAfter(scope, commit),
   )
@@ -336,6 +347,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
       deps.http.cancelOwner(contents.id)
       deps.asr.closeOwner(contents.id)
       deps.documentCollaboration.closeOwner(contents.id)
+      deps.documentWindows?.closeOwner(contents.id)
       deps.files.releaseOwner(contents.id)
       deps.shortcuts.releaseOwner(contents.id)
       deps.uploads.releaseOwner(contents.id)

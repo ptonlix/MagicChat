@@ -4,6 +4,8 @@ import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
 import { DocumentCollaborationController } from "@main/document-collaboration-controller"
+import { DocumentWindowManager } from "@main/document-window-manager"
+import { FileDocumentWindowStateStore } from "@main/document-window-state"
 import { ConfigStore } from "@main/config-store"
 import { CredentialStore } from "@main/credential-store"
 import { Diagnostics } from "@main/diagnostics"
@@ -91,6 +93,21 @@ async function start(): Promise<void> {
   const realtime = new RealtimeController(profiles, sessions, proxyAuth)
   const asr = new ASRController(profiles, sessions, proxyAuth)
   const documentCollaboration = new DocumentCollaborationController(profiles, sessions, proxyAuth)
+  const documentWindowState = new FileDocumentWindowStateStore(app.getPath("userData"))
+  await documentWindowState.load().catch(() => {
+    void diagnostics.record("main", "document-window-state-load-failed")
+  })
+  const documentWindows = new DocumentWindowManager({
+    collaboration: documentCollaboration,
+    diagnostics,
+    developmentUrl: process.env.ELECTRON_RENDERER_URL,
+    getMainWindow: () => windows.current(),
+    iconPath,
+    preloadPath: path.resolve(__dirname, "../preload/index.cjs"),
+    profiles,
+    state: documentWindowState,
+    store,
+  })
   const trayAvailable = system.createTray(trayIconPath)
   if (
     !trayAvailable &&
@@ -105,6 +122,7 @@ async function start(): Promise<void> {
     (result) => windows.send(IPC.authFinished, result),
     () => windows.current(),
     iconPath,
+    { onUserChanged: (serverId) => documentWindows.closeServer(serverId) },
   )
   const notifications = new NotificationService(
     () => store.getSettings(),
@@ -121,7 +139,9 @@ async function start(): Promise<void> {
     },
     { iconPath, platform: process.platform },
   )
-  const http = new HttpTransport(profiles, sessions)
+  const http = new HttpTransport(profiles, sessions, {
+    onUserChanged: (serverId) => documentWindows.closeServer(serverId),
+  })
   const uploads = new StreamingUploadController(profiles, sessions)
   const updater = new UpdaterService({
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
@@ -139,6 +159,7 @@ async function start(): Promise<void> {
     credentials,
     diagnostics,
     documentCollaboration,
+    documentWindows,
     files,
     http,
     messageCache,
@@ -191,8 +212,10 @@ async function start(): Promise<void> {
   app.on("before-quit", (event) => {
     if (updater.isInstallIntent()) {
       screenshots.dispose()
+      windows.prepareToQuit()
       http.cancelAll()
       asr.closeAll()
+      documentWindows.dispose()
       documentCollaboration.shutdown()
       auth.dispose()
       realtime.closeAll()
@@ -217,6 +240,7 @@ async function start(): Promise<void> {
     windows.prepareToQuit()
     http.cancelAll()
     asr.closeAll()
+    documentWindows.dispose()
     documentCollaboration.shutdown()
     auth.dispose()
     realtime.closeAll()
@@ -234,6 +258,7 @@ async function start(): Promise<void> {
     screen.removeListener("display-removed", cancelScreenshotForDisplayChange)
     screen.removeListener("display-metrics-changed", cancelScreenshotForDisplayChange)
     screenshots.dispose()
+    documentWindows.dispose()
     updater.dispose()
   })
   process.on("uncaughtException", (error) => void diagnostics.record("main", error.name))

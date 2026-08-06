@@ -14,76 +14,116 @@ import { ChatPage } from "@/pages/chat-page"
 import { ContactsPage } from "@/pages/contacts-page"
 import { LoginPage } from "@/pages/login-page"
 import { ProjectsPage } from "@/pages/projects-page"
+import { documentWindowPath, type DocumentWindowRouteContext } from "@/lib/document-window-route"
 
-const DocumentPage = lazy(() => import("@/pages/document-page"))
+const DocumentRoute = lazy(() => import("@/pages/document-route"))
 
-export function App({ updatePrompt }: { updatePrompt?: ReactNode }) {
-  const { t } = useLocale()
+export function App({
+  documentWindow,
+  updatePrompt,
+}: {
+  documentWindow?: DocumentWindowRouteContext
+  updatePrompt?: ReactNode
+}) {
   return (
     <AppInfoProvider>
       <ClientBrandMetadata />
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route
-          path="/login"
-          element={
-            <>
-              <ClientDocumentTitle title={t("app.title.login")} disableMessageAlert />
-              <LoginPage />
-            </>
-          }
-        />
-        <Route element={<AuthenticatedProviderShell />}>
-          <Route element={<AppLayout footerAction={updatePrompt} />}>
-            <Route
-              path="/init"
-              element={
-                <>
-                  <ClientDocumentTitle title={t("app.title.loading")} disableMessageAlert />
-                  <InitPage />
-                </>
-              }
-            />
-            <Route
-              path="/chat/:conversationId?"
-              element={
-                <>
-                  <ClientDocumentTitle />
-                  <ChatPage />
-                </>
-              }
-            />
-            <Route
-              path="/contacts/:directoryType?/:directoryId?"
-              element={
-                <>
-                  <ClientDocumentTitle title={t("app.title.contacts")} />
-                  <ContactsPage />
-                </>
-              }
-            />
-            <Route
-              path="/projects/:projectId?/:section?"
-              element={
-                <>
-                  <ClientDocumentTitle title={t("app.title.projects")} />
-                  <ProjectsPage />
-                </>
-              }
-            />
-          </Route>
+      {documentWindow ? (
+        <DocumentRoutes context={documentWindow} />
+      ) : (
+        <NormalRoutes updatePrompt={updatePrompt} />
+      )}
+    </AppInfoProvider>
+  )
+}
+
+function NormalRoutes({ updatePrompt }: { updatePrompt?: ReactNode }) {
+  const { t } = useLocale()
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/login"
+        element={
+          <>
+            <ClientDocumentTitle title={t("app.title.login")} disableMessageAlert />
+            <LoginPage />
+          </>
+        }
+      />
+      <Route element={<AuthenticatedProviderShell />}>
+        <Route element={<AppLayout footerAction={updatePrompt} />}>
           <Route
-            path="/documents/document/:documentId"
+            path="/init"
             element={
-              <Suspense fallback={<DocumentRouteLoading />}>
-                <DocumentPage />
-              </Suspense>
+              <>
+                <ClientDocumentTitle title={t("app.title.loading")} disableMessageAlert />
+                <InitPage />
+              </>
+            }
+          />
+          <Route
+            path="/chat/:conversationId?"
+            element={
+              <>
+                <ClientDocumentTitle />
+                <ChatPage />
+              </>
+            }
+          />
+          <Route
+            path="/contacts/:directoryType?/:directoryId?"
+            element={
+              <>
+                <ClientDocumentTitle title={t("app.title.contacts")} />
+                <ContactsPage />
+              </>
+            }
+          />
+          <Route
+            path="/projects/:projectId?/:section?"
+            element={
+              <>
+                <ClientDocumentTitle title={t("app.title.projects")} />
+                <ProjectsPage />
+              </>
             }
           />
         </Route>
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </AppInfoProvider>
+      </Route>
+      <Route element={<DocumentProviderShell />}>
+        <Route
+          path="/documents/document/:documentId"
+          element={
+            <Suspense fallback={<DocumentRouteLoading />}>
+              <DocumentRoute />
+            </Suspense>
+          }
+        />
+      </Route>
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  )
+}
+
+function DocumentRoutes({ context }: { context: DocumentWindowRouteContext }) {
+  return (
+    <Routes>
+      <Route element={<DocumentProviderShell />}>
+        <Route
+          path="/documents/document/:documentId"
+          element={
+            <Suspense fallback={<DocumentRouteLoading />}>
+              <DocumentRoute />
+            </Suspense>
+          }
+        />
+      </Route>
+      <Route
+        path="*"
+        element={<Navigate to={documentWindowPath(context.documentId, context.serverId)} replace />}
+      />
+    </Routes>
   )
 }
 
@@ -97,6 +137,10 @@ function AuthenticatedProviderShell() {
       </ClientRealtimeProvider>
     </ClientDataProvider>
   )
+}
+
+function DocumentProviderShell() {
+  return <Outlet />
 }
 
 function DocumentRouteLoading() {

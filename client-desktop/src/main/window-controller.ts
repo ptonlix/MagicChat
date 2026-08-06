@@ -39,7 +39,7 @@ export class WindowController {
     })
     window.removeMenu()
     this.mainWindow = window
-    this.installSecurity(window)
+    installTrustedWindowSecurity(window)
     window.on("ready-to-show", () => {
       if (!startHidden) window.show()
     })
@@ -105,14 +105,6 @@ export class WindowController {
     this.send("desktop:v1:navigate", route)
   }
 
-  private installSecurity(window: BrowserWindow): void {
-    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
-    window.webContents.on("will-navigate", (event, url) => {
-      if (isTrustedRenderer(url)) return
-      event.preventDefault()
-    })
-  }
-
   private handleClose(event: Event): void {
     const action = resolveWindowCloseAction({
       appReady: app.isReady(),
@@ -125,6 +117,14 @@ export class WindowController {
     if (action === "hide") this.mainWindow?.hide()
     else app.quit()
   }
+}
+
+export function installTrustedWindowSecurity(window: BrowserWindow): void {
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+  window.webContents.on("will-navigate", (event, url) => {
+    if (isTrustedRenderer(url)) return
+    event.preventDefault()
+  })
 }
 
 export function getMainWindowTitleBarOptions(

@@ -26,6 +26,9 @@ export class HttpTransport {
   constructor(
     private readonly profiles: ServerProfiles,
     private readonly sessions: SessionController,
+    private readonly lifecycle: Readonly<{
+      onUserChanged?: (serverId: string) => void
+    }> = {},
   ) {}
 
   cancel(requestId: string, ownerId: number): void {
@@ -56,7 +59,11 @@ export class HttpTransport {
   ): Promise<ClientResponse<T>> {
     validateRequest(request)
     const profile = this.profiles.require(target.id)
-    if (profile.normalizedUrl !== target.normalizedUrl)
+    if (
+      profile.normalizedUrl !== target.normalizedUrl ||
+      (!isAuthenticationPath(request.path) &&
+        (!target.userId || target.userId === "anonymous" || profile.lastUserId !== target.userId))
+    )
       throw new ClientTransportError("invalid_request", "认证目标已失效")
     const key = pendingKey(ownerId, request.requestId)
     if (this.pending.has(key)) throw new ClientTransportError("invalid_request", "请求标识重复")
@@ -94,7 +101,10 @@ export class HttpTransport {
           ? new TextDecoder().decode(bytes)
           : bytes
       if (response.ok && isAuthenticationResponse(request.path, body)) {
+        const previousUserId = profile.lastUserId
         await this.profiles.recordUser(profile.id, body.data.user.id)
+        if (previousUserId && previousUserId !== body.data.user.id)
+          this.lifecycle.onUserChanged?.(profile.id)
       }
       return {
         body: body as T,
@@ -135,6 +145,10 @@ export class HttpTransport {
   }
 }
 
+function isAuthenticationPath(path: string): boolean {
+  return path.startsWith("/api/client/auth/") || isClientMePath(path)
+}
+
 type PendingHttpRequest = {
   controller: AbortController
   ownerId: number
@@ -156,12 +170,20 @@ function isAuthenticationResponse(
     !(
       path.includes("/auth/login") ||
       path.includes("/auth/email-code/login") ||
-      path.startsWith("/api/client/me")
+      isClientMePath(path)
     )
   )
     return false
   const value = body as { data?: { user?: { id?: unknown } } }
   return typeof value?.data?.user?.id === "string"
+}
+
+function isClientMePath(path: string): boolean {
+  return (
+    path === "/api/client/me" ||
+    path.startsWith("/api/client/me/") ||
+    path.startsWith("/api/client/me?")
+  )
 }
 
 function validateRequest(request: ClientRequest): void {

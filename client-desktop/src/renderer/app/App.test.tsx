@@ -13,7 +13,9 @@ vi.mock("@/components/client-conversation-realtime-sync", () => ({
   ClientConversationRealtimeSync: () => null,
 }))
 vi.mock("@/components/client-data-provider", () => ({
-  ClientDataProvider: ({ children }: { children: ReactNode }) => children,
+  ClientDataProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="chat-data-provider">{children}</div>
+  ),
 }))
 vi.mock("@/components/client-document-title", () => ({ ClientDocumentTitle: () => null }))
 vi.mock("@/components/client-message-notification-sync", () => ({
@@ -34,7 +36,7 @@ vi.mock("@/pages/chat-page", () => ({ ChatPage: () => <div>聊天页面</div> })
 vi.mock("@/pages/contacts-page", () => ({ ContactsPage: () => null }))
 vi.mock("@/pages/login-page", () => ({ LoginPage: () => <div>登录页面</div> }))
 vi.mock("@/pages/projects-page", () => ({ ProjectsPage: () => null }))
-vi.mock("@/pages/document-page", () => ({
+vi.mock("@/pages/document-route", () => ({
   default: () => <main>文档工作区</main>,
 }))
 
@@ -61,6 +63,25 @@ describe("桌面更新入口路由边界", () => {
     expect(await screen.findByText("文档工作区")).toBeInTheDocument()
     expect(screen.queryByRole("complementary", { name: "应用侧边栏" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "新版本" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("chat-data-provider")).not.toBeInTheDocument()
+  })
+
+  it("子窗口离开文档路由时回到当前文档，不挂载聊天页面", async () => {
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <App
+          documentWindow={{
+            documentId: "550e8400-e29b-41d4-a716-446655440000",
+            mode: "document",
+            serverId: "server-1",
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("文档工作区")).toBeInTheDocument()
+    expect(screen.queryByText("项目页面")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("chat-data-provider")).not.toBeInTheDocument()
   })
 })
 

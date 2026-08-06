@@ -16,7 +16,9 @@ assert(messageCacheWorkerName, "Main 未引用消息缓存 Worker 产物")
 const messageCacheWorker = await readFile(path.join(mainOutput, messageCacheWorkerName), "utf8")
 const rendererAssets = path.join(root, "out/renderer/assets")
 const rendererAssetNames = await readdir(rendererAssets)
-const documentChunkNames = rendererAssetNames.filter((name) => /^document-page-.+\.js$/.test(name))
+const documentChunkNames = rendererAssetNames.filter((name) =>
+  /^(?:document-page|document-route)-.+\.js$/.test(name),
+)
 assert(documentChunkNames.length === 1, "文档路由 chunk 缺失或重复")
 const documentChunkName = documentChunkNames[0]
 const documentChunk = await readFile(path.join(rendererAssets, documentChunkName), "utf8")

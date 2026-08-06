@@ -1,6 +1,6 @@
 import * as React from "react"
 import { HocuspocusProvider, WebSocketStatus } from "@hocuspocus/provider"
-import { FileText, Loader2, Menu, RefreshCw, Users } from "lucide-react"
+import { ExternalLink, FileText, Loader2, Menu, RefreshCw, Users } from "lucide-react"
 import { Link, useBlocker, useParams } from "react-router"
 import { toast } from "sonner"
 import * as Y from "yjs"
@@ -28,7 +28,12 @@ import {
   type DocumentTitleSnapshot,
 } from "@/lib/document-title-controller"
 import { getClientProject, type ClientProjectDetail } from "@/lib/project-data-api"
-import { useClientData } from "@/lib/client-data-context"
+import { useDocumentData } from "@/lib/document-data-context"
+import {
+  documentWindowFeedbackMessage,
+  DocumentWindowOpenError,
+  requestDocumentWindow,
+} from "@/lib/document-window-route"
 import {
   documentPresenceColor,
   normalizeDocumentPresenceUsers,
@@ -92,7 +97,7 @@ function DocumentWorkspace({
   project: ClientProjectDetail
 }) {
   const target = useDesktopTarget()
-  const { me, refreshMe, refreshProjects } = useClientData()
+  const { me, refreshMe, refreshProjects } = useDocumentData()
   const collaborationAvatar = me?.avatar ?? document.updatedBy.avatar
   const collaborationId = me?.id ?? document.updatedBy.id
   const collaborationName =
@@ -117,6 +122,7 @@ function DocumentWorkspace({
   const [collaborationProvider, setCollaborationProvider] = React.useState<HocuspocusProvider>()
   const [onlineUsers, setOnlineUsers] = React.useState<DocumentPresenceUser[]>([])
   const [sheetOpen, setSheetOpen] = React.useState(false)
+  const [openingWindow, setOpeningWindow] = React.useState(false)
   const collaborationUserRef = React.useRef(collaborationUser)
   const collaborationProviderRef = React.useRef<HocuspocusProvider | undefined>(undefined)
   const publishedCollaborationUserRef = React.useRef<DocumentPresenceUser | undefined>(undefined)
@@ -298,6 +304,24 @@ function DocumentWorkspace({
     allowNextNavigation.current = true
   }, [])
   const saveTitle = () => void titleController.flush().catch(() => toast.error("保存文档标题失败"))
+  const openInWindow = async () => {
+    if (openingWindow) return
+    setOpeningWindow(true)
+    try {
+      const result = await requestDocumentWindow(document.id, target.id)
+      toast.success(result.status === "focused" ? "已聚焦已有文档窗口" : "文档窗口已打开")
+    } catch (reason) {
+      const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
+      toast.error(
+        documentWindowFeedbackMessage(
+          code,
+          reason instanceof Error ? reason.message : "文档窗口暂时不可用",
+        ),
+      )
+    } finally {
+      setOpeningWindow(false)
+    }
+  }
 
   if (permissionDenied)
     return (
@@ -377,6 +401,16 @@ function DocumentWorkspace({
               <RefreshCw />
             </Button>
           )}
+          <Button
+            aria-label="在新窗口打开文档"
+            disabled={openingWindow}
+            onClick={() => void openInWindow()}
+            size="icon-sm"
+            title="在新窗口打开文档"
+            variant="ghost"
+          >
+            {openingWindow ? <Loader2 className="animate-spin" /> : <ExternalLink />}
+          </Button>
           <DocumentOnlineUsers users={onlineUsers} />
         </header>
         {collaborationProvider ? (

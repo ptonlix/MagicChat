@@ -18,6 +18,9 @@ describe("Server 移除生命周期", () => {
       documentCollaboration: {
         closeServer: vi.fn(() => calls.push("document-collaboration")),
       },
+      documentWindows: {
+        closeServer: vi.fn(() => calls.push("document-windows")),
+      },
       credentials: {
         removeServer: vi.fn(async () => {
           calls.push("credentials")
@@ -64,6 +67,7 @@ describe("Server 移除生命周期", () => {
     await expect(removeServerResources(deps, profile.id, profile)).resolves.toBeUndefined()
 
     expect(deps.sessions.remove).toHaveBeenCalledWith(profile)
+    expect(deps.documentWindows?.closeServer).toHaveBeenCalledWith(profile.id)
     expect(deps.credentials.removeServer).toHaveBeenCalledWith(profile.id)
     expect(deps.store.removeServer).toHaveBeenCalledWith(profile.id)
     expect(calls.indexOf("http")).toBeLessThan(calls.indexOf("sessions"))

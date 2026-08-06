@@ -15,6 +15,7 @@ import {
 } from "@dnd-kit/core"
 import {
   Ellipsis,
+  ExternalLink,
   FileText,
   Folder,
   FolderOpen,
@@ -83,6 +84,12 @@ import {
 } from "@/lib/document-tree"
 import { cn } from "@/lib/utils"
 import { limitDocumentTitle } from "@/lib/document-title-controller"
+import { DesktopTargetContext } from "@/lib/desktop-target-context"
+import {
+  documentWindowFeedbackMessage,
+  DocumentWindowOpenError,
+  requestDocumentWindow,
+} from "@/lib/document-window-route"
 
 type EditDialogState =
   | Readonly<{ kind: ClientDocumentKind; mode: "create"; parentId: string | null }>
@@ -91,6 +98,7 @@ type EditDialogState =
 
 export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
   const { t } = useLocale()
+  const target = React.useContext(DesktopTargetContext)
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [deleteNode, setDeleteNode] = React.useState<DocumentTreeNode | null>(null)
   const [documentTree, setDocumentTree] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
@@ -100,6 +108,7 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
   const [keyword, setKeyword] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [mutating, setMutating] = React.useState(false)
+  const [openingWindowId, setOpeningWindowId] = React.useState<string | null>(null)
   const requestRef = React.useRef<AbortController | null>(null)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -227,6 +236,29 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
       .finally(() => setMutating(false))
   }
 
+  async function openDocumentInWindow(node: DocumentTreeNode) {
+    if (node.kind !== "document" || openingWindowId) return
+    if (!target) {
+      toast.error("当前窗口缺少服务器认证目标")
+      return
+    }
+    setOpeningWindowId(node.id)
+    try {
+      const result = await requestDocumentWindow(node.id, target.id)
+      toast.success(result.status === "focused" ? "已聚焦已有文档窗口" : "文档窗口已打开")
+    } catch (reason) {
+      const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
+      toast.error(
+        documentWindowFeedbackMessage(
+          code,
+          reason instanceof Error ? reason.message : "文档窗口暂时不可用",
+        ),
+      )
+    } finally {
+      setOpeningWindowId(null)
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/10">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-4">
@@ -295,6 +327,8 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
                     })
                   }
                   onRename={(node) => setEditDialog({ mode: "rename", node })}
+                  onOpenWindow={(node) => void openDocumentInWindow(node)}
+                  openingWindowId={openingWindowId}
                   parentId={null}
                   searching={searching}
                 />
@@ -406,7 +440,9 @@ function DocumentTree(props: {
   onCreate: (kind: ClientDocumentKind, parentId: string) => void
   onDelete: (node: DocumentTreeNode) => void
   onFolderOpenChange: (folderId: string, open: boolean) => void
+  onOpenWindow: (node: DocumentTreeNode) => void
   onRename: (node: DocumentTreeNode) => void
+  openingWindowId: string | null
   parentId: string | null
   searching: boolean
 }) {
@@ -608,6 +644,15 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
               <Pencil />
               {t("docTree.rename")}
             </DropdownMenuItem>
+            {props.node.kind === "document" && (
+              <DropdownMenuItem
+                disabled={props.openingWindowId === props.node.id}
+                onSelect={() => props.onOpenWindow(props.node)}
+              >
+                <ExternalLink />
+                在新窗口打开
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="text-destructive"
               onSelect={() => props.onDelete(props.node)}

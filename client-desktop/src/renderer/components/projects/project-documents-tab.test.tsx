@@ -24,6 +24,7 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 })
 
 import { KeyboardSensor } from "@dnd-kit/core"
+import { DesktopTargetContext } from "@/lib/desktop-target-context"
 
 import { ProjectDocumentsTab } from "./project-documents-tab"
 
@@ -70,6 +71,35 @@ describe("ProjectDocumentsTab", () => {
     )
     await user.type(screen.getByRole("searchbox", { name: "搜索当前项目文档" }), "不存在")
     expect(screen.getByText("没有匹配的文档")).toBeVisible()
+  })
+
+  it("文档操作菜单通过窄 Bridge 打开新窗口，不改变普通链接导航", async () => {
+    const user = userEvent.setup()
+    const openDocumentWindow = vi.fn().mockResolvedValue({
+      ok: true,
+      result: { status: "created" },
+    })
+    vi.stubGlobal("desktop", { navigation: { openDocumentWindow } })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response([base])))
+    render(
+      <DesktopTargetContext.Provider
+        value={{ id: "server-1", normalizedUrl: "https://chat.example.com", userId: "user-1" }}
+      >
+        <MemoryRouter>
+          <ProjectDocumentsTab projectId="project-1" />
+        </MemoryRouter>
+      </DesktopTargetContext.Provider>,
+    )
+
+    await screen.findByRole("link", { name: /产品需求文档/ })
+    await user.click(screen.getByRole("button", { name: /操作.*产品需求文档/ }))
+    await user.click(screen.getByRole("menuitem", { name: "在新窗口打开" }))
+
+    await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(base.id, "server-1"))
+    expect(screen.getByRole("link", { name: /产品需求文档/ })).toHaveAttribute(
+      "href",
+      `/documents/document/${base.id}`,
+    )
   })
 
   it("区分空状态和加载错误并允许重试", async () => {

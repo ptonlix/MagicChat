@@ -11,6 +11,7 @@ import type { ASRBridge } from "@shared/asr-contract"
 import type { ScreenshotBridge } from "@shared/screenshot-contract"
 import type { ShortcutBridge } from "@shared/shortcut-contract"
 import type { DocumentCollaborationBridge } from "@shared/document-collaboration-contract"
+import type { DocumentWindowOpenResponse } from "@shared/document-window-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
@@ -40,6 +41,7 @@ export const IPC = {
   documentCollaborationConnect: "desktop:v1:document-collaboration-connect",
   documentCollaborationEvent: "desktop:v1:document-collaboration-event",
   documentCollaborationSend: "desktop:v1:document-collaboration-send",
+  documentWindowOpen: "desktop:v1:document-window-open",
   filesDownload: "desktop:v1:files-download",
   filesOpenLocation: "desktop:v1:files-open-location",
   filesPick: "desktop:v1:files-pick",
@@ -262,6 +264,7 @@ export interface DesktopBridge {
   messageCache: MessageCacheBridge
   notifications: { show(input: NotificationInput): Promise<void> }
   navigation: {
+    openDocumentWindow(documentId: string, serverId: string): Promise<DocumentWindowOpenResponse>
     subscribe(listener: (route: string) => void): () => void
     subscribeUnknownServer(listener: (input: { serverId: string }) => void): () => void
   }

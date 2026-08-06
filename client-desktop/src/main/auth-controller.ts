@@ -22,6 +22,9 @@ export class AuthController {
     private readonly onFinished: (result: DesktopAuthResult) => void,
     private readonly getParentWindow: () => BrowserWindow | undefined,
     private readonly iconPath: string,
+    private readonly lifecycle: Readonly<{
+      onUserChanged?: (serverId: string) => void
+    }> = {},
   ) {}
 
   start(serverId: string, providerKey: string): { transactionId: string } {
@@ -164,7 +167,10 @@ export class AuthController {
       const userId = payload.data?.user?.id
       if (!response.ok || !userId) throw new Error("登录会话验证失败")
 
+      const previousUserId = pending.profile.lastUserId
       await this.profiles.recordUser(pending.profile.id, userId)
+      if (previousUserId && previousUserId !== userId)
+        this.lifecycle.onUserChanged?.(pending.profile.id)
       this.finish(transactionId, { status: "success", transactionId, userId })
     } catch (error) {
       this.finish(transactionId, {

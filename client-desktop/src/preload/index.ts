@@ -6,6 +6,7 @@ import {
   type DesktopBridge,
   type UpdaterState,
 } from "@shared/bridge"
+import { normalizeDocumentWindowOpenResponse } from "@shared/document-window-contract"
 import type { ASREvent } from "@shared/asr-contract"
 import type { DocumentCollaborationEvent } from "@shared/document-collaboration-contract"
 import type { RealtimeEnvelope } from "@shared/client-contract"
@@ -91,6 +92,10 @@ const bridge: DesktopBridge = {
   },
   notifications: { show: (input) => ipcRenderer.invoke(IPC.notificationShow, input) },
   navigation: {
+    openDocumentWindow: async (documentId, serverId) =>
+      normalizeDocumentWindowOpenResponse(
+        await ipcRenderer.invoke(IPC.documentWindowOpen, { documentId, serverId }),
+      ),
     subscribe: (listener) => subscribe<string>(IPC.navigate, listener),
     subscribeUnknownServer: (listener) =>
       subscribe<{ serverId: string }>(IPC.unknownServer, listener),
