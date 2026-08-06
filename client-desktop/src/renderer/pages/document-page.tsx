@@ -119,6 +119,9 @@ function DocumentWorkspace({
   }, [collaborationAvatar, collaborationId, collaborationName])
   const [ydoc] = React.useState(() => new Y.Doc())
   const ydocDestroyTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const titleControllerDestroyTimers = React.useRef(
+    new Map<DocumentTitleController, ReturnType<typeof setTimeout>>(),
+  )
   const [bodyController] = React.useState(() => new DocumentBodySyncController())
   const [body, setBody] = React.useState<DocumentBodySyncSnapshot>(bodyController.value)
   const [permissionDenied, setPermissionDenied] = React.useState(false)
@@ -161,7 +164,21 @@ function DocumentWorkspace({
   })
 
   React.useEffect(() => titleController.subscribe(setTitle), [titleController])
-  React.useEffect(() => () => titleController.destroy(), [titleController])
+  React.useEffect(() => {
+    const destroyTimers = titleControllerDestroyTimers.current
+    const pendingDestroy = destroyTimers.get(titleController)
+    if (pendingDestroy) {
+      clearTimeout(pendingDestroy)
+      destroyTimers.delete(titleController)
+    }
+    return () => {
+      const timer = setTimeout(() => {
+        destroyTimers.delete(titleController)
+        titleController.destroy()
+      }, 0)
+      destroyTimers.set(titleController, timer)
+    }
+  }, [titleController])
   React.useEffect(() => {
     refreshAccountDataRef.current = { refreshMe, refreshProjects }
   }, [refreshMe, refreshProjects])

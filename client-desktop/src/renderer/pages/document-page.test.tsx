@@ -371,6 +371,24 @@ describe("DocumentPage", () => {
     expect(destroyDocument.mock.contexts).not.toContain(mocks.providerOptions?.document)
     expect(mocks.passedCollaborationProvider).toBeDefined()
   })
+
+  it("StrictMode 重放 Effect 后仍会自动保存标题", async () => {
+    mocks.updateCollaborativeDocumentTitle.mockResolvedValue("StrictMode 标题")
+    renderPage(true)
+    fireEvent.change(await screen.findByRole("textbox", { name: "顶部文档标题" }), {
+      target: { value: "StrictMode 标题" },
+    })
+
+    await waitFor(
+      () =>
+        expect(mocks.updateCollaborativeDocumentTitle).toHaveBeenCalledWith(
+          document.id,
+          "StrictMode 标题",
+        ),
+      { timeout: 1_500 },
+    )
+    expect(await screen.findByText(/标题已自动保存.*正文已同步/)).toBeInTheDocument()
+  })
 })
 
 function renderPage(strictMode = false) {
