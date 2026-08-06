@@ -8,6 +8,7 @@ import {
   DEFAULT_SCREENSHOT_SHORTCUT,
   DEFAULT_SEARCH_SHORTCUT,
   DEFAULT_SEND_MESSAGE_SHORTCUT,
+  normalizeSendMessageShortcutAccelerator,
   normalizeShortcutAccelerator,
   type ShortcutKind,
   type ShortcutState,
@@ -109,7 +110,12 @@ export class ShortcutManager {
     if (this.recordingOwnerId !== undefined && this.recordingOwnerId !== ownerId) {
       throw new Error("快捷键录制窗口无效")
     }
-    const candidate = value === null ? null : normalizeShortcutAccelerator(value)
+    const candidate =
+      value === null
+        ? null
+        : kind === "sendMessage"
+          ? normalizeSendMessageShortcutAccelerator(value)
+          : normalizeShortcutAccelerator(value)
     const previous = this.accelerators[kind]
     const wasRecording = this.recordingOwnerId === ownerId
     const global = isGlobalKind(kind)

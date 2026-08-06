@@ -371,6 +371,7 @@
     .settings-center-close,
     .settings-center-icon-button,
     .settings-release-link,
+    .send-message-shortcut-select,
     .shortcut-recorder-input
   ) {
   align-items: center;
@@ -528,7 +529,9 @@
   display: grid;
   gap: 6px;
   justify-items: end;
+  max-width: 100%;
   min-width: 0;
+  width: 260px;
 }
 
 .shortcut-recorder-controls {
@@ -537,6 +540,7 @@
   gap: 4px;
   justify-content: flex-end;
   min-width: 0;
+  width: 100%;
 }
 
 .shortcut-recorder-input {
@@ -548,13 +552,49 @@
   font-family: var(--font-mono);
   font-size: 12px;
   height: 36px;
-  min-width: 154px;
   padding: 0 12px;
+  width: 180px;
 }
 
 .shortcut-recorder-input[aria-pressed="true"] {
   border-color: var(--ring);
   color: var(--primary);
+}
+
+.send-message-shortcut-select {
+  background: var(--background);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  height: 36px;
+  justify-content: center;
+  padding-right: 36px;
+  position: relative;
+  width: 180px;
+}
+
+.send-message-shortcut-select > [data-slot="select-value"] {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.send-message-shortcut-select > svg {
+  position: absolute;
+  right: 10px;
+}
+
+.send-message-shortcut-menu {
+  min-width: 180px;
+}
+
+.send-message-shortcut-menu [data-slot="select-item"] {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.send-message-shortcut-picker {
+  justify-items: start;
 }
 
 .shortcut-recorder-error {

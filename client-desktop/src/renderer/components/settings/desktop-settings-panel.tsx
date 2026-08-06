@@ -24,12 +24,9 @@ import type {
 import type { MessageCacheStats } from "@shared/message-cache-contract"
 import { DESKTOP_SETTINGS_CHANGED_EVENT } from "@/hooks/use-desktop-settings"
 import { SettingsCenter, type SettingsSectionId } from "./settings-center"
+import { SendMessageShortcutPicker } from "./send-message-shortcut-picker"
 import { ShortcutRecorder } from "./shortcut-recorder"
-import {
-  DEFAULT_SCREENSHOT_SHORTCUT,
-  DEFAULT_SEARCH_SHORTCUT,
-  DEFAULT_SEND_MESSAGE_SHORTCUT,
-} from "@shared/shortcut-contract"
+import { DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_SEARCH_SHORTCUT } from "@shared/shortcut-contract"
 
 export function DesktopSettingsPanel({
   platform,
@@ -358,12 +355,7 @@ export function DesktopSettingsPanel({
                   <strong>{t("settings.shortcuts.sendMessage")}</strong>
                   <small>{t("settings.shortcuts.sendMessage.desc")}</small>
                 </span>
-                <ShortcutRecorder
-                  defaultAccelerator={DEFAULT_SEND_MESSAGE_SHORTCUT}
-                  kind="sendMessage"
-                  labelKey="settings.shortcuts.sendMessage.aria"
-                  platform={platform ?? "unknown"}
-                />
+                <SendMessageShortcutPicker platform={platform ?? "unknown"} />
               </div>
               <div className="settings-row">
                 <span>

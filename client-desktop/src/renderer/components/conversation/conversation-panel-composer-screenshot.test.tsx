@@ -66,7 +66,7 @@ describe("ConversationPanelComposer 截图", () => {
       notificationPrivacy: "metadata",
       screenshotShortcut: "CommandOrControl+Shift+A",
       searchShortcut: "CommandOrControl+Shift+F",
-      sendMessageShortcut: "CommandOrControl+Enter",
+      sendMessageShortcut: null,
     })
     Object.defineProperty(window, "desktop", {
       configurable: true,
@@ -238,55 +238,7 @@ describe("ConversationPanelComposer 截图", () => {
     expect(screen.queryByRole("dialog")).toBeNull()
   })
 
-  it("发送消息快捷键 Cmd/Ctrl+Enter 发送草稿且 Shift+Enter 换行", async () => {
-    const user = userEvent.setup()
-    const onSendMessage = vi.fn()
-    render(composerElement(conversation, { draft: "你好", onSendMessage }))
-
-    const input = screen.getByPlaceholderText("输入消息")
-    await user.click(input)
-    await user.keyboard("{Meta>}{Enter}{/Meta}")
-    expect(onSendMessage).toHaveBeenCalledWith("你好")
-
-    await user.keyboard("{Control>}{Enter}{/Control}")
-    expect(onSendMessage).toHaveBeenCalledTimes(2)
-
-    onSendMessage.mockClear()
-    await user.keyboard("{Shift>}{Enter}{/Shift}")
-    expect(onSendMessage).not.toHaveBeenCalled()
-  })
-
-  it("自定义非 Enter 发送快捷键（Ctrl+K）也能发送消息", async () => {
-    mocks.settingsGet.mockResolvedValue({
-      autoLaunch: false,
-      closeBehavior: "background",
-      messageSoundEnabled: true,
-      notificationPrivacy: "metadata",
-      screenshotShortcut: "CommandOrControl+Shift+A",
-      searchShortcut: "CommandOrControl+Shift+F",
-      sendMessageShortcut: "CommandOrControl+K",
-    })
-    const user = userEvent.setup()
-    const onSendMessage = vi.fn()
-    render(composerElement(conversation, { draft: "你好", onSendMessage }))
-
-    const input = screen.getByPlaceholderText("输入消息")
-    await user.click(input)
-    await user.keyboard("{Control>}k{/Control}")
-
-    expect(onSendMessage).toHaveBeenCalledWith("你好")
-  })
-
-  it("禁用发送消息快捷键后 Ctrl+Enter 插入换行而不发送", async () => {
-    mocks.settingsGet.mockResolvedValue({
-      autoLaunch: false,
-      closeBehavior: "background",
-      messageSoundEnabled: true,
-      notificationPrivacy: "metadata",
-      screenshotShortcut: "CommandOrControl+Shift+A",
-      searchShortcut: "CommandOrControl+Shift+F",
-      sendMessageShortcut: null,
-    })
+  it("Enter 发送预设下普通 Enter 发送，Cmd/Ctrl+Enter 和 Shift+Enter 换行", async () => {
     const user = userEvent.setup()
     const onSendMessage = vi.fn()
     const onDraftChange = vi.fn()
@@ -294,10 +246,44 @@ describe("ConversationPanelComposer 截图", () => {
 
     const input = screen.getByPlaceholderText("输入消息")
     await user.click(input)
-    await user.keyboard("{Control>}{Enter}{/Control}")
+    await user.keyboard("{Enter}")
+    expect(onSendMessage).toHaveBeenCalledWith("你好")
 
+    onSendMessage.mockClear()
+    await user.keyboard("{Meta>}{Enter}{/Meta}")
+    expect(onSendMessage).not.toHaveBeenCalled()
+
+    await user.keyboard("{Control>}{Enter}{/Control}")
+    expect(onSendMessage).not.toHaveBeenCalled()
+
+    await user.keyboard("{Shift>}{Enter}{/Shift}")
     expect(onSendMessage).not.toHaveBeenCalled()
     expect(onDraftChange).toHaveBeenCalled()
+  })
+
+  it("Cmd/Ctrl+Enter 发送预设下组合键发送，普通 Enter 换行", async () => {
+    mocks.settingsGet.mockResolvedValue({
+      autoLaunch: false,
+      closeBehavior: "background",
+      messageSoundEnabled: true,
+      notificationPrivacy: "metadata",
+      screenshotShortcut: "CommandOrControl+Shift+A",
+      searchShortcut: "CommandOrControl+Shift+F",
+      sendMessageShortcut: "CommandOrControl+Enter",
+    })
+    const user = userEvent.setup()
+    const onDraftChange = vi.fn()
+    const onSendMessage = vi.fn()
+    render(composerElement(conversation, { draft: "你好", onDraftChange, onSendMessage }))
+
+    const input = screen.getByPlaceholderText("输入消息")
+    await user.click(input)
+    await user.keyboard("{Enter}")
+    expect(onSendMessage).not.toHaveBeenCalled()
+    expect(onDraftChange).toHaveBeenCalled()
+
+    await user.keyboard("{Meta>}{Enter}{/Meta}")
+    expect(onSendMessage).toHaveBeenCalledWith("你好")
   })
 })
 

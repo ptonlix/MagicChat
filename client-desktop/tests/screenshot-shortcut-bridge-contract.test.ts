@@ -247,15 +247,17 @@ describe("全局快捷键桥接契约", () => {
   it("发送消息快捷键只持久化且不注册全局", async () => {
     const { manager, store } = createManager()
     manager.start()
+    await manager.set("sendMessage", 7, "Control+Enter")
+    store.setSettings.mockClear()
 
-    const result = await manager.set("sendMessage", 7, "Control+Enter")
+    const result = await manager.set("sendMessage", 7, "Enter")
 
     expect(result).toEqual({
-      state: { accelerator: "Control+Enter", recording: false, registered: false },
+      state: { accelerator: "Enter", recording: false, registered: false },
       status: "updated",
     })
-    expect(store.setSettings).toHaveBeenCalledWith({ sendMessageShortcut: "Control+Enter" })
-    expect(electronMocks.registerShortcut).not.toHaveBeenCalledWith("Control+Enter")
+    expect(store.setSettings).toHaveBeenCalledWith({ sendMessageShortcut: "Enter" })
+    expect(electronMocks.registerShortcut).not.toHaveBeenCalledWith("Enter")
 
     await manager.set("sendMessage", 7, null)
     expect(store.setSettings).toHaveBeenCalledWith({ sendMessageShortcut: null })

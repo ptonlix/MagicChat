@@ -34,6 +34,7 @@ import type { ConversationDraftMention } from "@/lib/conversation-drafts"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
 import { useDesktopSettings } from "@/hooks/use-desktop-settings"
 import { acceleratorMatchesKeyboardEvent } from "@/lib/shortcut-recorder"
+import { DEFAULT_SEND_MESSAGE_SHORTCUT } from "@shared/shortcut-contract"
 import {
   createDraftMentionTemplate,
   createMentionCandidates,
@@ -124,7 +125,7 @@ export const ConversationPanelComposer = React.forwardRef<
   const [mentionTrigger, setMentionTrigger] = React.useState<MentionTrigger | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = React.useState(0)
   const settings = useDesktopSettings()
-  const sendMessageShortcut = settings?.sendMessageShortcut ?? null
+  const sendMessageShortcut = settings?.sendMessageShortcut ?? DEFAULT_SEND_MESSAGE_SHORTCUT
   const { t } = useLocale()
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<File | null>(null)
@@ -363,7 +364,7 @@ export const ConversationPanelComposer = React.forwardRef<
       sendMessageShortcut &&
       acceleratorMatchesKeyboardEvent(sendMessageShortcut, event.nativeEvent)
     ) {
-      // 配置的发送快捷键优先于默认 Enter 行为，支持 Ctrl+K、Alt+S 等非 Enter 组合
+      // 命中当前发送预设时发送，其余 Enter 组合统一用于换行。
       event.preventDefault()
       if (!sending) handleSendMessage()
       return
@@ -373,19 +374,10 @@ export const ConversationPanelComposer = React.forwardRef<
       return
     }
 
-    if (sending) {
-      event.preventDefault()
-      return
-    }
-
-    if (event.shiftKey || event.ctrlKey) {
-      event.preventDefault()
-      insertTextareaText(event.currentTarget, "\n", handleTextareaValueChange)
-      return
-    }
-
     event.preventDefault()
-    handleSendMessage()
+    if (!sending) {
+      insertTextareaText(event.currentTarget, "\n", handleTextareaValueChange)
+    }
   }
 
   function handleTextareaValueChange(value: string, cursor?: number) {

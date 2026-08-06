@@ -548,6 +548,56 @@ describe("桌面设置服务器管理", () => {
     expect(recorder).toHaveTextContent("⌘⇧S")
   })
 
+  it("发送消息快捷键修复旧值并且只提供两个等宽预设", async () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = vi.fn()
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.shortcuts.getState).mockImplementation(async (kind) => ({
+      accelerator:
+        kind === "search"
+          ? "CommandOrControl+Shift+F"
+          : kind === "sendMessage"
+            ? "Enter"
+            : "CommandOrControl+Shift+A",
+      recording: false,
+      registered: kind !== "sendMessage",
+    }))
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "快捷键" }))
+
+    const picker = await screen.findByRole("combobox", { name: "发送消息快捷键" })
+    await waitFor(() => expect(bridge.shortcuts.set).toHaveBeenCalledWith("sendMessage", null))
+    expect(picker).toHaveTextContent("↵ 发送 / ⌘↵ 换行")
+    expect(screen.queryByRole("button", { name: "恢复默认发送消息" })).toBeNull()
+    expect(picker).toHaveClass("send-message-shortcut-select")
+    expect(screen.getByRole("button", { name: "截图快捷键" })).toHaveClass(
+      "shortcut-recorder-input",
+    )
+
+    try {
+      picker.focus()
+      await user.keyboard("{Enter}")
+      const options = await screen.findAllByRole("option")
+      expect(options).toHaveLength(2)
+      expect(options[0]).toHaveTextContent("↵ 发送 / ⌘↵ 换行")
+      expect(options[1]).toHaveTextContent("⌘↵ 发送 / ↵ 换行")
+      await user.keyboard("{ArrowDown}{Enter}")
+
+      await waitFor(() =>
+        expect(bridge.shortcuts.set).toHaveBeenCalledWith("sendMessage", "CommandOrControl+Enter"),
+      )
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView
+    }
+  })
+
   it("快捷键冲突时显示错误并恢复原组合", async () => {
     const bridge = createDesktopBridge()
     vi.mocked(bridge.shortcuts.set).mockResolvedValueOnce({

@@ -98,7 +98,7 @@ describe("桌面配置迁移", () => {
       notificationPrivacy: "metadata",
       screenshotShortcut: "CommandOrControl+Shift+A",
       searchShortcut: "CommandOrControl+Shift+F",
-      sendMessageShortcut: "CommandOrControl+Enter",
+      sendMessageShortcut: "Enter",
     })
   })
 

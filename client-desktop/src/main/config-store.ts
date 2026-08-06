@@ -6,6 +6,7 @@ import {
   DEFAULT_SCREENSHOT_SHORTCUT,
   DEFAULT_SEARCH_SHORTCUT,
   DEFAULT_SEND_MESSAGE_SHORTCUT,
+  normalizeSendMessageShortcutAccelerator,
   normalizeShortcutAccelerator,
 } from "@shared/shortcut-contract"
 
@@ -95,7 +96,7 @@ export class ConfigStore {
         next.searchShortcut = normalizeShortcutAccelerator(next.searchShortcut)
       }
       if (next.sendMessageShortcut !== null) {
-        next.sendMessageShortcut = normalizeShortcutAccelerator(next.sendMessageShortcut)
+        next.sendMessageShortcut = normalizeSendMessageShortcutAccelerator(next.sendMessageShortcut)
       }
       const nextConfig = { ...this.config, settings: next }
       await this.persist(nextConfig)
@@ -250,7 +251,7 @@ function normalizeSettings(value: unknown, servers: ServerProfile[]): DesktopSet
     sendMessageShortcut:
       input.sendMessageShortcut === null
         ? null
-        : normalizeStoredShortcut(input.sendMessageShortcut, DEFAULT_SEND_MESSAGE_SHORTCUT),
+        : normalizeStoredSendMessageShortcut(input.sendMessageShortcut),
     ...(selectedServerId ? { selectedServerId } : {}),
   }
 }
@@ -260,6 +261,14 @@ function normalizeStoredShortcut(value: unknown, fallback: string): string {
     return normalizeShortcutAccelerator(value)
   } catch {
     return fallback
+  }
+}
+
+function normalizeStoredSendMessageShortcut(value: unknown): string {
+  try {
+    return normalizeSendMessageShortcutAccelerator(value)
+  } catch {
+    return DEFAULT_SEND_MESSAGE_SHORTCUT
   }
 }
 

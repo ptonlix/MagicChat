@@ -38,6 +38,27 @@ describe("快捷键录制转换", () => {
 })
 
 describe("快捷键匹配", () => {
+  it("仅在没有修饰键时匹配 Enter 发送预设", () => {
+    expect(
+      acceleratorMatchesKeyboardEvent("Enter", {
+        altKey: false,
+        code: "Enter",
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+      }),
+    ).toBe(true)
+    expect(
+      acceleratorMatchesKeyboardEvent("Enter", {
+        altKey: false,
+        code: "Enter",
+        ctrlKey: false,
+        metaKey: true,
+        shiftKey: false,
+      }),
+    ).toBe(false)
+  })
+
   it("CommandOrControl 同时接受 Cmd 或 Ctrl", () => {
     expect(
       acceleratorMatchesKeyboardEvent("CommandOrControl+Enter", {
