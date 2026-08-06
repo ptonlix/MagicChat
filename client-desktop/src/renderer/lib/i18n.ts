@@ -57,6 +57,7 @@ const zhCN = {
   "settings.notifications.privacy.preview": "显示消息预览",
 
   "settings.appearance.title": "外观",
+  "settings.appearance.colorScheme": "配色",
   "settings.appearance.system": "跟随系统",
   "settings.appearance.light": "浅色",
   "settings.appearance.dark": "深色",
@@ -155,7 +156,6 @@ const zhCN = {
   "settings.update.error.notDownloaded": "更新尚未下载完成，请稍后重试",
   "settings.update.error.prepareFailed": "更新准备未完成，请稍后重试",
   "settings.update.actionFailed": "更新操作失败，请稍后重试",
-  "settings.about.build": "构建",
   "settings.release.stable": "正式版",
   "settings.release.preview": "预览版",
   "settings.release.test": "开发版",
@@ -1384,6 +1384,7 @@ const en: Record<TranslationKey, string> = {
   "settings.notifications.privacy.preview": "Show message preview",
 
   "settings.appearance.title": "Appearance",
+  "settings.appearance.colorScheme": "Color scheme",
   "settings.appearance.system": "Follow system",
   "settings.appearance.light": "Light",
   "settings.appearance.dark": "Dark",
@@ -1490,7 +1491,6 @@ const en: Record<TranslationKey, string> = {
   "settings.update.error.notDownloaded": "The update has not finished downloading, try again later",
   "settings.update.error.prepareFailed": "Update preparation is incomplete, try again later",
   "settings.update.actionFailed": "The update action failed, please try again later",
-  "settings.about.build": "Build",
   "settings.release.stable": "Stable",
   "settings.release.preview": "Preview",
   "settings.release.test": "Development",

@@ -25,6 +25,13 @@ body,
   top: 0;
   z-index: 50;
 }
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+[data-slot="sheet-content"] {
+  -webkit-app-region: no-drag;
+  z-index: 60;
+}
 .desktop-titlebar-brand {
   align-items: center;
   display: flex;

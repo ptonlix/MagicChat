@@ -179,8 +179,7 @@ export function DesktopSettingsPanel({
           {settingsError && <p role="alert">{settingsError}</p>}
 
           {activeSection === "general" && (
-            <section aria-labelledby="settings-general-title" className="settings-group">
-              <h3 id="settings-general-title">{t("settings.general.title")}</h3>
+            <section aria-label={t("settings.general.title")} className="settings-group">
               <label className="settings-row">
                 <span>
                   <strong>{t("settings.general.autoLaunch")}</strong>
@@ -248,8 +247,7 @@ export function DesktopSettingsPanel({
           )}
 
           {activeSection === "notifications" && (
-            <section aria-labelledby="settings-notifications-title" className="settings-group">
-              <h3 id="settings-notifications-title">{t("settings.notifications.title")}</h3>
+            <section aria-label={t("settings.notifications.title")} className="settings-group">
               <label className="settings-row">
                 <span>
                   <strong>{t("settings.notifications.sound")}</strong>
@@ -287,12 +285,12 @@ export function DesktopSettingsPanel({
           )}
 
           {activeSection === "appearance" && (
-            <section aria-labelledby="settings-appearance-title" className="settings-group">
+            <section aria-label={t("settings.appearance.title")} className="settings-group">
               <div className="settings-appearance-row">
-                <h3 id="settings-appearance-title">{t("settings.appearance.title")}</h3>
+                <strong>{t("settings.appearance.colorScheme")}</strong>
                 <div className="settings-appearance-select">
                   <select
-                    aria-labelledby="settings-appearance-title"
+                    aria-label={t("settings.appearance.title")}
                     value={theme}
                     onChange={(event) => {
                       const value = event.target.value
@@ -314,8 +312,7 @@ export function DesktopSettingsPanel({
           )}
 
           {activeSection === "storage" && (
-            <section aria-labelledby="settings-storage-title" className="settings-group">
-              <h3 id="settings-storage-title">{t("settings.storage.title")}</h3>
+            <section aria-label={t("settings.storage.title")} className="settings-group">
               <div className="settings-row">
                 <span>
                   <strong>{formatCacheSize(cacheStats?.payloadBytes ?? 0)}</strong>
@@ -336,8 +333,7 @@ export function DesktopSettingsPanel({
           )}
 
           {activeSection === "shortcuts" && (
-            <section aria-labelledby="settings-shortcuts-title" className="settings-group">
-              <h3 id="settings-shortcuts-title">{t("settings.shortcuts.title")}</h3>
+            <section aria-label={t("settings.shortcuts.title")} className="settings-group">
               <div className="settings-row">
                 <span>
                   <strong>{t("settings.shortcuts.search")}</strong>
@@ -381,8 +377,7 @@ export function DesktopSettingsPanel({
           )}
 
           {activeSection === "workspace" && (
-            <section aria-labelledby="settings-workspace-title" className="settings-group">
-              <h3 id="settings-workspace-title">{t("settings.workspace.title")}</h3>
+            <section aria-label={t("settings.workspace.title")} className="settings-group">
               <label className="settings-row settings-row-stack">
                 <span>
                   <strong>{t("settings.workspace.displayName")}</strong>
@@ -425,8 +420,7 @@ export function DesktopSettingsPanel({
           )}
 
           {activeSection === "about" && (
-            <section aria-labelledby="settings-about-title" className="settings-group">
-              <h3 id="settings-about-title">{t("settings.about.title")}</h3>
+            <section aria-label={t("settings.about.title")} className="settings-group">
               <div className="settings-about-brand">
                 <img alt={t("brand.name")} src="/logo.png" />
                 <div>
@@ -436,12 +430,7 @@ export function DesktopSettingsPanel({
                       ? `${appInfo.version} · ${appInfo.platform} ${appInfo.arch}`
                       : t("settings.about.version.loading")}
                   </span>
-                  {appInfo && (
-                    <small>
-                      {releaseChannelLabel(appInfo.channel, t)} · {t("settings.about.build")}{" "}
-                      {appInfo.build}
-                    </small>
-                  )}
+                  {appInfo && <small>{releaseChannelLabel(appInfo.channel, t)}</small>}
                 </div>
               </div>
               <button
@@ -503,8 +492,7 @@ function DesktopUpdateSettingsSection({
   }
 
   return (
-    <section aria-labelledby="settings-updates-title" className="settings-group">
-      <h3 id="settings-updates-title">{t("settings.update.title")}</h3>
+    <section aria-label={t("settings.update.title")} className="settings-group">
       <div className="settings-row settings-update-status">
         <span>
           <strong>
@@ -523,6 +511,38 @@ function DesktopUpdateSettingsSection({
           </small>
         </span>
         <div className="settings-update-actions">
+          {state.targetVersion && (
+            <button
+              className="settings-release-link"
+              disabled={actionPending}
+              onClick={() =>
+                runSettingsUpdateAction(async () => {
+                  await window.desktop.updater.openReleasePage()
+                })
+              }
+              type="button"
+            >
+              <ExternalLink aria-hidden="true" size={15} />
+              {t("settings.update.release")}
+            </button>
+          )}
+          {state.status === "available" && state.installMode === "ota" && (
+            <button
+              className="settings-primary-button"
+              disabled={actionPending || !state.retryable}
+              onClick={() =>
+                runSettingsUpdateAction(async () => {
+                  await window.desktop.updater.download()
+                })
+              }
+              type="button"
+            >
+              <Download aria-hidden="true" size={16} />
+              {state.installationSource === "mac_app"
+                ? t("settings.update.downloadAuto")
+                : t("settings.update.download")}
+            </button>
+          )}
           {manualDownloadLabel && (
             <button
               className="settings-secondary-button"
@@ -558,76 +578,44 @@ function DesktopUpdateSettingsSection({
             <RefreshCw aria-hidden="true" size={16} />
             {t("settings.update.check")}
           </button>
+          {state.status === "downloaded" && (
+            <>
+              <button className="settings-secondary-button" onClick={onClose} type="button">
+                {t("settings.update.later")}
+              </button>
+              <button
+                className="settings-primary-button"
+                disabled={actionPending}
+                onClick={() =>
+                  runSettingsUpdateAction(async () => {
+                    const result = await window.desktop.updater.install()
+                    if (result.status === "started") return
+                    setUpdateActionError(getUpdateInstallErrorMessage(result.reason, t))
+                  })
+                }
+                type="button"
+              >
+                <Sparkles aria-hidden="true" size={16} />
+                {t("settings.update.install")}
+              </button>
+            </>
+          )}
+          {state.status === "error" && state.retryable && (
+            <button
+              className="settings-primary-button"
+              disabled={actionPending}
+              onClick={() =>
+                runSettingsUpdateAction(async () => {
+                  onStateChange(await window.desktop.updater.check())
+                })
+              }
+              type="button"
+            >
+              {t("settings.update.retry")}
+            </button>
+          )}
         </div>
       </div>
-      {state.targetVersion && (
-        <button
-          className="settings-release-link"
-          disabled={actionPending}
-          onClick={() =>
-            runSettingsUpdateAction(async () => {
-              await window.desktop.updater.openReleasePage()
-            })
-          }
-          type="button"
-        >
-          <ExternalLink aria-hidden="true" size={15} />
-          {t("settings.update.release")}
-        </button>
-      )}
-      {state.status === "available" && state.installMode === "ota" && (
-        <button
-          className="settings-primary-button"
-          disabled={actionPending || !state.retryable}
-          onClick={() =>
-            runSettingsUpdateAction(async () => {
-              await window.desktop.updater.download()
-            })
-          }
-          type="button"
-        >
-          <Download aria-hidden="true" size={16} />
-          {state.installationSource === "mac_app"
-            ? t("settings.update.downloadAuto")
-            : t("settings.update.download")}
-        </button>
-      )}
-      {state.status === "downloaded" && (
-        <div className="grid grid-cols-2 gap-2">
-          <button className="settings-secondary-button" onClick={onClose} type="button">
-            {t("settings.update.later")}
-          </button>
-          <button
-            className="settings-primary-button"
-            disabled={actionPending}
-            onClick={() =>
-              runSettingsUpdateAction(async () => {
-                const result = await window.desktop.updater.install()
-                if (result.status === "started") return
-                setUpdateActionError(getUpdateInstallErrorMessage(result.reason, t))
-              })
-            }
-            type="button"
-          >
-            <Sparkles aria-hidden="true" size={16} />
-            {t("settings.update.install")}
-          </button>
-        </div>
-      )}
-      {state.status === "error" && state.retryable && (
-        <button
-          className="settings-primary-button"
-          disabled={actionPending}
-          onClick={() =>
-            runSettingsUpdateAction(async () => {
-              onStateChange(await window.desktop.updater.check())
-            })
-          }
-          type="button"
-        >
-          {t("settings.update.retry")}
-        </button>
-      )}
       {showMacManualUpdate && (
         <div className="desktop-mac-update-guide">
           <strong>{t("settings.update.mac.title")}</strong>

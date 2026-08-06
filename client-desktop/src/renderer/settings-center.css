@@ -239,14 +239,6 @@
   min-width: 0;
 }
 
-.settings-group > h3 {
-  color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: 550;
-  letter-spacing: 0;
-  margin: 0 0 10px;
-}
-
 .settings-row {
   align-items: center;
   border-bottom: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
@@ -422,23 +414,26 @@
   padding: 8px 0;
 }
 
+.settings-appearance-row > strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .settings-appearance-row {
   align-items: center;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
   display: grid;
   gap: 24px;
   grid-template-columns: minmax(0, 1fr) auto;
   min-height: 76px;
   min-width: 0;
-}
-
-.settings-appearance-row h3 {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  margin: 0;
+  padding: 13px 0;
 }
 
 .settings-appearance-select {
+  grid-column: 2;
+  justify-self: end;
   position: relative;
   width: 180px;
 }
@@ -521,8 +516,21 @@
 .settings-update-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+
+.settings-update-status {
+  align-items: start;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-update-actions .settings-release-link,
+.settings-update-actions .settings-primary-button,
+.settings-update-actions .settings-secondary-button {
+  justify-self: auto;
 }
 
 .shortcut-recorder {

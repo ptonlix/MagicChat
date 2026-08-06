@@ -433,7 +433,7 @@ describe("桌面设置服务器管理", () => {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
     }
     await user.click(screen.getByRole("button", { name: "存储空间" }))
-    expect(screen.getByRole("heading", { name: "本地消息缓存" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "存储空间" })).toBeInTheDocument()
 
     const cacheButton = screen.getByRole("button", { name: "清理本地消息缓存" })
     expect(cacheButton).toHaveClass("settings-secondary-button")
@@ -452,7 +452,7 @@ describe("桌面设置服务器管理", () => {
     render(<DesktopRoot />)
 
     await user.click(await screen.findByRole("button", { name: "打开设置" }))
-    await waitFor(() => expect(screen.getByText("通用设置")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "通用" })).toBeInTheDocument())
     const hostInstallCount = mocks.installDesktopFetch.mock.calls.length
     expect(hostInstallCount).toBeGreaterThan(0)
 
@@ -497,6 +497,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(screen.getByRole("button", { name: "外观" }))
     const appearanceSelect = screen.getByRole("combobox", { name: "外观" })
+    expect(screen.getByText("配色")).toBeInTheDocument()
     expect(appearanceSelect).toHaveValue("system")
     expect(screen.getByRole("option", { name: "跟随系统" })).toBeInTheDocument()
     expect(screen.getByRole("option", { name: "浅色" })).toBeInTheDocument()
@@ -521,6 +522,7 @@ describe("桌面设置服务器管理", () => {
 
     await user.click(screen.getByRole("button", { name: "关于即应" }))
     expect(screen.getByText(/0\.1\.0 · darwin arm64/)).toBeInTheDocument()
+    expect(screen.queryByText(/构建/)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "导出脱敏诊断" })).toBeInTheDocument()
   })
 
