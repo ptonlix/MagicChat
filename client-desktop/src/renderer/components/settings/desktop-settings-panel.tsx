@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Download, ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react"
+import { ChevronsUpDown, Download, ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 
 import { useLocale } from "@/components/locale-provider"
 import { useTheme } from "@/components/theme-provider"
@@ -291,31 +291,27 @@ export function DesktopSettingsPanel({
 
           {activeSection === "appearance" && (
             <section aria-labelledby="settings-appearance-title" className="settings-group">
-              <h3 id="settings-appearance-title">{t("settings.appearance.title")}</h3>
-              <div
-                aria-label={t("settings.appearance.title")}
-                className="settings-theme-options"
-                role="radiogroup"
-              >
-                {(
-                  [
-                    ["system", "settings.appearance.system"],
-                    ["light", "settings.appearance.light"],
-                    ["dark", "settings.appearance.dark"],
-                  ] as const
-                ).map(([value, labelKey]) => (
-                  <button
-                    aria-checked={theme === value}
-                    className="settings-theme-option"
-                    key={value}
-                    onClick={() => setTheme(value)}
-                    role="radio"
-                    type="button"
+              <div className="settings-appearance-row">
+                <h3 id="settings-appearance-title">{t("settings.appearance.title")}</h3>
+                <div className="settings-appearance-select">
+                  <select
+                    aria-labelledby="settings-appearance-title"
+                    value={theme}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      if (value === "system" || value === "light" || value === "dark") {
+                        setTheme(value)
+                      }
+                    }}
                   >
-                    <span aria-hidden="true" />
-                    {t(labelKey)}
-                  </button>
-                ))}
+                    <option value="system">{t("settings.appearance.system")}</option>
+                    <option value="light">{t("settings.appearance.light")}</option>
+                    <option value="dark">{t("settings.appearance.dark")}</option>
+                  </select>
+                  <span aria-hidden="true" className="settings-appearance-select-icon">
+                    <ChevronsUpDown size={16} strokeWidth={2.4} />
+                  </span>
+                </div>
               </div>
             </section>
           )}

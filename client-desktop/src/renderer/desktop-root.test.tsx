@@ -423,7 +423,7 @@ describe("桌面设置服务器管理", () => {
     for (const label of [
       "通用",
       "新消息通知",
-      "外观与布局",
+      "外观",
       "存储空间",
       "快捷键",
       "软件更新",
@@ -495,10 +495,14 @@ describe("桌面设置服务器管理", () => {
     expect(screen.getByText("新消息提示音")).toBeInTheDocument()
     expect(screen.getByText("通知内容")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "外观与布局" }))
-    expect(screen.getByRole("radio", { name: "跟随系统" })).toBeInTheDocument()
-    expect(screen.getByRole("radio", { name: "浅色" })).toBeInTheDocument()
-    expect(screen.getByRole("radio", { name: "深色" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "外观" }))
+    const appearanceSelect = screen.getByRole("combobox", { name: "外观" })
+    expect(appearanceSelect).toHaveValue("system")
+    expect(screen.getByRole("option", { name: "跟随系统" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "浅色" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "深色" })).toBeInTheDocument()
+    await user.selectOptions(appearanceSelect, "dark")
+    await waitFor(() => expect(document.documentElement).toHaveClass("dark"))
 
     await user.click(screen.getByRole("button", { name: "存储空间" }))
     expect(screen.getByRole("button", { name: "清理本地消息缓存" })).toBeInTheDocument()

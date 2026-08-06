@@ -371,8 +371,7 @@
     .settings-center-close,
     .settings-center-icon-button,
     .settings-release-link,
-    .shortcut-recorder-input,
-    .settings-theme-option
+    .shortcut-recorder-input
   ) {
   align-items: center;
   background: var(--background);
@@ -422,32 +421,68 @@
   padding: 8px 0;
 }
 
-.settings-theme-options {
-  border: 1px solid var(--border);
-  border-radius: 7px;
+.settings-appearance-row {
+  align-items: center;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: hidden;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 76px;
+  min-width: 0;
 }
 
-.settings-theme-option {
+.settings-appearance-row h3 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.settings-appearance-select {
+  position: relative;
+  width: 180px;
+}
+
+.settings-appearance-select select {
+  appearance: none;
   background: var(--background);
-  border: 0;
-  border-right: 1px solid var(--border);
-  color: var(--muted-foreground);
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  color: var(--foreground);
   cursor: pointer;
   font: inherit;
-  height: 42px;
-}
-
-.settings-theme-option:last-child {
-  border-right: 0;
-}
-
-.settings-theme-option[aria-checked="true"] {
-  background: color-mix(in oklch, var(--primary) 12%, var(--background));
-  color: color-mix(in oklch, var(--primary) 85%, var(--foreground));
+  font-size: 13px;
   font-weight: 600;
+  height: 42px;
+  padding: 0 46px 0 14px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+  width: 100%;
+}
+
+.settings-appearance-select select:hover {
+  border-color: color-mix(in oklch, var(--primary) 48%, var(--input));
+}
+
+.settings-center .settings-appearance-select select:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 22%, transparent);
+  outline: none;
+}
+
+.settings-appearance-select-icon {
+  align-items: center;
+  background: var(--primary);
+  border-radius: 6px;
+  color: var(--primary-foreground);
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 34px;
 }
 
 .settings-about-brand {
@@ -599,6 +634,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .settings-center-nav-item,
+  .settings-appearance-select select,
   .settings-row input[type="checkbox"],
   .settings-row input[type="checkbox"]::after {
     transition: none;
