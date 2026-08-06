@@ -79,6 +79,7 @@ vi.mock("@main/window-controller", () => ({
 import {
   buildDocumentWindowLoadUrl,
   DocumentWindowManager,
+  isDocumentWindowNavigationAllowed,
   type DocumentWindowManagerDependencies,
 } from "@main/document-window-manager"
 
@@ -153,6 +154,38 @@ describe("DocumentWindowManager", () => {
         "https://attacker.example/",
       ),
     ).toBe(`magicchat-app://app/documents/document/${documentId}?serverId=server-1&window=document`)
+  })
+
+  it("文档窗口只允许规范文档路由和受控恢复页导航", () => {
+    const request = { documentId, serverId: target.id }
+
+    expect(
+      isDocumentWindowNavigationAllowed(
+        `magicchat-app://app/documents/document/${documentId}?serverId=server-1&window=document`,
+        request,
+        true,
+      ),
+    ).toBe(true)
+    expect(
+      isDocumentWindowNavigationAllowed("magicchat-app://app/recovery.html", request, true),
+    ).toBe(true)
+    expect(isDocumentWindowNavigationAllowed("magicchat-app://app/chat", request, true)).toBe(false)
+    expect(
+      isDocumentWindowNavigationAllowed(
+        `magicchat-app://app/documents/document/${documentId}?serverId=server-1&window=document&x=1`,
+        request,
+        true,
+      ),
+    ).toBe(false)
+    expect(isDocumentWindowNavigationAllowed("https://example.com", request, true)).toBe(false)
+    expect(
+      isDocumentWindowNavigationAllowed(
+        `http://localhost:20050/documents/document/${documentId}?serverId=server-1&window=document`,
+        request,
+        false,
+        "http://localhost:20050/",
+      ),
+    ).toBe(true)
   })
 
   it("主窗口聊天 owner 打开文档时只新增独立顶层窗口，不改变主窗口", async () => {
@@ -239,7 +272,9 @@ describe("DocumentWindowManager", () => {
     const child = mocks.windows[0]!
     child.webContentsListeners.get("render-process-gone")?.({}, { reason: "crashed" })
     expect(manager.size()).toBe(0)
+    expect(child.destroy).toHaveBeenCalledOnce()
     expect(collaboration.closeOwner).toHaveBeenCalledWith(child.webContents.id)
+    expect(collaboration.closeOwner).toHaveBeenCalledTimes(1)
     manager.dispose()
     manager.dispose()
     expect(manager.size()).toBe(0)

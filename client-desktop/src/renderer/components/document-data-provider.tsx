@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 
 import { ClientDocumentTitle } from "@/components/client-document-title"
 import {
@@ -7,10 +15,35 @@ import {
   type ClientUser,
 } from "@/lib/client-data-api"
 import { useAppInfo } from "@/lib/app-info-context"
+import { ClientDataContext } from "@/lib/client-data-context"
 import { DocumentDataContext } from "@/lib/document-data-context"
 import { listClientProjects } from "@/lib/project-data-api"
 
 export function DocumentDataProvider({ children }: { children: ReactNode }) {
+  const clientData = useContext(ClientDataContext)
+  const clientDocumentData = useMemo(
+    () =>
+      clientData
+        ? {
+            me: clientData.me,
+            refreshMe: clientData.refreshMe,
+            refreshProjects: clientData.refreshProjects,
+          }
+        : null,
+    [clientData],
+  )
+
+  if (clientDocumentData)
+    return (
+      <DocumentDataContext.Provider value={clientDocumentData}>
+        {children}
+      </DocumentDataContext.Provider>
+    )
+
+  return <StandaloneDocumentDataProvider>{children}</StandaloneDocumentDataProvider>
+}
+
+function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
   const { setAuthenticated } = useAppInfo()
   const [me, setMe] = useState<ClientUser | null>(null)
   const [error, setError] = useState<ClientDataRequestError | null>(null)

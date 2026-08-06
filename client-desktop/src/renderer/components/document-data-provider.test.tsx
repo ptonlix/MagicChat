@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import { ClientDataRequestError } from "@/lib/client-data-api"
+import { ClientDataContext, type ClientDataContextValue } from "@/lib/client-data-context"
 import { useDocumentData } from "@/lib/document-data-context"
 import { DocumentDataProvider } from "./document-data-provider"
 
@@ -70,5 +71,29 @@ describe("DocumentDataProvider", () => {
     ).toBeInTheDocument()
     expect(mocks.setAuthenticated).toHaveBeenCalledWith(false)
     await waitFor(() => expect(screen.queryByText("当前用户：user-1")).not.toBeInTheDocument())
+  })
+
+  it("主窗口已有聊天数据上下文时复用当前用户而不重复请求", async () => {
+    mocks.getCurrentClientUser.mockReset()
+    mocks.listClientProjects.mockReset()
+    const refreshMe = vi.fn()
+    const refreshProjects = vi.fn()
+    const clientData = {
+      me: { id: "user-1" },
+      refreshMe,
+      refreshProjects,
+    } as unknown as ClientDataContextValue
+
+    render(
+      <ClientDataContext.Provider value={clientData}>
+        <DocumentDataProvider>
+          <Probe />
+        </DocumentDataProvider>
+      </ClientDataContext.Provider>,
+    )
+
+    expect(screen.getByText("当前用户：user-1")).toBeInTheDocument()
+    expect(mocks.getCurrentClientUser).not.toHaveBeenCalled()
+    expect(mocks.listClientProjects).not.toHaveBeenCalled()
   })
 })

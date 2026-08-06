@@ -29,12 +29,15 @@ export function rememberLastNonDocumentRoute(location: DocumentNavigationLocatio
   if (isDocumentRoutePath(location.pathname)) return
 
   const route = `${location.pathname}${location.search}${location.hash}`
-  if (!isInternalRoute(route)) return
+  if (!isRememberableRoute(route)) {
+    lastNonDocumentRoute = undefined
+    return
+  }
   lastNonDocumentRoute = route
 }
 
 export function getDocumentReturnPath(fallback: string): string {
-  return lastNonDocumentRoute && isInternalRoute(lastNonDocumentRoute)
+  return lastNonDocumentRoute && isRememberableRoute(lastNonDocumentRoute)
     ? lastNonDocumentRoute
     : fallback
 }
@@ -113,6 +116,14 @@ export function documentWindowPath(documentId: string, serverId: string): string
 
 function isInternalRoute(route: string): boolean {
   return route.startsWith("/") && !route.startsWith("//")
+}
+
+function isRememberableRoute(route: string): boolean {
+  if (!isInternalRoute(route)) return false
+  const pathname = route.split(/[?#]/, 1)[0]
+  return ["/chat", "/contacts", "/projects"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  )
 }
 
 export function documentWindowFeedbackMessage(

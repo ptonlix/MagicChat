@@ -152,7 +152,10 @@ export class DocumentWindowManager {
       Object.freeze({ serverId: request.serverId, userId }),
     )
     this.installLifecycle(entry)
-    installTrustedWindowSecurity(window)
+    installTrustedWindowSecurity(window, {
+      navigationGuard: (url) =>
+        isDocumentWindowNavigationAllowed(url, request, app.isPackaged, this.deps.developmentUrl),
+    })
     try {
       await window.loadURL(
         buildDocumentWindowLoadUrl(request, app.isPackaged, this.deps.developmentUrl),
@@ -255,7 +258,7 @@ export class DocumentWindowManager {
     window.on("closed", () => this.cleanup(entry, false))
     window.webContents.on("render-process-gone", (_event, details) => {
       void this.deps.diagnostics.record("renderer", details.reason)
-      this.cleanup(entry, false)
+      this.cleanup(entry, true)
     })
     window.webContents.on(
       "did-fail-load",
@@ -307,12 +310,67 @@ export class DocumentWindowManager {
   }
 
   private cleanup(entry: DocumentWindowEntry, destroy: boolean): void {
-    if (this.entries.get(entry.key) === entry) this.entries.delete(entry.key)
+    if (this.entries.get(entry.key) !== entry) return
+    this.entries.delete(entry.key)
     this.ownerTargets.delete(entry.window.webContents.id)
     this.deps.collaboration.closeOwner(entry.window.webContents.id)
     if (!entry.loadFailed) this.persistBounds(entry)
     if (destroy && !entry.window.isDestroyed()) entry.window.destroy()
   }
+}
+
+export function isDocumentWindowNavigationAllowed(
+  rawUrl: string,
+  request: DocumentWindowRequest,
+  isPackaged: boolean,
+  developmentUrl?: string,
+): boolean {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    return false
+  }
+
+  if (url.protocol === "magicchat-app:") {
+    if (url.hostname !== "app" || url.username || url.password) return false
+    if (url.pathname === "/recovery.html") return !url.search && !url.hash
+    return isCanonicalDocumentWindowUrl(url, request)
+  }
+
+  if (isPackaged || !developmentUrl) return false
+
+  try {
+    const development = new URL(developmentUrl)
+    if (
+      development.protocol !== "http:" ||
+      !["127.0.0.1", "localhost"].includes(development.hostname) ||
+      development.username ||
+      development.password ||
+      url.origin !== development.origin
+    )
+      return false
+  } catch {
+    return false
+  }
+
+  return isCanonicalDocumentWindowUrl(url, request)
+}
+
+function isCanonicalDocumentWindowUrl(url: URL, request: DocumentWindowRequest): boolean {
+  if (url.pathname !== `/documents/document/${encodeURIComponent(request.documentId)}` || url.hash)
+    return false
+
+  const keys = [...url.searchParams.keys()].sort()
+  return (
+    keys.length === 2 &&
+    keys[0] === "serverId" &&
+    keys[1] === "window" &&
+    url.searchParams.getAll("serverId").length === 1 &&
+    url.searchParams.get("serverId") === request.serverId &&
+    url.searchParams.getAll("window").length === 1 &&
+    url.searchParams.get("window") === "document"
+  )
 }
 
 export function buildDocumentWindowLoadUrl(

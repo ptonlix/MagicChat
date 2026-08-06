@@ -105,4 +105,18 @@ describe("文档窗口渲染路由", () => {
 
     expect(getDocumentReturnPath("/chat")).toBe("/projects/project-1/documents?view=grid#editing")
   })
+
+  it("登录和初始化路由不会成为文档返回目标", () => {
+    rememberLastNonDocumentRoute({ hash: "", pathname: "/projects/project-1", search: "" })
+    rememberLastNonDocumentRoute({ hash: "", pathname: "/login", search: "" })
+    expect(getDocumentReturnPath("/projects/project-1/documents")).toBe(
+      "/projects/project-1/documents",
+    )
+
+    rememberLastNonDocumentRoute({ hash: "", pathname: "/projects/project-1", search: "" })
+    rememberLastNonDocumentRoute({ hash: "", pathname: "/init", search: "" })
+    expect(getDocumentReturnPath("/projects/project-1/documents")).toBe(
+      "/projects/project-1/documents",
+    )
+  })
 })

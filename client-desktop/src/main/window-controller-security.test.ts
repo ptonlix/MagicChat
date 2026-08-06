@@ -58,6 +58,16 @@ describe("主窗口外部导航安全", () => {
       expect(event.preventDefault).toHaveBeenCalledOnce()
     }
   })
+
+  it("阻止主窗口跟随外部重定向", () => {
+    createController().create()
+    const listener = electronMocks.webContentsListeners.get("will-redirect")
+    const event = { preventDefault: vi.fn() }
+
+    listener?.(event, "https://example.com/redirect")
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
 })
 
 function createController() {

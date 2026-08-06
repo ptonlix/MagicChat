@@ -106,16 +106,16 @@ function NormalRoutes({ updatePrompt }: { updatePrompt?: ReactNode }) {
             }
           />
         </Route>
-      </Route>
-      <Route element={<DocumentProviderShell />}>
-        <Route
-          path="/documents/document/:documentId"
-          element={
-            <Suspense fallback={<DocumentRouteLoading />}>
-              <DocumentRoute />
-            </Suspense>
-          }
-        />
+        <Route element={<DocumentProviderShell />}>
+          <Route
+            path="/documents/document/:documentId"
+            element={
+              <Suspense fallback={<DocumentRouteLoading />}>
+                <DocumentRoute />
+              </Suspense>
+            }
+          />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

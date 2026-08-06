@@ -57,13 +57,13 @@ describe("桌面更新入口路由边界", () => {
     )
   })
 
-  it("文档路由懒加载全屏工作区且不经过普通布局", async () => {
+  it("主窗口文档路由保留聊天宿主但不经过普通布局", async () => {
     renderApp("/documents/document/550e8400-e29b-41d4-a716-446655440000")
 
     expect(await screen.findByText("文档工作区")).toBeInTheDocument()
     expect(screen.queryByRole("complementary", { name: "应用侧边栏" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "新版本" })).not.toBeInTheDocument()
-    expect(screen.queryByTestId("chat-data-provider")).not.toBeInTheDocument()
+    expect(screen.getByTestId("chat-data-provider")).toBeInTheDocument()
   })
 
   it("子窗口离开文档路由时回到当前文档，不挂载聊天页面", async () => {

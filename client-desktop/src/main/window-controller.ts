@@ -119,10 +119,21 @@ export class WindowController {
   }
 }
 
-export function installTrustedWindowSecurity(window: BrowserWindow): void {
+export type TrustedWindowSecurityOptions = Readonly<{
+  navigationGuard?: (url: string) => boolean
+}>
+
+export function installTrustedWindowSecurity(
+  window: BrowserWindow,
+  options: TrustedWindowSecurityOptions = {},
+): void {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
   window.webContents.on("will-navigate", (event, url) => {
-    if (isTrustedRenderer(url)) return
+    if (isAllowedWindowNavigation(url, options.navigationGuard)) return
+    event.preventDefault()
+  })
+  window.webContents.on("will-redirect", (event, url) => {
+    if (isAllowedWindowNavigation(url, options.navigationGuard)) return
     event.preventDefault()
   })
 }
@@ -161,4 +172,11 @@ function isTrustedRenderer(rawUrl: string): boolean {
     }
   }
   return false
+}
+
+function isAllowedWindowNavigation(
+  rawUrl: string,
+  navigationGuard?: (url: string) => boolean,
+): boolean {
+  return isTrustedRenderer(rawUrl) && (navigationGuard?.(rawUrl) ?? true)
 }
