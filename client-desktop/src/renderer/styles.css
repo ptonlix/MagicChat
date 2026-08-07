@@ -739,10 +739,6 @@ body,
   gap: 7px;
   padding-top: 10px;
 }
-.desktop-mac-update-guide > strong {
-  font-size: 12px;
-  font-weight: 650;
-}
 .desktop-mac-update-guide > p,
 .desktop-mac-update-guide > ol {
   color: var(--muted-foreground);
