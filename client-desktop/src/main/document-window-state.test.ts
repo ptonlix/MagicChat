@@ -76,4 +76,24 @@ describe("FileDocumentWindowStateStore", () => {
     expect(store.get("target:document-1")).toBeUndefined()
     expect(store.get("target:document-2")).toBeDefined()
   })
+
+  it("按服务器清理所有账号和文档状态且不误删相似服务器", async () => {
+    const store = new FileDocumentWindowStateStore(directory)
+    const state = { bounds: { height: 760, width: 1120, x: 10, y: 10 } }
+    await Promise.all([
+      store.set("server-1:user-1:document-1", state),
+      store.set("server-1:user-2:document-2", state),
+      store.set("server-10:user-1:document-3", state),
+    ])
+
+    await store.deleteServer("server-1")
+
+    expect(store.get("server-1:user-1:document-1")).toBeUndefined()
+    expect(store.get("server-1:user-2:document-2")).toBeUndefined()
+    expect(store.get("server-10:user-1:document-3")).toBeDefined()
+
+    const raw = await readFile(path.join(directory, "document-window-state.json"), "utf8")
+    expect(raw).not.toContain('"server-1:')
+    expect(raw).toContain('"server-10:')
+  })
 })

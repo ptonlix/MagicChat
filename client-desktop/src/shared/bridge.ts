@@ -284,7 +284,7 @@ export interface DesktopBridge {
   servers: {
     add(url: string, displayName?: string): Promise<ServerProfile>
     list(): Promise<ReadonlyArray<ServerProfile>>
-    remove(id: string): Promise<void>
+    remove(id: string): Promise<boolean>
     rename(id: string, displayName: string): Promise<ServerProfile>
     select(id: string): Promise<void>
   }

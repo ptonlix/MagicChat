@@ -39,6 +39,11 @@ type DocumentWindowEntry = {
   }>
   documentId: string
   key: string
+  loadRequest: Readonly<{
+    promise: Promise<boolean>
+    resolve(loaded: boolean): void
+  }>
+  loadResult?: boolean
   serverId: string
   targetKey: string
   userId: string
@@ -110,6 +115,9 @@ export class DocumentWindowManager {
     const existing = this.entries.get(key)
     if (existing) {
       if (!existing.window.isDestroyed()) {
+        const loaded = await existing.loadRequest.promise
+        if (!loaded || this.entries.get(existing.key) !== existing || existing.window.isDestroyed())
+          return failedDocumentWindowResponse("load_failed", "文档窗口加载失败，请稍后重试")
         this.focus(existing.window)
         return createdDocumentWindowResponse("focused")
       }
@@ -153,9 +161,14 @@ export class DocumentWindowManager {
       return failedDocumentWindowResponse("load_failed", "文档窗口创建失败，请稍后重试")
     }
 
+    let resolveLoad!: (loaded: boolean) => void
+    const loadPromise = new Promise<boolean>((resolve) => {
+      resolveLoad = resolve
+    })
     const entry: DocumentWindowEntry = {
       documentId: request.documentId,
       key,
+      loadRequest: Object.freeze({ promise: loadPromise, resolve: resolveLoad }),
       loadFailed: false,
       serverId: request.serverId,
       targetKey: target,
@@ -181,6 +194,11 @@ export class DocumentWindowManager {
       this.handleLoadFailure(entry)
       return failedDocumentWindowResponse("load_failed", "文档窗口加载失败，请稍后重试")
     }
+    if (entry.loadFailed || this.entries.get(entry.key) !== entry || entry.window.isDestroyed()) {
+      this.resolveLoadRequest(entry, false)
+      return failedDocumentWindowResponse("load_failed", "文档窗口加载失败，请稍后重试")
+    }
+    this.resolveLoadRequest(entry, true)
     return createdDocumentWindowResponse("created")
   }
 
@@ -217,16 +235,18 @@ export class DocumentWindowManager {
   }
 
   async requestCloseAll(): Promise<boolean> {
-    if (this.disposed) return true
-    for (const entry of [...this.entries.values()]) {
-      if (this.entries.get(entry.key) !== entry) continue
-      if (!(await this.requestClose(entry))) {
-        await this.flushStateWrites()
-        return false
-      }
-    }
+    return this.requestCloseEntries([...this.entries.values()])
+  }
+
+  async requestCloseServer(serverId: string): Promise<boolean> {
+    return this.requestCloseEntries(
+      [...this.entries.values()].filter((entry) => entry.serverId === serverId),
+    )
+  }
+
+  async deleteServerState(serverId: string): Promise<void> {
     await this.flushStateWrites()
-    return true
+    await this.deps.state.deleteServer(serverId)
   }
 
   setThemeBackground(dark: boolean): void {
@@ -398,6 +418,25 @@ export class DocumentWindowManager {
     request.resolve(closed)
   }
 
+  private resolveLoadRequest(entry: DocumentWindowEntry, loaded: boolean): void {
+    if (entry.loadResult !== undefined) return
+    entry.loadResult = loaded
+    entry.loadRequest.resolve(loaded)
+  }
+
+  private async requestCloseEntries(entries: ReadonlyArray<DocumentWindowEntry>): Promise<boolean> {
+    if (this.disposed) return true
+    for (const entry of entries) {
+      if (this.entries.get(entry.key) !== entry) continue
+      if (!(await this.requestClose(entry))) {
+        await this.flushStateWrites()
+        return false
+      }
+    }
+    await this.flushStateWrites()
+    return true
+  }
+
   private schedulePersistBounds(entry: DocumentWindowEntry): void {
     if (entry.boundsPersistTimer) clearTimeout(entry.boundsPersistTimer)
     entry.boundsPersistTimer = setTimeout(() => {
@@ -455,6 +494,7 @@ export class DocumentWindowManager {
     this.entries.delete(entry.key)
     this.ownerTargets.delete(entry.window.webContents.id)
     this.deps.collaboration.closeOwner(entry.window.webContents.id)
+    this.resolveLoadRequest(entry, false)
     if (!entry.loadFailed) this.persistBounds(entry)
     if (destroy && !entry.window.isDestroyed()) entry.window.destroy()
     this.resolveCloseRequest(entry, true)

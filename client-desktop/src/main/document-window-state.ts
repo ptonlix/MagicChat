@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 
+import { isServerId } from "@shared/document-window-contract"
 import {
   isValidDocumentWindowRectangle,
   type DocumentWindowRectangle,
@@ -16,6 +17,7 @@ export interface DocumentWindowStateStore {
   get(key: string): DocumentWindowPersistedState | undefined
   set(key: string, state: DocumentWindowPersistedState): Promise<void>
   delete(key: string): Promise<void>
+  deleteServer(serverId: string): Promise<void>
 }
 
 type StoredState = Record<string, DocumentWindowPersistedState>
@@ -67,6 +69,15 @@ export class FileDocumentWindowStateStore implements DocumentWindowStateStore {
 
   delete(key: string): Promise<void> {
     this.states.delete(key)
+    return this.enqueue(() => this.persist())
+  }
+
+  deleteServer(serverId: string): Promise<void> {
+    if (!isServerId(serverId)) throw new Error("服务器标识无效")
+    const prefix = `${serverId}:`
+    for (const key of this.states.keys()) {
+      if (key.startsWith(prefix)) this.states.delete(key)
+    }
     return this.enqueue(() => this.persist())
   }
 

@@ -141,7 +141,8 @@ export function DesktopSettingsPanel({
     setBusy(true)
     setRemoveError("")
     try {
-      await window.desktop.servers.remove(profile.id)
+      const removed = await window.desktop.servers.remove(profile.id)
+      if (!removed) return
       onOpenChange(false)
       onRemoved(profile.id)
     } catch (reason) {

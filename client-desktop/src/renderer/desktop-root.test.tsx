@@ -124,7 +124,7 @@ describe("桌面设置服务器管理", () => {
     mocks.installDesktopFetch.mockReset().mockReturnValue(mocks.restoreFetch)
     mocks.openManual.mockReset().mockResolvedValue(undefined)
     mocks.openRelease.mockReset().mockResolvedValue(undefined)
-    mocks.remove.mockResolvedValue(undefined)
+    mocks.remove.mockResolvedValue(true)
     mocks.restoreFetch.mockReset()
     mocks.shellOpenExternal.mockReset().mockResolvedValue(undefined)
     vi.spyOn(window, "confirm").mockReturnValue(true)
@@ -331,6 +331,20 @@ describe("桌面设置服务器管理", () => {
     expect(screen.getByRole("heading", { name: /从沟通到行动/ })).toBeInTheDocument()
     expect(mocks.remove).toHaveBeenCalledWith(profile.id)
     expect(screen.getByLabelText("服务器地址")).toHaveValue("")
+  })
+
+  it("未同步文档取消关闭后保留当前服务器和设置窗口", async () => {
+    mocks.remove.mockResolvedValueOnce(false)
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "工作空间" }))
+    await user.click(await screen.findByRole("button", { name: "移除服务器" }))
+
+    expect(mocks.remove).toHaveBeenCalledWith(profile.id)
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "开始使用即应" })).not.toBeInTheDocument()
   })
 
   it("StrictMode 下忽略已失效的启动结果，避免提前挂载工作区", async () => {

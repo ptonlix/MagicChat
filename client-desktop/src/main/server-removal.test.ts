@@ -19,7 +19,13 @@ describe("Server 移除生命周期", () => {
         closeServer: vi.fn(() => calls.push("document-collaboration")),
       },
       documentWindows: {
-        closeServer: vi.fn(() => calls.push("document-windows")),
+        deleteServerState: vi.fn(async () => {
+          calls.push("document-window-state")
+        }),
+        requestCloseServer: vi.fn(async () => {
+          calls.push("document-windows")
+          return true
+        }),
       },
       credentials: {
         removeServer: vi.fn(async () => {
@@ -64,14 +70,42 @@ describe("Server 移除生命周期", () => {
       },
     }
 
-    await expect(removeServerResources(deps, profile.id, profile)).resolves.toBeUndefined()
+    await expect(removeServerResources(deps, profile.id, profile)).resolves.toBe(true)
 
     expect(deps.sessions.remove).toHaveBeenCalledWith(profile)
-    expect(deps.documentWindows?.closeServer).toHaveBeenCalledWith(profile.id)
+    expect(deps.documentWindows?.requestCloseServer).toHaveBeenCalledWith(profile.id)
+    expect(deps.documentWindows?.deleteServerState).toHaveBeenCalledWith(profile.id)
     expect(deps.credentials.removeServer).toHaveBeenCalledWith(profile.id)
     expect(deps.store.removeServer).toHaveBeenCalledWith(profile.id)
+    expect(calls.at(0)).toBe("document-windows")
     expect(calls.indexOf("http")).toBeLessThan(calls.indexOf("sessions"))
     expect(calls.indexOf("asr")).toBeLessThan(calls.indexOf("sessions"))
     expect(calls.at(-1)).toBe("profile")
+  })
+
+  it("未同步文档取消关闭时终止移除且不清理任何服务器资源", async () => {
+    const requestCloseServer = vi.fn(async () => false)
+    const deps = {
+      asr: { closeServer: vi.fn() },
+      documentCollaboration: { closeServer: vi.fn() },
+      documentWindows: { deleteServerState: vi.fn(), requestCloseServer },
+      credentials: { removeServer: vi.fn() },
+      files: { cleanupServer: vi.fn() },
+      http: { cancelServer: vi.fn() },
+      messageCache: { clearServerBestEffort: vi.fn() },
+      realtime: { closeServer: vi.fn() },
+      sessions: { remove: vi.fn() },
+      store: { removeServer: vi.fn() },
+      uploads: { cleanupServer: vi.fn() },
+    } as unknown as ServerRemovalDependencies
+
+    await expect(removeServerResources(deps, profile.id, profile)).resolves.toBe(false)
+
+    expect(requestCloseServer).toHaveBeenCalledWith(profile.id)
+    expect(deps.http.cancelServer).not.toHaveBeenCalled()
+    expect(deps.documentCollaboration.closeServer).not.toHaveBeenCalled()
+    expect(deps.documentWindows?.deleteServerState).not.toHaveBeenCalled()
+    expect(deps.credentials.removeServer).not.toHaveBeenCalled()
+    expect(deps.store.removeServer).not.toHaveBeenCalled()
   })
 })

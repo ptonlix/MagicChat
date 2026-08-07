@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => {
   let nextWindowId = 2
   let rejectNextLoad = false
+  let deferredNextLoad:
+    | Readonly<{
+        promise: Promise<void>
+        reject(error: Error): void
+        resolve(): void
+      }>
+    | undefined
   const primaryDisplay = {
     bounds: { height: 900, width: 1440, x: 0, y: 0 },
     id: "display-1",
@@ -25,6 +32,11 @@ const mocks = vi.hoisted(() => {
     minimized = false
     readonly bounds = { height: 760, width: 1120, x: 160, y: 30 }
     readonly loadURL = vi.fn(async (_url: string) => {
+      if (deferredNextLoad) {
+        const deferred = deferredNextLoad
+        deferredNextLoad = undefined
+        await deferred.promise
+      }
       if (rejectNextLoad) {
         rejectNextLoad = false
         throw new Error("模拟文档窗口加载失败")
@@ -66,6 +78,7 @@ const mocks = vi.hoisted(() => {
     reset() {
       nextWindowId = 2
       rejectNextLoad = false
+      deferredNextLoad = undefined
       displays.splice(0, displays.length, primaryDisplay)
       stateGet.mockReset()
       stateSet.mockReset().mockResolvedValue(undefined)
@@ -73,6 +86,16 @@ const mocks = vi.hoisted(() => {
     },
     rejectNextLoad() {
       rejectNextLoad = true
+    },
+    deferNextLoad() {
+      let reject!: (error: Error) => void
+      let resolve!: () => void
+      const promise = new Promise<void>((complete, fail) => {
+        reject = fail
+        resolve = complete
+      })
+      deferredNextLoad = Object.freeze({ promise, reject, resolve })
+      return deferredNextLoad
     },
     displays,
     primaryDisplay,
@@ -386,6 +409,20 @@ describe("DocumentWindowManager", () => {
     expect(manager.size()).toBe(0)
   })
 
+  it("移除服务器请求复用未同步确认，取消时保留该服务器窗口", async () => {
+    const manager = createManager(createMainWindow())
+    await manager.open(1, { documentId, serverId: target.id })
+    const child = mocks.windows[0]!
+    const listener = child.webContentsListeners.get("will-prevent-unload")
+    child.close.mockImplementation(() => listener?.({ preventDefault: vi.fn() }))
+    mocks.showMessageBox.mockResolvedValueOnce({ response: 0 })
+
+    await expect(manager.requestCloseServer(target.id)).resolves.toBe(false)
+
+    expect(child.destroy).not.toHaveBeenCalled()
+    expect(manager.size()).toBe(1)
+  })
+
   it("连续移动和缩放只合并持久化最新窗口状态", async () => {
     vi.useFakeTimers()
     try {
@@ -506,6 +543,20 @@ describe("DocumentWindowManager", () => {
     expect(manager.size()).toBe(0)
     expect(mocks.windows[0]?.loadURL).toHaveBeenLastCalledWith("magicchat-app://app/recovery.html")
   })
+
+  it("并发打开同一文档时共享首屏加载失败结果", async () => {
+    const manager = createManager(createMainWindow())
+    const loading = mocks.deferNextLoad()
+
+    const first = manager.open(1, { documentId, serverId: target.id })
+    await vi.waitFor(() => expect(mocks.windows).toHaveLength(1))
+    const second = manager.open(1, { documentId, serverId: target.id })
+    loading.reject(new Error("模拟文档窗口加载失败"))
+
+    await expect(first).resolves.toMatchObject({ error: { code: "load_failed" }, ok: false })
+    await expect(second).resolves.toMatchObject({ error: { code: "load_failed" }, ok: false })
+    expect(mocks.windows).toHaveLength(1)
+  })
 })
 
 function createManager(
@@ -529,6 +580,7 @@ function createManager(
       get: mocks.stateGet,
       set: mocks.stateSet,
       delete: vi.fn().mockResolvedValue(undefined),
+      deleteServer: vi.fn().mockResolvedValue(undefined),
     },
     store: {
       getSettings: vi.fn(() => ({ selectedServerId })),

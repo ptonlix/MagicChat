@@ -61,7 +61,7 @@ Desktop 文档窗口是由 Main 创建的独立顶层 `BrowserWindow`，主窗�
 
 窗口请求必须经过可信 IPC sender 校验，并绑定已保存的 Server Profile、当前 `lastUserId` 和
 文档 UUID。Main 使用 `serverId + userId + documentId` 建立幂等索引，同一认证 Target 最多
-打开 8 个文档窗口；重复请求只聚焦已有窗口。子窗口使用与主窗口一致的 preload、context
+打开 8 个文档窗口；重复请求等待同一首屏加载结果，成功后才聚焦已有窗口。子窗口使用与主窗口一致的 preload、context
 isolation、sandbox、webSecurity 和 CSP，并且只加载带有 `serverId`、`window=document` 的
 本地 `magicchat-app://app/` 路由。远程导航、任意新窗口和伪造 Origin、Header、Cookie、脚本
 均在 Main/Preload 边界拒绝。
@@ -82,6 +82,8 @@ Yjs/Hocuspocus、标题保存和离开保护；它不挂载聊天 `ClientDataPro
 owner 的协作 session、队列和监听器，不影响其他 Server 的窗口。普通应用退出会先请求所有文档
 窗口执行现有未同步关闭确认；用户取消时终止退出并保留窗口，确认后才进入不可逆资源清理。
 OTA 安装也在调用平台安装退出前完成同一确认，避免更新流程绕过未同步保护。
+移除 Server Profile 前只协商关闭该 Server 的文档窗口；用户取消时终止移除且不清理 Session、
+凭据或缓存，确认后等待最终窗口状态写入，再删除该 Server 下所有账号和文档的窗口状态。
 
 窗口状态仅持久化按认证 Target/文档隔离的 bounds 和显示器元数据，使用最小 `760x560`。移动
 和缩放事件采用防抖写入并在关闭时刷新最终状态；恢复时优先使用仍存在的已保存显示器，并按其
