@@ -518,19 +518,49 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .settings-update-status {
   align-items: start;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.settings-update-actions .settings-release-link,
 .settings-update-actions .settings-primary-button,
 .settings-update-actions .settings-secondary-button {
   justify-self: auto;
+}
+
+.settings-update-target {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-update-target .settings-release-link {
+  align-items: center;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 0;
+}
+
+.settings-mac-update-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.settings-mac-update-header > strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-mac-update-header .settings-secondary-button {
+  flex: none;
 }
 
 .shortcut-recorder {
@@ -675,6 +705,11 @@
   .settings-secondary-button,
   .shortcut-recorder {
     justify-self: start;
+  }
+
+  .settings-mac-update-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .shortcut-recorder {

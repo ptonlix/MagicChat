@@ -503,7 +503,22 @@ function DesktopUpdateSettingsSection({
           </strong>
           <small>{updateStatusText(state, t)}</small>
           {state.targetVersion && (
-            <small>{t("settings.update.target", { version: state.targetVersion })}</small>
+            <span className="settings-update-target">
+              <small>{t("settings.update.target", { version: state.targetVersion })}</small>
+              <button
+                className="settings-release-link"
+                disabled={actionPending}
+                onClick={() =>
+                  runSettingsUpdateAction(async () => {
+                    await window.desktop.updater.openReleasePage()
+                  })
+                }
+                type="button"
+              >
+                <ExternalLink aria-hidden="true" size={14} />
+                {t("settings.update.release")}
+              </button>
+            </span>
           )}
           <small>
             {t("settings.update.source", {
@@ -512,39 +527,7 @@ function DesktopUpdateSettingsSection({
           </small>
         </span>
         <div className="settings-update-actions">
-          {state.targetVersion && (
-            <button
-              className="settings-release-link"
-              disabled={actionPending}
-              onClick={() =>
-                runSettingsUpdateAction(async () => {
-                  await window.desktop.updater.openReleasePage()
-                })
-              }
-              type="button"
-            >
-              <ExternalLink aria-hidden="true" size={15} />
-              {t("settings.update.release")}
-            </button>
-          )}
-          {state.status === "available" && state.installMode === "ota" && (
-            <button
-              className="settings-primary-button"
-              disabled={actionPending || !state.retryable}
-              onClick={() =>
-                runSettingsUpdateAction(async () => {
-                  await window.desktop.updater.download()
-                })
-              }
-              type="button"
-            >
-              <Download aria-hidden="true" size={16} />
-              {state.installationSource === "mac_app"
-                ? t("settings.update.downloadAuto")
-                : t("settings.update.download")}
-            </button>
-          )}
-          {manualDownloadLabel && (
+          {manualDownloadLabel && !showMacManualUpdate && (
             <button
               className="settings-secondary-button"
               disabled={actionPending}
@@ -579,6 +562,23 @@ function DesktopUpdateSettingsSection({
             <RefreshCw aria-hidden="true" size={16} />
             {t("settings.update.check")}
           </button>
+          {state.status === "available" && state.installMode === "ota" && (
+            <button
+              className="settings-primary-button"
+              disabled={actionPending || !state.retryable}
+              onClick={() =>
+                runSettingsUpdateAction(async () => {
+                  await window.desktop.updater.download()
+                })
+              }
+              type="button"
+            >
+              <Download aria-hidden="true" size={16} />
+              {state.installationSource === "mac_app"
+                ? t("settings.update.downloadAuto")
+                : t("settings.update.download")}
+            </button>
+          )}
           {state.status === "downloaded" && (
             <>
               <button className="settings-secondary-button" onClick={onClose} type="button">
@@ -619,7 +619,22 @@ function DesktopUpdateSettingsSection({
       </div>
       {showMacManualUpdate && (
         <div className="desktop-mac-update-guide">
-          <strong>{t("settings.update.mac.title")}</strong>
+          <div className="settings-mac-update-header">
+            <strong>{t("settings.update.mac.title")}</strong>
+            <button
+              className="settings-secondary-button"
+              disabled={actionPending}
+              onClick={() =>
+                runSettingsUpdateAction(async () => {
+                  await window.desktop.updater.openManualDownload()
+                })
+              }
+              type="button"
+            >
+              <Download aria-hidden="true" size={16} />
+              {manualDownloadLabel}
+            </button>
+          </div>
           <p>{t("settings.update.mac.desc")}</p>
           <ol>
             <li>{t("settings.update.mac.step1")}</li>
