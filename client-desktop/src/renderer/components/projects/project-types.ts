@@ -38,6 +38,25 @@ export type ProjectTaskUser = {
   nickname: string
 }
 
+export type ProjectTaskActivityType = "created" | "updated" | "commented"
+
+export type ProjectTaskActivityChange = {
+  field: string
+  from: unknown
+  to: unknown
+}
+
+export type ProjectTaskActivity = {
+  actor: ProjectTaskUser
+  changes: ProjectTaskActivityChange[]
+  content: string
+  createdAt: string
+  id: string
+  projectId: string
+  taskId: string
+  type: ProjectTaskActivityType
+}
+
 export type ProjectTask = {
   assignee: ProjectTaskUser | null
   canceledAt: string | null

@@ -24,4 +24,25 @@ describe("MessageMarkdown", () => {
 
     expect(screen.getByText("一段可选择的消息")).toBe(paragraph)
   })
+
+  it("renders inline and display LaTeX formulas with KaTeX", () => {
+    const { container } = render(
+      <MessageMarkdown content={"行内公式 $E = mc^2$\n\n$$\n\\frac{a}{b}\n$$"} />,
+    )
+
+    const inlineMath = container.querySelector('[data-slot="markdown-math-inline"]')
+    const displayMath = container.querySelector('[data-slot="markdown-math-display"]')
+    expect(inlineMath).toHaveClass("max-w-full", "inline-block")
+    expect(inlineMath?.querySelector(".katex")).not.toBeNull()
+    expect(displayMath).toHaveClass("max-w-full", "overflow-x-auto")
+    expect(displayMath?.querySelector(".katex-display")).not.toBeNull()
+  })
+
+  it("falls back to the LaTeX source when a formula is invalid", () => {
+    const { container } = render(<MessageMarkdown content={"$\\notARealCommand{x}$"} />)
+
+    const fallback = container.querySelector("[data-math-error]")
+    expect(fallback).toHaveTextContent("\\notARealCommand{x}")
+    expect(fallback).toHaveAttribute("title", "LaTeX 公式无法解析")
+  })
 })

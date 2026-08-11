@@ -260,6 +260,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             canAdd={canAddReaction}
             conversationId={conversation.id}
             enabled={message.body.type !== "revoked"}
+            expandBubble={message.body.type === "text" || message.body.type === "markdown"}
             messageId={message.id}
             onSetReaction={
               onSetReaction ? (text, reacted) => onSetReaction(message, text, reacted) : undefined
@@ -307,24 +308,27 @@ export const MessageBubble = React.memo(function MessageBubble({
         {!fromMe && <MessageAvatar fallback={fallback} message={message} />}
         <div
           className={cn(
-            "flex max-w-[min(70%,64rem)] flex-col gap-1",
+            "flex max-w-[min(70%,64rem)] min-w-0 flex-col gap-1",
             fromMe ? "items-end" : "items-start",
           )}
         >
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex max-w-full min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {canInsertAuthorMention && !selectionMode ? (
               <button
-                className="cursor-pointer p-0 text-muted-foreground transition-colors hover:text-sky-500"
+                className="max-w-32 cursor-pointer truncate p-0 text-muted-foreground transition-colors hover:text-sky-500"
                 onClick={handleAuthorMentionClick}
                 onMouseDown={(event) => event.preventDefault()}
+                title={message.author}
                 type="button"
               >
                 {message.author}
               </button>
             ) : (
-              <span>{message.author}</span>
+              <span className="max-w-32 truncate" title={message.author}>
+                {message.author}
+              </span>
             )}
-            <span>{message.time}</span>
+            <span className="shrink-0">{message.time}</span>
           </div>
           <div
             className={cn("flex max-w-full items-end gap-1.5", fromMe && "flex-row-reverse")}

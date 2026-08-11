@@ -112,9 +112,14 @@ export function AppProfilePopover({
                   </AvatarFallback>
                 </Avatar>
               </button>
-              <div className="min-w-0">
-                <div className="overflow-wrap-anywhere text-sm font-medium">{profile.name}</div>
-                <div className="overflow-wrap-anywhere text-xs text-muted-foreground">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium" title={profile.name}>
+                  {profile.name}
+                </div>
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={profile.description || "应用资料"}
+                >
                   {profile.description || "应用资料"}
                 </div>
               </div>
@@ -212,9 +217,14 @@ function AppProfileRow({
 }) {
   return (
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
-      {icon}
+      <span className="shrink-0">{icon}</span>
       <span className="w-12 shrink-0 text-muted-foreground">{label}</span>
-      <span className="overflow-wrap-anywhere min-w-0 flex-1">{value}</span>
+      <span
+        className="min-w-0 flex-1 truncate"
+        title={typeof value === "string" ? value : undefined}
+      >
+        {value}
+      </span>
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import {
   PROJECT_TASK_REMINDER_TIMEZONE,
   type ProjectTask,
+  type ProjectTaskActivity,
+  type ProjectTaskActivityChange,
   type ProjectTaskPriority,
   type ProjectTaskReminder,
   type ProjectTaskReminderInput,
@@ -71,6 +73,27 @@ type ProjectTaskListResponse = {
 
 type DeleteProjectTaskResponse = {
   task_id?: string
+}
+
+type ProjectTaskActivityResponse = {
+  actor?: ProjectTaskUserResponse
+  changes?: ProjectTaskActivityChange[]
+  content?: string
+  created_at?: string
+  id?: string
+  project_id?: string
+  task_id?: string
+  type?: string
+}
+
+type ProjectTaskActivityListResponse = {
+  activities?: ProjectTaskActivityResponse[]
+  next_cursor?: string | null
+}
+
+export type ClientProjectTaskActivityPage = {
+  activities: ProjectTaskActivity[]
+  nextCursor: string | null
 }
 
 export type ListClientProjectTasksOptions = {
@@ -295,6 +318,107 @@ export async function deleteClientProjectTask(
     throw new ClientDataRequestError("删除任务响应格式不正确")
   }
   return deletedTaskId
+}
+
+export async function listClientProjectTaskActivities(
+  projectId: string,
+  taskId: string,
+  options: { cursor?: string; limit?: number } = {},
+  fetcher: ProjectTaskDataFetch = fetch,
+): Promise<ClientProjectTaskActivityPage> {
+  const query = new URLSearchParams({ limit: String(options.limit ?? 20) })
+  if (options.cursor) query.set("cursor", options.cursor)
+  const response = await fetcher(
+    `/api/client/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/activities?${query.toString()}`,
+    { credentials: "include", method: "GET" },
+  )
+  const payload = await readJson<
+    ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<ProjectTaskActivityListResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createProjectTaskRequestError(payload, response, "加载任务动态失败")
+  }
+  const activities = (
+    payload as ProjectTaskDataSuccessEnvelope<ProjectTaskActivityListResponse> | undefined
+  )?.data?.activities
+  if (!Array.isArray(activities)) {
+    throw new ClientDataRequestError("任务动态响应格式不正确")
+  }
+  return {
+    activities: activities.map(normalizeProjectTaskActivity),
+    nextCursor: normalizeNextCursor(
+      (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskActivityListResponse> | undefined)?.data
+        ?.next_cursor,
+    ),
+  }
+}
+
+export async function addClientProjectTaskComment(
+  projectId: string,
+  taskId: string,
+  content: string,
+  fetcher: ProjectTaskDataFetch = fetch,
+): Promise<ProjectTaskActivity> {
+  const response = await fetcher(
+    `/api/client/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/comments`,
+    {
+      body: JSON.stringify({ content }),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    },
+  )
+  const payload = await readJson<
+    ProjectTaskDataErrorEnvelope | ProjectTaskDataSuccessEnvelope<ProjectTaskActivityResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createProjectTaskRequestError(payload, response, "发表评论失败")
+  }
+  return normalizeProjectTaskActivity(
+    (payload as ProjectTaskDataSuccessEnvelope<ProjectTaskActivityResponse> | undefined)?.data,
+  )
+}
+
+function normalizeProjectTaskActivity(
+  activity: ProjectTaskActivityResponse | undefined,
+): ProjectTaskActivity {
+  if (
+    !activity ||
+    typeof activity.id !== "string" ||
+    typeof activity.project_id !== "string" ||
+    typeof activity.task_id !== "string" ||
+    !isProjectTaskActivityType(activity.type) ||
+    !activity.actor ||
+    typeof activity.content !== "string" ||
+    !Array.isArray(activity.changes) ||
+    typeof activity.created_at !== "string"
+  ) {
+    throw new ClientDataRequestError("任务动态响应格式不正确")
+  }
+  return {
+    actor: normalizeProjectTaskUser(activity.actor),
+    changes: activity.changes.filter(isProjectTaskActivityChange),
+    content: activity.content,
+    createdAt: activity.created_at,
+    id: activity.id,
+    projectId: activity.project_id,
+    taskId: activity.task_id,
+    type: activity.type,
+  }
+}
+
+function isProjectTaskActivityType(value: unknown): value is ProjectTaskActivity["type"] {
+  return value === "created" || value === "updated" || value === "commented"
+}
+
+function isProjectTaskActivityChange(value: unknown): value is ProjectTaskActivityChange {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { field?: unknown }).field === "string" &&
+    "from" in value &&
+    "to" in value
+  )
 }
 
 function normalizeProjectTask(task: ProjectTaskResponse | undefined): ProjectTask {

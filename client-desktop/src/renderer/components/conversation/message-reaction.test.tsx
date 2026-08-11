@@ -53,7 +53,8 @@ describe("MessageBubble reactions", () => {
       '[data-slot="message-reaction-chip"]',
     )
     const reactions = reactionChip?.parentElement
-    expect(reactions).toHaveClass("min-w-0", "[contain:inline-size]")
+    expect(reactions).toHaveClass("min-w-0")
+    expect(reactions).not.toHaveClass("[contain:inline-size]")
     expect(reactionChip).toHaveClass(
       "min-w-0",
       "flex-wrap",

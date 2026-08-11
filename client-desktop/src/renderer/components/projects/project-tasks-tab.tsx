@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { useSearchParams } from "react-router"
+import { useNavigate, useSearchParams } from "react-router"
 import { toast } from "sonner"
 import {
   CalendarDays,
@@ -134,6 +134,7 @@ export function ProjectTasksTab({
   projectId: string
 }) {
   const { t } = useLocale()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeView, setActiveView] = React.useState<TaskView>(readStoredProjectTaskView)
   const [fallbackActiveTask, setFallbackActiveTask] = React.useState<ProjectTask | null>(null)
@@ -278,11 +279,7 @@ export function ProjectTasksTab({
 
   function handleOpenTask(task: ProjectTask) {
     setFallbackActiveTask(task)
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current)
-      next.set(projectTaskIdSearchParam, task.id)
-      return next
-    })
+    navigate(`/tasks/${encodeURIComponent(projectId)}/${encodeURIComponent(task.id)}`)
   }
 
   function handleCloseTask() {

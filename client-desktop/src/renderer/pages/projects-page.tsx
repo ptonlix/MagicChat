@@ -102,10 +102,19 @@ export function ProjectsPage() {
       )
     : projects
   const activeSection: ProjectSection = isProjectSection(section) ? section : "tasks"
+  const linkedTaskId = projectId ? new URLSearchParams(location.search).get("taskId")?.trim() : ""
 
   if (projectId && !isProjectSection(section)) {
     return (
       <Navigate replace to={normalizeProjectSectionPath(projectId, section, location.search)} />
+    )
+  }
+  if (projectId && linkedTaskId) {
+    return (
+      <Navigate
+        replace
+        to={`/tasks/${encodeURIComponent(projectId)}/${encodeURIComponent(linkedTaskId)}`}
+      />
     )
   }
 

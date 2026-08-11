@@ -14,6 +14,7 @@ import { ChatPage } from "@/pages/chat-page"
 import { ContactsPage } from "@/pages/contacts-page"
 import { LoginPage } from "@/pages/login-page"
 import { ProjectsPage } from "@/pages/projects-page"
+import { TaskWorkspacePage } from "@/pages/task-workspace-page"
 import {
   documentWindowPath,
   rememberLastNonDocumentRoute,
@@ -68,6 +69,15 @@ function NormalRoutes({ updatePrompt }: { updatePrompt?: ReactNode }) {
         }
       />
       <Route element={<AuthenticatedProviderShell />}>
+        <Route
+          path="/tasks/:projectId/:taskId?"
+          element={
+            <>
+              <ClientDocumentTitle title={t("app.title.projects")} />
+              <TaskWorkspacePage />
+            </>
+          }
+        />
         <Route element={<AppLayout footerAction={updatePrompt} />}>
           <Route
             path="/init"

@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { StrictMode } from "react"
 import { createMemoryRouter, RouterProvider } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,6 +8,7 @@ import * as Y from "yjs"
 const mocks = vi.hoisted(() => ({
   attachProvider: vi.fn(),
   createClientDocument: vi.fn(),
+  deleteClientDocument: vi.fn(),
   destroyProvider: vi.fn(),
   destroyWebsocketProvider: vi.fn(),
   getClientDocument: vi.fn(),
@@ -98,6 +100,7 @@ vi.mock("@/lib/document-data-context", () => ({
 }))
 vi.mock("@/lib/document-data-api", () => ({
   createClientDocument: mocks.createClientDocument,
+  deleteClientDocument: mocks.deleteClientDocument,
   getClientDocument: mocks.getClientDocument,
   listClientDocuments: mocks.listClientDocuments,
   updateCollaborativeDocumentTitle: mocks.updateCollaborativeDocumentTitle,
@@ -143,6 +146,10 @@ describe("DocumentPage", () => {
     mocks.destroyProvider.mockReset()
     mocks.destroyWebsocketProvider.mockReset()
     mocks.getClientDocument.mockReset().mockResolvedValue(document)
+    mocks.deleteClientDocument.mockReset().mockResolvedValue({
+      deletedCount: 1,
+      documentId: document.id,
+    })
     mocks.getClientProject.mockReset().mockResolvedValue(project)
     mocks.listClientDocuments.mockReset().mockResolvedValue([document])
     mocks.passedCollaborationProvider = undefined
@@ -233,6 +240,21 @@ describe("DocumentPage", () => {
     mocks.providerOptions?.onClose?.({ event: { code: 4403 } })
     expect(mocks.destroyProvider).toHaveBeenCalledOnce()
     expect(mocks.destroyWebsocketProvider).toHaveBeenCalledOnce()
+  })
+
+  it("删除文档前确认，并返回项目文档列表", async () => {
+    const user = userEvent.setup()
+    const router = renderPage()
+    await screen.findByRole("textbox", { name: "顶部文档标题" })
+
+    await user.click(screen.getByRole("button", { name: "更多文档操作" }))
+    await user.click(await screen.findByRole("menuitem", { name: "删除" }))
+    const confirmation = await screen.findByRole("alertdialog", { name: "删除文档" })
+    expect(confirmation).toHaveTextContent("确定删除“陈富东测试”吗？此操作无法撤销。")
+    await user.click(within(confirmation).getByRole("button", { name: "删除" }))
+
+    await waitFor(() => expect(mocks.deleteClientDocument).toHaveBeenCalledWith(document.id))
+    expect(router.state.location.pathname).toBe("/projects/project-1/documents")
   })
 
   it("标题区的新窗口入口等待 Bridge 成功后返回项目文档列表", async () => {

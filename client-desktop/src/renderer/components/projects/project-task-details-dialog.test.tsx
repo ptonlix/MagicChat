@@ -9,6 +9,8 @@ import type { ProjectTask } from "@/components/projects/project-types"
 const mocks = vi.hoisted(() => ({
   deleteClientProjectTask: vi.fn(),
   getClientProjectTask: vi.fn(),
+  listClientProjectTaskActivities: vi.fn(),
+  addClientProjectTaskComment: vi.fn(),
   listAllClientProjectMembers: vi.fn(),
   listClientProjectTasks: vi.fn(),
   sendConversationCard: vi.fn(),
@@ -18,6 +20,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/project-task-data-api", () => ({
   deleteClientProjectTask: mocks.deleteClientProjectTask,
   getClientProjectTask: mocks.getClientProjectTask,
+  listClientProjectTaskActivities: mocks.listClientProjectTaskActivities,
+  addClientProjectTaskComment: mocks.addClientProjectTaskComment,
   listClientProjectTasks: mocks.listClientProjectTasks,
   updateClientProjectTask: mocks.updateClientProjectTask,
 }))
@@ -51,6 +55,9 @@ describe("ProjectTaskDetailsDialog card message", () => {
     mocks.deleteClientProjectTask.mockResolvedValue(task.id)
     mocks.getClientProjectTask.mockReset()
     mocks.getClientProjectTask.mockResolvedValue(task)
+    mocks.listClientProjectTaskActivities.mockReset()
+    mocks.listClientProjectTaskActivities.mockResolvedValue({ activities: [], nextCursor: null })
+    mocks.addClientProjectTaskComment.mockReset()
     mocks.listAllClientProjectMembers.mockReset()
     mocks.listAllClientProjectMembers.mockResolvedValue([])
     mocks.listClientProjectTasks.mockReset()
@@ -66,6 +73,82 @@ describe("ProjectTaskDetailsDialog card message", () => {
     mocks.updateClientProjectTask.mockResolvedValue(task)
   })
 
+  it("renders the task workspace details inline without an overlay", async () => {
+    render(
+      <MemoryRouter>
+        <ProjectTaskDetailsDialog embedded onOpenChange={vi.fn()} open task={createTask()} />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole("dialog", { name: "任务标题" })).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull()
+    expect(screen.getByRole("button", { name: "返回任务列表" })).toBeInTheDocument()
+  })
+
+  it("saves a changed title on blur", async () => {
+    const user = userEvent.setup()
+    mocks.updateClientProjectTask.mockResolvedValue({
+      ...createTask(),
+      title: "新的任务标题",
+      updatedAt: "2026-07-14T09:00:00Z",
+    })
+    const onUpdated = vi.fn().mockResolvedValue(undefined)
+    render(
+      <MemoryRouter>
+        <ProjectTaskDetailsDialog
+          embedded
+          onOpenChange={vi.fn()}
+          onUpdated={onUpdated}
+          open
+          task={createTask()}
+        />
+      </MemoryRouter>,
+    )
+
+    const title = await screen.findByRole("button", { name: "任务标题" })
+    await waitFor(() => expect(title).toBeEnabled())
+    await user.click(title)
+    const input = screen.getByRole("textbox", { name: "标题" })
+    await user.clear(input)
+    await user.type(input, "新的任务标题")
+    await user.tab()
+
+    await waitFor(() => {
+      expect(mocks.updateClientProjectTask).toHaveBeenCalledWith("project-1", "task-1", {
+        title: "新的任务标题",
+      })
+      expect(onUpdated).toHaveBeenCalledOnce()
+    })
+    expect(await screen.findByRole("button", { name: "新的任务标题" })).toBeInTheDocument()
+  })
+
+  it("disables other task edits while saving the title", async () => {
+    const user = userEvent.setup()
+    const titleSave = deferred<ProjectTask>()
+    mocks.updateClientProjectTask.mockReturnValueOnce(titleSave.promise)
+    render(
+      <MemoryRouter>
+        <ProjectTaskDetailsDialog embedded onOpenChange={vi.fn()} open task={createTask()} />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole("button", { name: "任务标题" }))
+    const title = screen.getByRole("textbox", { name: "标题" })
+    await user.clear(title)
+    await user.type(title, "保存中的标题")
+    await user.tab()
+
+    await waitFor(() =>
+      expect(mocks.updateClientProjectTask).toHaveBeenCalledWith("project-1", "task-1", {
+        title: "保存中的标题",
+      }),
+    )
+    expect(screen.getByRole("combobox", { name: "状态" })).toBeDisabled()
+
+    titleSave.resolve({ ...createTask(), title: "保存中的标题" })
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "状态" })).toBeEnabled())
+  })
+
   it("sends the task card and keeps the task details open", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
@@ -75,12 +158,12 @@ describe("ProjectTaskDetailsDialog card message", () => {
       </MemoryRouter>,
     )
 
-    const sendButton = await screen.findByRole("button", {
-      name: "发送到对话",
-    })
-    await user.click(sendButton)
+    const moreButton = await screen.findByRole("button", { name: "更多任务操作" })
+    await waitFor(() => expect(moreButton).toBeEnabled())
+    await user.click(moreButton)
+    await user.click(screen.getByRole("menuitem", { name: "发送到对话" }))
 
-    await user.click(screen.getByRole("radio", { name: "设计群" }))
+    await user.click(await screen.findByRole("radio", { name: "设计群" }))
     await user.click(screen.getByRole("button", { name: "发送" }))
 
     await waitFor(() => {
@@ -91,7 +174,7 @@ describe("ProjectTaskDetailsDialog card message", () => {
       })
     })
     expect(screen.queryByRole("dialog", { name: "发送到对话" })).not.toBeInTheDocument()
-    expect(screen.getByRole("dialog", { name: "任务详情" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "任务标题" })).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
@@ -110,12 +193,10 @@ describe("ProjectTaskDetailsDialog card message", () => {
       </MemoryRouter>,
     )
 
-    const deleteButton = await screen.findByRole("button", { name: "删除任务" })
-    await waitFor(() => expect(deleteButton).toBeEnabled())
-    const titleInput = screen.getByRole("textbox", { name: "标题" })
-    await user.clear(titleInput)
-    await user.type(titleInput, "未保存的新标题")
-    await user.click(deleteButton)
+    const moreButton = await screen.findByRole("button", { name: "更多任务操作" })
+    await waitFor(() => expect(moreButton).toBeEnabled())
+    await user.click(moreButton)
+    await user.click(screen.getByRole("menuitem", { name: "删除任务" }))
     const confirmation = screen.getByRole("alertdialog", { name: "删除任务" })
     expect(mocks.deleteClientProjectTask).not.toHaveBeenCalled()
     await user.click(within(confirmation).getByRole("button", { name: "删除任务" }))
@@ -143,16 +224,15 @@ describe("ProjectTaskDetailsDialog card message", () => {
       </MemoryRouter>,
     )
 
-    const titleInput = await screen.findByRole("textbox", { name: "标题" })
-    await user.clear(titleInput)
-    await user.type(titleInput, "保留这个编辑")
-    await user.click(screen.getByRole("button", { name: "删除任务" }))
+    const moreButton = await screen.findByRole("button", { name: "更多任务操作" })
+    await waitFor(() => expect(moreButton).toBeEnabled())
+    await user.click(moreButton)
+    await user.click(screen.getByRole("menuitem", { name: "删除任务" }))
     const confirmation = screen.getByRole("alertdialog", { name: "删除任务" })
     await user.click(within(confirmation).getByRole("button", { name: "删除任务" }))
 
     await waitFor(() => expect(mocks.deleteClientProjectTask).toHaveBeenCalledOnce())
-    expect(screen.getByText("任务详情").closest('[role="dialog"]')).toBeInTheDocument()
-    expect(screen.getByDisplayValue("保留这个编辑")).toBeInTheDocument()
+    expect(screen.getByText("任务标题").closest('[role="dialog"]')).toBeInTheDocument()
     expect(confirmation).toBeInTheDocument()
     expect(onDeleted).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -182,7 +262,6 @@ describe("ProjectTaskDetailsDialog card message", () => {
     await user.click(screen.getByRole("button", { name: "重复" }))
     expect(mocks.updateClientProjectTask).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "确定" }))
-    await user.click(screen.getByRole("button", { name: "保存" }))
 
     await waitFor(() => {
       expect(mocks.updateClientProjectTask).toHaveBeenCalledWith("project-1", "task-1", {
@@ -192,11 +271,8 @@ describe("ProjectTaskDetailsDialog card message", () => {
           timezone: "Asia/Shanghai",
         }),
       })
-      expect(onOpenChange).toHaveBeenCalledWith(false)
       expect(onUpdated).toHaveBeenCalledOnce()
-      expect(onOpenChange.mock.invocationCallOrder[0]).toBeLessThan(
-        onUpdated.mock.invocationCallOrder[0],
-      )
+      expect(onOpenChange).not.toHaveBeenCalled()
     })
   })
 })
@@ -225,4 +301,12 @@ function createTask(): ProjectTask {
     title: "任务标题",
     updatedAt: "2026-07-14T08:00:00Z",
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }

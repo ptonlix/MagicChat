@@ -1,6 +1,15 @@
 import * as React from "react"
 import { HocuspocusProvider, WebSocketStatus } from "@hocuspocus/provider"
-import { AppWindow, FileText, Loader2, Menu, RefreshCw, Users } from "lucide-react"
+import {
+  AppWindow,
+  Ellipsis,
+  FileText,
+  Loader2,
+  Menu,
+  RefreshCw,
+  Trash2,
+  Users,
+} from "lucide-react"
 import { Link, useBlocker, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 import * as Y from "yjs"
@@ -10,8 +19,26 @@ import { DocumentEditor } from "@/components/documents/document-editor"
 import { DocumentWorkspaceSidebar } from "@/components/documents/document-workspace-sidebar"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import {
+  deleteClientDocument,
   getClientDocument,
   updateCollaborativeDocumentTitle,
   type ClientDocument,
@@ -131,6 +158,8 @@ function DocumentWorkspace({
   const [onlineUsers, setOnlineUsers] = React.useState<DocumentPresenceUser[]>([])
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [openingWindow, setOpeningWindow] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
   const isDocumentWindow = parseDocumentWindowLocation().kind === "document"
   const collaborationUserRef = React.useRef(collaborationUser)
   const collaborationProviderRef = React.useRef<HocuspocusProvider | undefined>(undefined)
@@ -347,6 +376,27 @@ function DocumentWorkspace({
     }
   }
 
+  async function handleDelete() {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      await deleteClientDocument(document.id)
+      toast.success("文档已删除")
+      setDeleteOpen(false)
+      if (isDocumentWindow) {
+        window.close()
+      } else {
+        navigate(`/projects/${encodeURIComponent(project.id)}/documents`, {
+          replace: true,
+        })
+      }
+    } catch (deleteError) {
+      toast.error(deleteError instanceof Error ? deleteError.message : "删除文档失败")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (permissionDenied)
     return (
       <DocumentUnavailable
@@ -435,6 +485,62 @@ function DocumentWorkspace({
           >
             {openingWindow ? <Loader2 className="animate-spin" /> : <AppWindow />}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="更多文档操作"
+                disabled={deleting}
+                size="icon-sm"
+                title="更多文档操作"
+                variant="ghost"
+              >
+                <Ellipsis />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onSelect={() => toast.info("文档信息暂未开放")}>
+                文档信息
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={deleting}
+                onSelect={() => setDeleteOpen(true)}
+                variant="destructive"
+              >
+                <Trash2 />
+                删除
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog
+            onOpenChange={(open) => {
+              if (!deleting) setDeleteOpen(open)
+            }}
+            open={deleteOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>删除文档</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {`确定删除“${titleText}”吗？此操作无法撤销。`}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    void handleDelete()
+                  }}
+                  variant="destructive"
+                >
+                  {deleting && <Loader2 className="animate-spin" />}
+                  删除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <DocumentOnlineUsers users={onlineUsers} />
         </header>
         {collaborationProvider ? (

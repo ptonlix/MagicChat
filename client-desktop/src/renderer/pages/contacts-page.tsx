@@ -261,7 +261,7 @@ export function ContactsPage() {
       <SidebarInset className="min-w-0 overflow-hidden">
         <div
           className={cn(
-            "flex min-h-0 flex-1 items-start justify-center px-6",
+            "flex min-h-0 min-w-0 flex-1 items-start justify-center overflow-hidden px-6",
             activeItem ? "bg-background" : "bg-muted",
           )}
           data-testid="contact-detail-shell"

@@ -70,7 +70,7 @@ describe("ProjectTasksTab task details route state", () => {
     expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument()
   })
 
-  it("adds taskId to the URL when a task is opened", async () => {
+  it("opens the standalone task workspace when a task is opened", async () => {
     const user = userEvent.setup()
     const task = createProjectTask()
     projectTaskApiMocks.listClientProjectTasks.mockResolvedValue({
@@ -86,8 +86,7 @@ describe("ProjectTasksTab task details route state", () => {
       }),
     )
 
-    expect(await screen.findByRole("dialog", { name: "任务详情" })).toBeInTheDocument()
-    expect(screen.getByTestId("location-search")).toHaveTextContent("source=list&taskId=task-1")
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/tasks/project-1/task-1")
   })
 })
 
@@ -107,6 +106,7 @@ function renderProjectTasksTab(initialEntry: string) {
             </>
           }
         />
+        <Route path="/tasks/:projectId/:taskId" element={<LocationPath />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -115,6 +115,11 @@ function renderProjectTasksTab(initialEntry: string) {
 function LocationSearch() {
   const location = useLocation()
   return <output data-testid="location-search">{location.search}</output>
+}
+
+function LocationPath() {
+  const location = useLocation()
+  return <output data-testid="location-path">{location.pathname}</output>
 }
 
 function createProjectTask(): ProjectTask {

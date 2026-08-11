@@ -1,12 +1,51 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  addClientProjectTaskComment,
   deleteClientProjectTask,
   getClientProjectTask,
+  listClientProjectTaskActivities,
   updateClientProjectTask,
 } from "@/lib/project-task-data-api"
 
 describe("project task reminder data API", () => {
+  it("lists task activities and adds a comment", async () => {
+    const activity = {
+      actor: { avatar: "", id: "user-1", name: "Alice", nickname: "" },
+      changes: [],
+      content: "已处理",
+      created_at: "2026-07-15T00:00:00Z",
+      id: "activity-1",
+      project_id: "project-1",
+      task_id: "task-1",
+      type: "commented",
+    }
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ success: true, data: { activities: [activity], next_cursor: "next-1" } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: activity }))
+
+    await expect(
+      listClientProjectTaskActivities("project-1", "task-1", {}, fetcher),
+    ).resolves.toEqual({
+      activities: [expect.objectContaining({ id: "activity-1", type: "commented" })],
+      nextCursor: "next-1",
+    })
+    await expect(
+      addClientProjectTaskComment("project-1", "task-1", "已处理", fetcher),
+    ).resolves.toMatchObject({
+      id: "activity-1",
+      content: "已处理",
+    })
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/client/projects/project-1/tasks/task-1/comments",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+
   it("deletes a task", async () => {
     const fetcher = vi
       .fn()

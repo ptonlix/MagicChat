@@ -1,12 +1,14 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
 import {
+  ArrowLeft,
   ChevronsDown,
   ChevronsUp,
   Circle,
   CircleCheckBig,
   CircleDot,
   CircleX,
+  Ellipsis,
   Equal,
   Eye,
   Pencil,
@@ -16,6 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { ProjectMemberCombobox } from "@/components/projects/project-member-combobox"
+import { ProjectTaskActivityFeed } from "@/components/projects/project-task-activity-feed"
 import { ProjectTaskDatePicker } from "@/components/projects/project-task-date-picker"
 import { ProjectTaskLabelsCombobox } from "@/components/projects/project-task-labels-combobox"
 import { ProjectTaskReminderField } from "@/components/projects/project-task-reminder-field"
@@ -43,10 +46,15 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
@@ -95,12 +103,14 @@ type NormalizedTaskEditForm = {
 }
 
 export function ProjectTaskDetailsDialog({
+  embedded = false,
   onDeleted,
   onOpenChange,
   onUpdated,
   open,
   task,
 }: {
+  embedded?: boolean
   onDeleted?: (taskId: string) => void
   onOpenChange: (open: boolean) => void
   onUpdated?: () => Promise<void>
@@ -127,7 +137,15 @@ export function ProjectTaskDetailsDialog({
   const [membersLoading, setMembersLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [sendDialogOpen, setSendDialogOpen] = React.useState(false)
+  const [titleDraft, setTitleDraft] = React.useState(task.title)
+  const [titleEditing, setTitleEditing] = React.useState(false)
+  const [titleSaving, setTitleSaving] = React.useState(false)
   const assigneeComboboxPortal = React.useRef<HTMLDivElement | null>(null)
+  const savingRef = React.useRef(false)
+  const assigneeNames = React.useMemo(
+    () => Object.fromEntries(members.map((member) => [member.id, member.displayName])),
+    [members],
+  )
 
   React.useEffect(() => {
     if (!open) {
@@ -145,6 +163,8 @@ export function ProjectTaskDetailsDialog({
         setDetails(nextDetails)
         setDescriptionEditing(false)
         setForm(loadedForm)
+        setTitleDraft(nextDetails.title)
+        setTitleEditing(false)
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -198,12 +218,11 @@ export function ProjectTaskDetailsDialog({
     return () => {
       active = false
     }
-  }, [open, task, t])
+  }, [open, task.id, task.projectId, t])
 
   const normalizedForm = normalizeTaskEditForm(form)
   const validationError = getTaskEditValidationError(normalizedForm, t)
-  const dirty = !taskEditFormsEqual(normalizedForm, baseline)
-  const canSave = dirty && !loading && !saving && !deleting && !validationError
+  const descriptionDirty = form.description !== baseline.description
   const fallbackAssignee = createFallbackProjectMember(details)
   const memberOptions =
     fallbackAssignee && !members.some((member) => member.id === fallbackAssignee.id)
@@ -220,8 +239,56 @@ export function ProjectTaskDetailsDialog({
     setForm((current) => ({ ...current, [field]: value }))
   }
 
+  function saveImmediateField<K extends keyof TaskEditForm>(
+    field: K,
+    value: TaskEditForm[K],
+    input: UpdateClientProjectTaskInput,
+    successMessage: string,
+  ) {
+    if (savingRef.current || titleSaving || deleting) return
+    const nextForm = { ...form, [field]: value }
+    const nextNormalized = normalizeTaskEditForm(nextForm)
+    const validationMessage = getTaskEditValidationError(nextNormalized, t)
+    if (validationMessage) {
+      toast.error(validationMessage)
+      return
+    }
+    setForm(nextForm)
+    const comparison = { ...baseline, [field]: nextNormalized[field] }
+    if (taskEditFormsEqual(comparison, baseline)) return
+    void persistTaskFields(input, [field], successMessage, form)
+  }
+
+  async function persistTaskFields(
+    input: UpdateClientProjectTaskInput,
+    fields: Array<keyof TaskEditForm>,
+    successMessage: string,
+    previousForm = form,
+  ) {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      const updatedTask = await updateClientProjectTask(task.projectId, task.id, input)
+      const updatedForm = createTaskEditForm(updatedTask)
+      const updatedNormalized = normalizeTaskEditForm(updatedForm)
+      setBaseline((current) => mergeTaskEditFields(current, updatedNormalized, fields))
+      setDetails(updatedTask)
+      setError("")
+      setForm((current) => mergeTaskEditFields(current, updatedForm, fields))
+      toast.success(successMessage)
+      await onUpdated?.()
+    } catch (saveError) {
+      setForm((current) => mergeTaskEditFields(current, previousForm, fields))
+      toast.error(saveError instanceof Error ? saveError.message : t("taskDetail.saveFailed"))
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
+
   function handleOpenChange(nextOpen: boolean) {
-    if (saving || deleting) {
+    if (saving || titleSaving || deleting) {
       return
     }
     if (!nextOpen) {
@@ -239,41 +306,63 @@ export function ProjectTaskDetailsDialog({
       setMembersError("")
       setMembersLoading(true)
       setSendDialogOpen(false)
+      setTitleDraft(details.title)
+      setTitleEditing(false)
     }
     onOpenChange(nextOpen)
   }
 
-  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!canSave) {
+  function saveDescription() {
+    if (!descriptionDirty || savingRef.current || titleSaving) return
+    void persistTaskFields(
+      { description: form.description },
+      ["description"],
+      t("taskDetail.saved"),
+    )
+  }
+
+  async function saveTitle() {
+    if (titleSaving || savingRef.current) return
+    const nextTitle = titleDraft.trim()
+    if (!nextTitle) {
+      toast.error(t("taskDetail.validate.title"))
+      setTitleDraft(form.title)
+      setTitleEditing(false)
+      return
+    }
+    if (Array.from(nextTitle).length > 240) {
+      toast.error(t("taskDetail.validate.title"))
+      return
+    }
+    if (nextTitle === baseline.title) {
+      setTitleDraft(baseline.title)
+      setForm((current) => ({ ...current, title: baseline.title }))
+      setTitleEditing(false)
       return
     }
 
-    setSaving(true)
+    setTitleSaving(true)
     try {
-      const updatedTask = await updateClientProjectTask(
-        task.projectId,
-        task.id,
-        createTaskEditPatch(normalizedForm, baseline),
-      )
-      const updatedForm = createTaskEditForm(updatedTask)
-      setBaseline(normalizeTaskEditForm(updatedForm))
+      const updatedTask = await updateClientProjectTask(task.projectId, task.id, {
+        title: nextTitle,
+      })
+      const savedTitle = updatedTask.title.trim()
+      setBaseline((current) => ({ ...current, title: savedTitle }))
       setDetails(updatedTask)
-      setDescriptionEditing(false)
-      setError("")
-      setForm(updatedForm)
+      setForm((current) => ({ ...current, title: savedTitle }))
+      setTitleDraft(savedTitle)
+      setTitleEditing(false)
       toast.success(t("taskDetail.saved"))
-      onOpenChange(false)
       await onUpdated?.()
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : t("taskDetail.saveFailed"))
     } finally {
-      setSaving(false)
+      setTitleSaving(false)
     }
   }
 
   async function handleDelete() {
-    if (deleting) return
+    if (deleting || saving || titleSaving) return
     setDeleting(true)
     try {
       const deletedTaskId = await deleteClientProjectTask(task.projectId, task.id)
@@ -289,78 +378,159 @@ export function ProjectTaskDetailsDialog({
   }
 
   return (
-    <Dialog onOpenChange={handleOpenChange} open={open}>
+    <Dialog
+      modal={!embedded}
+      onOpenChange={(nextOpen) => {
+        if (!embedded) handleOpenChange(nextOpen)
+      }}
+      open={open}
+    >
       <DialogContent
-        className="max-h-[85vh] gap-5 overflow-y-auto sm:max-w-5xl"
+        className={
+          embedded
+            ? "h-full w-full flex-1 content-start gap-5 overflow-y-auto bg-background p-4 sm:p-6"
+            : "max-h-[85vh] gap-5 overflow-y-auto sm:max-w-5xl"
+        }
+        embedded={embedded}
         onPointerDownOutside={(event) => event.preventDefault()}
+        showCloseButton={!embedded}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {t("taskDetail.title")}
-            {loading && <Spinner />}
+        <DialogHeader
+          className={
+            embedded
+              ? "-mx-4 -mt-4 grid! h-14 shrink-0 items-center border-b px-4 sm:-mx-6 sm:-mt-6 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-6"
+              : undefined
+          }
+        >
+          <DialogTitle className="flex min-w-0 items-center gap-2">
+            {embedded && (
+              <Button
+                aria-label={t("taskDetail.backToList")}
+                className="md:hidden"
+                onClick={() => handleOpenChange(false)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <ArrowLeft />
+              </Button>
+            )}
+            {titleEditing ? (
+              <Input
+                aria-label={t("taskDetail.field.title")}
+                autoFocus
+                className="h-9 min-w-0 flex-1 text-base font-medium"
+                disabled={loading || saving || titleSaving || deleting}
+                maxLength={240}
+                onBlur={() => void saveTitle()}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                    event.currentTarget.blur()
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault()
+                    setTitleDraft(form.title)
+                    setTitleEditing(false)
+                  }
+                }}
+                value={titleDraft}
+              />
+            ) : (
+              <button
+                className="w-fit max-w-full min-w-0 truncate py-1.5 text-left hover:bg-muted disabled:pointer-events-none disabled:opacity-60"
+                disabled={loading || saving || titleSaving || deleting}
+                onClick={() => setTitleEditing(true)}
+                title={t("taskDetail.field.title")}
+                type="button"
+              >
+                {form.title}
+              </button>
+            )}
+            {(loading || titleSaving) && <Spinner />}
           </DialogTitle>
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  aria-label={t("taskDetail.moreActions")}
+                  disabled={loading || saving || titleEditing || titleSaving || deleting}
+                  size="icon-sm"
+                  title={t("taskDetail.moreActions")}
+                  type="button"
+                  variant="ghost"
+                >
+                  <Ellipsis />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  disabled={descriptionDirty || Boolean(error)}
+                  onSelect={() => {
+                    requestAnimationFrame(() => setSendDialogOpen(true))
+                  }}
+                >
+                  <Send />
+                  {t("taskDetail.sendToChat")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDeleteDialogOpen(true)} variant="destructive">
+                  <Trash2 />
+                  {t("taskDetail.delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <DialogDescription className="sr-only">{t("taskDetail.desc")}</DialogDescription>
         </DialogHeader>
 
-        <form className="grid gap-5" onSubmit={handleSubmit}>
-          <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(18rem,1fr)] lg:items-start">
+        <div className="grid gap-5">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
             <div className="grid min-w-0 content-start gap-5">
-              <TaskField htmlFor="task-details-title" label={t("taskDetail.field.title")}>
-                <Input
-                  autoFocus
-                  disabled={loading || saving}
-                  id="task-details-title"
-                  maxLength={240}
-                  onChange={(event) => updateForm("title", event.target.value)}
-                  value={form.title}
-                />
-              </TaskField>
-
-              <TaskField label={t("taskDetail.field.labels")}>
-                <ProjectTaskLabelsCombobox
-                  disabled={loading || saving}
-                  loading={labelsLoading}
-                  onValueChange={(labels) => updateForm("labels", labels)}
-                  options={labelOptions}
-                  portalContainer={assigneeComboboxPortal}
-                  value={form.labels}
-                />
-                {labelsError && <p className="text-xs text-destructive">{labelsError}</p>}
-              </TaskField>
-
               <TaskField
                 action={
-                  <ToggleGroup
-                    aria-label={t("taskDetail.detailMode")}
-                    className="shrink-0"
-                    disabled={loading || saving}
-                    onValueChange={(value) => {
-                      if (value) {
-                        setDescriptionEditing(value === "source")
-                      }
-                    }}
-                    spacing={0}
-                    type="single"
-                    value={descriptionEditing ? "source" : "preview"}
-                    variant="outline"
-                  >
-                    <ToggleGroupItem
-                      aria-label={t("taskDetail.preview")}
-                      className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
-                      title={t("taskDetail.previewLabel")}
-                      value="preview"
+                  <div className="flex shrink-0 items-center gap-2">
+                    {descriptionDirty && (
+                      <Button
+                        disabled={saving || titleSaving || Boolean(validationError)}
+                        onClick={saveDescription}
+                        size="xs"
+                        type="button"
+                      >
+                        {saving && <Spinner />}
+                        {t("taskDetail.save")}
+                      </Button>
+                    )}
+                    <ToggleGroup
+                      aria-label={t("taskDetail.detailMode")}
+                      className="shrink-0"
+                      disabled={loading || saving || titleSaving}
+                      onValueChange={(value) => {
+                        if (value) setDescriptionEditing(value === "source")
+                      }}
+                      spacing={0}
+                      type="single"
+                      value={descriptionEditing ? "source" : "preview"}
+                      variant="outline"
                     >
-                      <Eye className="size-3.5" />
-                    </ToggleGroupItem>
-                    <ToggleGroupItem
-                      aria-label={t("taskDetail.editSource")}
-                      className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
-                      title={t("taskDetail.editLabel")}
-                      value="source"
-                    >
-                      <Pencil className="size-3.5" />
-                    </ToggleGroupItem>
-                  </ToggleGroup>
+                      <ToggleGroupItem
+                        aria-label={t("taskDetail.preview")}
+                        className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
+                        title={t("taskDetail.previewLabel")}
+                        value="preview"
+                      >
+                        <Eye className="size-3.5" />
+                      </ToggleGroupItem>
+                      <ToggleGroupItem
+                        aria-label={t("taskDetail.editSource")}
+                        className="h-6 min-w-0 px-2 data-[state=off]:text-muted-foreground"
+                        title={t("taskDetail.editLabel")}
+                        value="source"
+                      >
+                        <Pencil className="size-3.5" />
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
                 }
                 htmlFor={descriptionEditing ? "task-details-description" : undefined}
                 label={t("taskDetail.detail")}
@@ -368,8 +538,8 @@ export function ProjectTaskDetailsDialog({
                 {descriptionEditing ? (
                   <Textarea
                     autoFocus
-                    className="field-sizing-fixed h-100 max-h-100 min-h-100 resize-none font-mono!"
-                    disabled={loading || saving}
+                    className="field-sizing-fixed h-[60vh] max-h-[60vh] min-h-[60vh] resize-none font-mono!"
+                    disabled={loading || saving || titleSaving}
                     id="task-details-description"
                     onChange={(event) => updateForm("description", event.target.value)}
                     placeholder={t("taskDetail.detailPlaceholder")}
@@ -377,10 +547,10 @@ export function ProjectTaskDetailsDialog({
                   />
                 ) : (
                   <div
-                    className="h-100 overflow-hidden rounded-md border border-input bg-transparent text-sm shadow-xs dark:bg-input/30"
+                    className="rounded-md border border-input bg-transparent text-sm shadow-xs dark:bg-input/30"
                     data-slot="task-description-preview"
                   >
-                    <div className="h-full overflow-auto px-2.5 py-2 contain-content">
+                    <div className="px-2.5 py-2 contain-content">
                       {form.description.trim() ? (
                         <MessageMarkdown content={form.description} />
                       ) : (
@@ -390,14 +560,44 @@ export function ProjectTaskDetailsDialog({
                   </div>
                 )}
               </TaskField>
+
+              <ProjectTaskActivityFeed
+                assigneeNames={assigneeNames}
+                disabled={loading || saving || titleSaving || deleting}
+                projectId={task.projectId}
+                revision={details.updatedAt}
+                taskId={task.id}
+              />
             </div>
 
             <div className="grid min-w-0 content-start gap-5">
               <div className="grid gap-4">
+                <TaskField label={t("taskDetail.field.labels")}>
+                  <ProjectTaskLabelsCombobox
+                    disabled={loading || saving || titleSaving}
+                    loading={labelsLoading}
+                    onValueChange={(labels) =>
+                      saveImmediateField(
+                        "labels",
+                        labels,
+                        { labels: normalizeLabels(labels) },
+                        t("taskDetail.saved"),
+                      )
+                    }
+                    options={labelOptions}
+                    portalContainer={assigneeComboboxPortal}
+                    value={form.labels}
+                  />
+                  {labelsError && <p className="text-xs text-destructive">{labelsError}</p>}
+                </TaskField>
+
                 <TaskField label={t("taskDetail.field.status")}>
                   <Select
-                    disabled={loading || saving}
-                    onValueChange={(value) => updateForm("status", value as ProjectTaskStatus)}
+                    disabled={loading || saving || titleSaving}
+                    onValueChange={(value) => {
+                      const status = value as ProjectTaskStatus
+                      saveImmediateField("status", status, { status }, t("taskDetail.saved"))
+                    }}
                     value={form.status}
                   >
                     <SelectTrigger aria-label={t("taskDetail.field.status")} className="w-full">
@@ -430,10 +630,11 @@ export function ProjectTaskDetailsDialog({
 
                 <TaskField label={t("taskDetail.field.priority")}>
                   <Select
-                    disabled={loading || saving}
-                    onValueChange={(value) =>
-                      updateForm("priority", Number(value) as ProjectTaskPriority)
-                    }
+                    disabled={loading || saving || titleSaving}
+                    onValueChange={(value) => {
+                      const priority = Number(value) as ProjectTaskPriority
+                      saveImmediateField("priority", priority, { priority }, t("taskDetail.saved"))
+                    }}
                     value={String(form.priority)}
                   >
                     <SelectTrigger aria-label={t("taskDetail.field.priority")} className="w-full">
@@ -460,12 +661,18 @@ export function ProjectTaskDetailsDialog({
               <div className="grid gap-4">
                 <TaskField label={t("taskDetail.field.assignee")}>
                   <ProjectMemberCombobox
-                    disabled={loading || saving || membersLoading}
+                    disabled={loading || saving || titleSaving || membersLoading}
                     loading={membersLoading}
                     members={memberOptions}
-                    onValueChange={(member: ClientProjectMember | null) =>
-                      updateForm("assigneeUserId", member?.id ?? "")
-                    }
+                    onValueChange={(member: ClientProjectMember | null) => {
+                      const assigneeUserId = member?.id ?? ""
+                      saveImmediateField(
+                        "assigneeUserId",
+                        assigneeUserId,
+                        { assigneeUserId: assigneeUserId || null },
+                        t("taskDetail.saved"),
+                      )
+                    }}
                     portalContainer={assigneeComboboxPortal}
                     showEmptyEmail={false}
                     value={selectedAssignee ?? null}
@@ -477,26 +684,47 @@ export function ProjectTaskDetailsDialog({
               <div className="grid gap-4">
                 <TaskField label={t("taskDetail.field.startDate")}>
                   <ProjectTaskDatePicker
-                    disabled={loading || saving}
+                    disabled={loading || saving || titleSaving}
                     label={t("taskDetail.field.startDate")}
                     maximum={form.dueDate || undefined}
-                    onValueChange={(value) => updateForm("startDate", value)}
+                    onValueChange={(value) =>
+                      saveImmediateField(
+                        "startDate",
+                        value,
+                        { startDate: value || null },
+                        t("taskDetail.saved"),
+                      )
+                    }
                     value={form.startDate}
                   />
                 </TaskField>
                 <TaskField label={t("taskDetail.field.dueDate")}>
                   <ProjectTaskDatePicker
-                    disabled={loading || saving}
+                    disabled={loading || saving || titleSaving}
                     label={t("taskDetail.field.dueDate")}
                     minimum={form.startDate || undefined}
-                    onValueChange={(value) => updateForm("dueDate", value)}
+                    onValueChange={(value) =>
+                      saveImmediateField(
+                        "dueDate",
+                        value,
+                        { dueDate: value || null },
+                        t("taskDetail.saved"),
+                      )
+                    }
                     value={form.dueDate}
                   />
                 </TaskField>
                 <TaskField label={t("taskDetail.field.reminder")}>
                   <ProjectTaskReminderField
-                    disabled={loading || saving}
-                    onValueChange={(value) => updateForm("reminder", value)}
+                    disabled={loading || saving || titleSaving}
+                    onValueChange={(value) =>
+                      saveImmediateField(
+                        "reminder",
+                        value,
+                        { reminder: value },
+                        t("taskDetail.saved"),
+                      )
+                    }
                     state={
                       details.status === form.status &&
                       reminderInputsEqual(form.reminder, toReminderInput(details.reminder))
@@ -514,51 +742,7 @@ export function ProjectTaskDetailsDialog({
               )}
             </div>
           </div>
-
-          <DialogFooter className="sm:justify-between">
-            <div className="flex gap-2">
-              <Button
-                disabled={loading || saving || deleting || dirty || Boolean(error)}
-                onClick={() => setSendDialogOpen(true)}
-                title={
-                  dirty
-                    ? t("taskDetail.sendBeforeSave")
-                    : error
-                      ? t("taskDetail.cannotSend")
-                      : undefined
-                }
-                type="button"
-                variant="outline"
-              >
-                <Send />
-                {t("taskDetail.sendToChat")}
-              </Button>
-              <Button
-                disabled={loading || saving || deleting}
-                onClick={() => setDeleteDialogOpen(true)}
-                type="button"
-                variant="destructive"
-              >
-                <Trash2 />
-                {t("taskDetail.delete")}
-              </Button>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                disabled={saving || deleting}
-                onClick={() => handleOpenChange(false)}
-                type="button"
-                variant="outline"
-              >
-                {t("taskDetail.close")}
-              </Button>
-              <Button disabled={!canSave} type="submit">
-                {saving && <Spinner />}
-                {t("taskDetail.save")}
-              </Button>
-            </div>
-          </DialogFooter>
-        </form>
+        </div>
         <div className="absolute top-0 left-0 size-0" ref={assigneeComboboxPortal} />
       </DialogContent>
       <SendCardDialog card={card} onOpenChange={setSendDialogOpen} open={sendDialogOpen} />
@@ -735,42 +919,13 @@ function taskEditFormsEqual(left: NormalizedTaskEditForm, right: NormalizedTaskE
   )
 }
 
-function createTaskEditPatch(
-  form: NormalizedTaskEditForm,
-  baseline: NormalizedTaskEditForm,
-): UpdateClientProjectTaskInput {
-  const patch: UpdateClientProjectTaskInput = {}
-  if (form.assigneeUserId !== baseline.assigneeUserId) {
-    patch.assigneeUserId = form.assigneeUserId
-  }
-  if (form.description !== baseline.description) {
-    patch.description = form.description
-  }
-  if (form.dueDate !== baseline.dueDate) {
-    patch.dueDate = form.dueDate
-  }
-  if (
-    form.labels.length !== baseline.labels.length ||
-    form.labels.some((label, index) => label !== baseline.labels[index])
-  ) {
-    patch.labels = form.labels
-  }
-  if (form.priority !== baseline.priority) {
-    patch.priority = form.priority
-  }
-  if (!reminderInputsEqual(form.reminder, baseline.reminder)) {
-    patch.reminder = form.reminder
-  }
-  if (form.startDate !== baseline.startDate) {
-    patch.startDate = form.startDate
-  }
-  if (form.status !== baseline.status) {
-    patch.status = form.status
-  }
-  if (form.title !== baseline.title) {
-    patch.title = form.title
-  }
-  return patch
+function mergeTaskEditFields<T extends TaskEditForm | NormalizedTaskEditForm>(
+  current: T,
+  source: T,
+  fields: Array<keyof TaskEditForm>,
+): T {
+  const values = Object.fromEntries(fields.map((field) => [field, source[field]]))
+  return { ...current, ...values }
 }
 
 function toReminderInput(

@@ -1,9 +1,12 @@
 import * as React from "react"
+import katex from "katex"
 import { useLocale } from "@/components/locale-provider"
 import ReactMarkdown from "react-markdown"
 import remarkFlexibleMarkers from "remark-flexible-markers"
 import remarkGfm from "remark-gfm"
+import remarkMath from "remark-math"
 import remarkSupersub from "remark-supersub"
+import "katex/dist/katex.min.css"
 
 import { parseMentionTemplate, type MentionLabelResolver } from "@/lib/message-mentions"
 import { cn } from "@/lib/utils"
@@ -70,6 +73,7 @@ type MarkdownMentionProps = {
 type ReactMarkdownProps = React.ComponentProps<typeof ReactMarkdown>
 
 const fallbackMentionLabelResolver: MentionLabelResolver = () => undefined
+const maxMarkdownMathLength = 10_000
 
 export const MessageMarkdown = React.memo(function MessageMarkdown({
   content,
@@ -84,6 +88,7 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
   const remarkPlugins = React.useMemo<ReactMarkdownProps["remarkPlugins"]>(
     () => [
       [remarkGfm, { singleTilde: false }],
+      remarkMath,
       remarkSupersub,
       remarkFlexibleMarkers,
       createRemarkMentionPlugin(mentionLabelResolver),
@@ -126,20 +131,28 @@ function createMarkdownComponents(
         {children}
       </blockquote>
     ),
-    code: ({ children, className }) => (
-      <code
-        className={cn("rounded bg-foreground/8 px-1 py-0.5 font-mono! text-[0.92em]", className)}
-      >
-        {children}
-      </code>
-    ),
+    code: ({ children, className }) => {
+      const mathMode = getMarkdownMathMode(className)
+
+      return mathMode === "inline" ? (
+        <MarkdownMath formula={getMarkdownCodeText(children)} mode="inline" />
+      ) : (
+        <code
+          className={cn("rounded bg-foreground/8 px-1 py-0.5 font-mono! text-[0.92em]", className)}
+        >
+          {children}
+        </code>
+      )
+    },
     del: ({ children }) => <del className="text-muted-foreground">{children}</del>,
-    h1: ({ children }) => <h1 className="text-lg leading-snug font-semibold">{children}</h1>,
-    h2: ({ children }) => <h2 className="text-base leading-snug font-semibold">{children}</h2>,
-    h3: ({ children }) => <h3 className="text-sm leading-snug font-semibold">{children}</h3>,
-    h4: ({ children }) => <h4 className="text-sm leading-snug text-foreground/80">{children}</h4>,
-    h5: ({ children }) => <h5 className="text-sm leading-snug text-foreground/70">{children}</h5>,
-    h6: ({ children }) => <h6 className="text-sm leading-snug text-foreground/60">{children}</h6>,
+    h1: ({ children }) => <h1 className="text-2xl leading-snug font-bold">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-xl leading-snug font-bold">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-lg leading-snug font-bold">{children}</h3>,
+    h4: ({ children }) => <h4 className="text-base leading-snug font-bold">{children}</h4>,
+    h5: ({ children }) => <h5 className="text-sm leading-snug font-bold">{children}</h5>,
+    h6: ({ children }) => (
+      <h6 className="text-sm leading-snug font-semibold text-foreground/80">{children}</h6>
+    ),
     hr: () => <hr className="h-px border-0 bg-foreground/20" />,
     img: ({ alt, src }) => {
       const imageSource = getMarkdownImageSource(src)
@@ -194,25 +207,28 @@ function createMarkdownComponents(
         }>,
       )
       const code = getMarkdownCodeText(codeElement?.props.children)
+      const mathMode = getMarkdownMathMode(codeElement?.props.className)
+
+      if (mathMode === "display") {
+        return <MarkdownMath formula={code} mode="display" />
+      }
+
       const language = getMarkdownCodeLanguage(codeElement?.props.className)
 
       return <MarkdownCodeBlock code={code} language={language} />
     },
     table: ({ children }) => (
       <div className="max-w-full overflow-x-auto">
-        <table className="w-max min-w-full border-collapse text-xs">{children}</table>
+        <table className="w-max min-w-full border-collapse text-sm">{children}</table>
       </div>
     ),
     td: ({ children, style }) => (
-      <td className="border border-foreground/[0.08] px-2 py-2 align-top" style={style}>
+      <td className="border border-border px-2 py-3 align-top" style={style}>
         {children}
       </td>
     ),
     th: ({ children, style }) => (
-      <th
-        className="border border-foreground/[0.08] bg-foreground/5 px-2 py-2 text-left font-medium"
-        style={style}
-      >
+      <th className="border border-border px-2 py-3 text-left font-semibold" style={style}>
         {children}
       </th>
     ),
@@ -229,6 +245,71 @@ function createMarkdownComponents(
       )
     },
   } as ReactMarkdownProps["components"]
+}
+
+function MarkdownMath({ formula, mode }: { formula: string; mode: "display" | "inline" }) {
+  const normalizedFormula = formula.trim()
+  const html = React.useMemo(() => {
+    if (normalizedFormula.length === 0 || normalizedFormula.length > maxMarkdownMathLength) {
+      return null
+    }
+
+    try {
+      return katex.renderToString(normalizedFormula, {
+        displayMode: mode === "display",
+        output: "htmlAndMathml",
+        strict: "warn",
+        throwOnError: true,
+        trust: false,
+      })
+    } catch {
+      return null
+    }
+  }, [mode, normalizedFormula])
+
+  if (!html) {
+    return mode === "display" ? (
+      <pre
+        className="my-2 max-w-full overflow-x-auto rounded bg-foreground/8 p-2"
+        data-math-error
+        title="LaTeX 公式无法解析"
+      >
+        <code className="font-mono! text-[0.92em]">{normalizedFormula}</code>
+      </pre>
+    ) : (
+      <code
+        className="rounded bg-foreground/8 px-1 py-0.5 font-mono! text-[0.92em]"
+        data-math-error
+        title="LaTeX 公式无法解析"
+      >
+        {normalizedFormula}
+      </code>
+    )
+  }
+
+  return mode === "display" ? (
+    <div
+      className="my-2 max-w-full overflow-x-auto overflow-y-hidden py-1 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      data-slot="markdown-math-display"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  ) : (
+    <span
+      className="inline-block max-w-full align-middle"
+      data-slot="markdown-math-inline"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
+function getMarkdownMathMode(className: string | undefined) {
+  if (className?.split(/\s+/).includes("math-inline")) {
+    return "inline" as const
+  }
+  if (className?.split(/\s+/).includes("math-display")) {
+    return "display" as const
+  }
+  return null
 }
 
 function getMarkdownCodeLanguage(className: string | undefined) {

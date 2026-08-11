@@ -137,8 +137,10 @@ export function UserProfilePopover({
                   </AvatarFallback>
                 </Avatar>
               </button>
-              <div className="min-w-0">
-                <div className="overflow-wrap-anywhere text-sm font-medium">{displayName}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium" title={displayName}>
+                  {displayName}
+                </div>
                 <div className="truncate text-xs text-muted-foreground">用户资料</div>
               </div>
             </div>
@@ -230,13 +232,14 @@ function UserProfileRow({
 
   return (
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
-      {icon}
+      <span className="shrink-0">{icon}</span>
       <span className="w-12 shrink-0 text-muted-foreground">{label}</span>
       <span
         className={cn(
-          "overflow-wrap-anywhere min-w-0 flex-1",
+          "overflow-wrap-anywhere min-w-0 flex-1 [overflow-wrap:anywhere]",
           !hasValue && "text-muted-foreground",
         )}
+        title={displayValue}
       >
         {displayValue}
       </span>

@@ -220,13 +220,14 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
           <UserPlus className="size-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="gap-5 sm:max-w-lg">
+      <DialogContent className="min-w-0 gap-5 overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-base">{t("addMember.title")}</DialogTitle>
           <DialogDescription className="sr-only">{t("addMember.desc")}</DialogDescription>
         </DialogHeader>
-        <form className="grid gap-4" onSubmit={handleSubmit}>
+        <form className="grid min-w-0 gap-4" onSubmit={handleSubmit}>
           <Tabs
+            className="min-w-0"
             onValueChange={(value) => setTab(value === "apps" && canInviteApps ? "apps" : "users")}
             value={activeTab}
           >
@@ -259,7 +260,7 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
                 />
               </div>
             </div>
-            <TabsContent value="users">
+            <TabsContent className="min-w-0" value="users">
               <CandidateList
                 candidates={filteredUserCandidates}
                 emptyText={t("addMember.noContacts")}
@@ -269,7 +270,7 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
                 submitting={submitting}
               />
             </TabsContent>
-            <TabsContent value="apps">
+            <TabsContent className="min-w-0" value="apps">
               <CandidateList
                 candidates={filteredAppCandidates}
                 emptyText={t("addMember.noApps")}
@@ -319,10 +320,10 @@ function CandidateList({
 }) {
   const { t } = useLocale()
   return (
-    <div className="h-64 overflow-y-auto rounded-md border">
+    <div className="h-64 min-w-0 overflow-x-hidden overflow-y-auto rounded-md border">
       <ItemGroup
         aria-label={t("addMember.title")}
-        className="gap-1 p-2 has-data-[size=sm]:gap-1"
+        className="min-w-0 gap-1 p-2 has-data-[size=sm]:gap-1"
         role="group"
       >
         {candidates.map((candidate) => {
@@ -365,13 +366,13 @@ function AddGroupMemberItem({
     <Item
       asChild
       className={cn(
-        "px-2 py-1.5",
+        "min-w-0 flex-nowrap px-2 py-1.5",
         disabled ? "cursor-default opacity-75" : "cursor-pointer",
         checked ? "bg-primary/10" : "hover:bg-muted",
       )}
       size="sm"
     >
-      <Label htmlFor={checkboxId}>
+      <Label className="min-w-0" htmlFor={checkboxId}>
         <ItemMedia>
           <Avatar className="rounded-sm bg-muted after:rounded-sm" data-size="sm">
             {candidate.avatar && (
@@ -381,9 +382,9 @@ function AddGroupMemberItem({
           </Avatar>
         </ItemMedia>
         <ItemContent className="min-w-0">
-          <ItemTitle className="truncate">{displayName}</ItemTitle>
+          <ItemTitle className="w-full truncate">{displayName}</ItemTitle>
         </ItemContent>
-        <ItemActions>
+        <ItemActions className="shrink-0">
           <Checkbox
             aria-label={displayName}
             checked={checked}

@@ -635,7 +635,7 @@ function DirectoryListItem({
       >
         {media}
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          <span className="min-w-0 truncate">{title}</span>
+          <span className="block min-w-0 truncate">{title}</span>
         </span>
       </SidebarMenuButton>
       {onAction && actionLabel && (
