@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { RealtimeClient, type RealtimeWebSocketLike } from "@/lib/realtime-client"
+import type { DiagnosticContext } from "@shared/diagnostics-contract"
 
 class FakeWebSocket implements RealtimeWebSocketLike {
   static instances: FakeWebSocket[] = []
 
+  diagnosticContext?: () => DiagnosticContext | undefined
   onclose: ((event: CloseEvent) => void) | null = null
   onerror: ((event: Event) => void) | null = null
   onmessage: ((event: MessageEvent) => void) | null = null
@@ -226,5 +228,48 @@ describe("RealtimeClient", () => {
 
     expect(client.getSnapshot().status).toBe("disconnected")
     expect(FakeWebSocket.instances).toHaveLength(2)
+  })
+
+  it("断线和重连日志保留已关闭 socket 的关联上下文", () => {
+    const record = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: { diagnostics: { record } },
+    })
+    const client = createClient()
+    client.connect()
+    const socket = FakeWebSocket.instances[0]
+    socket.diagnosticContext = () => ({
+      connectionInstanceId: "connection-1",
+      episodeId: "episode-1",
+      targetScope: "server-1",
+    })
+    socket.open()
+    record.mockClear()
+
+    socket.failClose()
+
+    const events = record.mock.calls.map(([event]) => event)
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          context: {
+            connectionInstanceId: "connection-1",
+            episodeId: "episode-1",
+            targetScope: "server-1",
+          },
+          data: expect.objectContaining({ status: "reconnecting" }),
+          type: "realtime.state-changed",
+        }),
+        expect.objectContaining({
+          context: {
+            connectionInstanceId: "connection-1",
+            episodeId: "episode-1",
+            targetScope: "server-1",
+          },
+          type: "realtime.reconnect-scheduled",
+        }),
+      ]),
+    )
   })
 })

@@ -50,6 +50,10 @@ export type DiagnosticContext = Readonly<{
   targetScope?: string
 }>
 
+export type RealtimeDiagnosticContext = Readonly<
+  Required<Pick<DiagnosticContext, "connectionInstanceId" | "episodeId" | "targetScope">>
+>
+
 export type DiagnosticStorageStats = Readonly<{
   bytes: number
   status: "available" | "unavailable"
@@ -342,20 +346,68 @@ const diagnosticDataKeysByType = {
   ],
 } as const satisfies Record<DiagnosticType, readonly DiagnosticDataKey[]>
 
-export type DiagnosticDataForType<Type extends DiagnosticType> = Readonly<
-  Partial<{
-    [Key in (typeof diagnosticDataKeysByType)[Type][number]]: DiagnosticDataValueForType<Type, Key>
-  }>
+const diagnosticRequiredContextKeysByType = {
+  "message-sync.cache-committed": ["conversationId", "requestId", "syncOperationId"],
+  "message-sync.page-received": ["conversationId", "requestId", "syncOperationId"],
+  "message-sync.page-requested": ["conversationId", "requestId", "syncOperationId"],
+  "realtime.state-changed": ["connectionInstanceId", "episodeId", "targetScope"],
+} as const satisfies Partial<Record<DiagnosticType, readonly (typeof identifierFields)[number][]>>
+
+const diagnosticRequiredDataKeysByType = {
+  "message-sync.cache-committed": ["afterSeq", "cacheNewestSeq", "committedSeq", "memoryCursor"],
+  "message-sync.page-received": [
+    "afterSeq",
+    "durationMs",
+    "endpoint",
+    "firstReturnedSeq",
+    "responseStatus",
+    "returnedCount",
+    "returnedLastSeq",
+  ],
+  "message-sync.page-requested": ["afterSeq", "endpoint"],
+  "realtime.state-changed": ["ready", "status"],
+} as const satisfies Partial<Record<DiagnosticType, readonly DiagnosticDataKey[]>>
+
+type RequiredDiagnosticContextKey<Type extends DiagnosticType> =
+  Type extends keyof typeof diagnosticRequiredContextKeysByType
+    ? (typeof diagnosticRequiredContextKeysByType)[Type][number]
+    : never
+
+type RequiredDiagnosticDataKey<Type extends DiagnosticType> =
+  Type extends keyof typeof diagnosticRequiredDataKeysByType
+    ? (typeof diagnosticRequiredDataKeysByType)[Type][number]
+    : never
+
+type DiagnosticContextForType<Type extends DiagnosticType> = Readonly<
+  DiagnosticContext & Required<Pick<DiagnosticContext, RequiredDiagnosticContextKey<Type>>>
 >
+
+export type DiagnosticDataForType<Type extends DiagnosticType> = Type extends DiagnosticType
+  ? Readonly<
+      {
+        [Key in RequiredDiagnosticDataKey<Type>]: DiagnosticDataValueForType<Type, Key>
+      } & {
+        [Key in Exclude<
+          (typeof diagnosticDataKeysByType)[Type][number],
+          RequiredDiagnosticDataKey<Type>
+        >]?: DiagnosticDataValueForType<Type, Key>
+      }
+    >
+  : never
 
 export type DiagnosticEventInput<Type extends DiagnosticType = DiagnosticType> =
   Type extends DiagnosticType
-    ? Readonly<{
-        context?: DiagnosticContext
-        data?: DiagnosticDataForType<Type>
-        origin: DiagnosticOrigin
-        type: Type
-      }>
+    ? Readonly<
+        {
+          origin: DiagnosticOrigin
+          type: Type
+        } & (RequiredDiagnosticContextKey<Type> extends never
+          ? { context?: DiagnosticContextForType<Type> }
+          : { context: DiagnosticContextForType<Type> }) &
+          (RequiredDiagnosticDataKey<Type> extends never
+            ? { data?: DiagnosticDataForType<Type> }
+            : { data: DiagnosticDataForType<Type> })
+      >
     : never
 
 export type DiagnosticEvent = Readonly<{
@@ -371,7 +423,7 @@ export function createDiagnosticEventInput<Type extends DiagnosticType>(
   type: Type,
   origin: DiagnosticOrigin,
   context?: DiagnosticContext,
-  data?: DiagnosticDataForType<Type>,
+  data?: DiagnosticData,
 ): DiagnosticEventInput<Type> {
   return {
     ...(context ? { context } : {}),
@@ -391,6 +443,7 @@ export function parseDiagnosticEventInput(
   const type = input.type
   const context = input.context === undefined ? undefined : parseDiagnosticContext(input.context)
   const data = input.data === undefined ? undefined : parseDiagnosticData(type, input.data)
+  validateRequiredEventFields(type, context, data)
   return createDiagnosticEventInput(type, input.origin, context, data)
 }
 
@@ -455,6 +508,22 @@ function isDiagnosticDataKey(value: string): value is DiagnosticDataKey {
 
 function allowsDiagnosticDataKey(type: DiagnosticType, key: DiagnosticDataKey): boolean {
   return (diagnosticDataKeysByType[type] as readonly DiagnosticDataKey[]).includes(key)
+}
+
+function validateRequiredEventFields(
+  type: DiagnosticType,
+  context: DiagnosticContext | undefined,
+  data: DiagnosticData | undefined,
+): void {
+  const requiredContextKeys = diagnosticRequiredContextKeysByType[
+    type as keyof typeof diagnosticRequiredContextKeysByType
+  ] as readonly (typeof identifierFields)[number][] | undefined
+  if (requiredContextKeys?.some((key) => context?.[key] === undefined)) invalid()
+
+  const requiredDataKeys = diagnosticRequiredDataKeysByType[
+    type as keyof typeof diagnosticRequiredDataKeysByType
+  ] as readonly DiagnosticDataKey[] | undefined
+  if (requiredDataKeys?.some((key) => data?.[key] === undefined)) invalid()
 }
 
 function isDiagnosticDataValue(

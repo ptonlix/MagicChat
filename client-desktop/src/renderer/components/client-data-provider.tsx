@@ -2103,9 +2103,10 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
             completedCursor = await messageManager.catchUp(operation!, initialCursor, fetchPage, {
               onCacheCommitted: ({ committedSeq, page, requestAfterSeq }) => {
                 const requestId = requestIds.get(requestAfterSeq)
+                if (!requestId) return
                 void recordRendererDiagnostic(
                   "message-sync.cache-committed",
-                  { ...context, ...(requestId ? { requestId } : {}) },
+                  { ...context, requestId },
                   {
                     afterSeq: requestAfterSeq,
                     cacheNewestSeq: page.messages.at(-1)?.seq ?? 0,
@@ -2174,9 +2175,10 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
                   cursor,
                 )
                 const requestId = requestIds.get(cursor)
+                if (!requestId) return committedSeq
                 void recordRendererDiagnostic(
                   "message-sync.cache-committed",
-                  { ...context, ...(requestId ? { requestId } : {}) },
+                  { ...context, requestId },
                   {
                     afterSeq: cursor,
                     cacheNewestSeq: result.messages.at(-1)?.seq ?? 0,

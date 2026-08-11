@@ -340,6 +340,11 @@ async function readExport(filePath: string) {
 
 function realtimeState(status: "connected" | "connecting" | "reconnecting", attempt: number) {
   return {
+    context: {
+      connectionInstanceId: "connection-1",
+      episodeId: "episode-1",
+      targetScope: "server-1",
+    },
     data: { attempt, ready: false, status },
     origin: "main" as const,
     type: "realtime.state-changed" as const,

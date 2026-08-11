@@ -218,6 +218,77 @@ describe("RealtimeController 诊断", () => {
       true,
     )
   })
+
+  it("主动关闭记录最终 disconnected 状态并广播最终快照", async () => {
+    const controller = createController()
+    const snapshots: Array<{ ready: boolean; status: string }> = []
+    controller.on("snapshot", (snapshot) => snapshots.push(snapshot))
+
+    await controller.connect(target)
+    const socket = socketMocks.FakeWebSocket.instances[0]
+    socket.open()
+    socket.emit("message", Buffer.from(JSON.stringify(systemReadyEvent())), false)
+    recordEvent.mockClear()
+
+    controller.close(target)
+
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reason: "manual", status: "disconnected" }),
+        type: "realtime.socket-closed",
+      }),
+    )
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ ready: false, status: "disconnected" }),
+        type: "realtime.state-changed",
+      }),
+    )
+    expect(snapshots.at(-1)).toMatchObject({ ready: false, status: "disconnected" })
+  })
+
+  it("每次重建物理 socket 都使用新的 connectionInstanceId", async () => {
+    const controller = createController()
+
+    await controller.connect(target)
+    const first = socketMocks.FakeWebSocket.instances[0]
+    first.open()
+    first.emit("close", 1006, Buffer.from("network interrupted"))
+    await vi.runAllTimersAsync()
+    socketMocks.FakeWebSocket.instances[1].open()
+
+    const opened = recordEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "realtime.socket-opened")
+    expect(opened).toHaveLength(2)
+    expect(opened[0].context.connectionInstanceId).not.toBe(opened[1].context.connectionInstanceId)
+  })
+
+  it("聚合损坏帧和协议版本不匹配，避免逐条写入诊断日志", async () => {
+    let eventSeq = 0
+    recordEvent.mockImplementation(async () => ({ eventSeq: (eventSeq += 1) }))
+    const controller = createController()
+
+    await controller.connect(target)
+    const socket = socketMocks.FakeWebSocket.instances[0]
+    socket.emit("message", Buffer.from("not valid json"), false)
+    socket.emit("message", Buffer.from(JSON.stringify({ kind: "event", v: 2 })), false)
+    socket.emit("message", Buffer.from("null"), false)
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    const parseFailures = recordEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "realtime.event-parse-failed")
+    const aggregates = recordEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "realtime.parse-failures-aggregated")
+    expect(parseFailures).toHaveLength(1)
+    expect(aggregates).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({ suppressedCount: 2, suppressedFromEventSeq: 2 }),
+      }),
+    ])
+  })
 })
 
 function systemReadyEvent() {

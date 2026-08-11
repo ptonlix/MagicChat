@@ -30,6 +30,11 @@ describe("registerDiagnosticsIpc", () => {
 
   it("只向可信 Renderer 暴露受控的诊断事件与存储数据", async () => {
     const recorded: DiagnosticEvent = {
+      context: {
+        connectionInstanceId: "connection-1",
+        episodeId: "episode-1",
+        targetScope: "server-1",
+      },
       data: { ready: false, status: "connected" },
       eventSeq: 42,
       origin: "renderer",
@@ -60,6 +65,11 @@ describe("registerDiagnosticsIpc", () => {
       recordHandler(
         { senderFrame: { url: "magicchat-app://app/index.html" } } as IpcMainInvokeEvent,
         {
+          context: {
+            connectionInstanceId: "connection-1",
+            episodeId: "episode-1",
+            targetScope: "server-1",
+          },
           data: { ready: false, status: "connected" },
           origin: "renderer",
           type: "realtime.state-changed",
@@ -67,6 +77,11 @@ describe("registerDiagnosticsIpc", () => {
       ),
     ).resolves.toEqual(recorded)
     expect(recordEvent).toHaveBeenCalledWith({
+      context: {
+        connectionInstanceId: "connection-1",
+        episodeId: "episode-1",
+        targetScope: "server-1",
+      },
       data: { ready: false, status: "connected" },
       origin: "renderer",
       type: "realtime.state-changed",

@@ -219,9 +219,8 @@ describe("installDesktopFetch", () => {
 })
 
 describe("DesktopWebSocket realtime snapshot", () => {
-  it("Main 已 ready 但 Renderer 尚未收到 system.ready 时保持 Renderer 未 ready", async () => {
+  it("使用 connect 返回的快照建立关联，但未收到 system.ready 时保持 Renderer 未 ready", async () => {
     let envelopeListener: ((value: unknown) => void) | undefined
-    let snapshotListener: ((value: unknown) => void) | undefined
     const record = vi.fn().mockResolvedValue({ eventSeq: 1, timestamp: "2025-01-01T00:00:00.000Z" })
     const target = { id: "server", normalizedUrl: "https://chat.example.com", userId: "user" }
     Object.defineProperty(window, "desktop", {
@@ -243,10 +242,7 @@ describe("DesktopWebSocket realtime snapshot", () => {
             envelopeListener = listener
             return () => undefined
           }),
-          subscribeSnapshot: vi.fn((listener) => {
-            snapshotListener = listener
-            return () => undefined
-          }),
+          subscribeSnapshot: vi.fn(() => () => undefined),
           subscribeUnauthorized: vi.fn(() => () => undefined),
         },
       } as unknown as DesktopBridge,
@@ -254,19 +250,21 @@ describe("DesktopWebSocket realtime snapshot", () => {
     const client = new RealtimeClient({ createWebSocket: () => new DesktopWebSocket(target) })
 
     client.connect()
-    snapshotListener?.({
-      connectionInstanceId: "connection-1",
-      episodeId: "episode-1",
-      ready: true,
-      status: "connected",
-      targetKey: "server:https%3A%2F%2Fchat.example.com:user",
-      targetScope: "server",
-    })
     await vi.waitFor(() => expect(client.getSnapshot().status).toBe("connected"))
 
     expect(client.getSnapshot().ready).toBe(false)
     expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "realtime-bridge.snapshot-received" }),
+      expect.objectContaining({
+        context: {
+          connectionInstanceId: "connection-1",
+          episodeId: "episode-1",
+          targetScope: "server",
+        },
+        type: "realtime-bridge.snapshot-received",
+      }),
+    )
+    expect(record).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "realtime-bridge.snapshot-missed" }),
     )
 
     envelopeListener?.({ event: "system.ready", kind: "event", v: 1 })

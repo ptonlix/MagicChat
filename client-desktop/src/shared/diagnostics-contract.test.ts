@@ -4,6 +4,7 @@ import {
   parseDiagnosticEventInput,
   parseDiagnosticContext,
   type DiagnosticDataForType,
+  type DiagnosticEventInput,
 } from "@shared/diagnostics-contract"
 
 describe("诊断事件契约", () => {
@@ -95,6 +96,61 @@ describe("诊断事件契约", () => {
       endpoint: "conversation-list",
     }
     void invalidEndpointData
+
+    const invalidCacheCommitted: DiagnosticEventInput<"message-sync.cache-committed"> = {
+      // @ts-expect-error 缓存提交必须关联到具体分页请求。
+      context: { conversationId: "conversation-1", syncOperationId: "sync-1" },
+      // @ts-expect-error 缓存提交必须同时记录全部关键游标。
+      data: { afterSeq: 42, committedSeq: 42 },
+      origin: "renderer",
+      type: "message-sync.cache-committed",
+    }
+    void invalidCacheCommitted
+
+    // @ts-expect-error 状态事件必须携带完整的连接关联上下文。
+    const invalidRealtimeState: DiagnosticEventInput<"realtime.state-changed"> = {
+      data: { ready: false, status: "disconnected" },
+      origin: "renderer",
+      type: "realtime.state-changed",
+    }
+    void invalidRealtimeState
+  })
+
+  it("拒绝缺失状态字段或分页关联/游标的事件", () => {
+    expect(() =>
+      parseDiagnosticEventInput({
+        data: { ready: true },
+        origin: "renderer",
+        type: "realtime.state-changed",
+      }),
+    ).toThrow("诊断事件字段无效")
+    expect(() =>
+      parseDiagnosticEventInput({
+        data: { ready: true, status: "connected" },
+        origin: "renderer",
+        type: "realtime.state-changed",
+      }),
+    ).toThrow("诊断事件字段无效")
+    expect(() =>
+      parseDiagnosticEventInput({
+        context: { conversationId: "conversation-1", syncOperationId: "sync-1" },
+        data: { afterSeq: 42, cacheNewestSeq: 42, committedSeq: 42, memoryCursor: 42 },
+        origin: "renderer",
+        type: "message-sync.cache-committed",
+      }),
+    ).toThrow("诊断事件字段无效")
+    expect(() =>
+      parseDiagnosticEventInput({
+        context: {
+          conversationId: "conversation-1",
+          requestId: "request-1",
+          syncOperationId: "sync-1",
+        },
+        data: { afterSeq: 42 },
+        origin: "renderer",
+        type: "message-sync.cache-committed",
+      }),
+    ).toThrow("诊断事件字段无效")
   })
 })
 

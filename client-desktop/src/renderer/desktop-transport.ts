@@ -4,7 +4,7 @@ import {
   type RealtimeEnvelope,
   type RealtimeSnapshot,
 } from "@shared/client-contract"
-import type { DiagnosticContext } from "@shared/diagnostics-contract"
+import type { RealtimeDiagnosticContext } from "@shared/diagnostics-contract"
 import type { RealtimeWebSocketLike } from "@/lib/realtime-client"
 import { randomUUID } from "./random-id"
 import { beginDiagnosticRequest } from "@/lib/runtime-diagnostics"
@@ -212,15 +212,13 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
       this.unsubscribe()
       this.unsubscribeSnapshot()
       this.unsubscribeUnauthorized()
-      void recordRendererDiagnostic("realtime.state-changed", this.diagnosticContext(), {
-        ready: false,
-        status: "disconnected",
-      })
+      this.recordState("disconnected")
       this.onclose?.(new CloseEvent("close", { code: 1008, reason: "unauthorized" }))
     })
     void window.desktop.realtime
       .connect(target)
-      .then(() => {
+      .then((snapshot) => {
+        if (!this.receivedSnapshot) this.receiveSnapshot(snapshot)
         if (!this.receivedSnapshot)
           void recordRendererDiagnostic(
             "realtime-bridge.snapshot-missed",
@@ -230,18 +228,12 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
             },
           )
         this.readyState = DesktopWebSocket.OPEN
-        void recordRendererDiagnostic("realtime.state-changed", this.diagnosticContext(), {
-          ready: false,
-          status: "connected",
-        })
+        this.recordState("connected")
         this.onopen?.(new Event("open"))
       })
       .catch(() => {
         this.readyState = DesktopWebSocket.CLOSED
-        void recordRendererDiagnostic("realtime.state-changed", this.diagnosticContext(), {
-          ready: false,
-          status: "disconnected",
-        })
+        this.recordState("disconnected")
         this.onerror?.(new Event("error"))
         this.onclose?.(new CloseEvent("close"))
       })
@@ -255,10 +247,7 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
     this.unsubscribeUnauthorized()
     void window.desktop.realtime.close(this.target).finally(() => {
       this.readyState = DesktopWebSocket.CLOSED
-      void recordRendererDiagnostic("realtime.state-changed", this.diagnosticContext(), {
-        ready: false,
-        status: "disconnected",
-      })
+      this.recordState("disconnected")
       this.onclose?.(new CloseEvent("close"))
     })
   }
@@ -312,16 +301,21 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
     this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(envelope) }))
   }
 
-  diagnosticContext(): DiagnosticContext | undefined {
+  diagnosticContext(): RealtimeDiagnosticContext | undefined {
     const snapshot = this.latestSnapshot
-    const context = {
-      ...(snapshot?.connectionInstanceId
-        ? { connectionInstanceId: snapshot.connectionInstanceId }
-        : {}),
-      ...(snapshot?.episodeId ? { episodeId: snapshot.episodeId } : {}),
-      ...(snapshot?.targetScope ? { targetScope: snapshot.targetScope } : {}),
+    if (!snapshot?.connectionInstanceId || !snapshot.episodeId || !snapshot.targetScope)
+      return undefined
+    return {
+      connectionInstanceId: snapshot.connectionInstanceId,
+      episodeId: snapshot.episodeId,
+      targetScope: snapshot.targetScope,
     }
-    return Object.keys(context).length > 0 ? context : undefined
+  }
+
+  private recordState(status: RealtimeSnapshot["status"]): void {
+    const context = this.diagnosticContext()
+    if (!context) return
+    void recordRendererDiagnostic("realtime.state-changed", context, { ready: false, status })
   }
 
   private receiveSnapshot(snapshot: RealtimeSnapshot): void {

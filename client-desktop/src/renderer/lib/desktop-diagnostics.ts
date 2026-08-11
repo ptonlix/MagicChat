@@ -2,6 +2,7 @@ import type {
   DiagnosticContext,
   DiagnosticDataForType,
   DiagnosticEvent,
+  DiagnosticEventInput,
   DiagnosticType,
 } from "@shared/diagnostics-contract"
 import { createDiagnosticEventInput } from "@shared/diagnostics-contract"
@@ -18,14 +19,22 @@ type ParseFailureWindow = {
 
 let parseFailureWindow: ParseFailureWindow | undefined
 
+type DiagnosticRecordArguments<Type extends DiagnosticType> =
+  DiagnosticEventInput<Type> extends infer Event
+    ? Event extends { context: infer Context; data: infer Data }
+      ? [context: Context, data: Data]
+      : Event extends { data: infer Data }
+        ? [context: DiagnosticContext | undefined, data: Data]
+        : [context?: DiagnosticContext, data?: DiagnosticDataForType<Type>]
+    : never
+
 export function createDiagnosticId(): string {
   return crypto.randomUUID().replace(/-/g, "")
 }
 
 export function recordRendererDiagnostic<Type extends DiagnosticType>(
   type: Type,
-  context?: DiagnosticContext,
-  data?: DiagnosticDataForType<Type>,
+  ...[context, data]: DiagnosticRecordArguments<Type>
 ): Promise<DiagnosticEvent | undefined> {
   const diagnostics = window.desktop?.diagnostics
   if (!diagnostics?.record) return Promise.resolve(undefined)
