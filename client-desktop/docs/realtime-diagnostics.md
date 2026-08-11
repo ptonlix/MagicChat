@@ -37,7 +37,10 @@ Desktop 实时诊断默认只保存在本机。用户通过设置页导出后，
 
 `origin` 只会是 `main`、`renderer` 或 `gpu`。`context` 只在存在关联字段时出现，
 不能是空对象；`data` 只保存白名单中的状态、序号、耗时、环境摘要或分类错误，
-不保存关联 ID 或任意文本。
+不保存关联 ID 或任意文本。写入端的 `DiagnosticEventInput` 会按 `type` 静态限制
+字段和值；例如列表事件只能使用 `conversation-list` endpoint，消息分页事件只能使用
+`message-after-seq` endpoint。IPC 和 JSON 读取边界仍以 `unknown` 接收原始数据，只有通过
+运行时解析后才进入受控事件。
 
 ## 关联字段
 

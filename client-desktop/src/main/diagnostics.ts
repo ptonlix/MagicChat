@@ -4,6 +4,7 @@ import path from "node:path"
 import { app, crashReporter, dialog } from "electron"
 import {
   DIAGNOSTIC_SCHEMA_VERSION,
+  createDiagnosticEventInput,
   parseDiagnosticEvent,
   parseDiagnosticEventInput,
   type DiagnosticData,
@@ -145,14 +146,16 @@ export class Diagnostics {
         : {}),
       ...(type === "gpu.process-error" ? { reason: "unknown" } : {}),
     }
-    await this.recordEvent({
-      ...(details.episodeId && isIdentifier(details.episodeId)
-        ? { context: { episodeId: details.episodeId } }
-        : {}),
-      ...(Object.keys(data).length > 0 ? { data } : {}),
-      origin: processType,
-      type,
-    })
+    await this.recordEvent(
+      createDiagnosticEventInput(
+        type,
+        processType,
+        details.episodeId && isIdentifier(details.episodeId)
+          ? { episodeId: details.episodeId }
+          : undefined,
+        Object.keys(data).length > 0 ? data : undefined,
+      ),
+    )
   }
 
   async recordEvent(input: DiagnosticEventInput): Promise<DiagnosticRecord | undefined> {

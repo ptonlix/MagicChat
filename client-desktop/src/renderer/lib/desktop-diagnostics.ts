@@ -1,9 +1,10 @@
 import type {
   DiagnosticContext,
-  DiagnosticData,
+  DiagnosticDataForType,
   DiagnosticEvent,
   DiagnosticType,
 } from "@shared/diagnostics-contract"
+import { createDiagnosticEventInput } from "@shared/diagnostics-contract"
 import { ClientTransportError } from "@shared/client-contract"
 import { ClientDataRequestError } from "@/lib/client-api/core"
 import { MessageCatchUpError } from "@/lib/messages/message-catch-up"
@@ -21,20 +22,22 @@ export function createDiagnosticId(): string {
   return crypto.randomUUID().replace(/-/g, "")
 }
 
-export function recordRendererDiagnostic(
-  type: DiagnosticType,
+export function recordRendererDiagnostic<Type extends DiagnosticType>(
+  type: Type,
   context?: DiagnosticContext,
-  data?: DiagnosticData,
+  data?: DiagnosticDataForType<Type>,
 ): Promise<DiagnosticEvent | undefined> {
   const diagnostics = window.desktop?.diagnostics
   if (!diagnostics?.record) return Promise.resolve(undefined)
   return diagnostics
-    .record({
-      ...(context && Object.keys(context).length > 0 ? { context } : {}),
-      ...(data && Object.keys(data).length > 0 ? { data } : {}),
-      origin: "renderer",
-      type,
-    })
+    .record(
+      createDiagnosticEventInput(
+        type,
+        "renderer",
+        context && Object.keys(context).length > 0 ? context : undefined,
+        data && Object.keys(data).length > 0 ? data : undefined,
+      ),
+    )
     .catch(() => undefined)
 }
 

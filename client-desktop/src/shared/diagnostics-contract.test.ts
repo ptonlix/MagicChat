@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   parseDiagnosticEventInput,
   parseDiagnosticContext,
-  type DiagnosticEventInput,
+  type DiagnosticDataForType,
 } from "@shared/diagnostics-contract"
 
 describe("诊断事件契约", () => {
@@ -61,12 +61,47 @@ describe("诊断事件契约", () => {
       ),
     ).toThrow("诊断事件字段无效")
   })
+
+  it("按事件 type 限制 data 字段，并为生产端提供对应的静态约束", () => {
+    expect(() =>
+      parseDiagnosticEventInput({
+        data: { afterSeq: 42 },
+        origin: "renderer",
+        type: "environment.network-changed",
+      }),
+    ).toThrow("诊断事件字段无效")
+    expect(() =>
+      parseDiagnosticEventInput({
+        data: { endpoint: "conversation-list" },
+        origin: "renderer",
+        type: "message-sync.page-requested",
+      }),
+    ).toThrow("诊断事件字段无效")
+
+    const pageRequestedData: DiagnosticDataForType<"message-sync.page-requested"> = {
+      afterSeq: 42,
+      endpoint: "message-after-seq",
+    }
+    expect(pageRequestedData).toEqual({ afterSeq: 42, endpoint: "message-after-seq" })
+
+    const invalidPageRequestedData: DiagnosticDataForType<"message-sync.page-requested"> = {
+      // @ts-expect-error 该字段属于 conversation-ui.state-observed，不属于分页请求事件。
+      viewMode: "history",
+    }
+    void invalidPageRequestedData
+
+    const invalidEndpointData: DiagnosticDataForType<"message-sync.page-requested"> = {
+      // @ts-expect-error 分页请求只能使用 message-after-seq endpoint。
+      endpoint: "conversation-list",
+    }
+    void invalidEndpointData
+  })
 })
 
-function withData(data: Record<string, unknown>): DiagnosticEventInput {
+function withData(data: Record<string, unknown>) {
   return {
     data,
     origin: "renderer",
     type: "message-sync.started",
-  } as unknown as DiagnosticEventInput
+  }
 }

@@ -14,6 +14,11 @@ import { ServerProfiles } from "@main/server-profiles"
 import { SessionController } from "@main/session-controller"
 import type { ProxyAuthPrompt } from "@main/proxy-auth"
 import type { Diagnostics } from "@main/diagnostics"
+import {
+  createDiagnosticEventInput,
+  type DiagnosticDataForType,
+  type DiagnosticType,
+} from "@shared/diagnostics-contract"
 
 type Connection = {
   attempt: number
@@ -290,19 +295,21 @@ export class RealtimeController extends EventEmitter {
 
   private record(
     connection: Connection,
-    type: Extract<import("@shared/diagnostics-contract").DiagnosticType, `realtime.${string}`>,
-    data?: import("@shared/diagnostics-contract").DiagnosticData,
+    type: Extract<DiagnosticType, `realtime.${string}`>,
+    data?: DiagnosticDataForType<typeof type>,
   ): void {
-    void this.diagnostics?.recordEvent({
-      context: {
-        connectionInstanceId: connection.connectionInstanceId,
-        episodeId: connection.episodeId,
-        targetScope: connection.target.id,
-      },
-      ...(data ? { data } : {}),
-      origin: "main",
-      type,
-    })
+    void this.diagnostics?.recordEvent(
+      createDiagnosticEventInput(
+        type,
+        "main",
+        {
+          connectionInstanceId: connection.connectionInstanceId,
+          episodeId: connection.episodeId,
+          targetScope: connection.target.id,
+        },
+        data,
+      ),
+    )
   }
 
   private createEpisode(reason: import("@main/diagnostics").DiagnosticEpisodeReason): string {

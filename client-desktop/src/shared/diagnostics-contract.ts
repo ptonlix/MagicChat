@@ -50,24 +50,6 @@ export type DiagnosticContext = Readonly<{
   targetScope?: string
 }>
 
-type DiagnosticPrimitive = boolean | number | string
-export type DiagnosticData = Readonly<{
-  [key: string]: DiagnosticPrimitive | Readonly<Record<string, DiagnosticPrimitive>>
-}>
-
-export type DiagnosticEventInput = Readonly<{
-  context?: DiagnosticContext
-  data?: DiagnosticData
-  origin: DiagnosticOrigin
-  type: DiagnosticType
-}>
-
-export type DiagnosticEvent = DiagnosticEventInput &
-  Readonly<{
-    eventSeq: number
-    timestamp: string
-  }>
-
 export type DiagnosticStorageStats = Readonly<{
   bytes: number
   status: "available" | "unavailable"
@@ -83,102 +65,321 @@ const identifierFields = [
   "syncOperationId",
   "requestId",
 ] as const
-const dataKeys = new Set([
-  "activeRefreshes",
-  "activeRequests",
-  "appActivatedAgeMs",
-  "attempt",
-  "afterSeq",
-  "cacheNewestSeq",
-  "closeCode",
-  "closeReasonLength",
-  "committedSeq",
-  "documentVisibility",
-  "durationMs",
-  "deliveryFailureCount",
-  "deliverySucceededCount",
-  "eventLoopLagMs",
-  "firstReturnedSeq",
-  "hasMoreAfter",
-  "hasMoreBefore",
-  "httpSyncedThroughSeq",
-  "initialCursor",
-  "lastMessageSeq",
-  "latestKnownSeq",
-  "loaded",
-  "longTaskCount",
-  "longTaskMaxDurationMs",
-  "memoryCursor",
-  "memoryMb",
-  "navigatorOnline",
-  "pageCount",
-  "pageNewestSeq",
-  "pendingLatestMessageCount",
-  "pendingRequestCount",
-  "displayedNewestSeq",
-  "previousReady",
-  "previousStatus",
-  "ready",
-  "reason",
-  "reconnectAttempt",
-  "responseStatus",
-  "returnedCount",
-  "returnedLastSeq",
-  "seqDelta",
-  "status",
-  "suppressedCount",
-  "suppressedFromEventSeq",
-  "suppressedToEventSeq",
-  "systemReadyCount",
-  "trigger",
-  "viewMode",
-  "windowEndedAt",
-  "windowFocused",
-  "windowMinimized",
-  "windowStartedAt",
-  "windowVisible",
-  "endpoint",
-  "error",
-])
-const stringValues = new Set([
-  "authorization",
+
+const diagnosticErrorCategories = [
   "cache",
-  "cancelled",
-  "closed",
-  "connection",
   "concurrent",
-  "connected",
-  "connecting",
-  "conversation-list",
-  "disconnected",
-  "hidden",
-  "history",
   "http",
-  "list",
-  "list-divergence",
-  "loaded-conversation",
-  "latest",
-  "lifecycle",
-  "locked",
-  "manual",
-  "message-after-seq",
   "network",
-  "offline",
-  "online",
   "parse",
-  "request",
-  "reconnect",
-  "reconnecting",
-  "ready-edge",
-  "resume",
   "stale",
-  "suspend",
   "unknown",
   "unmounted",
-  "visible",
-  "window",
-])
-const errorKeys = new Set(["category", "phase", "status"])
+] as const
+type DiagnosticErrorCategory = (typeof diagnosticErrorCategories)[number]
+
+const diagnosticErrorPhases = ["authorization", "cache", "list", "request"] as const
+type DiagnosticErrorPhase = (typeof diagnosticErrorPhases)[number]
+
+type DiagnosticErrorData =
+  | Readonly<{
+      category: DiagnosticErrorCategory
+      phase?: DiagnosticErrorPhase
+      status?: number
+    }>
+  | Readonly<{
+      category?: DiagnosticErrorCategory
+      phase: DiagnosticErrorPhase
+      status?: number
+    }>
+  | Readonly<{
+      category?: DiagnosticErrorCategory
+      phase?: DiagnosticErrorPhase
+      status: number
+    }>
+
+type DiagnosticDataFieldDefinition =
+  | Readonly<{ kind: "boolean" }>
+  | Readonly<{ kind: "error" }>
+  | Readonly<{ kind: "number"; maximum: number }>
+  | Readonly<{ kind: "timestamp" }>
+  | Readonly<{ kind: "enum"; values: readonly string[] }>
+
+// 诊断字段定义同时驱动生产端类型和跨进程、落盘数据的运行时校验。
+const diagnosticDataFields = {
+  activeRefreshes: { kind: "number", maximum: 1_000_000_000 },
+  activeRequests: { kind: "number", maximum: 1_000_000_000 },
+  appActivatedAgeMs: { kind: "number", maximum: 1_000_000_000 },
+  attempt: { kind: "number", maximum: 1_000_000_000 },
+  afterSeq: { kind: "number", maximum: 1_000_000_000 },
+  cacheNewestSeq: { kind: "number", maximum: 1_000_000_000 },
+  closeCode: { kind: "number", maximum: 9_999 },
+  closeReasonLength: { kind: "number", maximum: 256 },
+  committedSeq: { kind: "number", maximum: 1_000_000_000 },
+  deliveryFailureCount: { kind: "number", maximum: 1_000_000_000 },
+  deliverySucceededCount: { kind: "number", maximum: 1_000_000_000 },
+  displayedNewestSeq: { kind: "number", maximum: 1_000_000_000 },
+  documentVisibility: { kind: "enum", values: ["hidden", "visible"] },
+  durationMs: { kind: "number", maximum: 1_000_000_000 },
+  endpoint: { kind: "enum", values: ["conversation-list", "message-after-seq"] },
+  error: { kind: "error" },
+  eventLoopLagMs: { kind: "number", maximum: 1_000_000_000 },
+  firstReturnedSeq: { kind: "number", maximum: 1_000_000_000 },
+  hasMoreAfter: { kind: "boolean" },
+  hasMoreBefore: { kind: "boolean" },
+  httpSyncedThroughSeq: { kind: "number", maximum: 1_000_000_000 },
+  initialCursor: { kind: "number", maximum: 1_000_000_000 },
+  lastMessageSeq: { kind: "number", maximum: 1_000_000_000 },
+  latestKnownSeq: { kind: "number", maximum: 1_000_000_000 },
+  loaded: { kind: "boolean" },
+  longTaskCount: { kind: "number", maximum: 1_000_000_000 },
+  longTaskMaxDurationMs: { kind: "number", maximum: 1_000_000_000 },
+  memoryCursor: { kind: "number", maximum: 1_000_000_000 },
+  memoryMb: { kind: "number", maximum: 1_000_000_000 },
+  navigatorOnline: { kind: "boolean" },
+  pageCount: { kind: "number", maximum: 1_000_000_000 },
+  pageNewestSeq: { kind: "number", maximum: 1_000_000_000 },
+  pendingLatestMessageCount: { kind: "number", maximum: 1_000_000_000 },
+  pendingRequestCount: { kind: "number", maximum: 1_000_000_000 },
+  previousReady: { kind: "boolean" },
+  previousStatus: {
+    kind: "enum",
+    values: ["connected", "connecting", "disconnected", "reconnecting"],
+  },
+  reason: {
+    kind: "enum",
+    values: [
+      "authorization",
+      "cancelled",
+      "connection",
+      "concurrent",
+      "lifecycle",
+      "locked",
+      "manual",
+      "network",
+      "parse",
+      "reconnect",
+      "resume",
+      "stale",
+      "suspend",
+      "unknown",
+      "unmounted",
+      "window",
+    ],
+  },
+  ready: { kind: "boolean" },
+  reconnectAttempt: { kind: "number", maximum: 1_000_000_000 },
+  responseStatus: { kind: "number", maximum: 999 },
+  returnedCount: { kind: "number", maximum: 1_000_000_000 },
+  returnedLastSeq: { kind: "number", maximum: 1_000_000_000 },
+  seqDelta: { kind: "number", maximum: 1_000_000_000 },
+  status: { kind: "enum", values: ["connected", "connecting", "disconnected", "reconnecting"] },
+  suppressedCount: { kind: "number", maximum: 1_000_000_000 },
+  suppressedFromEventSeq: { kind: "number", maximum: 1_000_000_000 },
+  suppressedToEventSeq: { kind: "number", maximum: 1_000_000_000 },
+  systemReadyCount: { kind: "number", maximum: 1_000_000_000 },
+  trigger: { kind: "enum", values: ["list-divergence", "loaded-conversation", "ready-edge"] },
+  viewMode: { kind: "enum", values: ["history", "latest"] },
+  windowEndedAt: { kind: "timestamp" },
+  windowFocused: { kind: "boolean" },
+  windowMinimized: { kind: "boolean" },
+  windowStartedAt: { kind: "timestamp" },
+  windowVisible: { kind: "boolean" },
+} as const satisfies Record<string, DiagnosticDataFieldDefinition>
+
+type DiagnosticDataKey = keyof typeof diagnosticDataFields
+type DiagnosticDataFieldValue<Field extends DiagnosticDataFieldDefinition> =
+  Field extends Readonly<{ kind: "boolean" }>
+    ? boolean
+    : Field extends Readonly<{ kind: "error" }>
+      ? DiagnosticErrorData
+      : Field extends Readonly<{ kind: "number" }>
+        ? number
+        : Field extends Readonly<{ kind: "timestamp" }>
+          ? string
+          : Field extends Readonly<{
+                kind: "enum"
+                values: readonly (infer Value extends string)[]
+              }>
+            ? Value
+            : never
+
+type DiagnosticDataValue<Key extends DiagnosticDataKey> = DiagnosticDataFieldValue<
+  (typeof diagnosticDataFields)[Key]
+>
+
+const diagnosticDataValueOverridesByType = {
+  "conversation-list.completed": { endpoint: ["conversation-list"] },
+  "conversation-list.failed": { endpoint: ["conversation-list"] },
+  "message-sync.page-received": { endpoint: ["message-after-seq"] },
+  "message-sync.page-requested": { endpoint: ["message-after-seq"] },
+} as const satisfies Partial<
+  Record<DiagnosticType, Partial<Record<DiagnosticDataKey, readonly string[]>>>
+>
+
+type DiagnosticDataValueForType<
+  Type extends DiagnosticType,
+  Key extends DiagnosticDataKey,
+> = Type extends keyof typeof diagnosticDataValueOverridesByType
+  ? Key extends keyof (typeof diagnosticDataValueOverridesByType)[Type]
+    ? (typeof diagnosticDataValueOverridesByType)[Type][Key] extends readonly string[]
+      ? (typeof diagnosticDataValueOverridesByType)[Type][Key][number]
+      : DiagnosticDataValue<Key>
+    : DiagnosticDataValue<Key>
+  : DiagnosticDataValue<Key>
+
+export type DiagnosticData = Readonly<{
+  [Key in DiagnosticDataKey]?: DiagnosticDataValue<Key>
+}>
+
+const diagnosticDataKeysByType = {
+  "conversation-list.completed": ["durationMs", "endpoint", "responseStatus", "returnedCount"],
+  "conversation-list.failed": ["durationMs", "endpoint", "error"],
+  "conversation-list.seq-diverged": ["httpSyncedThroughSeq", "lastMessageSeq", "seqDelta"],
+  "conversation-ui.state-observed": [
+    "displayedNewestSeq",
+    "latestKnownSeq",
+    "loaded",
+    "pageNewestSeq",
+    "pendingLatestMessageCount",
+    "viewMode",
+  ],
+  "conversation-ui.view-changed": ["viewMode"],
+  "environment.lifecycle-changed": [
+    "durationMs",
+    "eventLoopLagMs",
+    "longTaskCount",
+    "longTaskMaxDurationMs",
+    "reason",
+  ],
+  "environment.network-changed": ["navigatorOnline"],
+  "environment.window-state-changed": [
+    "documentVisibility",
+    "windowFocused",
+    "windowMinimized",
+    "windowVisible",
+  ],
+  "gpu.process-error": [
+    "durationMs",
+    "eventLoopLagMs",
+    "longTaskCount",
+    "longTaskMaxDurationMs",
+    "reason",
+  ],
+  "message-cache.state-changed": [
+    "afterSeq",
+    "cacheNewestSeq",
+    "committedSeq",
+    "error",
+    "httpSyncedThroughSeq",
+    "memoryCursor",
+  ],
+  "message-sync.cache-committed": ["afterSeq", "cacheNewestSeq", "committedSeq", "memoryCursor"],
+  "message-sync.cancelled": ["error"],
+  "message-sync.candidate": ["afterSeq", "trigger"],
+  "message-sync.completed": ["committedSeq", "pageCount", "pageNewestSeq"],
+  "message-sync.failed": ["error"],
+  "message-sync.page-received": [
+    "afterSeq",
+    "durationMs",
+    "endpoint",
+    "firstReturnedSeq",
+    "responseStatus",
+    "returnedCount",
+    "returnedLastSeq",
+  ],
+  "message-sync.page-requested": ["afterSeq", "endpoint"],
+  "message-sync.skipped": ["afterSeq", "reason"],
+  "message-sync.started": ["afterSeq", "initialCursor", "trigger"],
+  "realtime-bridge.delivery-failed": ["deliveryFailureCount"],
+  "realtime-bridge.snapshot-missed": ["reason"],
+  "realtime-bridge.snapshot-received": ["ready", "status"],
+  "realtime-bridge.snapshot-sent": ["deliverySucceededCount"],
+  "realtime.authorization-checked": ["error", "responseStatus"],
+  "realtime.connection-created": ["ready", "status"],
+  "realtime.event-parse-failed": ["error"],
+  "realtime.parse-failures-aggregated": [
+    "suppressedCount",
+    "suppressedFromEventSeq",
+    "suppressedToEventSeq",
+    "windowEndedAt",
+    "windowStartedAt",
+  ],
+  "realtime.reconnect-scheduled": ["attempt", "durationMs"],
+  "realtime.socket-closed": [
+    "closeCode",
+    "closeReasonLength",
+    "previousReady",
+    "previousStatus",
+    "reason",
+    "ready",
+    "status",
+  ],
+  "realtime.socket-opened": ["previousStatus", "ready", "status"],
+  "realtime.state-changed": [
+    "attempt",
+    "pendingRequestCount",
+    "previousReady",
+    "previousStatus",
+    "ready",
+    "reason",
+    "status",
+  ],
+  "realtime.system-ready": ["previousReady", "ready", "status", "systemReadyCount"],
+  "runtime.stall-observed": [
+    "appActivatedAgeMs",
+    "documentVisibility",
+    "durationMs",
+    "eventLoopLagMs",
+    "longTaskCount",
+    "longTaskMaxDurationMs",
+    "memoryMb",
+    "navigatorOnline",
+    "reason",
+    "windowFocused",
+    "windowMinimized",
+    "windowVisible",
+  ],
+} as const satisfies Record<DiagnosticType, readonly DiagnosticDataKey[]>
+
+export type DiagnosticDataForType<Type extends DiagnosticType> = Readonly<
+  Partial<{
+    [Key in (typeof diagnosticDataKeysByType)[Type][number]]: DiagnosticDataValueForType<Type, Key>
+  }>
+>
+
+export type DiagnosticEventInput<Type extends DiagnosticType = DiagnosticType> =
+  Type extends DiagnosticType
+    ? Readonly<{
+        context?: DiagnosticContext
+        data?: DiagnosticDataForType<Type>
+        origin: DiagnosticOrigin
+        type: Type
+      }>
+    : never
+
+export type DiagnosticEvent = Readonly<{
+  context?: DiagnosticContext
+  data?: DiagnosticData
+  eventSeq: number
+  origin: DiagnosticOrigin
+  timestamp: string
+  type: DiagnosticType
+}>
+
+export function createDiagnosticEventInput<Type extends DiagnosticType>(
+  type: Type,
+  origin: DiagnosticOrigin,
+  context?: DiagnosticContext,
+  data?: DiagnosticDataForType<Type>,
+): DiagnosticEventInput<Type> {
+  return {
+    ...(context ? { context } : {}),
+    ...(data ? { data } : {}),
+    origin,
+    type,
+  } as DiagnosticEventInput<Type>
+}
 
 export function parseDiagnosticEventInput(
   value: unknown,
@@ -187,14 +388,10 @@ export function parseDiagnosticEventInput(
   const input = objectValue(value)
   if (!isDiagnosticOrigin(input.origin) || !allowedOrigins.has(input.origin)) invalid()
   if (!isDiagnosticType(input.type)) invalid()
+  const type = input.type
   const context = input.context === undefined ? undefined : parseDiagnosticContext(input.context)
-  const data = input.data === undefined ? undefined : parseDiagnosticData(input.data)
-  return {
-    ...(context ? { context } : {}),
-    ...(data ? { data } : {}),
-    origin: input.origin,
-    type: input.type,
-  }
+  const data = input.data === undefined ? undefined : parseDiagnosticData(type, input.data)
+  return createDiagnosticEventInput(type, input.origin, context, data)
 }
 
 export function parseDiagnosticEvent(value: unknown): DiagnosticEvent {
@@ -233,24 +430,62 @@ export function parseDiagnosticContext(value: unknown): DiagnosticContext {
   return Object.freeze(Object.fromEntries(entries))
 }
 
-export function parseDiagnosticData(value: unknown): DiagnosticData {
+export function parseDiagnosticData<Type extends DiagnosticType>(
+  type: Type,
+  value: unknown,
+): DiagnosticDataForType<Type> {
   const input = objectValue(value)
   const entries = Object.entries(input)
   if (entries.length > 32) invalid()
-  for (const [key, candidate] of entries) {
-    if (!dataKeys.has(key) || !isDiagnosticDataValue(key, candidate)) invalid()
-  }
-  return Object.freeze({ ...input }) as DiagnosticData
+  const normalizedEntries = entries.map(([key, candidate]) => {
+    if (!isDiagnosticDataKey(key) || !allowsDiagnosticDataKey(type, key)) invalid()
+    const definition = diagnosticDataFields[key]
+    if (!isDiagnosticDataValue(candidate, definition, type, key)) invalid()
+    return [
+      key,
+      definition.kind === "error" ? Object.freeze({ ...objectValue(candidate) }) : candidate,
+    ]
+  })
+  return Object.freeze(Object.fromEntries(normalizedEntries)) as DiagnosticDataForType<Type>
 }
 
-function isDiagnosticDataValue(key: string, value: unknown): boolean {
-  if (key === "error") return isErrorData(value)
-  if (key === "windowStartedAt" || key === "windowEndedAt")
+function isDiagnosticDataKey(value: string): value is DiagnosticDataKey {
+  return Object.hasOwn(diagnosticDataFields, value)
+}
+
+function allowsDiagnosticDataKey(type: DiagnosticType, key: DiagnosticDataKey): boolean {
+  return (diagnosticDataKeysByType[type] as readonly DiagnosticDataKey[]).includes(key)
+}
+
+function isDiagnosticDataValue(
+  value: unknown,
+  definition: DiagnosticDataFieldDefinition,
+  type: DiagnosticType,
+  key: DiagnosticDataKey,
+): boolean {
+  if (definition.kind === "boolean") return typeof value === "boolean"
+  if (definition.kind === "error") return isErrorData(value)
+  if (definition.kind === "number")
+    return (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      value >= 0 &&
+      value <= definition.maximum
+    )
+  if (definition.kind === "timestamp")
     return typeof value === "string" && value.length <= 32 && Number.isFinite(Date.parse(value))
-  if (typeof value === "boolean") return true
-  if (typeof value === "number")
-    return Number.isFinite(value) && value >= 0 && value <= 1_000_000_000
-  return typeof value === "string" && stringValues.has(value)
+  return typeof value === "string" && enumValuesFor(type, key, definition.values).includes(value)
+}
+
+function enumValuesFor(
+  type: DiagnosticType,
+  key: DiagnosticDataKey,
+  fallback: readonly string[],
+): readonly string[] {
+  const overrides: Partial<
+    Record<DiagnosticType, Partial<Record<DiagnosticDataKey, readonly string[]>>>
+  > = diagnosticDataValueOverridesByType
+  return overrides[type]?.[key] ?? fallback
 }
 
 function isErrorData(value: unknown): boolean {
@@ -262,13 +497,17 @@ function isErrorData(value: unknown): boolean {
     entries.length <= 3 &&
     entries.every(
       ([key, candidate]) =>
-        errorKeys.has(key) &&
-        ((key === "status" &&
+        (key === "status" &&
           typeof candidate === "number" &&
           Number.isSafeInteger(candidate) &&
           candidate >= 0 &&
           candidate <= 999) ||
-          (key !== "status" && typeof candidate === "string" && stringValues.has(candidate))),
+        (key === "category" &&
+          typeof candidate === "string" &&
+          (diagnosticErrorCategories as readonly string[]).includes(candidate)) ||
+        (key === "phase" &&
+          typeof candidate === "string" &&
+          (diagnosticErrorPhases as readonly string[]).includes(candidate)),
     )
   )
 }
