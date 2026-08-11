@@ -141,7 +141,7 @@ export class RealtimeController extends EventEmitter {
     const profile = this.profiles.require(connection.target.id)
     const previousStatus = connection.status
     connection.status = connection.attempt === 0 ? "connecting" : "reconnecting"
-    this.emitSnapshot(connection, previousStatus, connection.ready)
+    this.emitStateSnapshot(connection, previousStatus, connection.ready)
     const cookies = await this.sessions.for(profile).cookies.get({ url: profile.normalizedUrl })
     const cookieHeader = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
     const wsUrl = new URL("/api/client/ws", `${profile.normalizedUrl}/`)
@@ -169,7 +169,7 @@ export class RealtimeController extends EventEmitter {
         ready: connection.ready,
         status: connection.status,
       })
-      this.emitSnapshot(connection, previousStatus, connection.ready)
+      this.emitStateSnapshot(connection, previousStatus, connection.ready)
     })
     socket.on("ping", (data) => socket.pong(data))
     socket.on("message", (data, binary) => {
@@ -198,7 +198,7 @@ export class RealtimeController extends EventEmitter {
       this.rejectPending(connection, new Error("实时连接已断开"))
       if (connection.intentionallyClosed) return
       connection.status = "reconnecting"
-      this.emitSnapshot(connection, previousStatus, previousReady)
+      this.emitStateSnapshot(connection, previousStatus, previousReady)
       void this.checkAuthorizedAndSchedule(connection)
     })
   }
@@ -225,7 +225,8 @@ export class RealtimeController extends EventEmitter {
       }
       const targeted = { ...envelope, targetKey: targetKey(connection.target) }
       this.emit("envelope", targeted)
-      this.emitSnapshot(connection, connection.status, previousReady)
+      if (envelope.event === "system.ready" && !previousReady)
+        this.emitStateSnapshot(connection, connection.status, previousReady)
       return
     }
     if (envelope.kind === "response" && envelope.reply_to) {
@@ -251,7 +252,7 @@ export class RealtimeController extends EventEmitter {
         connection.intentionallyClosed = true
         connection.status = "disconnected"
         this.emit("unauthorized", connection.target)
-        this.emitSnapshot(connection, "reconnecting", false)
+        this.emitStateSnapshot(connection, "reconnecting", false)
         return
       }
     } catch {
@@ -279,17 +280,18 @@ export class RealtimeController extends EventEmitter {
     connection.pending.clear()
   }
 
-  private emitSnapshot(
+  private emitStateSnapshot(
     connection: Connection,
     previousStatus: RealtimeSnapshot["status"],
     previousReady: boolean,
   ): void {
-    this.record(connection, "realtime.state-changed", {
-      previousReady,
-      previousStatus,
-      ready: connection.ready,
-      status: connection.status,
-    })
+    if (previousReady !== connection.ready || previousStatus !== connection.status)
+      this.record(connection, "realtime.state-changed", {
+        previousReady,
+        previousStatus,
+        ready: connection.ready,
+        status: connection.status,
+      })
     this.emit("snapshot", this.snapshot(connection))
   }
 

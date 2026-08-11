@@ -162,6 +162,37 @@ describe("RealtimeController 诊断", () => {
     )
   })
 
+  it("普通实时事件只广播业务事件，不记录状态变化或发送 snapshot", async () => {
+    const controller = createController()
+    const envelopes: unknown[] = []
+    const snapshots: unknown[] = []
+    controller.on("envelope", (envelope) => envelopes.push(envelope))
+    controller.on("snapshot", (snapshot) => snapshots.push(snapshot))
+
+    await controller.connect(target)
+    snapshots.length = 0
+    recordEvent.mockClear()
+
+    const socket = socketMocks.FakeWebSocket.instances[0]
+    socket.emit(
+      "message",
+      Buffer.from(
+        JSON.stringify({
+          event: "conversation.updated",
+          kind: "event",
+          payload: { changed: true },
+          v: 1,
+        }),
+      ),
+      false,
+    )
+
+    expect(envelopes).toHaveLength(1)
+    expect(envelopes[0]).toMatchObject({ event: "conversation.updated", kind: "event" })
+    expect(snapshots).toHaveLength(0)
+    expect(recordEvent).not.toHaveBeenCalled()
+  })
+
   it("首次连接和断线恢复分别使用由 Diagnostics 创建的片段", async () => {
     const controller = createController()
 
