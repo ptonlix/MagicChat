@@ -258,6 +258,40 @@ describe("DocumentPage", () => {
     expect(router.state.location.pathname).toBe("/projects/project-1/documents")
   })
 
+  it("子窗口删除未同步文档时不拦截窗口关闭", async () => {
+    const initialUrl = window.location.href
+    let beforeUnloadEvent: Event | undefined
+    const close = vi.spyOn(window, "close").mockImplementation(() => {
+      beforeUnloadEvent = new Event("beforeunload", { cancelable: true })
+      window.dispatchEvent(beforeUnloadEvent)
+    })
+    window.history.pushState(
+      {},
+      "",
+      `/documents/document/${document.id}?serverId=server-1&window=document`,
+    )
+    try {
+      const user = userEvent.setup()
+      renderPage()
+      const title = await screen.findByRole("textbox", { name: "顶部文档标题" })
+      fireEvent.change(title, { target: { value: "删除前仍未同步" } })
+
+      await user.click(screen.getByRole("button", { name: "更多文档操作" }))
+      await user.click(await screen.findByRole("menuitem", { name: "删除" }))
+      await user.click(
+        within(await screen.findByRole("alertdialog", { name: "删除文档" })).getByRole("button", {
+          name: "删除",
+        }),
+      )
+
+      await waitFor(() => expect(close).toHaveBeenCalledOnce())
+      expect(beforeUnloadEvent?.defaultPrevented).toBe(false)
+    } finally {
+      close.mockRestore()
+      window.history.pushState({}, "", initialUrl)
+    }
+  })
+
   it("标题区的新窗口入口等待 Bridge 成功后返回项目文档列表", async () => {
     const openDocumentWindow = vi.fn().mockResolvedValue({
       ok: true,

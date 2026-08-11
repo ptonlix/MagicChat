@@ -71,45 +71,47 @@ import {
 } from "@/lib/document-presence"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import type { TranslationKey } from "@/lib/i18n"
 
 type Loaded = Readonly<{ document: ClientDocument; project: ClientProjectDetail }>
+type DocumentUnavailableMessage = Readonly<{ key: TranslationKey }> | Readonly<{ value: string }>
+
 export function DocumentPage() {
-  const { t } = useLocale()
   const { documentId = "" } = useParams<{ documentId: string }>()
   const [loaded, setLoaded] = React.useState<Loaded>()
-  const [error, setError] = React.useState("")
+  const [error, setError] = React.useState<DocumentUnavailableMessage>()
   const [retry, setRetry] = React.useState(0)
 
   React.useEffect(() => {
     const controller = new AbortController()
     setLoaded(undefined)
-    setError("")
+    setError(undefined)
     if (!documentId) {
-      setError(t("document.invalidId"))
+      setError({ key: "document.invalidId" })
       return () => controller.abort()
     }
     void getClientDocument(documentId, fetch, controller.signal)
       .then(async (document) => {
-        if (document.kind !== "document" || document.documentType !== "document")
-          throw new Error(t("document.notEditable"))
+        if (document.kind !== "document" || document.documentType !== "document") {
+          if (!controller.signal.aborted) setError({ key: "document.notEditable" })
+          return
+        }
         const project = await getClientProject(document.projectId)
         if (!controller.signal.aborted) setLoaded({ document, project })
       })
       .catch((loadError) => {
         if (!controller.signal.aborted)
-          setError(loadError instanceof Error ? loadError.message : t("document.loadFailed"))
+          setError(
+            loadError instanceof Error
+              ? { value: loadError.message }
+              : { key: "document.loadFailed" },
+          )
       })
     return () => controller.abort()
-  }, [documentId, retry, t])
+  }, [documentId, retry])
 
   if (error)
-    return (
-      <DocumentUnavailable
-        message={error}
-        onRetry={() => setRetry((value) => value + 1)}
-        projectId={loaded?.document.projectId}
-      />
-    )
+    return <DocumentUnavailable message={error} onRetry={() => setRetry((value) => value + 1)} />
   if (!loaded) return <DocumentLoading />
   return (
     <DocumentWorkspace
@@ -185,6 +187,7 @@ function DocumentWorkspace({
   const titleText = normalizeDocumentTitle(title.input)
   const dirty = titleController.dirty || body.unsyncedChanges > 0
   const allowNextNavigation = React.useRef(false)
+  const allowWindowClose = React.useRef(false)
   const bodyUnsyncedChanges = React.useRef(0)
   const editVersion = React.useRef(0)
   const blocker = useBlocker(() => {
@@ -336,6 +339,7 @@ function DocumentWorkspace({
 
   React.useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (allowWindowClose.current) return
       if (titleController.dirty || body.unsyncedChanges > 0) {
         event.preventDefault()
         event.returnValue = ""
@@ -386,6 +390,7 @@ function DocumentWorkspace({
       toast.success(t("document.deleteSuccess"))
       setDeleteOpen(false)
       if (isDocumentWindow) {
+        allowWindowClose.current = true
         window.close()
       } else {
         allowNextNavigation.current = true
@@ -401,7 +406,9 @@ function DocumentWorkspace({
   }
 
   if (permissionDenied)
-    return <DocumentUnavailable message={t("document.noAccess")} projectId={document.projectId} />
+    return (
+      <DocumentUnavailable message={{ key: "document.noAccess" }} projectId={document.projectId} />
+    )
 
   const sidebar = (
     <DocumentWorkspaceSidebar
@@ -645,17 +652,18 @@ function DocumentUnavailable({
   onRetry,
   projectId,
 }: {
-  message: string
+  message: DocumentUnavailableMessage
   onRetry?: () => void
   projectId?: string
 }) {
   const { t } = useLocale()
+  const messageText = "key" in message ? t(message.key) : message.value
   return (
     <main className="flex h-svh min-h-0 items-center justify-center px-6 pt-10 pb-6">
       <ClientDocumentTitle disableMessageAlert title={t("document.cannotOpen")} />
       <div className="max-w-sm space-y-4 border bg-background p-8 text-center">
         <h1 className="text-lg font-semibold">{t("document.cannotOpen")}</h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
+        <p className="text-sm text-muted-foreground">{messageText}</p>
         <div className="flex justify-center gap-2">
           {projectId && (
             <Button asChild variant="outline">
