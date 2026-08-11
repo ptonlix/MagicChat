@@ -245,12 +245,13 @@ describe("DocumentPage", () => {
   it("删除文档前确认，并返回项目文档列表", async () => {
     const user = userEvent.setup()
     const router = renderPage()
-    await screen.findByRole("textbox", { name: "顶部文档标题" })
+    const title = await screen.findByRole("textbox", { name: "顶部文档标题" })
+    fireEvent.change(title, { target: { value: "删除前仍未同步" } })
 
     await user.click(screen.getByRole("button", { name: "更多文档操作" }))
     await user.click(await screen.findByRole("menuitem", { name: "删除" }))
     const confirmation = await screen.findByRole("alertdialog", { name: "删除文档" })
-    expect(confirmation).toHaveTextContent("确定删除“陈富东测试”吗？此操作无法撤销。")
+    expect(confirmation).toHaveTextContent("确定删除“删除前仍未同步”吗？此操作无法撤销。")
     await user.click(within(confirmation).getByRole("button", { name: "删除" }))
 
     await waitFor(() => expect(mocks.deleteClientDocument).toHaveBeenCalledWith(document.id))

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { MessageSquare, RefreshCw } from "lucide-react"
+import { Link } from "react-router"
 import { toast } from "sonner"
 
 import { useLocale } from "@/components/locale-provider"
@@ -227,14 +228,12 @@ function TaskActivityItem({
   return (
     <article className="text-sm">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-        <a
+        <Link
           className="font-medium hover:text-primary"
-          href={`/contacts/user/${encodeURIComponent(activity.actor.id)}`}
-          rel="noopener noreferrer"
-          target="_blank"
+          to={`/contacts/user/${encodeURIComponent(activity.actor.id)}`}
         >
           {name}
-        </a>
+        </Link>
         <span className="text-muted-foreground">
           {getActivitySummary(activity, assigneeNames, translate)}
         </span>

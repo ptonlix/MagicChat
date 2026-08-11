@@ -74,6 +74,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 type Loaded = Readonly<{ document: ClientDocument; project: ClientProjectDetail }>
 export function DocumentPage() {
+  const { t } = useLocale()
   const { documentId = "" } = useParams<{ documentId: string }>()
   const [loaded, setLoaded] = React.useState<Loaded>()
   const [error, setError] = React.useState("")
@@ -84,22 +85,22 @@ export function DocumentPage() {
     setLoaded(undefined)
     setError("")
     if (!documentId) {
-      setError("文档标识无效")
+      setError(t("document.invalidId"))
       return () => controller.abort()
     }
     void getClientDocument(documentId, fetch, controller.signal)
       .then(async (document) => {
         if (document.kind !== "document" || document.documentType !== "document")
-          throw new Error("该节点不是可编辑文档")
+          throw new Error(t("document.notEditable"))
         const project = await getClientProject(document.projectId)
         if (!controller.signal.aborted) setLoaded({ document, project })
       })
       .catch((loadError) => {
         if (!controller.signal.aborted)
-          setError(loadError instanceof Error ? loadError.message : "加载文档失败")
+          setError(loadError instanceof Error ? loadError.message : t("document.loadFailed"))
       })
     return () => controller.abort()
-  }, [documentId, retry])
+  }, [documentId, retry, t])
 
   if (error)
     return (
@@ -137,7 +138,7 @@ function DocumentWorkspace({
     me?.name.trim() ||
     document.updatedBy.nickname.trim() ||
     document.updatedBy.name.trim() ||
-    "当前用户"
+    t("document.currentUser")
   const collaborationUser = React.useMemo(() => {
     return {
       avatar: collaborationAvatar,
@@ -329,9 +330,9 @@ function DocumentWorkspace({
 
   React.useEffect(() => {
     if (blocker.state !== "blocked") return
-    if (window.confirm("文档尚未同步完成，确定要离开吗？")) blocker.proceed()
+    if (window.confirm(t("document.unsavedLeave"))) blocker.proceed()
     else blocker.reset()
-  }, [blocker])
+  }, [blocker, t])
 
   React.useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -348,14 +349,15 @@ function DocumentWorkspace({
     (confirmedVersion?: number) =>
       confirmedVersion === editVersion.current ||
       !(titleController.dirty || bodyUnsyncedChanges.current > 0) ||
-      window.confirm("文档尚未同步完成，确定要离开吗？"),
-    [titleController],
+      window.confirm(t("document.unsavedLeave")),
+    [t, titleController],
   )
   const getEditVersion = React.useCallback(() => editVersion.current, [])
   const allowConfirmedNavigation = React.useCallback(() => {
     allowNextNavigation.current = true
   }, [])
-  const saveTitle = () => void titleController.flush().catch(() => toast.error("保存文档标题失败"))
+  const saveTitle = () =>
+    void titleController.flush().catch(() => toast.error(t("document.titleSaveFailed")))
   const openInWindow = async () => {
     if (openingWindow) return
     const returnPath = isDocumentWindow
@@ -381,29 +383,25 @@ function DocumentWorkspace({
     setDeleting(true)
     try {
       await deleteClientDocument(document.id)
-      toast.success("文档已删除")
+      toast.success(t("document.deleteSuccess"))
       setDeleteOpen(false)
       if (isDocumentWindow) {
         window.close()
       } else {
+        allowNextNavigation.current = true
         navigate(`/projects/${encodeURIComponent(project.id)}/documents`, {
           replace: true,
         })
       }
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : "删除文档失败")
+      toast.error(deleteError instanceof Error ? deleteError.message : t("document.deleteFailed"))
     } finally {
       setDeleting(false)
     }
   }
 
   if (permissionDenied)
-    return (
-      <DocumentUnavailable
-        message="当前账号无权访问该文档，项目权限可能已被撤销。"
-        projectId={document.projectId}
-      />
-    )
+    return <DocumentUnavailable message={t("document.noAccess")} projectId={document.projectId} />
 
   const sidebar = (
     <DocumentWorkspaceSidebar
@@ -425,7 +423,7 @@ function DocumentWorkspace({
           <Sheet onOpenChange={setSheetOpen} open={sheetOpen}>
             <SheetTrigger asChild>
               <Button
-                aria-label="打开文档导航"
+                aria-label={t("document.nav")}
                 className="md:hidden"
                 size="icon-sm"
                 variant="ghost"
@@ -434,20 +432,20 @@ function DocumentWorkspace({
               </Button>
             </SheetTrigger>
             <SheetContent className="w-72 px-0 pt-10 pb-0" side="left">
-              <SheetTitle className="sr-only">项目文档导航</SheetTitle>
+              <SheetTitle className="sr-only">{t("document.navTitle")}</SheetTitle>
               {sidebar}
             </SheetContent>
           </Sheet>
           <FileText className="size-5 shrink-0 text-sky-600" />
           <input
-            aria-label="顶部文档标题"
+            aria-label={t("document.titleBar")}
             className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none"
             onBlur={saveTitle}
             onChange={(event) => {
               editVersion.current += 1
               titleController.change(limitDocumentTitle(event.target.value))
             }}
-            placeholder="无标题文档"
+            placeholder={t("document.untitled")}
             value={title.input}
           />
           <span
@@ -455,32 +453,41 @@ function DocumentWorkspace({
             className="hidden shrink-0 text-xs text-muted-foreground lg:inline"
           >
             {title.state === "failed"
-              ? "标题保存失败"
+              ? t("document.titleSaveFailed")
               : title.state === "saving"
-                ? "标题保存中"
+                ? t("document.titleSaving")
                 : title.state === "pending"
-                  ? "标题待保存"
-                  : "标题已自动保存"}{" "}
+                  ? t("document.titlePending")
+                  : t("document.titleSaved")}{" "}
             ·{" "}
             {body.state === "connecting"
-              ? "正文连接中"
+              ? t("document.bodyConnecting")
               : body.state === "saving"
-                ? "正文同步中"
+                ? t("document.bodySyncing")
                 : body.state === "failed"
-                  ? "正文同步失败"
-                  : "正文已同步"}
+                  ? t("document.bodySyncFailed")
+                  : t("document.bodySynced")}
           </span>
           {title.state === "failed" && (
-            <Button aria-label="重试保存标题" onClick={saveTitle} size="icon-sm" variant="ghost">
+            <Button
+              aria-label={t("document.retrySaveTitle")}
+              onClick={saveTitle}
+              size="icon-sm"
+              variant="ghost"
+            >
               <RefreshCw />
             </Button>
           )}
           <Button
-            aria-label={isDocumentWindow ? "在新窗口打开文档" : "打开新窗口并返回"}
+            aria-label={
+              isDocumentWindow ? t("document.openInWindow") : t("document.openInWindowAndReturn")
+            }
             disabled={openingWindow}
             onClick={() => void openInWindow()}
             size="icon-sm"
-            title={isDocumentWindow ? "在新窗口打开文档" : "打开新窗口并返回"}
+            title={
+              isDocumentWindow ? t("document.openInWindow") : t("document.openInWindowAndReturn")
+            }
             variant="ghost"
           >
             {openingWindow ? <Loader2 className="animate-spin" /> : <AppWindow />}
@@ -488,18 +495,18 @@ function DocumentWorkspace({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label="更多文档操作"
+                aria-label={t("document.moreActions")}
                 disabled={deleting}
                 size="icon-sm"
-                title="更多文档操作"
+                title={t("document.moreActions")}
                 variant="ghost"
               >
                 <Ellipsis />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onSelect={() => toast.info("文档信息暂未开放")}>
-                文档信息
+              <DropdownMenuItem onSelect={() => toast.info(t("document.infoUnavailable"))}>
+                {t("document.info")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -508,7 +515,7 @@ function DocumentWorkspace({
                 variant="destructive"
               >
                 <Trash2 />
-                删除
+                {t("document.delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -520,13 +527,13 @@ function DocumentWorkspace({
           >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>删除文档</AlertDialogTitle>
+                <AlertDialogTitle>{t("document.deleteTitle")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {`确定删除“${titleText}”吗？此操作无法撤销。`}
+                  {t("document.deleteDescription", { title: titleText })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+                <AlertDialogCancel disabled={deleting}>{t("document.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={deleting}
                   onClick={(event) => {
@@ -536,7 +543,7 @@ function DocumentWorkspace({
                   variant="destructive"
                 >
                   {deleting && <Loader2 className="animate-spin" />}
-                  删除
+                  {t("document.delete")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -558,7 +565,7 @@ function DocumentWorkspace({
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            正在连接协作文档
+            {t("document.collaborationConnecting")}
           </div>
         )}
       </section>
@@ -567,13 +574,14 @@ function DocumentWorkspace({
 }
 
 function DocumentOnlineUsers({ users }: { users: readonly DocumentPresenceUser[] }) {
+  const { t } = useLocale()
   if (users.length === 0) return null
   const visible = users.slice(0, 5)
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          aria-label={`查看 ${users.length} 位在线成员`}
+          aria-label={t("document.onlineMembers", { count: users.length })}
           className="shrink-0"
           size="sm"
           variant="ghost"
@@ -592,7 +600,7 @@ function DocumentOnlineUsers({ users }: { users: readonly DocumentPresenceUser[]
       >
         <div className="mb-2 flex items-center gap-2 text-sm font-medium">
           <Users className="size-4" />
-          在线成员（{users.length}）
+          {t("document.onlineMembersTitle", { count: users.length })}
         </div>
         <div className="grid gap-1">
           {users.map((user) => (
@@ -622,11 +630,12 @@ function PresenceAvatar({ user }: { user: DocumentPresenceUser }) {
 }
 
 function DocumentLoading() {
+  const { t } = useLocale()
   return (
     <main className="flex h-svh min-h-0 items-center justify-center gap-2 pt-10 text-sm text-muted-foreground">
-      <ClientDocumentTitle disableMessageAlert title="正在加载文档" />
+      <ClientDocumentTitle disableMessageAlert title={t("document.loading")} />
       <Loader2 className="size-4 animate-spin" />
-      正在加载文档
+      {t("document.loading")}
     </main>
   )
 }
@@ -640,19 +649,22 @@ function DocumentUnavailable({
   onRetry?: () => void
   projectId?: string
 }) {
+  const { t } = useLocale()
   return (
     <main className="flex h-svh min-h-0 items-center justify-center px-6 pt-10 pb-6">
-      <ClientDocumentTitle disableMessageAlert title="无法打开文档" />
+      <ClientDocumentTitle disableMessageAlert title={t("document.cannotOpen")} />
       <div className="max-w-sm space-y-4 border bg-background p-8 text-center">
-        <h1 className="text-lg font-semibold">无法打开文档</h1>
+        <h1 className="text-lg font-semibold">{t("document.cannotOpen")}</h1>
         <p className="text-sm text-muted-foreground">{message}</p>
         <div className="flex justify-center gap-2">
           {projectId && (
             <Button asChild variant="outline">
-              <Link to={`/projects/${encodeURIComponent(projectId)}/documents`}>返回项目</Link>
+              <Link to={`/projects/${encodeURIComponent(projectId)}/documents`}>
+                {t("document.backToProject")}
+              </Link>
             </Button>
           )}
-          {onRetry && <Button onClick={onRetry}>重试</Button>}
+          {onRetry && <Button onClick={onRetry}>{t("document.retry")}</Button>}
         </div>
       </div>
     </main>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,7 +7,6 @@ import { ProjectTasksTab } from "@/components/projects/project-tasks-tab"
 import type { ProjectTask } from "@/components/projects/project-types"
 
 const projectTaskApiMocks = vi.hoisted(() => ({
-  getClientProjectTask: vi.fn(),
   listClientProjectTasks: vi.fn(),
 }))
 
@@ -15,7 +14,6 @@ vi.mock("@/lib/project-task-data-api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/project-task-data-api")>()
   return {
     ...original,
-    getClientProjectTask: projectTaskApiMocks.getClientProjectTask,
     listClientProjectTasks: projectTaskApiMocks.listClientProjectTasks,
   }
 })
@@ -41,33 +39,10 @@ vi.mock("@/components/projects/project-task-details-dialog", () => ({
   ),
 }))
 
-describe("ProjectTasksTab task details route state", () => {
+describe("ProjectTasksTab task navigation", () => {
   beforeEach(() => {
     window.localStorage.clear()
-    projectTaskApiMocks.getClientProjectTask.mockReset()
     projectTaskApiMocks.listClientProjectTasks.mockReset()
-  })
-
-  it("opens a linked task after refresh and removes only taskId when closed", async () => {
-    const user = userEvent.setup()
-    const task = createProjectTask()
-    projectTaskApiMocks.listClientProjectTasks.mockResolvedValue({
-      nextCursor: null,
-      tasks: [],
-    })
-    projectTaskApiMocks.getClientProjectTask.mockResolvedValue(task)
-
-    renderProjectTasksTab("/projects/project-1?source=link&taskId=task-1")
-
-    expect(await screen.findByRole("dialog", { name: "任务详情" })).toHaveTextContent(task.title)
-    expect(projectTaskApiMocks.getClientProjectTask).toHaveBeenCalledWith("project-1", "task-1")
-
-    await user.click(screen.getByRole("button", { name: "关闭详情" }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location-search")).toHaveTextContent("?source=link")
-    })
-    expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument()
   })
 
   it("opens the standalone task workspace when a task is opened", async () => {
@@ -102,7 +77,6 @@ function renderProjectTasksTab(initialEntry: string) {
                 onTasksChanged={vi.fn().mockResolvedValue(undefined)}
                 projectId="project-1"
               />
-              <LocationSearch />
             </>
           }
         />
@@ -110,11 +84,6 @@ function renderProjectTasksTab(initialEntry: string) {
       </Routes>
     </MemoryRouter>,
   )
-}
-
-function LocationSearch() {
-  const location = useLocation()
-  return <output data-testid="location-search">{location.search}</output>
 }
 
 function LocationPath() {

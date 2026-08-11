@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ProjectTaskActivityFeed } from "@/components/projects/project-task-activity-feed"
@@ -31,11 +32,13 @@ describe("ProjectTaskActivityFeed", () => {
     mocks.addClientProjectTaskComment.mockResolvedValue(createComment("activity-comment", "新评论"))
 
     const { rerender } = render(
-      <ProjectTaskActivityFeed
-        projectId="project-1"
-        revision="2026-07-14T08:00:00Z"
-        taskId="task-1"
-      />,
+      <MemoryRouter>
+        <ProjectTaskActivityFeed
+          projectId="project-1"
+          revision="2026-07-14T08:00:00Z"
+          taskId="task-1"
+        />
+      </MemoryRouter>,
     )
 
     const input = screen.getByRole("textbox", { name: "发表评论" })
@@ -48,12 +51,20 @@ describe("ProjectTaskActivityFeed", () => {
     await user.click(screen.getByRole("button", { name: "评论" }))
     expect(await screen.findByText("新评论")).toBeInTheDocument()
 
+    expect(screen.getByRole("link", { name: "Alice" })).toHaveAttribute(
+      "href",
+      "/contacts/user/user-1",
+    )
+    expect(screen.getByRole("link", { name: "Alice" })).not.toHaveAttribute("target")
+
     rerender(
-      <ProjectTaskActivityFeed
-        projectId="project-1"
-        revision="2026-07-14T09:00:00Z"
-        taskId="task-1"
-      />,
+      <MemoryRouter>
+        <ProjectTaskActivityFeed
+          projectId="project-1"
+          revision="2026-07-14T09:00:00Z"
+          taskId="task-1"
+        />
+      </MemoryRouter>,
     )
     await waitFor(() => expect(mocks.listClientProjectTaskActivities).toHaveBeenCalledTimes(2))
     refresh.resolve({ activities: [], nextCursor: null })
