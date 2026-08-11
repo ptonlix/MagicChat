@@ -68,9 +68,12 @@ export type RealtimeEnvelope = Readonly<{
 }>
 
 export type RealtimeSnapshot = Readonly<{
+  connectionInstanceId?: string
+  episodeId?: string
   ready: boolean
   status: "connected" | "connecting" | "disconnected" | "reconnecting"
   targetKey: string
+  targetScope?: string
 }>
 
 export interface RealtimeSubscription {

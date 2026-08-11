@@ -13,15 +13,19 @@ import {
 import { ServerProfiles } from "@main/server-profiles"
 import { SessionController } from "@main/session-controller"
 import type { ProxyAuthPrompt } from "@main/proxy-auth"
+import type { Diagnostics } from "@main/diagnostics"
 
 type Connection = {
   attempt: number
+  connectionInstanceId: string
+  episodeId: string
   intentionallyClosed: boolean
   pending: Map<
     string,
     { reject(error: Error): void; resolve(value: unknown): void; timer: NodeJS.Timeout }
   >
   ready: boolean
+  systemReadyCount: number
   socket?: WebSocket
   status: RealtimeSnapshot["status"]
   target: AuthenticatedTarget
@@ -37,6 +41,7 @@ export class RealtimeController extends EventEmitter {
     private readonly profiles: ServerProfiles,
     private readonly sessions: SessionController,
     private readonly proxyAuth?: ProxyAuthPrompt,
+    private readonly diagnostics?: Diagnostics,
   ) {
     super()
   }
@@ -49,13 +54,20 @@ export class RealtimeController extends EventEmitter {
       if (profile.normalizedUrl !== target.normalizedUrl) throw new Error("认证目标已失效")
       connection = {
         attempt: 0,
+        connectionInstanceId: diagnosticId(),
+        episodeId: this.diagnostics?.getCurrentEpisodeId() ?? this.createEpisode("connection"),
         intentionallyClosed: false,
         pending: new Map(),
         ready: false,
         status: "connecting",
+        systemReadyCount: 0,
         target,
       }
       this.connections.set(key, connection)
+      this.record(connection, "realtime.connection-created", {
+        ready: false,
+        status: "connecting",
+      })
       await this.open(connection)
     }
     return this.snapshot(connection)
@@ -81,9 +93,10 @@ export class RealtimeController extends EventEmitter {
     for (const connection of [...this.connections.values()]) this.close(connection.target)
   }
 
-  reconnectAll(): void {
+  reconnectAll(episodeId?: string): void {
     for (const connection of this.connections.values()) {
       if (connection.intentionallyClosed) continue
+      connection.episodeId = episodeId ?? this.createEpisode("reconnect")
       connection.socket?.terminate()
       if (!connection.socket) void this.open(connection)
     }
@@ -109,17 +122,21 @@ export class RealtimeController extends EventEmitter {
 
   snapshot(connection: Connection): RealtimeSnapshot {
     return {
+      connectionInstanceId: connection.connectionInstanceId,
+      episodeId: connection.episodeId,
       ready: connection.ready,
       status: connection.status,
       targetKey: targetKey(connection.target),
+      targetScope: connection.target.id,
     }
   }
 
   private async open(connection: Connection): Promise<void> {
     if (connection.intentionallyClosed || connection.socket) return
     const profile = this.profiles.require(connection.target.id)
+    const previousStatus = connection.status
     connection.status = connection.attempt === 0 ? "connecting" : "reconnecting"
-    this.emit("snapshot", this.snapshot(connection))
+    this.emitSnapshot(connection, previousStatus, connection.ready)
     const cookies = await this.sessions.for(profile).cookies.get({ url: profile.normalizedUrl })
     const cookieHeader = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
     const wsUrl = new URL("/api/client/ws", `${profile.normalizedUrl}/`)
@@ -139,9 +156,15 @@ export class RealtimeController extends EventEmitter {
     })
     connection.socket = socket
     socket.on("open", () => {
+      const previousStatus = connection.status
       connection.attempt = 0
       connection.status = "connected"
-      this.emit("snapshot", this.snapshot(connection))
+      this.record(connection, "realtime.socket-opened", {
+        previousStatus,
+        ready: connection.ready,
+        status: connection.status,
+      })
+      this.emitSnapshot(connection, previousStatus, connection.ready)
     })
     socket.on("ping", (data) => socket.pong(data))
     socket.on("message", (data, binary) => {
@@ -152,13 +175,25 @@ export class RealtimeController extends EventEmitter {
       this.handleMessage(connection, data.toString())
     })
     socket.on("error", () => undefined)
-    socket.on("close", () => {
+    socket.on("close", (closeCode, reason) => {
       if (connection.socket === socket) connection.socket = undefined
+      if (!connection.intentionallyClosed) connection.episodeId = this.createEpisode("reconnect")
+      const previousStatus = connection.status
+      const previousReady = connection.ready
       connection.ready = false
+      this.record(connection, "realtime.socket-closed", {
+        closeCode: Math.max(0, Math.min(9_999, closeCode)),
+        closeReasonLength: Math.min(256, reason.byteLength),
+        previousReady,
+        previousStatus,
+        reason: classifyCloseReason(reason),
+        ready: false,
+        status: "reconnecting",
+      })
       this.rejectPending(connection, new Error("实时连接已断开"))
       if (connection.intentionallyClosed) return
       connection.status = "reconnecting"
-      this.emit("snapshot", this.snapshot(connection))
+      this.emitSnapshot(connection, previousStatus, previousReady)
       void this.checkAuthorizedAndSchedule(connection)
     })
   }
@@ -172,10 +207,20 @@ export class RealtimeController extends EventEmitter {
     }
     if (envelope.v !== CLIENT_PROTOCOL_VERSION) return
     if (envelope.kind === "event") {
-      if (envelope.event === "system.ready") connection.ready = true
+      const previousReady = connection.ready
+      if (envelope.event === "system.ready") {
+        connection.ready = true
+        connection.systemReadyCount += 1
+        this.record(connection, "realtime.system-ready", {
+          previousReady,
+          ready: true,
+          status: connection.status,
+          systemReadyCount: connection.systemReadyCount,
+        })
+      }
       const targeted = { ...envelope, targetKey: targetKey(connection.target) }
       this.emit("envelope", targeted)
-      this.emit("snapshot", this.snapshot(connection))
+      this.emitSnapshot(connection, connection.status, previousReady)
       return
     }
     if (envelope.kind === "response" && envelope.reply_to) {
@@ -194,17 +239,27 @@ export class RealtimeController extends EventEmitter {
       const response = await this.sessions
         .for(profile)
         .fetch(`${profile.normalizedUrl}/api/client/me`, { credentials: "include" })
+      this.record(connection, "realtime.authorization-checked", {
+        responseStatus: Math.max(0, Math.min(999, response.status)),
+      })
       if (response.status === 401) {
         connection.intentionallyClosed = true
         connection.status = "disconnected"
         this.emit("unauthorized", connection.target)
-        this.emit("snapshot", this.snapshot(connection))
+        this.emitSnapshot(connection, "reconnecting", false)
         return
       }
     } catch {
       // 离线和服务器重启时仍进入有上限退避，不将网络失败误判为退出登录。
+      this.record(connection, "realtime.authorization-checked", {
+        error: { category: "network", phase: "authorization" },
+      })
     }
     const delay = delays[Math.min(connection.attempt++, delays.length - 1)]
+    this.record(connection, "realtime.reconnect-scheduled", {
+      attempt: connection.attempt,
+      durationMs: delay,
+    })
     connection.timer = setTimeout(() => {
       connection.timer = undefined
       void this.open(connection)
@@ -218,6 +273,52 @@ export class RealtimeController extends EventEmitter {
     }
     connection.pending.clear()
   }
+
+  private emitSnapshot(
+    connection: Connection,
+    previousStatus: RealtimeSnapshot["status"],
+    previousReady: boolean,
+  ): void {
+    this.record(connection, "realtime.state-changed", {
+      previousReady,
+      previousStatus,
+      ready: connection.ready,
+      status: connection.status,
+    })
+    this.emit("snapshot", this.snapshot(connection))
+  }
+
+  private record(
+    connection: Connection,
+    type: Extract<import("@shared/diagnostics-contract").DiagnosticType, `realtime.${string}`>,
+    data?: import("@shared/diagnostics-contract").DiagnosticData,
+  ): void {
+    void this.diagnostics?.recordEvent({
+      context: {
+        connectionInstanceId: connection.connectionInstanceId,
+        episodeId: connection.episodeId,
+        targetScope: connection.target.id,
+      },
+      ...(data ? { data } : {}),
+      origin: "main",
+      type,
+    })
+  }
+
+  private createEpisode(reason: import("@main/diagnostics").DiagnosticEpisodeReason): string {
+    return this.diagnostics?.createEpisode(reason) ?? diagnosticId()
+  }
+}
+
+function diagnosticId(): string {
+  return randomUUID().replace(/-/g, "")
+}
+
+function classifyCloseReason(reason: Buffer): "authorization" | "network" | "unknown" {
+  if (reason.byteLength === 0) return "unknown"
+  const value = reason.toString("utf8", 0, 64).toLowerCase()
+  if (value.includes("auth") || value.includes("unauthor")) return "authorization"
+  return "network"
 }
 
 export async function resolveProxy(

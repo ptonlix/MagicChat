@@ -1,4 +1,5 @@
 import type { RendererRuntimeSnapshot } from "@shared/bridge"
+import { recordRendererDiagnostic } from "@/lib/desktop-diagnostics"
 
 type RefreshName = NonNullable<RendererRuntimeSnapshot["lastRefresh"]>["name"]
 type RefreshMetric = Omit<NonNullable<RendererRuntimeSnapshot["lastRefresh"]>, "ageMs"> & {
@@ -16,6 +17,7 @@ let lastRequest: RequestMetric | undefined
 let longTaskCount = 0
 let maxLongTaskMs = 0
 let maxEventLoopLagMs = 0
+let lastActivatedAt = performance.now()
 
 export function startRuntimeDiagnostics(intervalMs = 1_000): () => void {
   let expectedAt = performance.now() + intervalMs
@@ -42,9 +44,34 @@ export function startRuntimeDiagnostics(intervalMs = 1_000): () => void {
     // 部分运行环境不支持 Long Tasks API，心跳仍可提供事件循环延迟。
   }
 
+  const reportWindowState = () => {
+    if (document.hasFocus()) lastActivatedAt = performance.now()
+    void recordRendererDiagnostic("environment.window-state-changed", undefined, {
+      documentVisibility: document.visibilityState === "visible" ? "visible" : "hidden",
+      windowFocused: document.hasFocus(),
+      windowMinimized: document.visibilityState !== "visible",
+      windowVisible: document.visibilityState === "visible",
+    })
+  }
+  const reportNetworkState = () => {
+    void recordRendererDiagnostic("environment.network-changed", undefined, {
+      navigatorOnline: navigator.onLine,
+    })
+  }
+  document.addEventListener("visibilitychange", reportWindowState)
+  window.addEventListener("focus", reportWindowState)
+  window.addEventListener("blur", reportWindowState)
+  window.addEventListener("online", reportNetworkState)
+  window.addEventListener("offline", reportNetworkState)
+
   return () => {
     window.clearInterval(timer)
     observer?.disconnect()
+    document.removeEventListener("visibilitychange", reportWindowState)
+    window.removeEventListener("focus", reportWindowState)
+    window.removeEventListener("blur", reportWindowState)
+    window.removeEventListener("online", reportNetworkState)
+    window.removeEventListener("offline", reportNetworkState)
   }
 }
 
@@ -88,8 +115,10 @@ function snapshot(): RendererRuntimeSnapshot {
   return {
     activeRefreshes,
     activeRequests,
+    appActivatedAgeMs: elapsed(lastActivatedAt),
     data: { ...data },
     eventLoopLagMs: rounded(maxEventLoopLagMs),
+    documentVisibility: document.visibilityState === "visible" ? "visible" : "hidden",
     ...(lastRefresh
       ? {
           lastRefresh: {
@@ -111,7 +140,11 @@ function snapshot(): RendererRuntimeSnapshot {
         }
       : {}),
     longTasks: { count: longTaskCount, maxDurationMs: rounded(maxLongTaskMs) },
+    navigatorOnline: navigator.onLine,
     page: currentPage(),
+    windowFocused: document.hasFocus(),
+    windowMinimized: document.visibilityState !== "visible",
+    windowVisible: document.visibilityState === "visible",
   }
 }
 

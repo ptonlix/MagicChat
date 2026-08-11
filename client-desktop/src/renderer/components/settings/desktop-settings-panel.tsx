@@ -21,6 +21,7 @@ import type {
   ServerProfile,
   UpdaterState,
 } from "@shared/bridge"
+import type { DiagnosticStorageStats } from "@shared/diagnostics-contract"
 import type { MessageCacheStats } from "@shared/message-cache-contract"
 import { DESKTOP_SETTINGS_CHANGED_EVENT } from "@/hooks/use-desktop-settings"
 import { SettingsCenter, type SettingsSectionId } from "./settings-center"
@@ -61,6 +62,10 @@ export function DesktopSettingsPanel({
   const [settingsError, setSettingsError] = useState("")
   const [cacheStats, setCacheStats] = useState<MessageCacheStats>()
   const [cacheClearing, setCacheClearing] = useState(false)
+  const [cacheClearError, setCacheClearError] = useState("")
+  const [diagnosticStats, setDiagnosticStats] = useState<DiagnosticStorageStats>()
+  const [diagnosticsClearing, setDiagnosticsClearing] = useState(false)
+  const [diagnosticsClearError, setDiagnosticsClearError] = useState("")
   const loadGenerationRef = useRef(0)
 
   const loadSettings = useCallback(async () => {
@@ -68,15 +73,17 @@ export function DesktopSettingsPanel({
     setSettingsLoading(true)
     setSettingsLoadError("")
     try {
-      const [nextSettings, nextInfo, nextCacheStats] = await Promise.all([
+      const [nextSettings, nextInfo, nextCacheStats, nextDiagnosticStats] = await Promise.all([
         window.desktop.settings.get(),
         window.desktop.app.info(),
         window.desktop.messageCache.getStats(target).catch(() => undefined),
+        window.desktop.diagnostics.getStorageStats().catch(() => undefined),
       ])
       if (generation !== loadGenerationRef.current) return
       setSettings(nextSettings)
       setAppInfo(nextInfo)
       setCacheStats(nextCacheStats)
+      setDiagnosticStats(nextDiagnosticStats)
     } catch {
       if (generation === loadGenerationRef.current) {
         setSettingsLoadError(t("settings.loadError"))
@@ -96,15 +103,29 @@ export function DesktopSettingsPanel({
   async function clearMessageCache() {
     if (!window.confirm(t("settings.storage.confirm"))) return
     setCacheClearing(true)
-    setSettingsError("")
+    setCacheClearError("")
     try {
       const managed = await clearManagedMessageCache(target)
       if (!managed) await window.desktop.messageCache.clearUser(target)
       setCacheStats(await window.desktop.messageCache.getStats(target))
     } catch {
-      setSettingsError(t("settings.storage.error"))
+      setCacheClearError(t("settings.storage.error"))
     } finally {
       setCacheClearing(false)
+    }
+  }
+
+  async function clearDiagnosticsStorage() {
+    if (!window.confirm(t("settings.storage.diagnostics.confirm"))) return
+    setDiagnosticsClearing(true)
+    setDiagnosticsClearError("")
+    try {
+      setDiagnosticStats(await window.desktop.diagnostics.clearStorage())
+    } catch {
+      setDiagnosticsClearError(t("settings.storage.diagnostics.error"))
+      setDiagnosticStats(await window.desktop.diagnostics.getStorageStats().catch(() => undefined))
+    } finally {
+      setDiagnosticsClearing(false)
     }
   }
 
@@ -316,8 +337,11 @@ export function DesktopSettingsPanel({
             <section aria-label={t("settings.storage.title")} className="settings-group">
               <div className="settings-row">
                 <span>
-                  <strong>{formatCacheSize(cacheStats?.payloadBytes ?? 0)}</strong>
-                  <small>{cacheStatusText(cacheStats?.status, t)}</small>
+                  <strong>{t("settings.storage.cache.title")}</strong>
+                  <small>
+                    {formatCacheSize(cacheStats?.payloadBytes ?? 0)} ·
+                    {cacheStatusText(cacheStats?.status, t)}
+                  </small>
                 </span>
                 <button
                   aria-label={t("settings.storage.clear.aria")}
@@ -330,6 +354,34 @@ export function DesktopSettingsPanel({
                   {t("settings.storage.clear")}
                 </button>
               </div>
+              {cacheClearError && <p role="alert">{cacheClearError}</p>}
+              <div className="settings-row">
+                <span>
+                  <strong>{t("settings.storage.diagnostics.title")}</strong>
+                  <small>
+                    {diagnosticStats?.status === "available"
+                      ? formatCacheSize(diagnosticStats.bytes)
+                      : t("settings.storage.diagnostics.size.unavailable")}
+                    {diagnosticStats?.status !== "available" && (
+                      <>
+                        {" · "}
+                        {diagnosticStorageStatusText(diagnosticStats?.status, t)}
+                      </>
+                    )}
+                  </small>
+                </span>
+                <button
+                  aria-label={t("settings.storage.diagnostics.clear.aria")}
+                  className="settings-secondary-button"
+                  disabled={diagnosticsClearing || diagnosticStats?.status !== "available"}
+                  onClick={() => void clearDiagnosticsStorage()}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={16} />
+                  {t("settings.storage.diagnostics.clear")}
+                </button>
+              </div>
+              {diagnosticsClearError && <p role="alert">{diagnosticsClearError}</p>}
             </section>
           )}
 
@@ -463,6 +515,14 @@ function cacheStatusText(
   if (status === "rebuilding") return t("settings.storage.status.rebuilding")
   if (status === "degraded") return t("settings.storage.status.degraded")
   return t("settings.storage.status.loading")
+}
+
+function diagnosticStorageStatusText(
+  status: DiagnosticStorageStats["status"] | undefined,
+  t: ReturnType<typeof useLocale>["t"],
+): string {
+  if (status === "unavailable") return t("settings.storage.diagnostics.status.unavailable")
+  return t("settings.storage.diagnostics.status.loading")
 }
 
 function DesktopUpdateSettingsSection({

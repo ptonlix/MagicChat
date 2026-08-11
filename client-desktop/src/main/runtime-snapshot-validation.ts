@@ -10,6 +10,10 @@ const pages = new Set<RendererRuntimeSnapshot["page"]>([
   "setup",
   "unknown",
 ])
+const documentVisibilityStates = new Set<RendererRuntimeSnapshot["documentVisibility"]>([
+  "hidden",
+  "visible",
+])
 const requestGroups = new Set([
   "api/client/apps",
   "api/client/auth",
@@ -33,6 +37,7 @@ export function parseRendererRuntimeSnapshot(value: unknown): RendererRuntimeSna
   return {
     activeRefreshes: boundedInteger(input.activeRefreshes, 100),
     activeRequests: boundedInteger(input.activeRequests, 1_000),
+    appActivatedAgeMs: boundedInteger(input.appActivatedAgeMs, 86_400_000),
     data: {
       contacts: boundedInteger(data.contacts, 1_000_000),
       conversations: boundedInteger(data.conversations, 1_000_000),
@@ -41,13 +46,22 @@ export function parseRendererRuntimeSnapshot(value: unknown): RendererRuntimeSna
       projects: boundedInteger(data.projects, 1_000_000),
     },
     eventLoopLagMs: boundedInteger(input.eventLoopLagMs, 600_000),
+    documentVisibility: documentVisibilityStates.has(
+      input.documentVisibility as RendererRuntimeSnapshot["documentVisibility"],
+    )
+      ? (input.documentVisibility as RendererRuntimeSnapshot["documentVisibility"])
+      : "hidden",
     ...(input.lastRefresh ? { lastRefresh: refreshSnapshot(input.lastRefresh) } : {}),
     ...(input.lastRequest ? { lastRequest: requestSnapshot(input.lastRequest) } : {}),
     longTasks: {
       count: boundedInteger(longTasks.count, 100_000),
       maxDurationMs: boundedInteger(longTasks.maxDurationMs, 600_000),
     },
+    navigatorOnline: input.navigatorOnline === true,
     page,
+    windowFocused: input.windowFocused === true,
+    windowMinimized: input.windowMinimized === true,
+    windowVisible: input.windowVisible === true,
   }
 }
 

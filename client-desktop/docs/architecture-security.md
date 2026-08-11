@@ -169,8 +169,13 @@ Renderer 请求登录
 ## 本地数据与诊断
 
 POC 不启用远程崩溃遥测，`crashReporter.uploadToServer=false`，也不接入 Sentry、远程
-日志或行为分析。诊断只能由用户主动导出，使用字段白名单，不包含 Server 地址、
-身份、消息、文件路径、完整 URL、Header、Cookie、Token 或原始 dump。
+日志或行为分析。诊断包只能由用户主动导出，使用字段白名单，不包含 Server 地址、消息、
+文件路径、完整 URL、Header、Cookie、Token 或原始 dump。设置页仅通过受信 Bridge 显示
+实时诊断日志的聚合大小和可用状态；用户明确确认后可清理未导出的当前、轮转和兼容日志，
+不会删除已导出的诊断包、消息缓存或其他应用数据。专用实时连接、会话列表和消息
+追赶诊断事件可以在 `context` 中保存经过长度和字符集校验的 `conversationId`，以关联同一
+会话的客户端阶段；这项例外不适用于消息缓存服务自身日志、缓存诊断字段或消息 payload，
+后者仍不得保存身份标识。
 
 消息缓存位于 Electron `userData/message-cache/messages-v1.sqlite3`，由 Main 管理的专用
 Worker 使用 Node.js 内置 `node:sqlite` 独占访问。Renderer 只能通过版本化的

@@ -143,6 +143,29 @@ describe("MessageManager", () => {
     expect(events).toContain("sync-error")
   })
 
+  it("追赶缓存提交失败时只报告缓存失败，不伪装为提交成功", async () => {
+    const repository = new FakeRepository([])
+    repository.failAfterCommit = true
+    const manager = new MessageManager(repository)
+    const committed: number[] = []
+    const failures: number[] = []
+
+    const cursor = await manager.catchUp(
+      manager.beginConversationOperation("conversation-1"),
+      0,
+      async () => ({ messages: [message(1)], page: page() }),
+      {
+        onCacheCommitFailed: ({ committedSeq }) => failures.push(committedSeq),
+        onCacheCommitted: ({ committedSeq }) => committed.push(committedSeq),
+      },
+    )
+
+    expect(cursor).toBe(1)
+    expect(committed).toEqual([])
+    expect(failures).toEqual([1])
+    expect(manager.getMessages("conversation-1").map(({ seq }) => seq)).toEqual([1])
+  })
+
   it("会话清理使挂起的追赶响应失效且不会复活 UI、缓存或游标", async () => {
     const repository = new FakeRepository([])
     const manager = new MessageManager(repository)
@@ -345,6 +368,7 @@ class FakeRepository implements MessageRepository {
   clearConversationCalls = 0
   clearOverride?: () => Promise<void>
   failLatestCommit = false
+  failAfterCommit = false
   failSyncState = false
   getByIdOverride?: () => Promise<ClientMessage | null>
   readRecentCalls = 0
@@ -388,6 +412,7 @@ class FakeRepository implements MessageRepository {
     expectedGeneration: MessageCacheGeneration,
   ) {
     this.assertGeneration(expectedGeneration)
+    if (this.failAfterCommit) throw new Error("cache unavailable")
     this.records = merge(this.records, records)
     const committedSeq = this.records.at(-1)?.seq ?? 0
     this.syncState = { ...this.syncState, httpSyncedThroughSeq: committedSeq }

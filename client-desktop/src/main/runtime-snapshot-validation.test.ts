@@ -71,4 +71,39 @@ describe("parseRendererRuntimeSnapshot", () => {
       }),
     ).toThrow("刷新诊断快照无效")
   })
+
+  it("仅接受受控的可见性、窗口和网络环境字段", () => {
+    const result = parseRendererRuntimeSnapshot({
+      ...validSnapshot,
+      documentVisibility: "visible",
+      navigatorOnline: true,
+      windowFocused: true,
+      windowMinimized: false,
+      windowVisible: true,
+    })
+    expect(result).toMatchObject({
+      documentVisibility: "visible",
+      navigatorOnline: true,
+      windowFocused: true,
+      windowMinimized: false,
+      windowVisible: true,
+    })
+
+    expect(
+      parseRendererRuntimeSnapshot({
+        ...validSnapshot,
+        documentVisibility: "private-window-state",
+        navigatorOnline: "yes",
+        windowFocused: 1,
+        windowMinimized: "false",
+        windowVisible: undefined,
+      }),
+    ).toMatchObject({
+      documentVisibility: "hidden",
+      navigatorOnline: false,
+      windowFocused: false,
+      windowMinimized: false,
+      windowVisible: false,
+    })
+  })
 })

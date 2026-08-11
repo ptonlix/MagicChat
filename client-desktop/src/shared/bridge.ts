@@ -12,6 +12,11 @@ import type { ScreenshotBridge } from "@shared/screenshot-contract"
 import type { ShortcutBridge } from "@shared/shortcut-contract"
 import type { DocumentCollaborationBridge } from "@shared/document-collaboration-contract"
 import type { DocumentWindowOpenResponse } from "@shared/document-window-contract"
+import type {
+  DiagnosticEvent,
+  DiagnosticEventInput,
+  DiagnosticStorageStats,
+} from "@shared/diagnostics-contract"
 
 export const BRIDGE_VERSION = 1 as const
 
@@ -35,7 +40,10 @@ export const IPC = {
   clipboardWritePng: "desktop:v1:clipboard-write-png",
   clipboardWriteText: "desktop:v1:clipboard-write-text",
   diagnosticsExport: "desktop:v1:diagnostics-export",
+  diagnosticsEvent: "desktop:v1:diagnostics-event",
   diagnosticsRuntime: "desktop:v1:diagnostics-runtime",
+  diagnosticsStorageClear: "desktop:v1:diagnostics-storage-clear",
+  diagnosticsStorageGetStats: "desktop:v1:diagnostics-storage-get-stats",
   documentCollaborationCancel: "desktop:v1:document-collaboration-cancel",
   documentCollaborationClose: "desktop:v1:document-collaboration-close",
   documentCollaborationConnect: "desktop:v1:document-collaboration-connect",
@@ -69,6 +77,7 @@ export const IPC = {
   realtimeConnect: "desktop:v1:realtime-connect",
   realtimeEvent: "desktop:v1:realtime-event",
   realtimeSend: "desktop:v1:realtime-send",
+  realtimeSnapshot: "desktop:v1:realtime-snapshot",
   realtimeUnauthorized: "desktop:v1:realtime-unauthorized",
   screenshotCancel: "desktop:v1:screenshot-cancel",
   screenshotCompleted: "desktop:v1:screenshot-completed",
@@ -160,6 +169,7 @@ export type DesktopAuthResult = Readonly<{
 export type RendererRuntimeSnapshot = Readonly<{
   activeRefreshes: number
   activeRequests: number
+  appActivatedAgeMs?: number
   data: Readonly<{
     contacts: number
     conversations: number
@@ -168,6 +178,7 @@ export type RendererRuntimeSnapshot = Readonly<{
     projects: number
   }>
   eventLoopLagMs: number
+  documentVisibility?: "hidden" | "visible"
   lastRefresh?: Readonly<{
     ageMs: number
     durationMs: number
@@ -181,7 +192,11 @@ export type RendererRuntimeSnapshot = Readonly<{
     status?: number
   }>
   longTasks: Readonly<{ count: number; maxDurationMs: number }>
+  navigatorOnline?: boolean
   page: "chat" | "contacts" | "init" | "login" | "projects" | "setup" | "unknown"
+  windowFocused?: boolean
+  windowMinimized?: boolean
+  windowVisible?: boolean
 }>
 
 export type UpdaterStatus =
@@ -245,7 +260,10 @@ export interface DesktopBridge {
     start(serverId: string, providerKey: string): Promise<{ transactionId: string }>
   }
   diagnostics: {
+    clearStorage(): Promise<DiagnosticStorageStats>
     export(): Promise<{ path?: string }>
+    getStorageStats(): Promise<DiagnosticStorageStats>
+    record(event: DiagnosticEventInput): Promise<DiagnosticEvent | undefined>
     reportRuntime(snapshot: RendererRuntimeSnapshot): void
   }
   documentCollaboration: DocumentCollaborationBridge
@@ -277,6 +295,7 @@ export interface DesktopBridge {
     connect(target: AuthenticatedTarget): Promise<RealtimeSnapshot>
     send(target: AuthenticatedTarget, method: string, payload: unknown): Promise<unknown>
     subscribe(listener: (envelope: RealtimeEnvelope) => void): () => void
+    subscribeSnapshot(listener: (snapshot: RealtimeSnapshot) => void): () => void
     subscribeUnauthorized(listener: (target: AuthenticatedTarget) => void): () => void
   }
   screenshot: ScreenshotBridge

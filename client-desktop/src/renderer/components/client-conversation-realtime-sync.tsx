@@ -15,6 +15,7 @@ import {
 } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
+import { recordRealtimeParseFailure } from "@/lib/desktop-diagnostics"
 
 export function ClientConversationRealtimeSync() {
   const location = useLocation()
@@ -64,6 +65,7 @@ export function ClientConversationRealtimeSync() {
           void refreshConversations().catch(() => undefined)
         }
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -83,6 +85,7 @@ export function ClientConversationRealtimeSync() {
           void refreshConversations().catch(() => undefined)
         }
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -93,6 +96,7 @@ export function ClientConversationRealtimeSync() {
       try {
         handleIncomingMessageReactionsUpdate(normalizeMessageReactionsUpdatedEventPayload(payload))
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -103,6 +107,7 @@ export function ClientConversationRealtimeSync() {
       try {
         handleIncomingMessageChoiceUpdate?.(normalizeMessageChoiceUpdatedEventPayload(payload))
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -117,6 +122,7 @@ export function ClientConversationRealtimeSync() {
           navigate("/chat", { replace: true })
         }
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -128,6 +134,7 @@ export function ClientConversationRealtimeSync() {
         normalizeConversationRemovedEventPayload(payload)
         void refreshConversations().catch(() => undefined)
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -139,6 +146,7 @@ export function ClientConversationRealtimeSync() {
         const event = normalizeConversationMuteUpdatedEventPayload(payload)
         updateConversationMuted(event.conversationId, event.muted)
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -150,6 +158,7 @@ export function ClientConversationRealtimeSync() {
         const event = normalizeConversationPinUpdatedEventPayload(payload)
         updateConversationPinned(event.conversationId, event.pinned)
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -161,6 +170,7 @@ export function ClientConversationRealtimeSync() {
         const event = normalizeConversationMemberMentionedEventPayload(payload)
         updateConversationLastMentionedSeq(event.conversationId, event.lastMentionedSeq)
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -172,6 +182,7 @@ export function ClientConversationRealtimeSync() {
         const event = normalizeConversationMemberChoiceReceivedEventPayload(payload)
         updateConversationLastChoiceSeq?.(event.conversationId, event.lastChoiceSeq)
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     })
@@ -187,6 +198,7 @@ export function ClientConversationRealtimeSync() {
         })
         void refreshConversations().catch(() => undefined)
       } catch {
+        recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
       }
     }

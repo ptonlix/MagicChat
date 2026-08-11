@@ -10,6 +10,7 @@ import { normalizeDocumentWindowOpenResponse } from "@shared/document-window-con
 import type { ASREvent } from "@shared/asr-contract"
 import type { DocumentCollaborationEvent } from "@shared/document-collaboration-contract"
 import type { RealtimeEnvelope } from "@shared/client-contract"
+import type { RealtimeSnapshot } from "@shared/client-contract"
 import {
   CAPTURE_BRIDGE_VERSION,
   type CaptureBridge,
@@ -45,7 +46,10 @@ const bridge: DesktopBridge = {
     start: (serverId, providerKey) => ipcRenderer.invoke(IPC.authStart, serverId, providerKey),
   },
   diagnostics: {
+    clearStorage: () => ipcRenderer.invoke(IPC.diagnosticsStorageClear),
     export: () => ipcRenderer.invoke(IPC.diagnosticsExport),
+    getStorageStats: () => ipcRenderer.invoke(IPC.diagnosticsStorageGetStats),
+    record: (event) => ipcRenderer.invoke(IPC.diagnosticsEvent, event),
     reportRuntime: (snapshot) => ipcRenderer.send(IPC.diagnosticsRuntime, snapshot),
   },
   documentCollaboration: {
@@ -110,6 +114,7 @@ const bridge: DesktopBridge = {
     send: (target, method, payload) =>
       ipcRenderer.invoke(IPC.realtimeSend, target, method, payload),
     subscribe: (listener) => subscribe<RealtimeEnvelope>(IPC.realtimeEvent, listener),
+    subscribeSnapshot: (listener) => subscribe<RealtimeSnapshot>(IPC.realtimeSnapshot, listener),
     subscribeUnauthorized: (listener) => subscribe(IPC.realtimeUnauthorized, listener),
   },
   screenshot: {

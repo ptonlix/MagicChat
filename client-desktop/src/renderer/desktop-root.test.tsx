@@ -845,6 +845,56 @@ describe("桌面设置服务器管理", () => {
     expect(bridge.messageCache.getStats).toHaveBeenCalledTimes(2)
   })
 
+  it("确认后清理实时诊断日志并展示独立的日志大小", async () => {
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.diagnostics.getStorageStats).mockResolvedValue({
+      bytes: 2 * 1024,
+      status: "available",
+    })
+    vi.mocked(bridge.diagnostics.clearStorage).mockResolvedValue({
+      bytes: 0,
+      status: "available",
+    })
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "存储空间" }))
+    expect(await screen.findByText("实时诊断日志")).toBeInTheDocument()
+    expect(screen.getByText(/2\.0 KiB/)).toBeInTheDocument()
+    expect(screen.queryByText(/保留当前及上一份轮转日志/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "清理实时诊断日志" }))
+
+    await waitFor(() => expect(bridge.diagnostics.clearStorage).toHaveBeenCalledOnce())
+    expect(bridge.diagnostics.getStorageStats).toHaveBeenCalledOnce()
+    expect(screen.getByText("实时诊断日志").parentElement).toHaveTextContent("0 B")
+  })
+
+  it("诊断日志清理失败时保留存储页并显示脱敏错误", async () => {
+    const bridge = createDesktopBridge()
+    vi.mocked(bridge.diagnostics.clearStorage).mockRejectedValueOnce(
+      new Error("EACCES: permission denied, diagnostics/realtime.jsonl"),
+    )
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: bridge,
+    })
+    const user = userEvent.setup()
+    render(<DesktopRoot />)
+
+    await user.click(await screen.findByRole("button", { name: "打开设置" }))
+    await user.click(screen.getByRole("button", { name: "存储空间" }))
+    await user.click(screen.getByRole("button", { name: "清理实时诊断日志" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("实时诊断日志清理失败，请重试")
+    expect(screen.queryByText(/realtime\.jsonl/)).not.toBeInTheDocument()
+    expect(bridge.diagnostics.getStorageStats).toHaveBeenCalledTimes(2)
+  })
+
   it("设置保存失败时保留原值并显示错误", async () => {
     const bridge = createDesktopBridge()
     vi.mocked(bridge.settings.set).mockRejectedValueOnce(
@@ -1510,7 +1560,13 @@ function createDesktopBridge(
     badge: { set: vi.fn() },
     tray: { setMessages: vi.fn() },
     clipboard: { writePng: vi.fn(), writeText: vi.fn() },
-    diagnostics: { export: vi.fn(), reportRuntime: vi.fn() },
+    diagnostics: {
+      clearStorage: vi.fn().mockResolvedValue({ bytes: 0, status: "available" }),
+      export: vi.fn(),
+      getStorageStats: vi.fn().mockResolvedValue({ bytes: 0, status: "available" }),
+      record: vi.fn(),
+      reportRuntime: vi.fn(),
+    },
     documentCollaboration: {
       cancel: vi.fn(),
       close: vi.fn(),
@@ -1560,6 +1616,7 @@ function createDesktopBridge(
       connect: vi.fn(),
       send: vi.fn(),
       subscribe: vi.fn().mockReturnValue(unsubscribe),
+      subscribeSnapshot: vi.fn().mockReturnValue(unsubscribe),
       subscribeUnauthorized: vi.fn().mockReturnValue(unsubscribe),
     },
     screenshot: {

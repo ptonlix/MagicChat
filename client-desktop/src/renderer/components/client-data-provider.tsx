@@ -87,6 +87,11 @@ import { ClientUserDirectory } from "@/lib/client-user-directory"
 import { startStaggeredRefresh } from "@/lib/staggered-refresh"
 import { trackDiagnosticRefresh, updateDiagnosticData } from "@/lib/runtime-diagnostics"
 import {
+  classifyDiagnosticError,
+  createDiagnosticId,
+  recordRendererDiagnostic,
+} from "@/lib/desktop-diagnostics"
+import {
   DesktopMessageRepository,
   catchUpConversationMessages,
   getMessageCacheTarget,
@@ -160,6 +165,7 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
   const loadingConversationOperationsRef = useRef<Map<string, symbol>>(new Map())
   const conversationsNeedingServerRefreshRef = useRef<Set<string>>(new Set())
   const syncingAfterConversationOperationsRef = useRef<Map<string, symbol>>(new Map())
+  const listRefreshIdsByConversationRef = useRef<Map<string, string>>(new Map())
   const historyRequestVersionsRef = useRef<Map<string, number>>(new Map())
   const historyRequestControllersRef = useRef<Map<string, AbortController>>(new Map())
   const historyFocusRequestKeyRef = useRef(0)
@@ -210,6 +216,7 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
     useConversationMessageRetention()
   const cacheTarget = getMessageCacheTarget()
   const cacheTargetKey = cacheTarget ? messageCacheTargetKey(cacheTarget) : ""
+  const diagnosticTargetScope = cacheTarget?.id
   if (
     cacheTarget &&
     cacheTarget.userId !== "anonymous" &&
@@ -543,6 +550,12 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
     () =>
       trackDiagnosticRefresh("conversations", async () => {
         const requestEpoch = ++conversationRefreshEpochRef.current
+        const listRefreshId = createDiagnosticId()
+        const startedAt = performance.now()
+        const context = {
+          ...(diagnosticTargetScope ? { targetScope: diagnosticTargetScope } : {}),
+          listRefreshId,
+        }
         try {
           const nextConversations = await listClientConversations(undefined, {
             includeConversationId: includedConversationIdRef.current,
@@ -552,12 +565,51 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
           void userDirectory
             .ensureUsers(collectConversationUserIds(nextConversations))
             .catch(() => undefined)
+          void recordRendererDiagnostic("conversation-list.completed", context, {
+            durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+            endpoint: "conversation-list",
+            responseStatus: 200,
+            returnedCount: nextConversations.length,
+          })
+          if (messageManager)
+            void messageManager
+              .listSyncStates()
+              .then((syncStates) => {
+                if (conversationRefreshEpochRef.current !== requestEpoch) return
+                const statesByConversationId = new Map(
+                  syncStates.map((state) => [state.conversationId, state]),
+                )
+                for (const conversation of nextConversations) {
+                  const state = statesByConversationId.get(conversation.id)
+                  if (!state || conversation.lastMessageSeq <= state.httpSyncedThroughSeq) continue
+                  listRefreshIdsByConversationRef.current.set(conversation.id, listRefreshId)
+                  void recordRendererDiagnostic(
+                    "conversation-list.seq-diverged",
+                    { ...context, conversationId: conversation.id },
+                    {
+                      httpSyncedThroughSeq: state.httpSyncedThroughSeq,
+                      lastMessageSeq: conversation.lastMessageSeq,
+                      seqDelta: conversation.lastMessageSeq - state.httpSyncedThroughSeq,
+                    },
+                  )
+                }
+              })
+              .catch(() => {
+                void recordRendererDiagnostic("message-cache.state-changed", context, {
+                  error: { category: "cache", phase: "cache" },
+                })
+              })
         } catch (error) {
           if (conversationRefreshEpochRef.current !== requestEpoch) return
+          void recordRendererDiagnostic("conversation-list.failed", context, {
+            durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+            endpoint: "conversation-list",
+            error: { category: classifyDiagnosticError(error), phase: "list" },
+          })
           throw handleError(error, "加载会话列表失败")
         }
       }),
-    [handleError, userDirectory],
+    [diagnosticTargetScope, handleError, messageManager, userDirectory],
   )
 
   const refreshProjects = useCallback(
@@ -1429,6 +1481,14 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
         pendingLatestMessageCount: 0,
         viewMode: "latest",
       }))
+      void recordRendererDiagnostic(
+        "conversation-ui.view-changed",
+        {
+          ...(diagnosticTargetScope ? { targetScope: diagnosticTargetScope } : {}),
+          conversationId,
+        },
+        { viewMode: "latest" },
+      )
 
       void (async () => {
         try {
@@ -1467,6 +1527,7 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
     },
     [
       beginHistoryWindowRequest,
+      diagnosticTargetScope,
       historyRequestIsCurrent,
       messageManager,
       updateConversationMessageState,
@@ -1497,6 +1558,14 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
         pendingLatestMessageCount: 0,
         viewMode: "history",
       }))
+      void recordRendererDiagnostic(
+        "conversation-ui.view-changed",
+        {
+          ...(diagnosticTargetScope ? { targetScope: diagnosticTargetScope } : {}),
+          conversationId,
+        },
+        { viewMode: "history" },
+      )
 
       try {
         const operation = messageManager?.beginConversationOperation(conversationId)
@@ -1593,6 +1662,7 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
     },
     [
       beginHistoryWindowRequest,
+      diagnosticTargetScope,
       historyRequestIsCurrent,
       messageManager,
       replaceWithLatestMessages,
@@ -1940,8 +2010,28 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
   )
 
   const syncAfterConversationMessages = useCallback(
-    (conversationId: string, afterSeq: number): Promise<void> => {
+    (
+      conversationId: string,
+      afterSeq: number,
+      trigger: "list-divergence" | "loaded-conversation" | "ready-edge" = "ready-edge",
+      listRefreshId?: string,
+    ): Promise<void> => {
+      const syncOperationId = createDiagnosticId()
+      const context = {
+        ...(diagnosticTargetScope ? { targetScope: diagnosticTargetScope } : {}),
+        ...(listRefreshId ? { listRefreshId } : {}),
+        conversationId,
+        syncOperationId,
+      }
+      void recordRendererDiagnostic("message-sync.candidate", context, {
+        afterSeq,
+        trigger,
+      })
       if (syncingAfterConversationOperationsRef.current.has(conversationId)) {
+        void recordRendererDiagnostic("message-sync.skipped", context, {
+          afterSeq,
+          reason: "concurrent",
+        })
         return Promise.resolve()
       }
 
@@ -1949,7 +2039,15 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
       try {
         operation = messageManager?.beginConversationOperation(conversationId)
       } catch (error) {
-        if (isMessageOperationCancelled(error)) return Promise.resolve()
+        if (isMessageOperationCancelled(error)) {
+          void recordRendererDiagnostic("message-sync.cancelled", context, {
+            error: { category: "stale", phase: "cache" },
+          })
+          return Promise.resolve()
+        }
+        void recordRendererDiagnostic("message-sync.failed", context, {
+          error: { category: classifyDiagnosticError(error), phase: "cache" },
+        })
         return Promise.reject(error)
       }
 
@@ -1957,17 +2055,80 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
       syncingAfterConversationOperationsRef.current.set(conversationId, syncingOperation)
 
       return (async () => {
+        const requestIds = new Map<number, string>()
+        let pageCount = 0
+        const fetchPage = async (cursor: number) => {
+          const requestId = createDiagnosticId()
+          const requestedAt = performance.now()
+          requestIds.set(cursor, requestId)
+          void recordRendererDiagnostic(
+            "message-sync.page-requested",
+            { ...context, requestId },
+            {
+              afterSeq: cursor,
+              endpoint: "message-after-seq",
+            },
+          )
+          const result = await listConversationMessages(conversationId, {
+            afterSeq: cursor,
+            limit: messagePageLimit,
+          })
+          pageCount += 1
+          void recordRendererDiagnostic(
+            "message-sync.page-received",
+            { ...context, requestId },
+            {
+              afterSeq: cursor,
+              durationMs: Math.max(0, Math.round(performance.now() - requestedAt)),
+              endpoint: "message-after-seq",
+              firstReturnedSeq: result.messages[0]?.seq ?? 0,
+              responseStatus: 200,
+              returnedCount: result.messages.length,
+              returnedLastSeq: result.messages.at(-1)?.seq ?? 0,
+            },
+          )
+          return result
+        }
         try {
           const initialCursor = messageManager
             ? await messageManager.getSyncCursor(operation!, afterSeq)
             : afterSeq
+          void recordRendererDiagnostic("message-sync.started", context, {
+            afterSeq,
+            initialCursor,
+            trigger,
+          })
+          let completedCursor = initialCursor
           if (messageManager) {
-            await messageManager.catchUp(operation!, initialCursor, (cursor) =>
-              listConversationMessages(conversationId, {
-                afterSeq: cursor,
-                limit: messagePageLimit,
-              }),
-            )
+            completedCursor = await messageManager.catchUp(operation!, initialCursor, fetchPage, {
+              onCacheCommitted: ({ committedSeq, page, requestAfterSeq }) => {
+                const requestId = requestIds.get(requestAfterSeq)
+                void recordRendererDiagnostic(
+                  "message-sync.cache-committed",
+                  { ...context, ...(requestId ? { requestId } : {}) },
+                  {
+                    afterSeq: requestAfterSeq,
+                    cacheNewestSeq: page.messages.at(-1)?.seq ?? 0,
+                    committedSeq,
+                    memoryCursor: committedSeq,
+                  },
+                )
+              },
+              onCacheCommitFailed: ({ committedSeq, page, requestAfterSeq }) => {
+                const requestId = requestIds.get(requestAfterSeq)
+                void recordRendererDiagnostic(
+                  "message-cache.state-changed",
+                  { ...context, ...(requestId ? { requestId } : {}) },
+                  {
+                    afterSeq: requestAfterSeq,
+                    cacheNewestSeq: page.messages.at(-1)?.seq ?? 0,
+                    committedSeq,
+                    error: { category: "cache", phase: "cache" },
+                    memoryCursor: committedSeq,
+                  },
+                )
+              },
+            })
             messageManager.assertOperationCurrent(operation!)
             const messages = messageManager.getMessages(conversationId)
             updateConversationMessageState(conversationId, (currentState) => ({
@@ -1989,14 +2150,10 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
           } else {
             let accumulatedMessages =
               conversationMessageStatesRef.current[conversationId]?.messages ?? []
-            await catchUpConversationMessages({
+            completedCursor = await catchUpConversationMessages({
               afterSeq: initialCursor,
               conversationId,
-              fetchPage: (cursor) =>
-                listConversationMessages(conversationId, {
-                  afterSeq: cursor,
-                  limit: messagePageLimit,
-                }),
+              fetchPage,
               commit: async (result, cursor) => {
                 accumulatedMessages = mergeConversationMessages(
                   accumulatedMessages,
@@ -2012,17 +2169,53 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
                     accumulatedMessages,
                   ),
                 }))
-                return result.messages.reduce(
+                const committedSeq = result.messages.reduce(
                   (maximum, message) => Math.max(maximum, message.seq),
                   cursor,
                 )
+                const requestId = requestIds.get(cursor)
+                void recordRendererDiagnostic(
+                  "message-sync.cache-committed",
+                  { ...context, ...(requestId ? { requestId } : {}) },
+                  {
+                    afterSeq: cursor,
+                    cacheNewestSeq: result.messages.at(-1)?.seq ?? 0,
+                    committedSeq,
+                    memoryCursor: committedSeq,
+                  },
+                )
+                return committedSeq
               },
             })
           }
           const lastMessage = conversationMessageStatesRef.current[conversationId]?.messages.at(-1)
           if (lastMessage) rememberConversationMessage(lastMessage)
+          const observed = conversationMessageStatesRef.current[conversationId]
+          void recordRendererDiagnostic("message-sync.completed", context, {
+            committedSeq: completedCursor,
+            pageCount,
+            pageNewestSeq: observed?.page?.newestSeq ?? 0,
+          })
+          void recordRendererDiagnostic("message-cache.state-changed", context, {
+            cacheNewestSeq: lastMessage?.seq ?? 0,
+            httpSyncedThroughSeq: completedCursor,
+            memoryCursor: lastMessage?.seq ?? 0,
+          })
+          void recordRendererDiagnostic("conversation-ui.state-observed", context, {
+            displayedNewestSeq: observed?.messages.at(-1)?.seq ?? 0,
+            latestKnownSeq: observed?.latestKnownSeq ?? 0,
+            loaded: observed?.loaded ?? false,
+            pageNewestSeq: observed?.page?.newestSeq ?? 0,
+            pendingLatestMessageCount: observed?.pendingLatestMessageCount ?? 0,
+            viewMode: observed?.viewMode ?? "latest",
+          })
         } catch (error) {
-          if (isMessageOperationCancelled(error)) return
+          if (isMessageOperationCancelled(error)) {
+            void recordRendererDiagnostic("message-sync.cancelled", context, {
+              error: { category: "stale", phase: "cache" },
+            })
+            return
+          }
           if (messageManager) {
             const messages = messageManager.getMessages(conversationId)
             if (messages.length > 0)
@@ -2031,6 +2224,9 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
                 messages,
               }))
           }
+          void recordRendererDiagnostic("message-sync.failed", context, {
+            error: { category: classifyDiagnosticError(error), phase: "request" },
+          })
           toast.error(getClientDataErrorMessage(error, "同步新消息失败"))
         } finally {
           if (
@@ -2038,10 +2234,16 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
           ) {
             syncingAfterConversationOperationsRef.current.delete(conversationId)
           }
+          listRefreshIdsByConversationRef.current.delete(conversationId)
         }
       })()
     },
-    [messageManager, rememberConversationMessage, updateConversationMessageState],
+    [
+      diagnosticTargetScope,
+      messageManager,
+      rememberConversationMessage,
+      updateConversationMessageState,
+    ],
   )
 
   const syncLoadedConversationMessages = useCallback(() => {
@@ -2070,7 +2272,12 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
               if (!conversation) return
               const state = statesByConversationId.get(conversation.id)
               if (!state) continue
-              await syncAfterConversationMessages(conversation.id, state.httpSyncedThroughSeq)
+              await syncAfterConversationMessages(
+                conversation.id,
+                state.httpSyncedThroughSeq,
+                "list-divergence",
+                listRefreshIdsByConversationRef.current.get(conversation.id),
+              )
             }
           }
           await Promise.all(Array.from({ length: Math.min(3, candidates.length) }, runNext))
@@ -2084,7 +2291,7 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
 
       const newestSeq = getNewestMessageSeq(state)
       if (newestSeq > 0) {
-        void syncAfterConversationMessages(conversationId, newestSeq)
+        void syncAfterConversationMessages(conversationId, newestSeq, "loaded-conversation")
       }
       void refreshMessageReactions(
         conversationId,

@@ -89,7 +89,7 @@ async function start(): Promise<void> {
   screenshots.installProtocol()
   const unregisterScreenshotIpc = screenshots.registerIpc()
   const proxyAuth = new ProxyAuthPrompt(windows, iconPath)
-  const realtime = new RealtimeController(profiles, sessions, proxyAuth)
+  const realtime = new RealtimeController(profiles, sessions, proxyAuth, diagnostics)
   const asr = new ASRController(profiles, sessions, proxyAuth)
   const documentCollaboration = new DocumentCollaborationController(profiles, sessions, proxyAuth)
   const documentWindowState = new FileDocumentWindowStateStore(app.getPath("userData"))
@@ -177,6 +177,25 @@ async function start(): Promise<void> {
 
   const hidden = process.argv.includes("--hidden") && store.getSettings().autoLaunch
   const mainWindow = windows.create(hidden)
+  const recordWindowState = () => {
+    const episodeId = diagnostics.getCurrentEpisodeId()
+    void diagnostics.recordEvent({
+      ...(episodeId ? { context: { episodeId } } : {}),
+      data: {
+        windowFocused: mainWindow.isFocused(),
+        windowMinimized: mainWindow.isMinimized(),
+        windowVisible: mainWindow.isVisible(),
+      },
+      origin: "main",
+      type: "environment.window-state-changed",
+    })
+  }
+  mainWindow.on("show", recordWindowState)
+  mainWindow.on("hide", recordWindowState)
+  mainWindow.on("focus", recordWindowState)
+  mainWindow.on("blur", recordWindowState)
+  mainWindow.on("minimize", recordWindowState)
+  mainWindow.on("restore", recordWindowState)
   shortcuts.start()
   const cancelScreenshotForDisplayChange = () => screenshots.cancelActive()
   screen.on("display-added", cancelScreenshotForDisplayChange)
@@ -184,12 +203,17 @@ async function start(): Promise<void> {
   screen.on("display-metrics-changed", cancelScreenshotForDisplayChange)
   mainWindow.webContents.once("did-finish-load", () => void startupHealth.markHealthy())
   powerMonitor.on("suspend", () => {
+    diagnostics.createEpisode("suspend")
     asr.closeAll()
     documentCollaboration.closeAll()
   })
-  powerMonitor.on("resume", () => realtime.reconnectAll())
-  powerMonitor.on("unlock-screen", () => realtime.reconnectAll())
-  app.on("activate", () => windows.show())
+  powerMonitor.on("resume", () => realtime.reconnectAll(diagnostics.createEpisode("resume")))
+  powerMonitor.on("lock-screen", () => diagnostics.createEpisode("locked"))
+  powerMonitor.on("unlock-screen", () => realtime.reconnectAll(diagnostics.createEpisode("resume")))
+  app.on("activate", () => {
+    diagnostics.createEpisode("window")
+    windows.show()
+  })
   app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
     const data = additionalData as { deepLink?: unknown }
     const link =

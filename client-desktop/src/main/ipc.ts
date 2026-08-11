@@ -8,7 +8,7 @@ import {
   webContents,
   type IpcMainInvokeEvent,
 } from "electron"
-import type { AuthenticatedTarget, ClientRequest } from "@shared/client-contract"
+import type { AuthenticatedTarget, ClientRequest, RealtimeSnapshot } from "@shared/client-contract"
 import { IPC, type DesktopThemeSource, type NotificationInput } from "@shared/bridge"
 import type { AuthController } from "@main/auth-controller"
 import type { ConfigStore } from "@main/config-store"
@@ -27,9 +27,11 @@ import type { UpdaterService } from "@main/updater-service"
 import { assertTrustedIpcSender } from "@main/ipc-security"
 import { parseDesktopSettingsPatch } from "@main/settings-validation"
 import { registerRuntimeDiagnosticsIpc } from "@main/runtime-diagnostics-ipc"
+import { registerDiagnosticsIpc } from "@main/diagnostics-ipc"
 import { parseTrayMessages } from "@main/tray-message-validation"
 import { removeServerResources } from "@main/server-removal"
 import { handleUnauthorizedCacheLifecycle } from "@main/authentication-cache-lifecycle"
+import { broadcastToWindows } from "@main/ipc-broadcast"
 import type { ASRController } from "@main/asr-controller"
 import type { ASREvent } from "@shared/asr-contract"
 import type { DocumentCollaborationEvent } from "@shared/document-collaboration-contract"
@@ -43,6 +45,7 @@ import type { DocumentWindowManager } from "@main/document-window-manager"
 import { parseExternalWebLink } from "@shared/external-link"
 import type { ShortcutManager } from "@main/shortcut-manager"
 import type { ShortcutKind } from "@shared/shortcut-contract"
+import { realtimeSnapshotDeliveryEvents } from "@main/realtime-snapshot-diagnostics"
 
 export type IpcDependencies = {
   auth: AuthController
@@ -66,10 +69,8 @@ export type IpcDependencies = {
 }
 
 export function registerIpc(deps: IpcDependencies): () => void {
-  const broadcast = (channel: string, payload: unknown) => {
-    for (const window of BrowserWindow.getAllWindows())
-      if (!window.isDestroyed()) window.webContents.send(channel, payload)
-  }
+  const broadcast = (channel: string, payload: unknown) =>
+    broadcastToWindows(channel, payload, BrowserWindow.getAllWindows())
   const markUnauthorized = (authTarget: AuthenticatedTarget) => {
     deps.asr.closeTarget(authTarget)
     deps.documentCollaboration.closeTarget(authTarget)
@@ -321,8 +322,14 @@ export function registerIpc(deps: IpcDependencies): () => void {
   )
 
   const unregisterRuntimeDiagnostics = registerRuntimeDiagnosticsIpc(deps.diagnostics)
+  const unregisterDiagnostics = registerDiagnosticsIpc(deps.diagnostics)
 
   const envelopeListener = (payload: unknown) => broadcast(IPC.realtimeEvent, payload)
+  const snapshotListener = (snapshot: RealtimeSnapshot) => {
+    const delivery = broadcast(IPC.realtimeSnapshot, snapshot)
+    for (const event of realtimeSnapshotDeliveryEvents(snapshot, delivery))
+      void deps.diagnostics.recordEvent(event)
+  }
   const asrListener = (ownerId: number, event: ASREvent) => {
     const owner = webContents.fromId(ownerId)
     if (owner && !owner.isDestroyed()) owner.send(IPC.asrEvent, event)
@@ -338,6 +345,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
   const unauthorizedListener = (authTarget: AuthenticatedTarget) => markUnauthorized(authTarget)
   const updaterUnsubscribe = deps.updater.subscribe((state) => broadcast(IPC.updaterState, state))
   deps.realtime.on("envelope", envelopeListener)
+  deps.realtime.on("snapshot", snapshotListener)
   deps.realtime.on("unauthorized", unauthorizedListener)
   deps.asr.on("event", asrListener)
   deps.documentCollaboration.on("event", documentCollaborationListener)
@@ -357,11 +365,13 @@ export function registerIpc(deps: IpcDependencies): () => void {
   return () => {
     for (const channel of Object.values(IPC)) ipcMain.removeHandler(channel)
     deps.realtime.off("envelope", envelopeListener)
+    deps.realtime.off("snapshot", snapshotListener)
     deps.realtime.off("unauthorized", unauthorizedListener)
     deps.asr.off("event", asrListener)
     deps.documentCollaboration.off("event", documentCollaborationListener)
     updaterUnsubscribe()
     unregisterRuntimeDiagnostics()
+    unregisterDiagnostics()
   }
 }
 

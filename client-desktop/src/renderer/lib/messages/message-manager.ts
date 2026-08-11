@@ -32,6 +32,15 @@ import {
 
 export type MessageSource = "after" | "before" | "cache" | "latest" | "local" | "realtime"
 export type HistoryRequestGuard = () => boolean
+export type MessageCatchUpCommit = Readonly<{
+  committedSeq: number
+  page: CatchUpPage
+  requestAfterSeq: number
+}>
+export type MessageCatchUpHooks = Readonly<{
+  onCacheCommitFailed?: (input: MessageCatchUpCommit) => void
+  onCacheCommitted?: (input: MessageCatchUpCommit) => void
+}>
 
 export class MessageManager {
   private readonly listeners = new Set<MessageManagerListener>()
@@ -420,6 +429,7 @@ export class MessageManager {
     token: MessageOperationToken,
     afterSeq: number,
     fetchPage: (afterSeq: number) => Promise<CatchUpPage>,
+    hooks: MessageCatchUpHooks = {},
   ): Promise<number> {
     const { conversationId } = token
     this.assertOperationCurrent(token)
@@ -454,6 +464,11 @@ export class MessageManager {
           )
           if (this.persistentCacheDisabled) {
             this.memoryCursors.set(conversationId, memoryCursor)
+            hooks.onCacheCommitted?.({
+              committedSeq: memoryCursor,
+              page: result,
+              requestAfterSeq,
+            })
             return memoryCursor
           }
           try {
@@ -468,11 +483,21 @@ export class MessageManager {
             )
             this.assertOperationCurrent(token)
             this.memoryCursors.set(conversationId, committed.committedSeq)
+            hooks.onCacheCommitted?.({
+              committedSeq: committed.committedSeq,
+              page: result,
+              requestAfterSeq,
+            })
             return committed.committedSeq
           } catch {
             this.assertOperationCurrent(token)
             this.memoryCursors.set(conversationId, memoryCursor)
             this.disablePersistentCache(conversationId)
+            hooks.onCacheCommitFailed?.({
+              committedSeq: memoryCursor,
+              page: result,
+              requestAfterSeq,
+            })
             return memoryCursor
           }
         },
