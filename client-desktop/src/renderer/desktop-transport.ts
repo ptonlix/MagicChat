@@ -218,8 +218,8 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
     void window.desktop.realtime
       .connect(target)
       .then((snapshot) => {
-        if (!this.receivedSnapshot) this.receiveSnapshot(snapshot)
-        if (!this.receivedSnapshot)
+        if (!this.receivedSnapshot) {
+          this.latestSnapshot = snapshot
           void recordRendererDiagnostic(
             "realtime-bridge.snapshot-missed",
             this.diagnosticContext(),
@@ -227,6 +227,7 @@ export class DesktopWebSocket implements RealtimeWebSocketLike {
               reason: "unknown",
             },
           )
+        }
         this.readyState = DesktopWebSocket.OPEN
         this.recordState("connected")
         this.onopen?.(new Event("open"))

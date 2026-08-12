@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ClientTransportError } from "@shared/client-contract"
 import { ClientDataRequestError } from "@/lib/client-api/core"
 import { MessageCatchUpError } from "@/lib/messages/message-catch-up"
-import { classifyDiagnosticError } from "@/lib/desktop-diagnostics"
+import { classifyDiagnosticError, recordRealtimeParseFailure } from "@/lib/desktop-diagnostics"
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe("classifyDiagnosticError", () => {
   it("将 HTTP、网络、缓存和解析错误归入受控类别", () => {
@@ -22,5 +26,26 @@ describe("classifyDiagnosticError", () => {
     expect(classifyDiagnosticError(new MessageCatchUpError("protocol_cursor", "游标异常"))).toBe(
       "parse",
     )
+  })
+})
+
+describe("recordRealtimeParseFailure", () => {
+  it("首个失败到期后清除窗口，不会与后续失败聚合", async () => {
+    vi.useFakeTimers()
+    const record = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: { diagnostics: { record } },
+    })
+
+    recordRealtimeParseFailure()
+    await vi.advanceTimersByTimeAsync(30_000)
+    recordRealtimeParseFailure()
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(record.mock.calls.map(([event]) => event.type)).toEqual([
+      "realtime.event-parse-failed",
+      "realtime.event-parse-failed",
+    ])
   })
 })

@@ -32,6 +32,7 @@ type Connection = {
   >
   ready: boolean
   parseFailureWindow?: ParseFailureWindow
+  preserveEpisodeForSocket?: WebSocket
   systemReadyCount: number
   socket?: WebSocket
   status: RealtimeSnapshot["status"]
@@ -119,8 +120,11 @@ export class RealtimeController extends EventEmitter {
     for (const connection of this.connections.values()) {
       if (connection.intentionallyClosed) continue
       connection.episodeId = episodeId ?? this.createEpisode("reconnect")
-      connection.socket?.terminate()
-      if (!connection.socket) void this.open(connection)
+      const socket = connection.socket
+      if (socket) {
+        connection.preserveEpisodeForSocket = socket
+        socket.terminate()
+      } else void this.open(connection)
     }
   }
 
@@ -203,7 +207,10 @@ export class RealtimeController extends EventEmitter {
     socket.on("close", (closeCode, reason) => {
       if (connection.socket === socket) connection.socket = undefined
       void this.flushParseFailures(connection)
-      if (!connection.intentionallyClosed) connection.episodeId = this.createEpisode("reconnect")
+      const preservesEpisode = connection.preserveEpisodeForSocket === socket
+      if (preservesEpisode) connection.preserveEpisodeForSocket = undefined
+      if (!connection.intentionallyClosed && !preservesEpisode)
+        connection.episodeId = this.createEpisode("reconnect")
       const previousStatus = connection.status
       const previousReady = connection.ready
       connection.ready = false
@@ -358,15 +365,14 @@ export class RealtimeController extends EventEmitter {
         startedAt,
         suppressedCount: 0,
       }
+      connection.parseFailureWindow.timer = setTimeout(() => {
+        void this.flushParseFailures(connection)
+      }, 30_000)
+      connection.parseFailureWindow.timer.unref?.()
       return
     }
 
     connection.parseFailureWindow.suppressedCount += 1
-    if (connection.parseFailureWindow.timer) return
-    connection.parseFailureWindow.timer = setTimeout(() => {
-      void this.flushParseFailures(connection)
-    }, 30_000)
-    connection.parseFailureWindow.timer.unref?.()
   }
 
   private async flushParseFailures(connection: Connection): Promise<void> {

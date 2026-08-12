@@ -53,7 +53,11 @@ export function recordRendererDiagnostic<Type extends DiagnosticType>(
 export function recordRealtimeParseFailure(): void {
   if (!parseFailureWindow) {
     const windowStartedAt = new Date().toISOString()
-    parseFailureWindow = { startedAt: windowStartedAt, suppressedCount: 0 }
+    parseFailureWindow = {
+      startedAt: windowStartedAt,
+      suppressedCount: 0,
+      timer: window.setTimeout(flushParseFailureWindow, 30_000),
+    }
     void recordRendererDiagnostic("realtime.event-parse-failed", undefined, {
       error: { category: "parse", phase: "request" },
     }).then((event) => {
@@ -71,7 +75,9 @@ export function recordRealtimeParseFailure(): void {
 export function flushParseFailureWindow(): void {
   const current = parseFailureWindow
   parseFailureWindow = undefined
-  if (!current || current.suppressedCount === 0) return
+  if (!current) return
+  if (current.timer !== undefined) window.clearTimeout(current.timer)
+  if (current.suppressedCount === 0) return
   void recordRendererDiagnostic("realtime.parse-failures-aggregated", undefined, {
     suppressedCount: current.suppressedCount,
     suppressedFromEventSeq: current.firstEventSeq ?? 0,

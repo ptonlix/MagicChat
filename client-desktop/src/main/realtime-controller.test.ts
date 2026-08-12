@@ -219,6 +219,26 @@ describe("RealtimeController 诊断", () => {
     )
   })
 
+  it("系统恢复传入的片段覆盖被终止 socket 的关闭和重连事件", async () => {
+    const controller = createController()
+
+    await controller.connect(target)
+    const socket = socketMocks.FakeWebSocket.instances[0]
+    socket.open()
+    recordEvent.mockClear()
+
+    controller.reconnectAll("resume-episode")
+    await vi.runAllTimersAsync()
+
+    const recoveryEvents = recordEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) =>
+        ["realtime.socket-closed", "realtime.reconnect-scheduled"].includes(event.type),
+      )
+    expect(recoveryEvents).toHaveLength(2)
+    expect(recoveryEvents.every((event) => event.context.episodeId === "resume-episode")).toBe(true)
+  })
+
   it("主动关闭记录最终 disconnected 状态并广播最终快照", async () => {
     const controller = createController()
     const snapshots: Array<{ ready: boolean; status: string }> = []
@@ -288,6 +308,26 @@ describe("RealtimeController 诊断", () => {
         data: expect.objectContaining({ suppressedCount: 2, suppressedFromEventSeq: 2 }),
       }),
     ])
+  })
+
+  it("首个解析失败到期后重置窗口，不与后续失败错误聚合", async () => {
+    const controller = createController()
+
+    await controller.connect(target)
+    const socket = socketMocks.FakeWebSocket.instances[0]
+    socket.emit("message", Buffer.from("not valid json"), false)
+    await vi.advanceTimersByTimeAsync(30_000)
+    socket.emit("message", Buffer.from("still not valid json"), false)
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    const parseFailures = recordEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "realtime.event-parse-failed")
+    const aggregates = recordEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "realtime.parse-failures-aggregated")
+    expect(parseFailures).toHaveLength(2)
+    expect(aggregates).toHaveLength(0)
   })
 })
 
