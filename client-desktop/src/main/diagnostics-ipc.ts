@@ -4,10 +4,24 @@ import { parseDiagnosticEventInput } from "@shared/diagnostics-contract"
 import type { Diagnostics } from "@main/diagnostics"
 import { assertTrustedIpcSender } from "@main/ipc-security"
 
+const maxPendingRecordsPerRenderer = 32
+
 export function registerDiagnosticsIpc(diagnostics: Diagnostics): () => void {
+  const pendingRecordsBySender = new Map<number, number>()
   const recordHandler = async (event: IpcMainInvokeEvent, rawEvent: unknown) => {
     assertTrustedIpcSender(event)
-    return diagnostics.recordEvent(parseDiagnosticEventInput(rawEvent, new Set(["renderer"])))
+    const record = parseDiagnosticEventInput(rawEvent, new Set(["renderer"]))
+    const senderId = event.sender.id
+    const pending = pendingRecordsBySender.get(senderId) ?? 0
+    if (pending >= maxPendingRecordsPerRenderer) return undefined
+    pendingRecordsBySender.set(senderId, pending + 1)
+    try {
+      return await diagnostics.recordEvent(record)
+    } finally {
+      const remaining = (pendingRecordsBySender.get(senderId) ?? 1) - 1
+      if (remaining > 0) pendingRecordsBySender.set(senderId, remaining)
+      else pendingRecordsBySender.delete(senderId)
+    }
   }
   const storageStatsHandler = async (event: IpcMainInvokeEvent) => {
     assertTrustedIpcSender(event)
