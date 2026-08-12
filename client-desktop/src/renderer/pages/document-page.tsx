@@ -527,9 +527,6 @@ function DocumentWorkspace({
                 <Send />
                 {t("document.sendToConversation")}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => toast.info(t("document.infoUnavailable"))}>
-                {t("document.info")}
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={deleting}

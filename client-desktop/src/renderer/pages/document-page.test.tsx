@@ -258,6 +258,18 @@ describe("DocumentPage", () => {
     expect(router.state.location.pathname).toBe("/projects/project-1/documents")
   })
 
+  it("更多文档操作不展示 Web 未提供的文档信息", async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole("textbox", { name: "顶部文档标题" })
+
+    await user.click(screen.getByRole("button", { name: "更多文档操作" }))
+
+    expect(screen.getByRole("menuitem", { name: "发送到对话" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: "删除" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "文档信息" })).not.toBeInTheDocument()
+  })
+
   it("子窗口删除未同步文档时不拦截窗口关闭", async () => {
     const initialUrl = window.location.href
     let beforeUnloadEvent: Event | undefined
