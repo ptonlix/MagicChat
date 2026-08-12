@@ -35,6 +35,7 @@ vi.mock("@/lib/project-members", async (importOriginal) => {
 })
 
 vi.mock("@/lib/client-data-context", () => ({
+  useOptionalClientData: () => null,
   useClientData: () => ({
     conversations: [
       {

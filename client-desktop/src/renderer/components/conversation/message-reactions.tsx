@@ -10,6 +10,7 @@ import {
   type ClientMessageReactionUser,
 } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
+import { useClientUser } from "@/lib/client-data-context"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type MessageReactionChipsProps = {
@@ -149,15 +150,21 @@ function ReactionParticipantSummary({
 }
 
 function ReactionUserName({ user }: { user: ClientMessageReactionUser }) {
+  const resolvedUser = useClientUser(user.id)
+  const name = resolvedUser?.nickname || resolvedUser?.name || user.name || shortUserId(user.id)
   return (
     <UserProfilePopover
-      triggerAriaLabel={`${user.name}资料`}
+      triggerAriaLabel={`${name}资料`}
       triggerClassName="min-w-0 max-w-full break-all whitespace-normal transition-colors hover:text-sky-500 focus-visible:text-sky-500 data-[state=open]:text-sky-500"
       userId={user.id}
     >
-      <span>{user.name}</span>
+      <span>{name}</span>
     </UserProfilePopover>
   )
+}
+
+function shortUserId(userId: string) {
+  return userId.length <= 12 ? userId : `${userId.slice(0, 8)}...${userId.slice(-4)}`
 }
 
 function MessageReactionUsersPopover({

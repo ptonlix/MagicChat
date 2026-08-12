@@ -14,10 +14,20 @@ import {
 } from "@/components/ui/item"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ClientProjectMember } from "@/lib/project-data-api"
+import { useOptionalClientData } from "@/lib/client-data-context"
 import { listAllClientProjectMembers } from "@/lib/project-members"
+import {
+  displayProjectMember,
+  EMPTY_PROJECT_USERS,
+  getProjectMemberUserIds,
+  hydrateProjectMembers,
+} from "@/lib/project-user-hydration"
 
 export function ProjectMembersTab({ projectId }: { projectId: string }) {
   const { t } = useLocale()
+  const clientData = useOptionalClientData()
+  const ensureUsers = clientData?.ensureUsers
+  const usersById = clientData?.usersById ?? EMPTY_PROJECT_USERS
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [members, setMembers] = React.useState<ClientProjectMember[]>([])
@@ -47,6 +57,16 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
     }
   }, [projectId, t])
 
+  const memberUserIds = React.useMemo(() => getProjectMemberUserIds(members), [members])
+  const memberUserKey = memberUserIds.join("\u0000")
+  React.useEffect(() => {
+    if (memberUserKey) void ensureUsers?.(memberUserIds).catch(() => undefined)
+  }, [ensureUsers, memberUserIds, memberUserKey])
+  const hydratedMembers = React.useMemo(
+    () => hydrateProjectMembers(members, usersById),
+    [members, usersById],
+  )
+
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 bg-muted/10 text-sm text-muted-foreground">
@@ -64,7 +84,7 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
     )
   }
 
-  if (members.length === 0) {
+  if (hydratedMembers.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-muted/10 text-sm text-muted-foreground">
         {t("project.noMembers")}
@@ -75,7 +95,8 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
   return (
     <ScrollArea className="min-h-0 flex-1 bg-muted/10">
       <div className="grid w-full gap-2 p-4">
-        {members.map((member) => {
+        {hydratedMembers.map((member) => {
+          const displayName = displayProjectMember(member)
           return (
             <Item
               className="cursor-default px-3 py-2.5 hover:bg-muted"
@@ -87,7 +108,7 @@ export function ProjectMembersTab({ projectId }: { projectId: string }) {
                 <ProjectMemberAvatar className="size-9 bg-muted" member={member} />
               </ItemMedia>
               <ItemContent className="min-w-0">
-                <ItemTitle className="truncate">{member.displayName}</ItemTitle>
+                <ItemTitle className="truncate">{displayName}</ItemTitle>
                 <ItemDescription className="truncate text-xs">{member.email}</ItemDescription>
               </ItemContent>
               <ItemActions>

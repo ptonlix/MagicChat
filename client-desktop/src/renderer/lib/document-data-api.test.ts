@@ -81,6 +81,32 @@ describe("document data API", () => {
     expect(legacy?.contributorCount).toBe(1)
   })
 
+  it("accepts ID-only document users for later directory hydration", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        data: {
+          documents: [
+            {
+              ...documentResponse,
+              contributors: [{ id: "user-2" }],
+              creator: { id: "user-1" },
+              updated_by: { id: "user-3" },
+            },
+          ],
+        },
+      }),
+    )
+
+    await expect(listClientDocuments("project-1", fetcher)).resolves.toMatchObject([
+      {
+        contributors: [{ id: "user-2", name: "" }],
+        creator: { id: "user-1", name: "" },
+        updatedBy: { id: "user-3", name: "" },
+      },
+    ])
+  })
+
   it("按 Unicode 码点校验标题长度", async () => {
     const title = "😀".repeat(500)
     const fetcher = vi.fn().mockResolvedValue(

@@ -7,6 +7,7 @@ import {
   MessageCircle,
   RefreshCw,
   Search,
+  UsersRound,
 } from "lucide-react"
 
 import type { DirectorySelection, DirectoryTab } from "@/components/contacts/contact-directory"
@@ -39,6 +40,7 @@ export function ContactDirectorySidebar({
   appGrantUsers,
   apps,
   contacts,
+  directoryMode = "organization",
   contactsRefreshing,
   currentUserId,
   groups,
@@ -46,6 +48,7 @@ export function ContactDirectorySidebar({
   onActiveTabChange,
   onKeywordChange,
   onRefresh,
+  onOpenFriendManagement,
   onSelect,
   onStartAppConversation,
   onStartContactConversation,
@@ -58,6 +61,7 @@ export function ContactDirectorySidebar({
   appGrantUsers: ContactUser[]
   apps: ContactApp[]
   contacts: ContactUser[]
+  directoryMode?: "friends" | "organization"
   contactsRefreshing: boolean
   currentUserId: string
   groups: ContactGroup[]
@@ -65,6 +69,7 @@ export function ContactDirectorySidebar({
   onActiveTabChange: (tab: DirectoryTab) => void
   onKeywordChange: (keyword: string) => void
   onRefresh: () => void
+  onOpenFriendManagement?: () => void
   onSelect: (selection: DirectorySelection) => void
   onStartAppConversation: (app: ContactApp) => void
   onStartContactConversation: (contact: ContactUser) => void
@@ -96,18 +101,34 @@ export function ContactDirectorySidebar({
     <Sidebar className="border-r bg-background" collapsible="none">
       <SidebarHeader className="gap-0 p-0">
         <div className="flex h-14 items-center justify-between px-4">
-          <h1 className="text-base font-medium">{t("contacts.title")}</h1>
-          <Button
-            aria-label={t("contacts.refresh")}
-            disabled={contactsRefreshing}
-            onClick={onRefresh}
-            size="icon-sm"
-            title={t("contacts.refresh")}
-            type="button"
-            variant="ghost"
-          >
-            <RefreshCw className={cn("size-4", contactsRefreshing && "animate-spin")} />
-          </Button>
+          <h1 className="text-base font-medium">
+            {directoryMode === "friends" ? t("contacts.friendsTitle") : t("contacts.title")}
+          </h1>
+          <div className="flex items-center gap-1">
+            {directoryMode === "friends" && onOpenFriendManagement && (
+              <Button
+                aria-label={t("contacts.friendManagement")}
+                onClick={onOpenFriendManagement}
+                size="icon-sm"
+                title={t("contacts.friendManagement")}
+                type="button"
+                variant="ghost"
+              >
+                <UsersRound className="size-4" />
+              </Button>
+            )}
+            <Button
+              aria-label={t("contacts.refresh")}
+              disabled={contactsRefreshing}
+              onClick={onRefresh}
+              size="icon-sm"
+              title={t("contacts.refresh")}
+              type="button"
+              variant="ghost"
+            >
+              <RefreshCw className={cn("size-4", contactsRefreshing && "animate-spin")} />
+            </Button>
+          </div>
         </div>
       </SidebarHeader>
       <Tabs
@@ -143,10 +164,12 @@ export function ContactDirectorySidebar({
               defaultOpen={contacts.length > 0}
               forceOpen={Boolean(activeKeyword.trim())}
               count={contacts.length}
-              title={organizationName}
+              title={directoryMode === "friends" ? t("contacts.friendsTitle") : organizationName}
             >
               <DirectoryList
-                ariaLabel={t("contacts.list", { name: organizationName })}
+                ariaLabel={t("contacts.list", {
+                  name: directoryMode === "friends" ? t("contacts.friendsTitle") : organizationName,
+                })}
                 scrollRef={userScrollRef}
               >
                 {contacts.map((contact) => (
@@ -164,7 +187,12 @@ export function ContactDirectorySidebar({
                   />
                 ))}
                 {contacts.length === 0 && (
-                  <DirectoryEmptyState label={t("contacts.empty", { name: organizationName })} />
+                  <DirectoryEmptyState
+                    label={t("contacts.empty", {
+                      name:
+                        directoryMode === "friends" ? t("contacts.friendsTitle") : organizationName,
+                    })}
+                  />
                 )}
               </DirectoryList>
             </DirectorySectionCollapsible>

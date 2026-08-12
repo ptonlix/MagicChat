@@ -127,6 +127,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     compactConversationMessages,
     consumeConversationMessageFocus,
     contacts,
+    usersById = {},
     conversations,
     ensureConversationMessages,
     getConversation,
@@ -298,8 +299,9 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     [clientMessages],
   )
   const contactsById = React.useMemo(
-    () => new Map(contacts.map((contact) => [contact.id, contact])),
-    [contacts],
+    () =>
+      new Map([...contacts, ...Object.values(usersById)].map((contact) => [contact.id, contact])),
+    [contacts, usersById],
   )
   const appsById = React.useMemo(() => {
     const result = new Map<string, (typeof contactApps)[number]>()

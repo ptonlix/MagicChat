@@ -4,9 +4,12 @@ import {
   addGroupConversationMembers,
   ClientDataRequestError,
   createGroupConversation,
+  createFriendRequest,
+  deleteFriend,
   dismissConversation,
   getCurrentClientUser,
   listClientContacts,
+  listFriendRequests,
   listClientConversations,
   listConversationMessages,
   normalizeConversationMemberChoiceReceivedEventPayload,
@@ -21,6 +24,8 @@ import {
   sendConversationEntityCardMessage,
   sendConversationTextMessage,
   restoreConversation,
+  resolveClientUsers,
+  searchContactUsers,
   setConversationPinned,
   setConversationMuted,
 } from "@/lib/client-data-api"
@@ -166,9 +171,11 @@ describe("client data API", () => {
           avatarMembers: [
             {
               avatar: "/assets/avatars/builtin/03.webp",
+              id: "",
               name: "Bob Li",
               nickname: "",
               role: "member",
+              type: "user",
             },
           ],
           id: "group-1",
@@ -179,7 +186,8 @@ describe("client data API", () => {
           visibility: "private",
         },
       ],
-      users: [
+      directoryMode: "organization",
+      initialUsers: [
         {
           avatar: "/assets/avatars/builtin/03.webp",
           email: "bob@example.com",
@@ -190,12 +198,155 @@ describe("client data API", () => {
           online: true,
           phone: "+8613912345679",
           type: "user",
+          updatedAt: "",
         },
       ],
+      userIds: ["user-2"],
     })
     expect(fetcher).toHaveBeenCalledWith("/api/client/contacts", {
       credentials: "include",
       method: "GET",
+    })
+  })
+
+  it("normalizes the ID-only contacts contract and rejects an unrecognizable directory", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            apps: [],
+            directory_mode: "friends",
+            groups: [],
+            user_ids: ["user-1", "user-1", "user-2"],
+          },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
+    )
+
+    await expect(listClientContacts(fetcher)).resolves.toMatchObject({
+      apps: [],
+      directoryMode: "friends",
+      groups: [],
+      initialUsers: [],
+      userIds: ["user-1", "user-2"],
+    })
+
+    fetcher.mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: true, data: { apps: [], groups: [] } }), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      }),
+    )
+    await expect(listClientContacts(fetcher)).rejects.toThrow("通讯录响应格式不正确")
+  })
+
+  it("resolves user profiles with a cancellable bounded request and preserves API errors", async () => {
+    const controller = new AbortController()
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            users: [
+              {
+                id: "user-1",
+                name: "Alice",
+                online: true,
+                updated_at: "2026-08-01T00:00:00.000Z",
+              },
+            ],
+          },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
+    )
+
+    await expect(resolveClientUsers(["user-1"], fetcher, controller.signal)).resolves.toEqual([
+      expect.objectContaining({ id: "user-1", updatedAt: "2026-08-01T00:00:00.000Z" }),
+    ])
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/users/resolve",
+      expect.objectContaining({ signal: controller.signal }),
+    )
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toEqual({ user_ids: ["user-1"] })
+    await expect(resolveClientUsers([], fetcher)).rejects.toThrow("用户资料请求格式不正确")
+    await expect(resolveClientUsers([" ".repeat(1)], fetcher)).rejects.toThrow(
+      "用户资料请求格式不正确",
+    )
+
+    const failedFetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ success: false, error: { code: "forbidden", message: "禁止解析" } }),
+          { headers: { "content-type": "application/json" }, status: 403 },
+        ),
+      )
+    await expect(resolveClientUsers(["user-1"], failedFetcher)).rejects.toMatchObject({
+      code: "forbidden",
+      message: "禁止解析",
+      status: 403,
+    })
+  })
+
+  it("searches exact user identifiers and sends URL-safe friendship mutations", async () => {
+    const controller = new AbortController()
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ success: true, data: { user_ids: ["user/一", "user/一"] } }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(friendRequestResponse("request/一"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, data: {} }), {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }),
+      )
+
+    await expect(
+      searchContactUsers("alice@example.com", fetcher, controller.signal),
+    ).resolves.toEqual(["user/一"])
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/client/users/search",
+      expect.objectContaining({ signal: controller.signal }),
+    )
+    await createFriendRequest("user/一", fetcher)
+    expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toEqual({ user_id: "user/一" })
+    await deleteFriend("user/一", fetcher)
+    expect(fetcher).toHaveBeenLastCalledWith("/api/client/friends/user%2F%E4%B8%80", {
+      credentials: "include",
+      method: "DELETE",
+    })
+    expect(() => createFriendRequest(" ", fetcher)).toThrow("好友标识格式不正确")
+  })
+
+  it("maps friend request envelopes and Server failures", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { requests: [friendRequest("request-1")] },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
+    )
+    await expect(listFriendRequests("incoming", fetcher)).resolves.toEqual([
+      expect.objectContaining({ id: "request-1", status: "pending" }),
+    ])
+    expect(fetcher).toHaveBeenCalledWith("/api/client/friend-requests?direction=incoming", {
+      credentials: "include",
+      method: "GET",
+      signal: undefined,
     })
   })
 
@@ -1414,3 +1565,22 @@ describe("client data API", () => {
     } satisfies ClientDataRequestError)
   })
 })
+
+function friendRequest(id: string) {
+  return {
+    addressee_user_id: "user-2",
+    created_at: "2026-08-01T00:00:00.000Z",
+    handled_at: null,
+    id,
+    requester_user_id: "user-1",
+    status: "pending",
+    updated_at: "2026-08-01T00:00:00.000Z",
+  }
+}
+
+function friendRequestResponse(id: string) {
+  return new Response(JSON.stringify({ success: true, data: friendRequest(id) }), {
+    headers: { "content-type": "application/json" },
+    status: 200,
+  })
+}

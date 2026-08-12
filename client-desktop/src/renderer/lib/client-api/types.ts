@@ -48,12 +48,39 @@ export type ContactUserResponse = {
   online?: boolean
   phone?: string
   type?: string
+  updated_at?: string
 }
+
+export type ResolveClientUsersResponse = {
+  users?: ContactUserResponse[]
+}
+
+export type ContactDirectoryMode = "friends" | "organization"
 
 export type ListClientContactsResponse = {
   apps?: ContactAppResponse[]
+  directory_mode?: ContactDirectoryMode
   groups?: ContactGroupResponse[]
   users?: ContactUserResponse[]
+  user_ids?: string[]
+}
+
+export type FriendRequestResponse = {
+  addressee_user_id?: string
+  created_at?: string
+  handled_at?: string | null
+  id?: string
+  requester_user_id?: string
+  status?: string
+  updated_at?: string
+}
+
+export type ListFriendRequestsResponse = {
+  requests?: FriendRequestResponse[]
+}
+
+export type SearchContactUsersResponse = {
+  user_ids?: string[]
 }
 
 export type ContactAppResponse = {
@@ -79,9 +106,11 @@ export type ContactGroupResponse = {
 
 export type ContactGroupAvatarMemberResponse = {
   avatar?: string
+  id?: string
   name?: string
   nickname?: string
   role?: string
+  type?: string
 }
 
 export type ConversationResponse = {
@@ -698,6 +727,20 @@ export type ContactUser = {
   type: "user"
 }
 
+export type ResolvedClientUser = ContactUser & {
+  updatedAt: string
+}
+
+export type FriendRequest = {
+  addresseeUserId: string
+  createdAt: string
+  handledAt: string | null
+  id: string
+  requesterUserId: string
+  status: "accepted" | "canceled" | "pending" | "rejected"
+  updatedAt: string
+}
+
 export type ContactApp = {
   avatar: string
   creatorUserId: string | null
@@ -721,15 +764,19 @@ export type ContactGroup = {
 
 export type ContactGroupAvatarMember = {
   avatar: string
+  id: string
   name: string
   nickname: string
   role: "owner" | "admin" | "member"
+  type: "app" | "user"
 }
 
 export type ClientContacts = {
   apps: ContactApp[]
+  directoryMode: ContactDirectoryMode
   groups: ContactGroup[]
-  users: ContactUser[]
+  initialUsers: ResolvedClientUser[]
+  userIds: string[]
 }
 
 export type ClientConversation = {

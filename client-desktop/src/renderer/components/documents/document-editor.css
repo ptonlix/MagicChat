@@ -30,7 +30,7 @@
 }
 .document-editor .tiptap {
   min-height: 58vh;
-  color: var(--foreground);
+  color: color-mix(in oklab, var(--foreground) 88%, transparent);
   caret-color: var(--foreground);
   outline: none;
 }
@@ -80,13 +80,53 @@
 }
 .document-editor .tiptap ul,
 .document-editor .tiptap ol {
-  padding-left: 1.6rem;
+  padding-left: 1.5rem;
+  list-style: none;
 }
-.document-editor .tiptap ul {
-  list-style: disc;
+.document-editor .tiptap ul:not([data-type="taskList"]) > li,
+.document-editor .tiptap ol > li {
+  position: relative;
 }
-.document-editor .tiptap ol {
-  list-style: decimal;
+.document-editor .tiptap ul:not([data-type="taskList"]) > li::before,
+.document-editor .tiptap ol > li::before {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  box-sizing: border-box;
+  width: 1.5rem;
+  line-height: 1.5rem;
+  text-align: left;
+  pointer-events: none;
+}
+.document-editor .tiptap ul:not([data-type="taskList"]) > li::before {
+  font-size: 1.5rem;
+  content: "•";
+}
+.document-editor .tiptap ul ul:not([data-type="taskList"]) > li::before {
+  font-size: 1.3rem;
+  content: "◦";
+}
+.document-editor .tiptap ul ul ul:not([data-type="taskList"]) > li::before {
+  font-size: 1.4rem;
+  content: "▪";
+}
+.document-editor .tiptap ol > li::before {
+  content: counter(list-item, decimal) ".";
+}
+.document-editor .tiptap ol ol > li::before {
+  content: counter(list-item, lower-alpha) ".";
+}
+.document-editor .tiptap ol ol ol > li::before {
+  content: counter(list-item, lower-roman) ".";
+}
+.document-editor .tiptap ol ol ol ol > li::before {
+  content: counter(list-item, decimal) ".";
+}
+.document-editor .tiptap ol ol ol ol ol > li::before {
+  content: counter(list-item, lower-alpha) ".";
+}
+.document-editor .tiptap ol ol ol ol ol ol > li::before {
+  content: counter(list-item, lower-roman) ".";
 }
 .document-editor .tiptap li > p {
   margin: 0;
@@ -173,6 +213,8 @@
   color: var(--muted-foreground);
 }
 .document-editor .tiptap code {
+  border: 1px solid var(--border);
+  margin-inline: 0.25rem;
   border-radius: 0.3rem;
   background: var(--muted);
   padding: 0.12rem 0.35rem;
@@ -181,12 +223,15 @@
 }
 .document-editor .tiptap pre {
   overflow-x: auto;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: var(--muted);
   padding: 1rem;
 }
 
 .document-editor .tiptap pre code {
+  margin-inline: 0;
+  border: 0;
   background: transparent;
   padding: 0;
   font-size: 0.875rem;

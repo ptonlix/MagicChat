@@ -1,10 +1,27 @@
+import { StrictMode } from "react"
 import { act, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ClientDataProvider } from "@/components/client-data-provider"
+import { ClientUserDirectoryRealtimeSync } from "@/components/client-user-directory-realtime-sync"
 import { useClientData } from "@/lib/client-data-context"
 import { clearManagedMessageCache, configureMessageCacheTarget } from "@/lib/messages"
+
+vi.mock("@/hooks/use-desktop-target", () => ({
+  useDesktopTarget: () => ({
+    id: "server-1",
+    normalizedUrl: "https://chat.example.com",
+    userId: "user-1",
+  }),
+}))
+
+vi.mock("@/lib/realtime-context", () => ({
+  useRealtime: () => ({
+    ready: true,
+    subscribeRealtimeEvent: () => () => undefined,
+  }),
+}))
 
 describe("ClientDataProvider", () => {
   afterEach(() => {
@@ -84,6 +101,301 @@ describe("ClientDataProvider", () => {
     expect(meRequestCount).toBe(2)
     expect(contactsRequestCount).toBe(2)
     expect(conversationRequestCount).toBe(2)
+  })
+
+  it("resolves ID-only contact names after StrictMode replays effects", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me")
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              apps: [],
+              directory_mode: "organization",
+              groups: [],
+              user_ids: ["user-2"],
+            },
+            success: true,
+          }),
+        )
+      }
+      if (url === "/api/client/users/resolve") {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              users: [
+                {
+                  id: "user-2",
+                  name: "Alice",
+                  updated_at: "2026-08-12T00:00:00Z",
+                },
+              ],
+            },
+            success: true,
+          }),
+        )
+      }
+      if (url === "/api/client/conversations")
+        return Promise.resolve(jsonResponse(createConversationsResponse([])))
+      if (url === "/api/client/projects?limit=100")
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <StrictMode>
+        <MemoryRouter>
+          <ClientDataProvider>
+            <ClientUserDirectoryRealtimeSync />
+            <ContactNamesProbe />
+          </ClientDataProvider>
+        </MemoryRouter>
+      </StrictMode>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.getByTestId("contact-names")).toHaveTextContent("Alice")
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/client/users/resolve",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+
+  it("hydrates ID-only group avatar members from the user directory", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me")
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              apps: [],
+              directory_mode: "organization",
+              groups: [
+                {
+                  avatar_members: [{ id: "user-2", role: "owner", type: "user" }],
+                  id: "group-1",
+                  name: "产品讨论组",
+                },
+              ],
+              user_ids: [],
+            },
+            success: true,
+          }),
+        )
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(
+          jsonResponse(
+            createConversationsResponse([
+              {
+                created_at: "2026-08-12T00:00:00Z",
+                id: "group-1",
+                members: [{ id: "user-2", role: "owner", type: "user" }],
+                name: "产品讨论组",
+                type: "group",
+              },
+            ]),
+          ),
+        )
+      }
+      if (url === "/api/client/users/resolve") {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              users: [
+                {
+                  avatar: "/avatars/alice.webp",
+                  id: "user-2",
+                  name: "Alice",
+                  nickname: "A",
+                  updated_at: "2026-08-12T00:00:00Z",
+                },
+              ],
+            },
+            success: true,
+          }),
+        )
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <GroupAvatarMembersProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.getByTestId("contact-group-avatar-member")).toHaveTextContent(
+      "Alice|A|/avatars/alice.webp",
+    )
+    expect(screen.getByTestId("conversation-avatar-member")).toHaveTextContent(
+      "Alice|A|/avatars/alice.webp",
+    )
+
+    const resolveRequests = fetchMock.mock.calls.filter(
+      ([input]) => String(input) === "/api/client/users/resolve",
+    )
+    expect(resolveRequests).toHaveLength(1)
+    expect(JSON.parse(String(resolveRequests[0]?.[1]?.body))).toEqual({ user_ids: ["user-2"] })
+  })
+
+  it("keeps the newest contacts when concurrent refreshes resolve out of order", async () => {
+    vi.useFakeTimers()
+    const olderRefresh = createDeferred<Response>()
+    const newerRefresh = createDeferred<Response>()
+    let contactsRequestCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        contactsRequestCount += 1
+        if (contactsRequestCount === 1) {
+          return Promise.resolve(jsonResponse(createContactsResponseWithUsers(["initial-user"])))
+        }
+        return contactsRequestCount === 2 ? olderRefresh.promise : newerRefresh.promise
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(jsonResponse(createConversationsResponse([])))
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ContactRefreshRaceProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(screen.getByTestId("contact-ids")).toHaveTextContent("initial-user")
+
+    act(() => screen.getByRole("button", { name: "refresh contacts" }).click())
+    act(() => screen.getByRole("button", { name: "refresh contacts" }).click())
+    expect(contactsRequestCount).toBe(3)
+
+    await act(async () => {
+      newerRefresh.resolve(jsonResponse(createContactsResponseWithUsers(["new-user"])))
+    })
+    expect(screen.getByTestId("contact-ids")).toHaveTextContent("new-user")
+
+    await act(async () => {
+      olderRefresh.resolve(jsonResponse(createContactsResponseWithUsers(["old-user"])))
+    })
+    expect(screen.getByTestId("contact-ids")).toHaveTextContent("new-user")
+  })
+
+  it("keeps the newest friend requests when concurrent refreshes resolve out of order", async () => {
+    vi.useFakeTimers()
+    const olderIncoming = createDeferred<Response>()
+    const olderOutgoing = createDeferred<Response>()
+    const newerIncoming = createDeferred<Response>()
+    const newerOutgoing = createDeferred<Response>()
+    let incomingRequestCount = 0
+    let outgoingRequestCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              apps: [],
+              directory_mode: "friends",
+              groups: [],
+              user_ids: [],
+            },
+            success: true,
+          }),
+        )
+      }
+      if (url === "/api/client/friend-requests?direction=incoming") {
+        incomingRequestCount += 1
+        if (incomingRequestCount === 1) {
+          return Promise.resolve(jsonResponse(createFriendRequestsResponse(["initial-incoming"])))
+        }
+        return incomingRequestCount === 2 ? olderIncoming.promise : newerIncoming.promise
+      }
+      if (url === "/api/client/friend-requests?direction=outgoing") {
+        outgoingRequestCount += 1
+        if (outgoingRequestCount === 1) {
+          return Promise.resolve(jsonResponse(createFriendRequestsResponse([])))
+        }
+        return outgoingRequestCount === 2 ? olderOutgoing.promise : newerOutgoing.promise
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(jsonResponse(createConversationsResponse([])))
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/users/resolve") {
+        return Promise.resolve(jsonResponse({ data: { users: [] }, success: true }))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <FriendRequestRefreshRaceProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(screen.getByTestId("incoming-request-ids")).toHaveTextContent("initial-incoming")
+
+    act(() => screen.getByRole("button", { name: "refresh friend requests" }).click())
+    act(() => screen.getByRole("button", { name: "refresh friend requests" }).click())
+    expect(incomingRequestCount).toBe(3)
+    expect(outgoingRequestCount).toBe(3)
+
+    await act(async () => {
+      newerIncoming.resolve(jsonResponse(createFriendRequestsResponse(["new-incoming"])))
+      newerOutgoing.resolve(jsonResponse(createFriendRequestsResponse([])))
+    })
+    expect(screen.getByTestId("incoming-request-ids")).toHaveTextContent("new-incoming")
+
+    await act(async () => {
+      olderIncoming.resolve(jsonResponse(createFriendRequestsResponse(["old-incoming"])))
+      olderOutgoing.resolve(jsonResponse(createFriendRequestsResponse([])))
+    })
+    expect(screen.getByTestId("incoming-request-ids")).toHaveTextContent("new-incoming")
   })
 
   it("shows the workspace error page and recovers after retrying", async () => {
@@ -1117,6 +1429,60 @@ function MessagePaginationProbe() {
   )
 }
 
+function ContactNamesProbe() {
+  const { contacts } = useClientData()
+  return <div data-testid="contact-names">{contacts.map((contact) => contact.name).join(",")}</div>
+}
+
+function ContactRefreshRaceProbe() {
+  const { contacts, refreshContacts } = useClientData()
+
+  return (
+    <>
+      <button aria-label="refresh contacts" onClick={() => void refreshContacts()} type="button" />
+      <div data-testid="contact-ids">{contacts.map((contact) => contact.id).join(",")}</div>
+    </>
+  )
+}
+
+function FriendRequestRefreshRaceProbe() {
+  const { incomingFriendRequests = [], refreshFriendRequests } = useClientData()
+
+  return (
+    <>
+      <button
+        aria-label="refresh friend requests"
+        onClick={() => void refreshFriendRequests?.()}
+        type="button"
+      />
+      <div data-testid="incoming-request-ids">
+        {incomingFriendRequests.map((request) => request.id).join(",")}
+      </div>
+    </>
+  )
+}
+
+function GroupAvatarMembersProbe() {
+  const { contactGroups, conversations } = useClientData()
+  const contactMember = contactGroups[0]?.avatarMembers[0]
+  const conversationMember = conversations[0]?.members?.[0]
+
+  return (
+    <>
+      <div data-testid="contact-group-avatar-member">
+        {contactMember
+          ? `${contactMember.name}|${contactMember.nickname}|${contactMember.avatar}`
+          : "missing"}
+      </div>
+      <div data-testid="conversation-avatar-member">
+        {conversationMember
+          ? `${conversationMember.name}|${conversationMember.nickname}|${conversationMember.avatar}`
+          : "missing"}
+      </div>
+    </>
+  )
+}
+
 function GroupRealtimeMessageProbe() {
   const { conversations, getConversationMessageState, handleIncomingConversationMessage } =
     useClientData()
@@ -1238,6 +1604,36 @@ function createContactsResponse() {
       apps: [],
       groups: [],
       users: [],
+    },
+    success: true,
+  }
+}
+
+function createContactsResponseWithUsers(userIds: readonly string[]) {
+  return {
+    data: {
+      apps: [],
+      groups: [],
+      users: userIds.map((id) => ({
+        id,
+        name: id,
+      })),
+    },
+    success: true,
+  }
+}
+
+function createFriendRequestsResponse(requestIds: readonly string[]) {
+  return {
+    data: {
+      requests: requestIds.map((id) => ({
+        addressee_user_id: "user-1",
+        created_at: "2026-08-12T00:00:00Z",
+        id,
+        requester_user_id: `${id}-requester`,
+        status: "pending",
+        updated_at: "2026-08-12T00:00:00Z",
+      })),
     },
     success: true,
   }

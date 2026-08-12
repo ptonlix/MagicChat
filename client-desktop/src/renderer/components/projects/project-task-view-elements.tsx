@@ -15,6 +15,7 @@ import type {
 } from "@/components/projects/project-types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+import { displayProjectUser } from "@/lib/project-user-hydration"
 
 export function ProjectTaskStatusIcon({
   className,
@@ -60,7 +61,7 @@ export function ProjectTaskAssigneeAvatar({
   assignee: NonNullable<ProjectTask["assignee"]>
   className?: string
 }) {
-  const displayName = assignee.nickname || assignee.name
+  const displayName = displayProjectUser(assignee)
   const initial = Array.from(displayName.trim())[0]?.toUpperCase() ?? "?"
 
   return (

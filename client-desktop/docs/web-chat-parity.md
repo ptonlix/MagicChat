@@ -1,13 +1,25 @@
 # Desktop 与 Web 聊天能力差异清单
 
-更新日期：2026-08-04
+更新日期：2026-08-12
 
 行为基线：`02189fe2`、`51d536b9`、`f849d57c`、`3e0a4982`、`73dc2b15`、`4797a7a4`。
 
 本轮增量基线：`b67c30c`、`ee7207e`、`496e227`、`0f6149d`、`863789d`、
 `53f19a9`、`d00796a`、`25457e1`。
 
+本次 Desktop 同步基线：`ba53e63`（按 ID 用户目录、好友关系与实时资料）和
+`6c5c5b8`（文档块编辑与文档卡片）。不迁移 Web 官网、Admin、Assistant 路由、
+`BroadcastChannel` 或浏览器新标签页行为。
+
 ## 本轮增量对照清单
+
+- `ba53e63`：contacts 改为 `apps`、`directory_mode`、`groups`、`user_ids`；普通用户
+  资料通过受控 `users/resolve` 批量补全，并提供好友搜索、申请、接受、拒绝、取消和删除。
+  Desktop 对应 Renderer 内存目录、ClientData Provider、实时同步、通讯录和项目/任务资料
+  hydration；保留旧 `users` contacts 响应的受限升级兼容，且不持久化或跨 Target 复用资料。
+- `6c5c5b8`：文档支持块背景、inline code mark 互斥、块级插入/转换/颜色操作和文档卡片。
+  Desktop 对应独立 Tiptap extension、编辑器样式、主窗口 `SendCardDialog` 与子窗口窄化卡片
+  流程；保留 Hocuspocus Bridge、内部文档路由和子窗口不挂载聊天 Provider 的边界。
 
 - `b67c30c`：聊天记录搜索与定位。Desktop 现状是本地搜索和连续消息缓存；目标为
   `client-api/search.ts`、`MessageManager` 独立 history snapshot、Provider、全局搜索和
@@ -35,6 +47,18 @@
   Main pending registry 与宿主生命周期；不新增搜索专用通道或 Renderer 批量取消能力。
 
 ## 本轮已对齐
+
+- 用户目录与脱敏 DTO：contacts 支持新旧协议；`users/resolve` 在当前 Renderer/认证 Target
+  内按微任务合批、每批最多 100 条、TTL、负缓存、版本保护和清理策略工作。会话、消息、项目、
+  任务和文档贡献者保留 ID 基础数据，资料未到达时显示稳定截短 ID，不将目录写入消息缓存或诊断。
+- 用户实时资料：已安全处理 `user.profile.updated` 和 `user.presence.updated`。资料更新只刷新
+  已缓存用户，在线状态只 patch 已缓存资料，畸形事件不会中断实时连接。
+- 好友目录：已支持 `organization`/`friends` 模式、精确用户搜索、申请生命周期、联系人详情关系
+  操作、好友私聊限制和关系/目录模式实时合并刷新；所有请求仍经 Main/Preload 的既有受控 fetch。
+- 文档跨端编辑：已支持 `blockBackgroundColor` 的 JSON/HTML/Yjs 保真、inline code 互斥、插入
+  上下段落、块转换、段落背景、文字颜色和删除，以及嵌套列表、代码块与正文样式对齐。
+- 文档卡片：主文档工作区使用受控会话选择与发送流程，文档子窗口使用独立窄化 dialog；两者都
+  生成已编码内部路径，不打开外部浏览器或新增 Renderer 网络能力。
 
 - 上游 `99073c0`：顶层普通文本和 Markdown 消息按真实高度折叠，多选模式显示全文，展开控制不触发消息选择或操作菜单。
 - 上游 `2e23981`：文档图片、定制分割线、表格、多色高亮和新版待办 Schema 已注册；待办项通过 Desktop 独立 React NodeView 保持复选框与正文首行同行，并在只读状态阻止共享属性写入；安全粘贴、文档图片上传/解析、awareness 在线成员与协作光标、贡献者 DTO 和五个项目 section URL 已接入 Desktop 独立实现。
@@ -101,10 +125,12 @@
 
 - 文档在 Desktop 当前窗口打开，保留 40px 原生拖拽区；Web 的新标签行为不迁移。
 - 文档 HTTPS/HTTP 链接继续使用 Desktop 原生外链策略，不由编辑器直接打开。
-- 分享、导出、文档信息、全局文档搜索、Markdown/文件/脑图/表格、多窗口和多实例
-  document-server 广播仍未实现，也不显示占位入口。
-- 核心文档 V1 仍需连接兼容 Server 完成 Web/Desktop 双客户端、权限撤销、断网重连、
-  Server 重启和代理/TLS 联调，并完成三档窗口、多缩放及 macOS/Windows/Linux 真机验收。
+- 导出、文档信息、全局文档搜索、Markdown/文件/脑图/表格和多实例 document-server 广播仍未实现，
+  也不显示占位入口。文档卡片分享和受控文档子窗口已实现；它们不等同于浏览器多标签行为。
+- 本次用户目录、好友与文档同步仍需连接兼容 Server 完成 contacts 新旧协议、仅 ID DTO、
+  profile/presence、好友全流程、目录模式切换和好友私聊限制联调；并需 Web/Desktop 双客户端验证
+  块背景、inline code、块操作、文档卡片、权限撤销、断网重连和 Server 重启。
+- 核心文档 V1 仍需完成三档窗口、多缩放及 macOS/Windows/Linux 真机验收。
 
 - 全局搜索的键盘和可访问性行为由 Desktop 自有 Dialog 实现，视觉结构与页签状态已对齐 Web，未引入仅用于外观一致性的额外 Command 依赖。
 - ASR 保持 Desktop 安全架构：Renderer 只采集 PCM 并调用窄化、版本化 Bridge；Main 使用

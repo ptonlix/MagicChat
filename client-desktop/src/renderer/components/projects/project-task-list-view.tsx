@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/item"
 import { formatRelativeTime } from "@/lib/relative-time"
 import { cn } from "@/lib/utils"
+import { displayProjectUser } from "@/lib/project-user-hydration"
 
 export function ProjectTaskListView({
   emptyMessage,
@@ -75,6 +76,7 @@ function TaskItem({
 }) {
   const { t } = useLocale()
   const closed = task.status === "done" || task.status === "canceled"
+  const assigneeName = task.assignee ? displayProjectUser(task.assignee) : ""
   const overdue = !closed && isPastDate(task.dueDate)
   const now = new Date()
   const [assigneeDialogOpen, setAssigneeDialogOpen] = React.useState(false)
@@ -165,7 +167,7 @@ function TaskItem({
             <Badge asChild variant="outline">
               <button
                 aria-label={t("project.task.changeAssignee", {
-                  name: task.assignee.nickname || task.assignee.name,
+                  name: assigneeName,
                 })}
                 className={cn(
                   "cursor-pointer hover:ring-1 hover:ring-ring/50",
@@ -180,16 +182,16 @@ function TaskItem({
                 <Avatar className="size-4 rounded-sm after:rounded-sm">
                   {task.assignee.avatar && (
                     <AvatarImage
-                      alt={task.assignee.nickname || task.assignee.name}
+                      alt={assigneeName}
                       className="rounded-sm"
                       src={task.assignee.avatar}
                     />
                   )}
                   <AvatarFallback className="rounded-sm text-[8px]">
-                    {getUserInitial(task.assignee.nickname || task.assignee.name)}
+                    {getUserInitial(assigneeName)}
                   </AvatarFallback>
                 </Avatar>
-                {task.assignee.nickname || task.assignee.name}
+                {assigneeName}
               </button>
             </Badge>
           )}

@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react"
+import { createContext, useContext, useEffect, useMemo } from "react"
 
 import {
   type ClientConversation,
@@ -14,8 +14,10 @@ import {
   type ClientMessagePage,
   type ClientUser,
   type ContactApp,
+  type ContactDirectoryMode,
   type ContactGroup,
   type ContactUser,
+  type FriendRequest,
 } from "@/lib/client-data-api"
 import type { ClientProjectDetail, ClientProjectSummary } from "@/lib/project-data-api"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
@@ -47,12 +49,15 @@ export type SendConversationImageOptions = SendConversationMessageOptions & {
 
 export type ClientDataContextValue = {
   contactApps: ContactApp[]
+  contactDirectoryMode?: ContactDirectoryMode
   contactGroups: ContactGroup[]
   conversations: ClientConversation[]
   contacts: ContactUser[]
   contactsError: ClientDataRequestError | null
   contactsLoading: boolean
   contactsRefreshing: boolean
+  friendRequestsError?: ClientDataRequestError | null
+  friendRequestsLoading?: boolean
   foregroundConversationId?: string
   me: ClientUser
   meError: ClientDataRequestError | null
@@ -65,6 +70,9 @@ export type ClientDataContextValue = {
   projectsLoadingMore: boolean
   projectsNextCursor: string | null
   projectsRefreshing: boolean
+  incomingFriendRequests?: FriendRequest[]
+  outgoingFriendRequests?: FriendRequest[]
+  usersById?: Readonly<Record<string, ContactUser>>
   addGroupConversationMembers: (
     conversationId: string,
     memberIds: string[],
@@ -75,6 +83,11 @@ export type ClientDataContextValue = {
     memberIds: string[],
     appIds?: string[],
   ) => Promise<ClientConversation>
+  createFriendRequest?: (userId: string) => Promise<void>
+  acceptFriendRequest?: (requestId: string) => Promise<void>
+  rejectFriendRequest?: (requestId: string) => Promise<void>
+  cancelFriendRequest?: (requestId: string) => Promise<void>
+  deleteFriend?: (userId: string) => Promise<void>
   createProject: (name: string, groupIds?: string[]) => Promise<ClientProjectDetail>
   dissolveGroupConversation: (conversationId: string) => Promise<void>
   dismissConversation: (conversationId: string) => Promise<void>
@@ -83,6 +96,10 @@ export type ClientDataContextValue = {
   clearMessageScope: () => void
   registerConversationMessageView?: (conversationId: string) => () => void
   getConversation: (conversationId: string) => ClientConversation | null
+  getUser?: (userId: string) => ContactUser | undefined
+  ensureUsers?: (userIds: readonly string[]) => Promise<void>
+  invalidateUsers?: (userIds: readonly string[], updatedAt?: string) => void
+  updateUserPresence?: (userId: string, online: boolean, lastOnlineAt?: string | null) => void
   getConversationMessageState: (conversationId: string) => ClientConversationMessageState
   loadBeforeConversationMessages: (conversationId: string) => void
   loadAfterConversationMessages: (conversationId: string) => void
@@ -151,6 +168,7 @@ export type ClientDataContextValue = {
   ) => Promise<ClientConversation>
   refreshConversations: () => Promise<void>
   refreshContacts: () => Promise<void>
+  refreshFriendRequests?: () => Promise<void>
   refreshMe: () => Promise<void>
   refreshProjects: () => Promise<void>
   loadMoreProjects: () => Promise<void>
@@ -199,8 +217,38 @@ export type ClientDataContextValue = {
 
 export const ClientDataContext = createContext<ClientDataContextValue | null>(null)
 
+export function useClientUser(userId: string) {
+  const context = useOptionalClientData()
+  const ensureUsers = context?.ensureUsers
+  const usersById = context?.usersById
+  useEffect(() => {
+    if (userId) void ensureUsers?.([userId]).catch(() => undefined)
+  }, [ensureUsers, userId])
+  return usersById?.[userId]
+}
+
+export function useClientUsers(userIds: readonly string[]) {
+  const context = useOptionalClientData()
+  const ensureUsers = context?.ensureUsers
+  const usersById = context?.usersById
+  const key = Array.from(new Set(userIds.filter(Boolean)))
+    .sort()
+    .join("\u0000")
+  useEffect(() => {
+    if (key) void ensureUsers?.(key.split("\u0000")).catch(() => undefined)
+  }, [ensureUsers, key])
+  return useMemo(
+    () => new Map(userIds.map((userId) => [userId, usersById?.[userId]])),
+    [userIds, usersById],
+  )
+}
+
+export function useOptionalClientData() {
+  return useContext(ClientDataContext)
+}
+
 export function useClientData() {
-  const context = useContext(ClientDataContext)
+  const context = useOptionalClientData()
 
   if (!context) {
     throw new Error("useClientData must be used within ClientDataProvider")

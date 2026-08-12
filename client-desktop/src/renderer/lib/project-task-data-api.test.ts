@@ -9,6 +9,57 @@ import {
 } from "@/lib/project-task-data-api"
 
 describe("project task reminder data API", () => {
+  it("accepts ID-only task users and activity actors", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          data: {
+            ...taskResponse({
+              mode: "once",
+              at: "2026-07-15T08:00:00Z",
+              timezone: "Asia/Shanghai",
+              state: "scheduled",
+            }),
+            assignee: { id: "user-2" },
+            creator: { id: "user-1" },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          data: {
+            activities: [
+              {
+                actor: { id: "user-3" },
+                changes: [],
+                content: "",
+                created_at: "2026-07-15T00:00:00Z",
+                id: "activity-1",
+                project_id: "project-1",
+                task_id: "task-1",
+                type: "created",
+              },
+            ],
+          },
+        }),
+      )
+
+    await expect(getClientProjectTask("project-1", "task-1", fetcher)).resolves.toMatchObject({
+      assignee: { id: "user-2", name: "" },
+      creator: { id: "user-1", name: "" },
+    })
+    await expect(
+      listClientProjectTaskActivities("project-1", "task-1", {}, fetcher),
+    ).resolves.toMatchObject({
+      activities: [
+        expect.objectContaining({ actor: expect.objectContaining({ id: "user-3", name: "" }) }),
+      ],
+    })
+  })
+
   it("lists task activities and adds a comment", async () => {
     const activity = {
       actor: { avatar: "", id: "user-1", name: "Alice", nickname: "" },

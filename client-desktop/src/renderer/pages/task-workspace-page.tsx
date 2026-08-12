@@ -28,12 +28,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useLocale } from "@/components/locale-provider"
+import { useOptionalClientData } from "@/lib/client-data-context"
 import {
   getClientProject,
   listClientProjects,
   type ClientProjectSummary,
 } from "@/lib/project-data-api"
 import { getClientProjectTask, listClientProjectTasks } from "@/lib/project-task-data-api"
+import {
+  displayProjectUser,
+  EMPTY_PROJECT_USERS,
+  getProjectTaskUserIds,
+  hydrateProjectTask,
+  hydrateProjectTasks,
+} from "@/lib/project-user-hydration"
 import { cn } from "@/lib/utils"
 
 const statusLabelKeys = {
@@ -59,6 +67,9 @@ export function TaskWorkspacePage() {
 function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId: string }) {
   const { t } = useLocale()
   const navigate = useNavigate()
+  const clientData = useOptionalClientData()
+  const ensureUsers = clientData?.ensureUsers
+  const usersById = clientData?.usersById ?? EMPTY_PROJECT_USERS
   const [activeTask, setActiveTask] = React.useState<ProjectTask | null>(null)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [error, setError] = React.useState("")
@@ -174,6 +185,22 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
 
   const displayedTask =
     tasks.find((task) => task.id === taskId) ?? (activeTask?.id === taskId ? activeTask : null)
+  const taskUserIds = React.useMemo(
+    () => getProjectTaskUserIds(displayedTask ? [...tasks, displayedTask] : tasks),
+    [displayedTask, tasks],
+  )
+  const taskUserKey = taskUserIds.join("\u0000")
+  React.useEffect(() => {
+    if (taskUserKey) void ensureUsers?.(taskUserIds).catch(() => undefined)
+  }, [ensureUsers, taskUserIds, taskUserKey])
+  const hydratedTasks = React.useMemo(
+    () => hydrateProjectTasks(tasks, usersById),
+    [tasks, usersById],
+  )
+  const hydratedDisplayedTask = React.useMemo(
+    () => (displayedTask ? hydrateProjectTask(displayedTask, usersById) : null),
+    [displayedTask, usersById],
+  )
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
@@ -313,7 +340,7 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
             />
           ) : (
             <div aria-label={t("project.task.list")} className="grid gap-1" role="list">
-              {tasks.map((task) => (
+              {hydratedTasks.map((task) => (
                 <WorkspaceTaskItem
                   active={task.id === taskId}
                   key={task.id}
@@ -345,17 +372,17 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
           !taskId && "hidden md:flex",
         )}
       >
-        {taskId && displayedTask ? (
+        {taskId && hydratedDisplayedTask ? (
           <ProjectTaskDetailsDialog
             embedded
-            key={displayedTask.id}
+            key={hydratedDisplayedTask.id}
             onDeleted={handleTaskDeleted}
             onOpenChange={(open) => {
               if (!open) navigate(`/tasks/${encodeURIComponent(projectId)}`)
             }}
             onUpdated={loadTasks}
             open
-            task={displayedTask}
+            task={hydratedDisplayedTask}
           />
         ) : taskId ? (
           <WorkspaceState loading message={t("taskWorkspace.loadingTask")} />
@@ -386,7 +413,7 @@ function WorkspaceTaskItem({
   task: ProjectTask
   translate: ReturnType<typeof useLocale>["t"]
 }) {
-  const assigneeName = task.assignee?.nickname || task.assignee?.name || ""
+  const assigneeName = task.assignee ? displayProjectUser(task.assignee) : ""
   return (
     <button
       aria-current={active ? "page" : undefined}

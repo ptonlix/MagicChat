@@ -44,6 +44,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
 import { listClientProjectTasks } from "@/lib/project-task-data-api"
+import { useOptionalClientData } from "@/lib/client-data-context"
+import {
+  EMPTY_PROJECT_USERS,
+  getProjectMemberUserIds,
+  getProjectTaskUserIds,
+  hydrateProjectMembers,
+  hydrateProjectTasks,
+} from "@/lib/project-user-hydration"
 import { cn } from "@/lib/utils"
 
 function getTaskViews(t: ReturnType<typeof useLocale>["t"]) {
@@ -131,6 +139,9 @@ export function ProjectTasksTab({
 }) {
   const { t } = useLocale()
   const navigate = useNavigate()
+  const clientData = useOptionalClientData()
+  const ensureUsers = clientData?.ensureUsers
+  const usersById = clientData?.usersById ?? EMPTY_PROJECT_USERS
   const [activeView, setActiveView] = React.useState<TaskView>(readStoredProjectTaskView)
   const [appliedFilters, setAppliedFilters] = React.useState<TaskFilters>(createDefaultTaskFilters)
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
@@ -189,6 +200,23 @@ export function ProjectTasksTab({
       active = false
     }
   }, [projectId])
+
+  const directoryUserIds = React.useMemo(
+    () => [...getProjectTaskUserIds(tasks), ...getProjectMemberUserIds(members)],
+    [members, tasks],
+  )
+  const directoryUserKey = directoryUserIds.join("\u0000")
+  React.useEffect(() => {
+    if (directoryUserKey) void ensureUsers?.(directoryUserIds).catch(() => undefined)
+  }, [directoryUserIds, directoryUserKey, ensureUsers])
+  const hydratedTasks = React.useMemo(
+    () => hydrateProjectTasks(tasks, usersById),
+    [tasks, usersById],
+  )
+  const hydratedMembers = React.useMemo(
+    () => hydrateProjectMembers(members, usersById),
+    [members, usersById],
+  )
 
   async function refreshTasks() {
     try {
@@ -251,7 +279,7 @@ export function ProjectTasksTab({
           <TaskToolbar
             activeView={activeView}
             filters={filters}
-            members={members}
+            members={hydratedMembers}
             membersError={membersError}
             membersLoading={membersLoading}
             onCreateTask={() => setCreateDialogOpen(true)}
@@ -281,7 +309,7 @@ export function ProjectTasksTab({
               onOpenTask={handleOpenTask}
               onTaskStatusChange={handleTaskStatusChange}
               onTaskUpdated={handleTaskUpdated}
-              tasks={tasks}
+              tasks={hydratedTasks}
             />
           ) : (
             <ScrollArea className="min-h-0 flex-1">
@@ -293,7 +321,7 @@ export function ProjectTasksTab({
                 onOpenTask={handleOpenTask}
                 onTaskStatusChange={handleTaskStatusChange}
                 onTaskUpdated={handleTaskUpdated}
-                tasks={tasks}
+                tasks={hydratedTasks}
               />
             </ScrollArea>
           )}

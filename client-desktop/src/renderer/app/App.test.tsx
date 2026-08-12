@@ -21,6 +21,9 @@ vi.mock("@/components/client-document-title", () => ({ ClientDocumentTitle: () =
 vi.mock("@/components/client-message-notification-sync", () => ({
   ClientMessageNotificationSync: () => null,
 }))
+vi.mock("@/components/client-user-directory-realtime-sync", () => ({
+  ClientUserDirectoryRealtimeSync: () => null,
+}))
 vi.mock("@/components/client-realtime-provider", () => ({
   ClientRealtimeProvider: ({ children }: { children: ReactNode }) => children,
 }))

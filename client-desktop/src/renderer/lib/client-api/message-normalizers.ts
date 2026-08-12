@@ -180,17 +180,11 @@ export function normalizeMessageReactionUsers(value: MessageReactionUserResponse
   if (value === undefined) return []
   if (
     !Array.isArray(value) ||
-    value.some(
-      (user) =>
-        typeof user?.id !== "string" ||
-        user.id.trim() === "" ||
-        typeof user.name !== "string" ||
-        user.name.trim() === "",
-    )
+    value.some((user) => typeof user?.id !== "string" || user.id.trim() === "")
   ) {
     throw new ClientDataRequestError("消息表情响应格式不正确")
   }
-  return value.map((user) => ({ id: user.id!, name: user.name! }))
+  return value.map((user) => ({ id: user.id!, name: user.name ?? "" }))
 }
 
 function normalizeReactionVersion(value: number | undefined) {
@@ -268,7 +262,6 @@ function normalizeMessageReplyTo(
     !replyTo.id ||
     !replyTo.sender ||
     (senderType !== "system" && !senderId) ||
-    typeof replyTo.sender.name !== "string" ||
     typeof replyTo.seq !== "number" ||
     typeof replyTo.summary !== "string"
   ) {
@@ -279,7 +272,7 @@ function normalizeMessageReplyTo(
     id: replyTo.id,
     sender: {
       id: senderId,
-      name: replyTo.sender.name,
+      name: replyTo.sender.name ?? "",
       type: senderType,
     },
     seq: replyTo.seq,

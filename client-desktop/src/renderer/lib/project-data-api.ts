@@ -504,7 +504,6 @@ function normalizeProjectDetail(project: ProjectResponse | undefined): ClientPro
     typeof project.is_personal !== "boolean" ||
     !project.owner ||
     typeof project.owner.id !== "string" ||
-    typeof project.owner.name !== "string" ||
     !project.task_counts ||
     (project.current_user_role !== "owner" && project.current_user_role !== "member")
   ) {
@@ -524,7 +523,7 @@ function normalizeProjectDetail(project: ProjectResponse | undefined): ClientPro
     owner: {
       avatar: project.owner.avatar ?? "",
       id: project.owner.id,
-      name: project.owner.name,
+      name: project.owner.name ?? "",
       nickname: project.owner.nickname ?? "",
     },
     taskCounts: {
@@ -564,9 +563,6 @@ function normalizeProjectGroup(group: ProjectGroupResponse): ClientProjectGroup 
 function normalizeProjectMember(member: ProjectMemberResponse): ClientProjectMember {
   if (
     typeof member.id !== "string" ||
-    typeof member.name !== "string" ||
-    typeof member.display_name !== "string" ||
-    typeof member.email !== "string" ||
     (member.role !== "owner" && member.role !== "member") ||
     !Array.isArray(member.source_group_ids)
   ) {
@@ -575,10 +571,10 @@ function normalizeProjectMember(member: ProjectMemberResponse): ClientProjectMem
 
   return {
     avatar: member.avatar ?? "",
-    displayName: member.display_name,
-    email: member.email,
+    displayName: member.display_name ?? "",
+    email: member.email ?? "",
     id: member.id,
-    name: member.name,
+    name: member.name ?? "",
     nickname: member.nickname ?? "",
     role: member.role,
     sourceGroupIds: member.source_group_ids,

@@ -4,7 +4,7 @@ import { Loader2Icon, Mail, Phone, UserPen, UserRound } from "lucide-react"
 import { toast } from "sonner"
 
 import { formatContactPhone } from "@/lib/contact-format"
-import { useClientData } from "@/lib/client-data-context"
+import { useClientData, useClientUser } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
 import { AvatarPreviewDialog } from "@/components/avatar-preview-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -59,14 +59,15 @@ export function UserProfilePopover({
   triggerClassName,
   userId,
 }: UserProfilePopoverProps) {
-  const { contacts, me, openDirectConversation } = useClientData()
+  const { contactDirectoryMode, contacts, me, openDirectConversation } = useClientData()
+  const cachedUser = useClientUser(userId ?? "")
   const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [avatarPreviewOpen, setAvatarPreviewOpen] = React.useState(false)
   const [openingConversation, setOpeningConversation] = React.useState(false)
   const user = React.useMemo(
-    () => resolveUserProfile(userId, me, contacts, fallbackProfile),
-    [contacts, fallbackProfile, me, userId],
+    () => resolveUserProfile(userId, me, contacts, cachedUser ?? fallbackProfile),
+    [cachedUser, contacts, fallbackProfile, me, userId],
   )
 
   if (!user) {
@@ -75,7 +76,9 @@ export function UserProfilePopover({
 
   const profile = user
   const displayName = getUserDisplayName(profile)
-  const canStartConversation = profile.id !== me.id
+  const canStartConversation =
+    profile.id !== me.id &&
+    (contactDirectoryMode !== "friends" || contacts.some((contact) => contact.id === profile.id))
 
   async function handleStartConversation() {
     if (!canStartConversation || openingConversation) {

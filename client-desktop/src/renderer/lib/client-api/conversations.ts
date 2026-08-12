@@ -742,7 +742,6 @@ function normalizeConversation(conversation: ConversationResponse | undefined): 
       !topic.parent_conversation_name ||
       !topic.source_message_id ||
       !topic.source_sender?.id ||
-      !topic.source_sender.name ||
       typeof topic.source_message_seq !== "number"
     ) {
       throw new ClientDataRequestError("会话话题信息响应格式不正确")
@@ -758,7 +757,7 @@ function normalizeConversation(conversation: ConversationResponse | undefined): 
       sourceSender: {
         avatar: topic.source_sender.avatar ?? "",
         id: topic.source_sender.id,
-        name: topic.source_sender.name,
+        name: topic.source_sender.name ?? "",
         type: normalizeTopicSourceSenderType(topic.source_sender.type),
       },
     }
@@ -801,7 +800,7 @@ function normalizeConversationMember(
   member: ConversationMemberResponse | undefined,
 ): ClientConversationMember {
   const memberType = member?.type === "app" ? "app" : "user"
-  if (!member?.id || !member.name || (memberType === "user" && !member.email)) {
+  if (!member?.id || (memberType === "app" && !member.name)) {
     throw new ClientDataRequestError("会话成员响应格式不正确")
   }
 
@@ -809,7 +808,7 @@ function normalizeConversationMember(
     avatar: member.avatar ?? "",
     email: member.email ?? "",
     id: member.id,
-    name: member.name,
+    name: member.name ?? "",
     nickname: member.nickname ?? "",
     phone: member.phone ?? "",
     role: normalizeConversationMemberRole(member.role),
@@ -858,7 +857,6 @@ function normalizeTopicDetail(detail: TopicDetailResponse | undefined): ClientTo
     !source?.created_at ||
     !source.id ||
     !source.sender?.id ||
-    !source.sender.name ||
     (senderType !== "user" && senderType !== "app") ||
     typeof source.seq !== "number" ||
     typeof source.summary !== "string"
@@ -882,7 +880,7 @@ function normalizeTopicDetail(detail: TopicDetailResponse | undefined): ClientTo
       sender: {
         avatar: source.sender.avatar ?? "",
         id: source.sender.id,
-        name: source.sender.name,
+        name: source.sender.name ?? "",
         type: senderType,
       },
       seq: source.seq,

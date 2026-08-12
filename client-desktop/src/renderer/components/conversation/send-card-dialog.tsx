@@ -20,19 +20,96 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { ClientConversation, ClientCardSendInput } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
+import { listClientConversations } from "@/lib/client-api/conversations"
+import { sendConversationCardMessage } from "@/lib/client-api/messages"
+import { createClientMessageId } from "@/lib/message-id"
 import { cn } from "@/lib/utils"
 
-export function SendCardDialog({
-  card,
-  onOpenChange,
-  open,
-}: {
+type SendCard = (conversationId: string, card: ClientCardSendInput) => Promise<unknown | null>
+type SendCardDialogProps = {
   card: ClientCardSendInput
   onOpenChange: (open: boolean) => void
   open: boolean
+}
+
+export function SendCardDialog(props: SendCardDialogProps) {
+  return props.open ? <ConnectedSendCardDialog {...props} /> : null
+}
+
+function ConnectedSendCardDialog(props: SendCardDialogProps) {
+  const { conversations, sendConversationCard } = useClientData()
+  return (
+    <SendCardDialogContent
+      {...props}
+      conversations={conversations}
+      sendConversationCard={sendConversationCard}
+    />
+  )
+}
+
+/** The document child window deliberately has no ClientDataProvider. */
+export function StandaloneCardDialog(props: SendCardDialogProps) {
+  return props.open ? <StandaloneCardDialogContent {...props} /> : null
+}
+
+function StandaloneCardDialogContent(props: SendCardDialogProps) {
+  const { t } = useLocale()
+  const [conversations, setConversations] = React.useState<ClientConversation[]>([])
+
+  React.useEffect(() => {
+    if (!props.open) return
+    let active = true
+    void listClientConversations().then(
+      (values) => {
+        if (active) setConversations(values)
+      },
+      (error: unknown) => {
+        if (active) toast.error(error instanceof Error ? error.message : t("sendCard.loadFailed"))
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [props.open, t])
+
+  const sendConversationCard = React.useCallback<SendCard>(
+    async (conversationId, card) => {
+      if (card.type !== "card") return null
+      try {
+        return await sendConversationCardMessage(conversationId, {
+          clientMessageId: createClientMessageId(),
+          description: card.description,
+          title: card.title,
+          url: card.url,
+        })
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t("sendCard.failed"))
+        return null
+      }
+    },
+    [t],
+  )
+
+  return (
+    <SendCardDialogContent
+      {...props}
+      conversations={conversations}
+      sendConversationCard={sendConversationCard}
+    />
+  )
+}
+
+function SendCardDialogContent({
+  card,
+  conversations,
+  onOpenChange,
+  open,
+  sendConversationCard,
+}: SendCardDialogProps & {
+  conversations: ClientConversation[]
+  sendConversationCard: SendCard
 }) {
   const { t } = useLocale()
-  const { conversations, sendConversationCard } = useClientData()
   const [keyword, setKeyword] = React.useState("")
   const [selectedConversationId, setSelectedConversationId] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)

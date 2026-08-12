@@ -10,7 +10,6 @@ import { TableKit } from "@tiptap/extension-table"
 import TextAlign from "@tiptap/extension-text-align"
 import { Color, TextStyle } from "@tiptap/extension-text-style"
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import { toast } from "sonner"
 import type * as Y from "yjs"
@@ -18,11 +17,13 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowDown,
+  ArrowLeftRight,
+  ArrowUp,
   Baseline,
   Bold,
   ChevronDown,
   Code,
-  Copy,
   GripVertical,
   Heading1,
   Heading2,
@@ -66,6 +67,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { limitDocumentTitle } from "@/lib/document-title-controller"
 import { safePresenceColor, type DocumentPresenceUser } from "@/lib/document-presence"
+import {
+  DocumentBlockBackground,
+  documentBlockBackgroundTypes,
+} from "./document-block-background-extension"
 import { DocumentControlSeparator } from "./document-control-separator"
 import {
   transformDocumentBlock,
@@ -77,6 +82,7 @@ import {
 import { DocumentHorizontalRule } from "./document-horizontal-rule-extension"
 import { DocumentImage } from "./document-image-extension"
 import { DocumentImageResolutionContext } from "./document-image-resolution"
+import { DocumentStarterKit } from "./document-inline-code-extension"
 import { DocumentTaskItem } from "./document-task-item-extension"
 import { sanitizeDocumentPasteHTML } from "./document-paste-sanitizer"
 import { useDocumentImageResolutions } from "./use-document-image-resolutions"
@@ -112,7 +118,7 @@ export function DocumentEditor({
         transformPastedHTML: sanitizeDocumentPasteHTML,
       },
       extensions: [
-        StarterKit.configure({
+        DocumentStarterKit.configure({
           heading: { levels: [1, 2, 3] },
           horizontalRule: false,
           link: { openOnClick: false },
@@ -132,6 +138,9 @@ export function DocumentEditor({
         DocumentHorizontalRule,
         DocumentImage,
         Highlight.configure({ multicolor: true }),
+        DocumentBlockBackground.configure({
+          allowedColors: documentColors.map((color) => color.value),
+        }),
         TextStyle,
         Color,
         TextAlign.configure({
@@ -772,19 +781,29 @@ const documentColors = documentColorShades.flatMap((shade, shadeIndex) =>
   })),
 )
 
-function DocumentColorPalette({
-  label,
-  onColorSelect,
-  resetLabel,
-  resetSwatchClassName,
-}: {
+type DocumentColorPaletteProps = {
   label: string
   onColorSelect: (color: string | null) => void
   resetLabel: string
   resetSwatchClassName: string
-}) {
+}
+
+function DocumentColorPalette(props: DocumentColorPaletteProps) {
   return (
     <DropdownMenuContent align="center" className="w-auto">
+      <DocumentColorPaletteItems {...props} />
+    </DropdownMenuContent>
+  )
+}
+
+function DocumentColorPaletteItems({
+  label,
+  onColorSelect,
+  resetLabel,
+  resetSwatchClassName,
+}: DocumentColorPaletteProps) {
+  return (
+    <>
       <div className="flex items-center justify-between gap-3 px-1">
         <DropdownMenuLabel className="px-1">{label}</DropdownMenuLabel>
         <DropdownMenuItem className="h-7 px-2" onSelect={() => onColorSelect(null)}>
@@ -809,7 +828,7 @@ function DocumentColorPalette({
           </DropdownMenuItem>
         ))}
       </div>
-    </DropdownMenuContent>
+    </>
   )
 }
 
@@ -1014,17 +1033,41 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
     return next
   }
 
-  function duplicateBlock() {
+  function insertParagraph(position: "after" | "before") {
+    const current = getCurrentActiveBlock()
+    if (!current) return
+    const paragraph = editor.schema.nodes.paragraph
+    const view = getMountedEditorView(editor)
+    if (!paragraph || !view) return
+
+    const nodeSize = editor.state.doc.nodeAt(current.pos)?.nodeSize
+    if (!nodeSize) return
+    const insertPos = position === "before" ? current.pos : current.pos + nodeSize
+    view.dispatch(editor.state.tr.insert(insertPos, paragraph.create()).scrollIntoView())
+    editor.commands.focus(insertPos + 1)
+  }
+
+  function setBlockTextColor(color: string | null) {
+    const current = getCurrentActiveBlock()
+    if (!current) return
+    const chain = editor.chain().focus().setNodeSelection(current.pos)
+    if (color) chain.setColor(color).run()
+    else chain.unsetColor().run()
+  }
+
+  function setBlockBackgroundColor(color: string | null) {
     const current = getCurrentActiveBlock()
     if (!current) return
     const node = editor.state.doc.nodeAt(current.pos)
-    if (!node) return
-
-    const insertPos = current.pos + node.nodeSize
     const view = getMountedEditorView(editor)
-    if (!view) return
-    view.dispatch(editor.state.tr.insert(insertPos, node.copy(node.content)).scrollIntoView())
-    editor.commands.focus(insertPos + 1)
+    if (!node || !view || !documentBlockBackgroundTypes.includes(node.type.name)) return
+    view.dispatch(
+      editor.state.tr.setNodeMarkup(current.pos, undefined, {
+        ...node.attrs,
+        blockBackgroundColor: color,
+      }),
+    )
+    editor.commands.focus()
   }
 
   function deleteBlock() {
@@ -1043,32 +1086,36 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
   const canTransformActiveBlock = isDocumentBlockTransformable(activeBlockNode)
 
   return (
-    <DragHandle
-      className="document-block-handle"
-      editor={editor}
-      nested
-      onNodeChange={handleNodeChange}
-    >
+    <DragHandle className="document-block-handle" editor={editor} onNodeChange={handleNodeChange}>
       <DropdownMenu open={menuOpen} onOpenChange={handleMenuOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
             aria-label="块操作"
-            className="cursor-grab bg-background shadow-xs active:cursor-grabbing"
+            className="cursor-grab bg-transparent text-muted-foreground/60 shadow-none hover:bg-secondary hover:text-foreground active:cursor-grabbing aria-expanded:bg-secondary aria-expanded:text-foreground"
             onMouseEnter={() => setBlockHighlight(true)}
             onMouseLeave={() => setBlockHighlight(false)}
             size="icon-xs"
             title="点击打开菜单，拖动调整位置"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
-            <GripVertical />
+            <GripVertical className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-36" side="left">
+        <DropdownMenuContent align="start" className="w-44" side="left">
+          <DropdownMenuItem onSelect={() => insertParagraph("before")}>
+            <ArrowUp />
+            在上方插入一行
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => insertParagraph("after")}>
+            <ArrowDown />
+            在下方插入一行
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuSub>
             <DropdownMenuSubTrigger disabled={!canTransformActiveBlock}>
-              <Pilcrow />
-              转换为
+              <ArrowLeftRight />
+              格式转换
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-40">
               <DropdownMenuItem onSelect={() => transformBlock("paragraph")}>
@@ -1110,13 +1157,42 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger
+              disabled={!documentBlockBackgroundTypes.includes(activeBlockNode?.type.name ?? "")}
+            >
+              <Paintbrush />
+              段落背景
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-auto">
+              <DocumentColorPaletteItems
+                label="段落背景"
+                onColorSelect={setBlockBackgroundColor}
+                resetLabel="无段落背景"
+                resetSwatchClassName="bg-background"
+              />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!canTransformActiveBlock}>
+              <Baseline />
+              文字颜色
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-auto">
+              <DocumentColorPaletteItems
+                label="文字颜色"
+                onColorSelect={setBlockTextColor}
+                resetLabel="默认颜色"
+                resetSwatchClassName="bg-foreground"
+              />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={duplicateBlock}>
-            <Copy />
-            复制块
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={deleteBlock} variant="destructive">
+          <DropdownMenuItem
+            disabled={!canTransformActiveBlock}
+            onSelect={deleteBlock}
+            variant="destructive"
+          >
             <Trash2 />
             删除块
           </DropdownMenuItem>

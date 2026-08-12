@@ -14,6 +14,7 @@ import {
 import { InputGroupAddon } from "@/components/ui/input-group"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { projectMemberMatchesQuery } from "@/lib/project-members"
+import { displayProjectMember } from "@/lib/project-user-hydration"
 
 export function ProjectMemberCombobox({
   disabled = false,
@@ -42,7 +43,7 @@ export function ProjectMemberCombobox({
       disabled={disabled}
       filter={projectMemberMatchesQuery}
       isItemEqualToValue={(member, selected) => member.id === selected.id}
-      itemToStringLabel={(member) => member.displayName}
+      itemToStringLabel={displayProjectMember}
       itemToStringValue={(member) => member.id}
       items={members}
       onValueChange={onValueChange}
@@ -69,7 +70,7 @@ export function ProjectMemberCombobox({
             <ComboboxItem key={member.id} value={member}>
               <ProjectMemberAvatar className="size-8" member={member} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate">{member.displayName}</span>
+                <span className="block truncate">{displayProjectMember(member)}</span>
                 {(showEmptyEmail || member.email) && (
                   <span className="block truncate text-xs text-muted-foreground">
                     {member.email}

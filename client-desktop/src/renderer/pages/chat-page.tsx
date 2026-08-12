@@ -144,6 +144,7 @@ export function ChatPage() {
     contactApps,
     contactGroups,
     contacts,
+    usersById = {},
     conversations,
     consumeConversationMessageFocus,
     createGroupConversation,
@@ -286,8 +287,9 @@ export function ChatPage() {
     activeClientMessagesByIdRef.current = activeClientMessagesById
   }, [activeClientMessagesById])
   const contactsById = React.useMemo(
-    () => new Map(contacts.map((contact) => [contact.id, contact])),
-    [contacts],
+    () =>
+      new Map([...contacts, ...Object.values(usersById)].map((contact) => [contact.id, contact])),
+    [contacts, usersById],
   )
   const contactAppsByLookup = React.useMemo(() => {
     const appsByLookup = new Map<string, ContactApp>()

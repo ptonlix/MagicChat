@@ -70,6 +70,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
+import { useOptionalClientData } from "@/lib/client-data-context"
+import {
+  displayProjectUser,
+  EMPTY_PROJECT_USERS,
+  getProjectMemberUserIds,
+  hydrateProjectMembers,
+  hydrateProjectTask,
+} from "@/lib/project-user-hydration"
 import {
   deleteClientProjectTask,
   getClientProjectTask,
@@ -118,6 +126,9 @@ export function ProjectTaskDetailsDialog({
   task: ProjectTask
 }) {
   const { t } = useLocale()
+  const clientData = useOptionalClientData()
+  const ensureUsers = clientData?.ensureUsers
+  const usersById = clientData?.usersById ?? EMPTY_PROJECT_USERS
   const initialForm = createTaskEditForm(task)
   const [baseline, setBaseline] = React.useState<NormalizedTaskEditForm>(() =>
     normalizeTaskEditForm(initialForm),
@@ -142,10 +153,6 @@ export function ProjectTaskDetailsDialog({
   const [titleSaving, setTitleSaving] = React.useState(false)
   const assigneeComboboxPortal = React.useRef<HTMLDivElement | null>(null)
   const savingRef = React.useRef(false)
-  const assigneeNames = React.useMemo(
-    () => Object.fromEntries(members.map((member) => [member.id, member.displayName])),
-    [members],
-  )
 
   React.useEffect(() => {
     if (!open) {
@@ -223,11 +230,36 @@ export function ProjectTaskDetailsDialog({
   const normalizedForm = normalizeTaskEditForm(form)
   const validationError = getTaskEditValidationError(normalizedForm, t)
   const descriptionDirty = form.description !== baseline.description
-  const fallbackAssignee = createFallbackProjectMember(details)
+  const detailsUserIds = React.useMemo(
+    () => [details.creator.id, details.assignee?.id ?? ""].filter(Boolean),
+    [details.assignee?.id, details.creator.id],
+  )
+  const detailsUserKey = detailsUserIds.join("\u0000")
+  React.useEffect(() => {
+    if (detailsUserKey) void ensureUsers?.(detailsUserIds).catch(() => undefined)
+  }, [detailsUserIds, detailsUserKey, ensureUsers])
+  const hydratedDetails = React.useMemo(
+    () => hydrateProjectTask(details, usersById),
+    [details, usersById],
+  )
+  const memberUserIds = React.useMemo(() => getProjectMemberUserIds(members), [members])
+  const memberUserKey = memberUserIds.join("\u0000")
+  React.useEffect(() => {
+    if (memberUserKey) void ensureUsers?.(memberUserIds).catch(() => undefined)
+  }, [ensureUsers, memberUserIds, memberUserKey])
+  const hydratedMembers = React.useMemo(
+    () => hydrateProjectMembers(members, usersById),
+    [members, usersById],
+  )
+  const assigneeNames = React.useMemo(
+    () => Object.fromEntries(hydratedMembers.map((member) => [member.id, member.displayName])),
+    [hydratedMembers],
+  )
+  const fallbackAssignee = createFallbackProjectMember(hydratedDetails)
   const memberOptions =
-    fallbackAssignee && !members.some((member) => member.id === fallbackAssignee.id)
-      ? [fallbackAssignee, ...members]
-      : members
+    fallbackAssignee && !hydratedMembers.some((member) => member.id === fallbackAssignee.id)
+      ? [fallbackAssignee, ...hydratedMembers]
+      : hydratedMembers
   const selectedAssignee = memberOptions.find((member) => member.id === form.assigneeUserId)
   const card = {
     entityId: details.id,
@@ -625,7 +657,7 @@ export function ProjectTaskDetailsDialog({
                 </TaskField>
 
                 <TaskField label={t("taskDetail.field.creator")}>
-                  <DisabledUserInput user={details.creator} />
+                  <DisabledUserInput user={hydratedDetails.creator} />
                 </TaskField>
 
                 <TaskField label={t("taskDetail.field.priority")}>
@@ -807,7 +839,7 @@ function TaskField({
 
 function DisabledUserInput({ user }: { user: ProjectTask["creator"] }) {
   const { t } = useLocale()
-  const displayName = user.nickname || user.name
+  const displayName = displayProjectUser(user)
   const initial = Array.from(displayName.trim())[0]?.toUpperCase() ?? "?"
 
   return (
@@ -845,7 +877,7 @@ function createFallbackProjectMember(task: ProjectTask): ClientProjectMember | n
   }
   return {
     avatar: task.assignee.avatar,
-    displayName: task.assignee.nickname || task.assignee.name,
+    displayName: displayProjectUser(task.assignee),
     email: "",
     id: task.assignee.id,
     name: task.assignee.name,

@@ -85,6 +85,12 @@ import {
 import { cn } from "@/lib/utils"
 import { limitDocumentTitle } from "@/lib/document-title-controller"
 import { DesktopTargetContext } from "@/lib/desktop-target-context"
+import { useOptionalClientData } from "@/lib/client-data-context"
+import {
+  displayDirectoryUser,
+  EMPTY_PROJECT_USERS,
+  hydrateDirectoryUser,
+} from "@/lib/project-user-hydration"
 import {
   documentWindowFeedbackKey,
   DocumentWindowOpenError,
@@ -99,6 +105,9 @@ type EditDialogState =
 export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
   const { t } = useLocale()
   const target = React.useContext(DesktopTargetContext)
+  const clientData = useOptionalClientData()
+  const ensureUsers = clientData?.ensureUsers
+  const usersById = clientData?.usersById ?? EMPTY_PROJECT_USERS
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [deleteNode, setDeleteNode] = React.useState<DocumentTreeNode | null>(null)
   const [documentTree, setDocumentTree] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
@@ -152,8 +161,19 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
     return () => document.removeEventListener("visibilitychange", refreshWhenVisible)
   }, [loadDocuments])
 
+  const documentUserIds = React.useMemo(() => collectDocumentUserIds(documentTree), [documentTree])
+  const documentUserKey = documentUserIds.join("\u0000")
+  React.useEffect(() => {
+    if (documentUserKey) void ensureUsers?.(documentUserIds).catch(() => undefined)
+  }, [documentUserIds, documentUserKey, ensureUsers])
+  const hydratedDocumentTree = React.useMemo(
+    () => hydrateDocumentTreeUsers(documentTree, usersById),
+    [documentTree, usersById],
+  )
   const searching = keyword.trim().length > 0
-  const visibleTree = searching ? filterDocumentTree(documentTree, keyword) : documentTree
+  const visibleTree = searching
+    ? filterDocumentTree(hydratedDocumentTree, keyword)
+    : hydratedDocumentTree
   const activeNode = activeId ? findDocumentNode(documentTree, activeId) : undefined
   const blockedParentIds = activeNode ? collectDocumentNodeIds(activeNode) : new Set<string>()
 
@@ -598,9 +618,9 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
         >
           {props.node.contributors.slice(0, 5).map((user) => (
             <Avatar className="size-6 border-2 border-background" key={user.id}>
-              {user.avatar && <AvatarImage alt={user.nickname || user.name} src={user.avatar} />}
+              {user.avatar && <AvatarImage alt={displayDirectoryUser(user)} src={user.avatar} />}
               <AvatarFallback className="text-[10px]">
-                {Array.from(user.nickname || user.name)[0] ?? "?"}
+                {Array.from(displayDirectoryUser(user))[0] ?? "?"}
               </AvatarFallback>
             </Avatar>
           ))}
@@ -661,6 +681,37 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
         </DropdownMenu>
       </div>
     </div>
+  )
+}
+
+function collectDocumentUserIds(nodes: ReadonlyArray<DocumentTreeNode>): string[] {
+  const userIds = new Set<string>()
+  const visit = (items: ReadonlyArray<DocumentTreeNode>) => {
+    for (const node of items) {
+      userIds.add(node.creator.id)
+      userIds.add(node.updatedBy.id)
+      for (const contributor of node.contributors) userIds.add(contributor.id)
+      visit(node.children)
+    }
+  }
+  visit(nodes)
+  return [...userIds].filter(Boolean)
+}
+
+function hydrateDocumentTreeUsers(
+  nodes: ReadonlyArray<DocumentTreeNode>,
+  usersById: Readonly<Record<string, import("@/lib/client-data-api").ContactUser>>,
+): ReadonlyArray<DocumentTreeNode> {
+  return nodes.map((node) =>
+    Object.freeze({
+      ...node,
+      children: Object.freeze(hydrateDocumentTreeUsers(node.children, usersById)),
+      contributors: Object.freeze(
+        node.contributors.map((contributor) => hydrateDirectoryUser(contributor, usersById)),
+      ),
+      creator: hydrateDirectoryUser(node.creator, usersById),
+      updatedBy: hydrateDirectoryUser(node.updatedBy, usersById),
+    }),
   )
 }
 

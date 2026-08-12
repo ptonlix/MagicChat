@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "react-router"
 
 import { AppLayout } from "@/components/app-layout"
 import { ClientConversationRealtimeSync } from "@/components/client-conversation-realtime-sync"
+import { ClientUserDirectoryRealtimeSync } from "@/components/client-user-directory-realtime-sync"
 import { ClientBrandMetadata } from "@/components/client-brand-metadata"
 import { ClientDataProvider } from "@/components/client-data-provider"
 import { ClientDocumentTitle } from "@/components/client-document-title"
@@ -158,6 +159,7 @@ function AuthenticatedProviderShell() {
     <ClientDataProvider>
       <ClientRealtimeProvider>
         <ClientConversationRealtimeSync />
+        <ClientUserDirectoryRealtimeSync />
         <ClientMessageNotificationSync />
         <Outlet />
       </ClientRealtimeProvider>

@@ -16,6 +16,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
+import { displayProjectUser } from "@/lib/project-user-hydration"
 import { updateClientProjectTask } from "@/lib/project-task-data-api"
 
 export function UpdateProjectTaskAssigneeDialog({
@@ -158,7 +159,7 @@ function createFallbackMember(assignee: ProjectTask["assignee"]): ClientProjectM
   }
   return {
     avatar: assignee.avatar,
-    displayName: assignee.nickname || assignee.name,
+    displayName: displayProjectUser(assignee),
     email: "",
     id: assignee.id,
     name: assignee.name,

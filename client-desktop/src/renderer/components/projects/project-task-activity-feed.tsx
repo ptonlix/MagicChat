@@ -23,6 +23,8 @@ import {
   addClientProjectTaskComment,
   listClientProjectTaskActivities,
 } from "@/lib/project-task-data-api"
+import { useOptionalClientData } from "@/lib/client-data-context"
+import { displayProjectUser, hydrateTaskUser } from "@/lib/project-user-hydration"
 
 export function ProjectTaskActivityFeed({
   assigneeNames = {},
@@ -38,6 +40,9 @@ export function ProjectTaskActivityFeed({
   taskId: string
 }) {
   const { t } = useLocale()
+  const clientData = useOptionalClientData()
+  const ensureUsers = clientData?.ensureUsers
+  const usersById = clientData?.usersById ?? {}
   const [activities, setActivities] = React.useState<ProjectTaskActivity[]>([])
   const [comment, setComment] = React.useState("")
   const [error, setError] = React.useState("")
@@ -48,6 +53,14 @@ export function ProjectTaskActivityFeed({
   const [submitting, setSubmitting] = React.useState(false)
   const activityRequestIdRef = React.useRef(0)
   const visibleActivities = expanded ? activities : activities.slice(-20)
+  const actorIds = React.useMemo(
+    () => [...new Set(activities.map((activity) => activity.actor.id).filter(Boolean))],
+    [activities],
+  )
+  const actorKey = actorIds.join("\u0000")
+  React.useEffect(() => {
+    if (actorKey) void ensureUsers?.(actorIds).catch(() => undefined)
+  }, [actorIds, actorKey, ensureUsers])
   const canExpand = (!expanded && activities.length > 20) || nextCursor !== null
 
   const loadActivities = React.useCallback(async () => {
@@ -160,7 +173,7 @@ export function ProjectTaskActivityFeed({
             )}
             {visibleActivities.map((activity) => (
               <TaskActivityItem
-                activity={activity}
+                activity={{ ...activity, actor: hydrateTaskUser(activity.actor, usersById) }}
                 assigneeNames={assigneeNames}
                 key={activity.id}
                 translate={t}
@@ -224,7 +237,7 @@ function TaskActivityItem({
   assigneeNames: Record<string, string>
   translate: ReturnType<typeof useLocale>["t"]
 }) {
-  const name = activity.actor.nickname || activity.actor.name
+  const name = displayProjectUser(activity.actor)
   return (
     <article className="text-sm">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">

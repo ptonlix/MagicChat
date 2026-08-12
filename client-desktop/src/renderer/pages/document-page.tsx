@@ -7,6 +7,7 @@ import {
   Loader2,
   Menu,
   RefreshCw,
+  Send,
   Trash2,
   Users,
 } from "lucide-react"
@@ -15,6 +16,7 @@ import { toast } from "sonner"
 import * as Y from "yjs"
 
 import { ClientDocumentTitle } from "@/components/client-document-title"
+import { SendCardDialog, StandaloneCardDialog } from "@/components/conversation/send-card-dialog"
 import { DocumentEditor } from "@/components/documents/document-editor"
 import { DocumentWorkspaceSidebar } from "@/components/documents/document-workspace-sidebar"
 import { useLocale } from "@/components/locale-provider"
@@ -48,6 +50,7 @@ import {
   DocumentCollaborationProviderWebsocket,
 } from "@/lib/document-collaboration-socket"
 import { DocumentBodySyncController, type DocumentBodySyncSnapshot } from "@/lib/document-body-sync"
+import { createDocumentCard } from "@/lib/document-card"
 import { useDesktopTarget } from "@/hooks/use-desktop-target"
 import {
   DocumentTitleController,
@@ -56,6 +59,7 @@ import {
   type DocumentTitleSnapshot,
 } from "@/lib/document-title-controller"
 import { getClientProject, type ClientProjectDetail } from "@/lib/project-data-api"
+import { displayDirectoryUser } from "@/lib/project-user-hydration"
 import { useDocumentData } from "@/lib/document-data-context"
 import {
   documentWindowFeedbackKey,
@@ -138,8 +142,7 @@ function DocumentWorkspace({
   const collaborationName =
     me?.nickname.trim() ||
     me?.name.trim() ||
-    document.updatedBy.nickname.trim() ||
-    document.updatedBy.name.trim() ||
+    displayDirectoryUser(document.updatedBy) ||
     t("document.currentUser")
   const collaborationUser = React.useMemo(() => {
     return {
@@ -163,6 +166,7 @@ function DocumentWorkspace({
   const [openingWindow, setOpeningWindow] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
+  const [sendDialogOpen, setSendDialogOpen] = React.useState(false)
   const isDocumentWindow = parseDocumentWindowLocation().kind === "document"
   const collaborationUserRef = React.useRef(collaborationUser)
   const collaborationProviderRef = React.useRef<HocuspocusProvider | undefined>(undefined)
@@ -185,6 +189,10 @@ function DocumentWorkspace({
   )
   const [title, setTitle] = React.useState<DocumentTitleSnapshot>(titleController.value)
   const titleText = normalizeDocumentTitle(title.input)
+  const documentCard = React.useMemo(
+    () => createDocumentCard(document.id, titleText, project.name),
+    [document.id, project.name, titleText],
+  )
   const dirty = titleController.dirty || body.unsyncedChanges > 0
   const allowNextNavigation = React.useRef(false)
   const allowWindowClose = React.useRef(false)
@@ -512,6 +520,13 @@ function DocumentWorkspace({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                disabled={deleting}
+                onSelect={() => requestAnimationFrame(() => setSendDialogOpen(true))}
+              >
+                <Send />
+                {t("document.sendToConversation")}
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => toast.info(t("document.infoUnavailable"))}>
                 {t("document.info")}
               </DropdownMenuItem>
@@ -526,6 +541,19 @@ function DocumentWorkspace({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {isDocumentWindow ? (
+            <StandaloneCardDialog
+              card={documentCard}
+              onOpenChange={setSendDialogOpen}
+              open={sendDialogOpen}
+            />
+          ) : (
+            <SendCardDialog
+              card={documentCard}
+              onOpenChange={setSendDialogOpen}
+              open={sendDialogOpen}
+            />
+          )}
           <AlertDialog
             onOpenChange={(open) => {
               if (!deleting) setDeleteOpen(open)

@@ -44,7 +44,18 @@ export function ClientMessageNotificationSync() {
   const location = useLocation()
   const navigate = useNavigate()
   const { subscribeRealtimeEvent } = useRealtime()
-  const { contactApps, contacts, conversations, foregroundConversationId, me } = useClientData()
+  const {
+    contactApps,
+    contacts,
+    conversations,
+    foregroundConversationId,
+    me,
+    usersById = {},
+  } = useClientData()
+  const hydratedContacts = React.useMemo(
+    () => [...contacts, ...Object.values(usersById)],
+    [contacts, usersById],
+  )
   const contactAppsById = React.useMemo(
     () => new Map(contactApps.map((app) => [app.id, app])),
     [contactApps],
@@ -86,7 +97,7 @@ export function ClientMessageNotificationSync() {
 
         const senderName = getMessageNotificationSenderName({
           appsById: contactAppsById,
-          contacts,
+          contacts: hydratedContacts,
           conversation,
           me,
           sender: message.sender,
@@ -94,7 +105,7 @@ export function ClientMessageNotificationSync() {
         })
         const body = `${senderName}: ${getMessageNotificationSummary({
           appsById: contactAppsById,
-          contacts,
+          contacts: hydratedContacts,
           conversation,
           me,
           message,
@@ -139,7 +150,7 @@ export function ClientMessageNotificationSync() {
     })
   }, [
     contactAppsById,
-    contacts,
+    hydratedContacts,
     conversations,
     me,
     navigate,

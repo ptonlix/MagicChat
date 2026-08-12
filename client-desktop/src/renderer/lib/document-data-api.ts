@@ -324,13 +324,16 @@ function normalizeUser(input: unknown): ClientDocumentUser {
     throw new ClientDataRequestError("文档用户响应格式不正确")
   }
   const value = input as DocumentUserResponse
-  if (!isIdentifier(value.id) || typeof value.name !== "string" || value.name.length > 200) {
+  if (
+    !isIdentifier(value.id) ||
+    (value.name !== undefined && (typeof value.name !== "string" || value.name.length > 200))
+  ) {
     throw new ClientDataRequestError("文档用户响应格式不正确")
   }
   return Object.freeze({
     avatar: typeof value.avatar === "string" ? value.avatar : "",
     id: value.id,
-    name: value.name,
+    name: value.name ?? "",
     nickname: typeof value.nickname === "string" ? value.nickname : "",
   })
 }

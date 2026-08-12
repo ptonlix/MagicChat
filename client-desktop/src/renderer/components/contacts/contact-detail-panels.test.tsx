@@ -46,6 +46,82 @@ describe("ContactDetailPanel", () => {
 
     expect(screen.getByRole("button", { name: "发消息" })).toBeInTheDocument()
   })
+
+  it("offers a relationship action without a private chat for a non-friend", async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn().mockResolvedValue(true)
+    render(
+      <ContactDetailPanel
+        canStartConversation={false}
+        contact={{ ...contact, id: "other-user" }}
+        friendAction={{
+          kind: "add",
+          labelKey: "friend.add",
+          onAction,
+          pending: false,
+        }}
+        onStartConversation={vi.fn()}
+        startingConversation={false}
+      />,
+    )
+
+    expect(screen.queryByRole("button", { name: "发消息" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "添加好友" }))
+    expect(onAction).toHaveBeenCalledOnce()
+  })
+
+  it("confirms friend deletion before applying the relationship action", async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn().mockResolvedValue(true)
+    render(
+      <ContactDetailPanel
+        canStartConversation
+        contact={{ ...contact, id: "other-user", name: "好友" }}
+        friendAction={{
+          kind: "delete",
+          labelKey: "friend.delete",
+          onAction,
+          pending: false,
+        }}
+        onStartConversation={vi.fn()}
+        startingConversation={false}
+      />,
+    )
+
+    expect(screen.getByRole("button", { name: "发消息" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "删除" }))
+    expect(onAction).not.toHaveBeenCalled()
+    const confirmation = screen.getByRole("alertdialog", { name: "删除好友" })
+    await user.click(within(confirmation).getByRole("button", { name: "删除" }))
+    await waitFor(() => expect(onAction).toHaveBeenCalledOnce())
+    expect(screen.queryByRole("alertdialog", { name: "删除好友" })).not.toBeInTheDocument()
+  })
+
+  it("keeps the deletion confirmation open when the relationship action fails", async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn().mockResolvedValue(false)
+    render(
+      <ContactDetailPanel
+        canStartConversation
+        contact={{ ...contact, id: "other-user", name: "好友" }}
+        friendAction={{
+          kind: "delete",
+          labelKey: "friend.delete",
+          onAction,
+          pending: false,
+        }}
+        onStartConversation={vi.fn()}
+        startingConversation={false}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "删除" }))
+    const confirmation = screen.getByRole("alertdialog", { name: "删除好友" })
+    await user.click(within(confirmation).getByRole("button", { name: "删除" }))
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledOnce())
+    expect(screen.getByRole("alertdialog", { name: "删除好友" })).toBeInTheDocument()
+  })
 })
 
 describe("AppDetailPanel", () => {

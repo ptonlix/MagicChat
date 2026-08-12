@@ -263,16 +263,19 @@ export function GroupDetailPanel({
 export function ContactDetailPanel({
   canStartConversation,
   contact,
+  friendAction,
   onStartConversation,
   startingConversation,
 }: {
   canStartConversation: boolean
   contact: ContactUser
+  friendAction?: ContactFriendAction
   onStartConversation: () => void
   startingConversation: boolean
 }) {
   const { t } = useLocale()
   const displayName = getContactDisplayName(contact)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   return (
     <div className={CONTACT_DETAIL_PANEL_CLASS} data-testid="contact-detail-panel">
@@ -313,20 +316,97 @@ export function ContactDetailPanel({
             value={contact.phone ? formatContactPhone(contact.phone) : ""}
           />
         </div>
-        {canStartConversation && (
-          <Button
-            className="w-full"
-            disabled={startingConversation}
-            onClick={onStartConversation}
-            type="button"
-          >
-            {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-            {t("app.sendMessage")}
-          </Button>
-        )}
+        <div className="grid gap-2">
+          {canStartConversation && (
+            <Button
+              className="w-full"
+              disabled={startingConversation}
+              onClick={onStartConversation}
+              type="button"
+            >
+              {startingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
+              {t("app.sendMessage")}
+            </Button>
+          )}
+          {friendAction && friendAction.kind !== "delete" && (
+            <Button
+              className="w-full"
+              disabled={friendAction.pending || friendAction.disabled}
+              onClick={() => void friendAction.onAction()}
+              type="button"
+              variant={friendAction.kind === "accept" ? "default" : "secondary"}
+            >
+              {friendAction.pending && <Loader2Icon aria-hidden="true" className="animate-spin" />}
+              {t(friendAction.labelKey)}
+            </Button>
+          )}
+          {friendAction?.kind === "delete" && (
+            <>
+              <Button
+                className="w-full"
+                disabled={friendAction.pending}
+                onClick={() => setDeleteOpen(true)}
+                type="button"
+                variant="destructive"
+              >
+                {friendAction.pending && (
+                  <Loader2Icon aria-hidden="true" className="animate-spin" />
+                )}
+                {t(friendAction.labelKey)}
+              </Button>
+              <AlertDialog onOpenChange={setDeleteOpen} open={deleteOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t("friend.deleteConfirm")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t("friend.deleteDescription", { name: displayName })}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={friendAction.pending}>
+                      {t("friend.cancel")}
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={friendAction.pending}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        void friendAction
+                          .onAction()
+                          .then((succeeded) => {
+                            if (succeeded) setDeleteOpen(false)
+                          })
+                          .catch(() => undefined)
+                      }}
+                      variant="destructive"
+                    >
+                      {friendAction.pending && (
+                        <Loader2Icon aria-hidden="true" className="animate-spin" />
+                      )}
+                      {t(friendAction.labelKey)}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
+}
+
+export type ContactFriendAction = {
+  disabled?: boolean
+  kind: "accept" | "add" | "cancel" | "delete" | "reject" | "waiting"
+  labelKey:
+    | "friend.accept"
+    | "friend.add"
+    | "friend.cancelRequest"
+    | "friend.delete"
+    | "friend.reject"
+    | "friend.waiting"
+  onAction: () => Promise<boolean>
+  pending: boolean
 }
 
 export function ContactEmptyState() {

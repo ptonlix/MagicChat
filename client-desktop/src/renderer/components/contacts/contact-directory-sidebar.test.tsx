@@ -101,6 +101,46 @@ describe("ContactDirectorySidebar", () => {
     expect(organizationTrigger).toBeInTheDocument()
   })
 
+  it("shows friend-specific labels and management only in friends mode", async () => {
+    const onOpenFriendManagement = vi.fn()
+    const props = createSidebarProps({
+      contacts: [
+        {
+          avatar: "",
+          email: "bob@example.com",
+          id: "user-2",
+          lastOnlineAt: null,
+          name: "Bob",
+          nickname: "",
+          online: true,
+          phone: "",
+          type: "user",
+        },
+      ],
+      directoryMode: "friends",
+      onOpenFriendManagement,
+    })
+    const user = userEvent.setup()
+    const view = render(
+      <SidebarProvider>
+        <ContactDirectorySidebar {...props} />
+      </SidebarProvider>,
+    )
+
+    expect(screen.getByRole("heading", { name: "我的好友" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "好友管理" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "我的好友" })).toHaveTextContent("我的好友1")
+    await user.click(screen.getByRole("button", { name: "好友管理" }))
+    expect(onOpenFriendManagement).toHaveBeenCalledOnce()
+
+    view.rerender(
+      <SidebarProvider>
+        <ContactDirectorySidebar {...props} directoryMode="organization" />
+      </SidebarProvider>,
+    )
+    expect(screen.queryByRole("button", { name: "好友管理" })).not.toBeInTheDocument()
+  })
+
   it("creates an application and shows its access information", async () => {
     const user = userEvent.setup()
     const onRefresh = vi.fn()
