@@ -171,15 +171,17 @@ export function UserProfilePopover({
               />
             </div>
 
-            <Button
-              className="w-full"
-              disabled={!canStartConversation || openingConversation}
-              onClick={() => void handleStartConversation()}
-              type="button"
-            >
-              {openingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-              发消息
-            </Button>
+            {canStartConversation ? (
+              <Button
+                className="w-full"
+                disabled={openingConversation}
+                onClick={() => void handleStartConversation()}
+                type="button"
+              >
+                {openingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
+                发消息
+              </Button>
+            ) : null}
           </div>
         </PopoverContent>
       </Popover>

@@ -452,68 +452,91 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
   }, [contactDirectoryMode, refreshFriendRequests])
 
   const refreshFriendData = useCallback(async () => {
-    await refreshContacts()
-    await refreshFriendRequests()
+    const results = await Promise.allSettled([refreshContacts(), refreshFriendRequests()])
+    const failedResult = results.find((result) => result.status === "rejected")
+    if (failedResult?.status === "rejected") {
+      throw failedResult.reason
+    }
   }, [refreshContacts, refreshFriendRequests])
+
+  const reconcileFailedFriendMutation = useCallback(
+    async () => refreshFriendData().catch(() => undefined),
+    [refreshFriendData],
+  )
 
   const createFriendRequest = useCallback(
     async (userId: string) => {
       try {
         await createFriendRequestRequest(userId)
-        await refreshFriendRequests()
       } catch (error) {
-        throw handleError(error, "发送好友申请失败")
+        const requestError = handleError(error, "发送好友申请失败")
+        await reconcileFailedFriendMutation()
+        throw requestError
       }
+
+      await refreshFriendData()
     },
-    [handleError, refreshFriendRequests],
+    [handleError, reconcileFailedFriendMutation, refreshFriendData],
   )
 
   const acceptFriendRequest = useCallback(
     async (requestId: string) => {
       try {
         await acceptFriendRequestRequest(requestId)
-        await refreshFriendData()
       } catch (error) {
-        throw handleError(error, "接受好友申请失败")
+        const requestError = handleError(error, "接受好友申请失败")
+        await reconcileFailedFriendMutation()
+        throw requestError
       }
+
+      await refreshFriendData()
     },
-    [handleError, refreshFriendData],
+    [handleError, reconcileFailedFriendMutation, refreshFriendData],
   )
 
   const rejectFriendRequest = useCallback(
     async (requestId: string) => {
       try {
         await rejectFriendRequestRequest(requestId)
-        await refreshFriendRequests()
       } catch (error) {
-        throw handleError(error, "拒绝好友申请失败")
+        const requestError = handleError(error, "拒绝好友申请失败")
+        await reconcileFailedFriendMutation()
+        throw requestError
       }
+
+      await refreshFriendRequests()
     },
-    [handleError, refreshFriendRequests],
+    [handleError, reconcileFailedFriendMutation, refreshFriendRequests],
   )
 
   const cancelFriendRequest = useCallback(
     async (requestId: string) => {
       try {
         await cancelFriendRequestRequest(requestId)
-        await refreshFriendRequests()
       } catch (error) {
-        throw handleError(error, "取消好友申请失败")
+        const requestError = handleError(error, "取消好友申请失败")
+        await reconcileFailedFriendMutation()
+        throw requestError
       }
+
+      await refreshFriendRequests()
     },
-    [handleError, refreshFriendRequests],
+    [handleError, reconcileFailedFriendMutation, refreshFriendRequests],
   )
 
   const deleteFriend = useCallback(
     async (userId: string) => {
       try {
         await deleteFriendRequest(userId)
-        await refreshFriendData()
       } catch (error) {
-        throw handleError(error, "删除好友失败")
+        const requestError = handleError(error, "删除好友失败")
+        await reconcileFailedFriendMutation()
+        throw requestError
       }
+
+      await refreshFriendData()
     },
-    [handleError, refreshFriendData],
+    [handleError, reconcileFailedFriendMutation, refreshFriendData],
   )
 
   const refreshConversations = useCallback(

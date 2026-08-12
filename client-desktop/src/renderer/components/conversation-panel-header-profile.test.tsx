@@ -39,6 +39,7 @@ describe("ConversationPanel header profile", () => {
 
     expect(await screen.findByText("用户资料")).toBeInTheDocument()
     expect(screen.getByText("lisi@example.com")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "发消息" })).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "预览李四头像" }))
 
@@ -132,6 +133,27 @@ describe("ConversationPanel header profile", () => {
     await user.click(screen.getByRole("button", { name: "预览项目群头像" }))
 
     expect(await screen.findByRole("dialog", { name: "项目群头像预览" })).toBeInTheDocument()
+  })
+
+  it("does not expose a direct-message action for a non-friend profile", async () => {
+    const user = userEvent.setup()
+    const otherMember = createMember({
+      email: "wangwu@example.com",
+      id: "user-2",
+      name: "王五",
+    })
+    const conversation = createConversation({
+      members: [createMember(), otherMember],
+      name: otherMember.name,
+      type: "direct",
+    })
+
+    renderConversationHeader(conversation, { contactDirectoryMode: "friends" })
+
+    await user.click(screen.getByRole("button", { name: "王五资料" }))
+
+    expect(await screen.findByText("用户资料")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "发消息" })).not.toBeInTheDocument()
   })
 
   it("在窄窗口中保留超长 ASCII 和 Unicode 资料值并允许换行滚动", async () => {
