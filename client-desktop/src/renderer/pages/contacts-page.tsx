@@ -305,6 +305,17 @@ export function ContactsPage() {
               "friend.accepted",
             ),
           pending: pending(`accept:${incoming.id}`),
+          secondaryAction: {
+            kind: "reject",
+            labelKey: "friend.reject",
+            onAction: () =>
+              run(
+                `reject:${incoming.id}`,
+                () => rejectFriendRequest?.(incoming.id) ?? Promise.resolve(),
+                "friend.rejected",
+              ),
+            pending: pending(`reject:${incoming.id}`),
+          },
         }
       }
       const outgoing = outgoingFriendRequests.find(
@@ -346,6 +357,7 @@ export function ContactsPage() {
       incomingFriendRequests,
       me.id,
       outgoingFriendRequests,
+      rejectFriendRequest,
       t,
     ],
   )
@@ -479,6 +491,10 @@ export function ContactsPage() {
             ensureUsers={ensureUsers}
             incomingRequests={incomingFriendRequests}
             onOpenChange={setFriendManagementOpen}
+            onSelectUser={(userId) => {
+              setFriendManagementOpen(false)
+              navigate(`/contacts/user/${encodeURIComponent(userId)}`)
+            }}
             open={friendManagementOpen}
             outgoingRequests={outgoingFriendRequests}
             rejectRequest={rejectFriendRequest}

@@ -51,7 +51,9 @@ describe("DocumentEditor", () => {
 
     expect(screen.getByRole("textbox", { name: "文档页面标题" })).toBeDisabled()
     expect(await screen.findByLabelText("文档正文")).toHaveAttribute("contenteditable", "false")
-    expect(screen.getByRole("button", { name: "插入分割线" })).toBeDisabled()
+    expect(screen.queryByRole("toolbar", { name: "文档格式工具栏" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "粗体" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "插入分割线" })).not.toBeInTheDocument()
   })
 
   it("待办项使用与 Web 一致的同行布局并把勾选状态同步到 Yjs", async () => {

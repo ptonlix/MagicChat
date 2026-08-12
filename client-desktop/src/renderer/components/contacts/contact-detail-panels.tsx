@@ -340,6 +340,22 @@ export function ContactDetailPanel({
               {t(friendAction.labelKey)}
             </Button>
           )}
+          {friendAction?.secondaryAction && (
+            <Button
+              className="w-full"
+              disabled={
+                friendAction.secondaryAction.pending || friendAction.secondaryAction.disabled
+              }
+              onClick={() => void friendAction.secondaryAction?.onAction()}
+              type="button"
+              variant="outline"
+            >
+              {friendAction.secondaryAction.pending && (
+                <Loader2Icon aria-hidden="true" className="animate-spin" />
+              )}
+              {t(friendAction.secondaryAction.labelKey)}
+            </Button>
+          )}
           {friendAction?.kind === "delete" && (
             <>
               <Button
@@ -395,7 +411,7 @@ export function ContactDetailPanel({
   )
 }
 
-export type ContactFriendAction = {
+export type ContactFriendActionControl = {
   disabled?: boolean
   kind: "accept" | "add" | "cancel" | "delete" | "reject" | "waiting"
   labelKey:
@@ -407,6 +423,10 @@ export type ContactFriendAction = {
     | "friend.waiting"
   onAction: () => Promise<boolean>
   pending: boolean
+}
+
+export type ContactFriendAction = ContactFriendActionControl & {
+  secondaryAction?: ContactFriendActionControl
 }
 
 export function ContactEmptyState() {

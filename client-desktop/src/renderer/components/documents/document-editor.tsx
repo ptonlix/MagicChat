@@ -163,7 +163,7 @@ export function DocumentEditor({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <DocumentToolbar editor={editor} />
+      {editor.isEditable ? <DocumentToolbar editor={editor} /> : null}
       <div
         className="document-workspace-canvas min-h-0 flex-1 overflow-y-auto p-4"
         data-testid="document-workspace-canvas"

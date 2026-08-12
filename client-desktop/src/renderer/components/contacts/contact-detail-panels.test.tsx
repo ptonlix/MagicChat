@@ -70,6 +70,36 @@ describe("ContactDetailPanel", () => {
     expect(onAction).toHaveBeenCalledOnce()
   })
 
+  it("allows rejecting an incoming friend request from the profile page", async () => {
+    const user = userEvent.setup()
+    const accept = vi.fn().mockResolvedValue(true)
+    const reject = vi.fn().mockResolvedValue(true)
+    render(
+      <ContactDetailPanel
+        canStartConversation={false}
+        contact={{ ...contact, id: "other-user" }}
+        friendAction={{
+          kind: "accept",
+          labelKey: "friend.accept",
+          onAction: accept,
+          pending: false,
+          secondaryAction: {
+            kind: "reject",
+            labelKey: "friend.reject",
+            onAction: reject,
+            pending: false,
+          },
+        }}
+        onStartConversation={vi.fn()}
+        startingConversation={false}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "拒绝" }))
+    expect(reject).toHaveBeenCalledOnce()
+    expect(accept).not.toHaveBeenCalled()
+  })
+
   it("confirms friend deletion before applying the relationship action", async () => {
     const user = userEvent.setup()
     const onAction = vi.fn().mockResolvedValue(true)

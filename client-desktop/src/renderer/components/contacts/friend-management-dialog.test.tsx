@@ -82,6 +82,28 @@ describe("FriendManagementDialog", () => {
     await user.click(await screen.findByRole("button", { name: "添加好友" }))
     expect(createRequest).toHaveBeenCalledWith(dave.id)
   })
+
+  it("opens a searched non-friend profile", async () => {
+    const user = userEvent.setup()
+    const alice = createUser("user-1", "Alice")
+    const dave = createUser("user-4", "Dave")
+    const onSelectUser = vi.fn()
+    friendApiMocks.searchContactUsers.mockResolvedValue([dave.id])
+
+    renderDialog({
+      contacts: [alice],
+      currentUserId: alice.id,
+      onSelectUser,
+      usersById: { [alice.id]: alice, [dave.id]: dave },
+    })
+
+    await user.click(screen.getByRole("tab", { name: "添加" }))
+    await user.type(screen.getByRole("textbox", { name: "精确查找用户" }), "dave@example.com")
+    await user.click(screen.getByRole("button", { name: "查找" }))
+    await user.click(await screen.findByRole("button", { name: "查看资料" }))
+
+    expect(onSelectUser).toHaveBeenCalledWith(dave.id)
+  })
 })
 
 function renderDialog(props: Partial<ComponentProps<typeof FriendManagementDialog>> = {}) {

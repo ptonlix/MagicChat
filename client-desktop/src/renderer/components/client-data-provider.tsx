@@ -173,8 +173,8 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
   const [userDirectory] = useState(
     () =>
       new ClientUserDirectory(
-      (userIds, signal) => resolveClientUsers(userIds, undefined, signal),
-      setUsersById,
+        (userIds, signal) => resolveClientUsers(userIds, undefined, signal),
+        setUsersById,
       ),
   )
   const getUser = useCallback((userId: string) => userDirectory.getUser(userId), [userDirectory])
@@ -247,14 +247,13 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
   }, [conversations])
 
   const directoryUserIds = useMemo(
-    () =>
-      [
-        ...new Set([
-          ...collectContactGroupUserIds(contactGroups),
-          ...collectConversationUserIds(conversations),
-          ...collectConversationMessageUserIds(conversationMessageStates),
-        ]),
-      ],
+    () => [
+      ...new Set([
+        ...collectContactGroupUserIds(contactGroups),
+        ...collectConversationUserIds(conversations),
+        ...collectConversationMessageUserIds(conversationMessageStates),
+      ]),
+    ],
     [contactGroups, conversationMessageStates, conversations],
   )
 

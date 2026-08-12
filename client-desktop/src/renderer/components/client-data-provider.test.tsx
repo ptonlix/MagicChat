@@ -1,5 +1,5 @@
 import { StrictMode } from "react"
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -8,12 +8,16 @@ import { ClientUserDirectoryRealtimeSync } from "@/components/client-user-direct
 import { useClientData } from "@/lib/client-data-context"
 import { clearManagedMessageCache, configureMessageCacheTarget } from "@/lib/messages"
 
-vi.mock("@/hooks/use-desktop-target", () => ({
-  useDesktopTarget: () => ({
+const targetMock = vi.hoisted(() => ({
+  current: {
     id: "server-1",
     normalizedUrl: "https://chat.example.com",
     userId: "user-1",
-  }),
+  },
+}))
+
+vi.mock("@/hooks/use-desktop-target", () => ({
+  useDesktopTarget: () => targetMock.current,
 }))
 
 vi.mock("@/lib/realtime-context", () => ({
@@ -25,6 +29,11 @@ vi.mock("@/lib/realtime-context", () => ({
 
 describe("ClientDataProvider", () => {
   afterEach(() => {
+    targetMock.current = {
+      id: "server-1",
+      normalizedUrl: "https://chat.example.com",
+      userId: "user-1",
+    }
     vi.unstubAllGlobals()
     vi.useRealTimers()
   })
@@ -166,6 +175,136 @@ describe("ClientDataProvider", () => {
       "/api/client/users/resolve",
       expect.objectContaining({ method: "POST" }),
     )
+  })
+
+  it("does not resolve prior target user IDs after switching authenticated targets", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const userId = targetMock.current.userId === "user-1" ? "old-user" : "new-user"
+      if (url === "/api/client/me")
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      if (url === "/api/client/contacts") {
+        return Promise.resolve(
+          jsonResponse({
+            data: { apps: [], directory_mode: "organization", groups: [], user_ids: [userId] },
+            success: true,
+          }),
+        )
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(jsonResponse(createConversationsResponse([])))
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/users/resolve") {
+        const requestedUserIds = JSON.parse(String(init?.body)).user_ids as string[]
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              users: requestedUserIds.map((id) => ({
+                id,
+                name: id,
+                updated_at: "2026-08-12T00:00:00Z",
+              })),
+            },
+            success: true,
+          }),
+        )
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const view = render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ContactNamesProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(screen.getByTestId("contact-names")).toHaveTextContent("old-user")
+
+    targetMock.current = {
+      id: "server-2",
+      normalizedUrl: "https://other-chat.example.com",
+      userId: "user-2",
+    }
+    view.rerender(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <ContactNamesProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(screen.getByTestId("contact-names")).toHaveTextContent("new-user")
+
+    const resolvedUserIds = fetchMock.mock.calls
+      .filter(([input]) => String(input) === "/api/client/users/resolve")
+      .map(([, init]) => JSON.parse(String((init as RequestInit | undefined)?.body)).user_ids)
+    expect(resolvedUserIds).toEqual([["old-user"], ["new-user"]])
+  })
+
+  it("resolves quoted-message and topic-reply senders from loaded history", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me")
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      if (url === "/api/client/contacts")
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(
+          jsonResponse(createConversationsResponse([createConversationResponse("conversation-1")])),
+        )
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/conversations/conversation-1/messages?limit=20") {
+        return Promise.resolve(jsonResponse(createNestedSenderMessagesResponse()))
+      }
+      if (url === "/api/client/users/resolve") {
+        return Promise.resolve(jsonResponse({ data: { users: [] }, success: true }))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <MessageSenderResolutionProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    vi.useRealTimers()
+
+    await act(async () => {
+      screen.getByRole("button", { name: "load nested sender messages" }).click()
+    })
+
+    await waitFor(() => {
+      const resolveRequest = fetchMock.mock.calls.find(
+        ([input]) => String(input) === "/api/client/users/resolve",
+      )
+      expect(resolveRequest).toBeDefined()
+      expect(JSON.parse(String(resolveRequest?.[1]?.body))).toEqual({
+        user_ids: ["message-sender", "quoted-sender", "topic-reply-sender"],
+      })
+    })
   })
 
   it("hydrates ID-only group avatar members from the user directory", async () => {
@@ -1538,6 +1677,17 @@ function GroupRealtimeMessageProbe() {
   )
 }
 
+function MessageSenderResolutionProbe() {
+  const { ensureConversationMessages } = useClientData()
+  return (
+    <button
+      aria-label="load nested sender messages"
+      onClick={() => void ensureConversationMessages("conversation-1")}
+      type="button"
+    />
+  )
+}
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     headers: {
@@ -1705,6 +1855,52 @@ function createMessagesResponse(seq = 1, hasMoreBefore = false) {
         limit: 20,
         newest_seq: seq,
         oldest_seq: seq,
+      },
+    },
+    success: true,
+  }
+}
+
+function createNestedSenderMessagesResponse() {
+  return {
+    data: {
+      messages: [
+        {
+          body: { content: "正文", type: "text" },
+          client_message_id: "client-message-nested",
+          conversation_id: "conversation-1",
+          created_at: "2026-08-12T00:00:00Z",
+          id: "message-nested",
+          reaction_version: 0,
+          reactions: [],
+          reply_to: {
+            id: "quoted-message",
+            seq: 0,
+            sender: { id: "quoted-sender", type: "user" },
+            summary: "被引用的消息",
+          },
+          sender: { id: "message-sender", type: "user" },
+          seq: 1,
+          topic: {
+            archived: false,
+            conversation_id: "topic-1",
+            recent_replies: [
+              {
+                created_at: "2026-08-12T00:00:00Z",
+                id: "topic-reply-1",
+                sender: { id: "topic-reply-sender", type: "user" },
+                summary: "话题回复",
+              },
+            ],
+          },
+        },
+      ],
+      page: {
+        has_more_after: false,
+        has_more_before: false,
+        limit: 20,
+        newest_seq: 1,
+        oldest_seq: 1,
       },
     },
     success: true,

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, Search, UserPlus, UsersRound } from "lucide-react"
+import { Loader2Icon, Search, UserPlus, UserRound, UsersRound } from "lucide-react"
 import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -28,6 +28,7 @@ export function FriendManagementDialog({
   ensureUsers,
   incomingRequests,
   onOpenChange,
+  onSelectUser,
   open,
   outgoingRequests,
   rejectRequest,
@@ -42,6 +43,7 @@ export function FriendManagementDialog({
   ensureUsers: (userIds: readonly string[]) => Promise<void>
   incomingRequests: readonly FriendRequest[]
   onOpenChange: (open: boolean) => void
+  onSelectUser?: (userId: string) => void
   open: boolean
   outgoingRequests: readonly FriendRequest[]
   rejectRequest: (requestId: string) => Promise<void>
@@ -111,6 +113,7 @@ export function FriendManagementDialog({
           <FriendListTab
             empty={t("friend.empty.friends")}
             items={friends.map((user) => ({ key: user.id, user }))}
+            onSelectUser={onSelectUser}
             renderAction={({ user }) =>
               user ? (
                 <Button
@@ -136,6 +139,7 @@ export function FriendManagementDialog({
                 usersById[request.requesterUserId] ??
                 createPlaceholderUser(request.requesterUserId),
             }))}
+            onSelectUser={onSelectUser}
             renderAction={({ request }) =>
               request ? (
                 <div className="flex gap-2">
@@ -172,6 +176,7 @@ export function FriendManagementDialog({
                 usersById[request.addresseeUserId] ??
                 createPlaceholderUser(request.addresseeUserId),
             }))}
+            onSelectUser={onSelectUser}
             renderAction={({ request }) =>
               request ? (
                 <Button
@@ -229,6 +234,7 @@ export function FriendManagementDialog({
                       </Button>
                     }
                     key={id}
+                    onSelectUser={onSelectUser ? () => onSelectUser(id) : undefined}
                     user={user}
                   />
                 )
@@ -252,22 +258,30 @@ type FriendListItem = { key: string; request?: FriendRequest; user?: ContactUser
 function FriendListTab({
   empty,
   items,
+  onSelectUser,
   renderAction,
   value,
 }: {
   empty: string
   items: readonly FriendListItem[]
+  onSelectUser?: (userId: string) => void
   renderAction: (item: FriendListItem) => React.ReactNode
   value: string
 }) {
   return (
     <TabsContent className="min-h-0 overflow-y-auto pt-4" value={value}>
       <div className="grid gap-2">
-        {items.map((item) =>
-          item.user ? (
-            <FriendRow action={renderAction(item)} key={item.key} user={item.user} />
-          ) : null,
-        )}
+        {items.map((item) => {
+          const user = item.user
+          return user ? (
+            <FriendRow
+              action={renderAction(item)}
+              key={item.key}
+              onSelectUser={onSelectUser ? () => onSelectUser(user.id) : undefined}
+              user={user}
+            />
+          ) : null
+        })}
         {items.length === 0 && (
           <div className="py-10 text-center text-sm text-muted-foreground">{empty}</div>
         )}
@@ -276,7 +290,16 @@ function FriendListTab({
   )
 }
 
-function FriendRow({ action, user }: { action: React.ReactNode; user: ContactUser }) {
+function FriendRow({
+  action,
+  onSelectUser,
+  user,
+}: {
+  action: React.ReactNode
+  onSelectUser?: () => void
+  user: ContactUser
+}) {
+  const { t } = useLocale()
   const displayName = user.nickname || user.name || shortUserId(user.id)
   return (
     <div className="flex min-w-0 items-center gap-3 rounded-md border p-3">
@@ -290,7 +313,21 @@ function FriendRow({ action, user }: { action: React.ReactNode; user: ContactUse
           {user.email || shortUserId(user.id)}
         </div>
       </div>
-      {action}
+      <div className="flex shrink-0 items-center gap-1">
+        {onSelectUser && (
+          <Button
+            aria-label={t("friend.viewProfile")}
+            onClick={onSelectUser}
+            size="icon-sm"
+            title={t("friend.viewProfile")}
+            type="button"
+            variant="ghost"
+          >
+            <UserRound />
+          </Button>
+        )}
+        {action}
+      </div>
     </div>
   )
 }
