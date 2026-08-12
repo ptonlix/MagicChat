@@ -108,9 +108,15 @@ const maxReactionSnapshotCatchUpAttempts = 3
 const messageCacheFallbackNotice = "本地消息缓存暂时不可用，已从服务器加载"
 
 export function ClientDataProvider({ children }: { children: ReactNode }) {
+  const target = useDesktopTarget()
+  const targetKey = `${target.id}\u0000${target.normalizedUrl}\u0000${target.userId}`
+
+  return <ClientDataProviderForTarget key={targetKey}>{children}</ClientDataProviderForTarget>
+}
+
+function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const target = useDesktopTarget()
   const { setAuthenticated } = useAppInfo()
   const [bootstrapError, setBootstrapError] = useState<ClientDataRequestError | null>(null)
   const [bootstrapState, setBootstrapState] = useState<BootstrapState>("loading")
@@ -164,18 +170,13 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   const contactsRefreshEpochRef = useRef(0)
   const friendRequestsRefreshEpochRef = useRef(0)
   const conversationRefreshEpochRef = useRef(0)
-  const userDirectoryRef = useRef<ClientUserDirectory | null>(null)
-  const userDirectoryTargetRef = useRef("")
-  const targetKey = `${target.id}\u0000${target.normalizedUrl}\u0000${target.userId}`
-  if (userDirectoryTargetRef.current !== targetKey) {
-    userDirectoryTargetRef.current = targetKey
-    userDirectoryRef.current = new ClientUserDirectory(
+  const [userDirectory] = useState(
+    () =>
+      new ClientUserDirectory(
       (userIds, signal) => resolveClientUsers(userIds, undefined, signal),
       setUsersById,
-    )
-  }
-  const userDirectory = userDirectoryRef.current
-  if (!userDirectory) throw new Error("用户目录初始化失败")
+      ),
+  )
   const getUser = useCallback((userId: string) => userDirectory.getUser(userId), [userDirectory])
   const ensureUsers = useCallback(
     (userIds: readonly string[]) => userDirectory.ensureUsers(userIds),
@@ -238,10 +239,6 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
   }, [cacheTargetKey])
 
   useEffect(() => {
-    setUsersById({})
-  }, [targetKey])
-
-  useEffect(() => {
     conversationMessageStatesRef.current = conversationMessageStates
   }, [conversationMessageStates])
 
@@ -249,13 +246,23 @@ export function ClientDataProvider({ children }: { children: ReactNode }) {
     conversationsRef.current = conversations
   }, [conversations])
 
+  const directoryUserIds = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...collectContactGroupUserIds(contactGroups),
+          ...collectConversationUserIds(conversations),
+          ...collectConversationMessageUserIds(conversationMessageStates),
+        ]),
+      ],
+    [contactGroups, conversationMessageStates, conversations],
+  )
+
   useEffect(() => {
-    const userIds = [
-      ...collectContactGroupUserIds(contactGroups),
-      ...collectConversationUserIds(conversations),
-    ]
-    if (userIds.length > 0) void userDirectory.ensureUsers(userIds).catch(() => undefined)
-  }, [contactGroups, conversations, userDirectory])
+    if (directoryUserIds.length > 0) {
+      void userDirectory.ensureUsers(directoryUserIds).catch(() => undefined)
+    }
+  }, [directoryUserIds, userDirectory])
 
   useLayoutEffect(() => {
     if (includedConversationIdRef.current !== includedConversationId) {
@@ -2447,6 +2454,24 @@ function collectConversationUserIds(conversations: readonly ClientConversation[]
     }
     if (conversation.topic?.sourceSender.type === "user")
       userIds.add(conversation.topic.sourceSender.id)
+  }
+  return [...userIds]
+}
+
+function collectConversationMessageUserIds(
+  conversationMessageStates: Readonly<Record<string, ClientConversationMessageState>>,
+) {
+  const userIds = new Set<string>()
+  for (const state of Object.values(conversationMessageStates)) {
+    for (const message of state.messages) {
+      if (message.sender.type === "user" && message.sender.id) userIds.add(message.sender.id)
+      if (message.replyTo?.sender.type === "user" && message.replyTo.sender.id) {
+        userIds.add(message.replyTo.sender.id)
+      }
+      for (const reply of message.topic?.recentReplies ?? []) {
+        if (reply.sender.type === "user" && reply.sender.id) userIds.add(reply.sender.id)
+      }
+    }
   }
   return [...userIds]
 }
