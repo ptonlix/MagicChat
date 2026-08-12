@@ -379,7 +379,7 @@ function createIpcDependencies(shortcuts: { releaseOwner: ReturnType<typeof vi.f
 }
 
 function createManager() {
-  const diagnostics = { record: vi.fn().mockResolvedValue(undefined) }
+  const diagnostics = { recordEvent: vi.fn().mockResolvedValue(undefined) }
   const screenshots = { start: vi.fn().mockResolvedValue({ status: "started" }) }
   const settings = {
     autoLaunch: false,

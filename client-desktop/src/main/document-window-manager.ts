@@ -25,6 +25,7 @@ import type {
 } from "@main/document-window-state"
 import type { DocumentCollaborationController } from "@main/document-collaboration-controller"
 import type { ServerProfiles } from "@main/server-profiles"
+import { normalizeDiagnosticProcessExitReason } from "@shared/diagnostics-contract"
 import {
   getMainWindowTitleBarOptions,
   installTrustedWindowSecurity,
@@ -54,7 +55,7 @@ type DocumentWindowEntry = {
 
 export type DocumentWindowManagerDependencies = {
   collaboration: Pick<DocumentCollaborationController, "closeOwner" | "closeServer" | "closeTarget">
-  diagnostics: Pick<Diagnostics, "record">
+  diagnostics: Pick<Diagnostics, "recordEvent">
   developmentUrl?: string
   getMainWindow(): BrowserWindow | undefined
   iconPath: string
@@ -323,7 +324,11 @@ export class DocumentWindowManager {
       void this.confirmBeforeUnload(entry, event)
     })
     window.webContents.on("render-process-gone", (_event, details) => {
-      void this.deps.diagnostics.record("renderer", details.reason)
+      void this.deps.diagnostics.recordEvent({
+        data: { processExitReason: normalizeDiagnosticProcessExitReason(details.reason) },
+        origin: "renderer",
+        type: "renderer.process-gone",
+      })
       this.cleanup(entry, true)
     })
     window.webContents.on(
@@ -337,7 +342,7 @@ export class DocumentWindowManager {
   private handleLoadFailure(entry: DocumentWindowEntry): void {
     if (entry.loadFailed || this.entries.get(entry.key) !== entry) return
     entry.loadFailed = true
-    void this.deps.diagnostics.record("renderer", "document-window-load-failed")
+    void this.deps.diagnostics.recordEvent({ origin: "main", type: "document-window.load-failed" })
     this.cleanup(entry, false)
     if (!this.disposed && !entry.window.isDestroyed())
       void Promise.resolve(entry.window.loadURL("magicchat-app://app/recovery.html")).catch(

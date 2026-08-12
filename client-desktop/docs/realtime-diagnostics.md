@@ -1,12 +1,13 @@
 # Desktop 实时诊断
 
-Desktop 实时诊断默认只保存在本机。用户通过设置页导出后，诊断包包含两个
-5 MiB JSONL 日志文件中的全部有效事件，并按 Main 分配的 `eventSeq` 合并为单一
-时间线。导出不会上传数据，`remoteTelemetryEnabled` 始终为 `false`。
+Desktop 实时诊断默认只保存在本机。用户通过设置页导出后，诊断包仅包含
+`realtime.jsonl` 及其轮转文件中的全部有效事件，并按 Main 分配的 `eventSeq` 合并为
+单一时间线。升级初始化会精准清除已废弃的 `crashes.jsonl` 和 `crashes.jsonl.1`，不再
+读取或导出旧格式；导出不会上传数据，`remoteTelemetryEnabled` 始终为 `false`。
 
 ## 导出结构
 
-导出文件使用 schema version 4，包含以下顶层字段：
+导出文件使用 schema version 5，包含以下顶层字段：
 
 - `timeline`：事件总数、首尾 `eventSeq`、时间范围和轮转次数。
 - `summary`：按 type 和错误类别的计数、连接汇总计数、恢复片段数量、同步结果和
@@ -73,6 +74,10 @@ Desktop 实时诊断默认只保存在本机。用户通过设置页导出后，
   `message-sync.failed`、`message-sync.cancelled`、`message-sync.skipped`。
 - 缓存与界面：`message-cache.state-changed`、`conversation-ui.view-changed`、
   `conversation-ui.state-observed`。
+- Main 故障：`application.startup-incomplete`、
+  `application.document-window-state-load-failed`、`application.uncaught-exception`、
+  `application.unhandled-rejection`、`document-window.load-failed`、
+  `renderer.process-gone`、`shortcut.unavailable`、`window.unresponsive`。
 - 环境与性能：`environment.lifecycle-changed`、
   `environment.window-state-changed`、`environment.network-changed`、
   `runtime.stall-observed`、`gpu.process-error`。

@@ -569,7 +569,7 @@ function createManager(
 ) {
   return new DocumentWindowManager({
     collaboration: collaboration as DocumentWindowManagerDependencies["collaboration"],
-    diagnostics: { record: vi.fn() },
+    diagnostics: { recordEvent: vi.fn() },
     developmentUrl,
     getMainWindow: () => mainWindow as never,
     iconPath: "/app/logo.png",

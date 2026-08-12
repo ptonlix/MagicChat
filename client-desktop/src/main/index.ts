@@ -9,6 +9,7 @@ import { FileDocumentWindowStateStore } from "@main/document-window-state"
 import { ConfigStore } from "@main/config-store"
 import { CredentialStore } from "@main/credential-store"
 import { Diagnostics } from "@main/diagnostics"
+import { normalizeDiagnosticProcessExitReason } from "@shared/diagnostics-contract"
 import { parseDeepLink } from "@main/deep-links"
 import { FileService } from "@main/file-service"
 import { HttpTransport } from "@main/http-transport"
@@ -54,7 +55,7 @@ async function start(): Promise<void> {
   const startupHealth = new StartupHealth(app.getPath("userData"), app.getVersion())
   const healthResult = await startupHealth.begin()
   if (healthResult.previousStartupIncomplete)
-    await diagnostics.record("main", "previous-startup-incomplete")
+    await diagnostics.recordEvent({ origin: "main", type: "application.startup-incomplete" })
   const store = new ConfigStore(app.getPath("userData"))
   await store.load()
   const profiles = new ServerProfiles(store)
@@ -94,7 +95,10 @@ async function start(): Promise<void> {
   const documentCollaboration = new DocumentCollaborationController(profiles, sessions, proxyAuth)
   const documentWindowState = new FileDocumentWindowStateStore(app.getPath("userData"))
   await documentWindowState.load().catch(() => {
-    void diagnostics.record("main", "document-window-state-load-failed")
+    void diagnostics.recordEvent({
+      origin: "main",
+      type: "application.document-window-state-load-failed",
+    })
   })
   const documentWindows = new DocumentWindowManager({
     collaboration: documentCollaboration,
@@ -296,10 +300,21 @@ async function start(): Promise<void> {
     system.dispose()
     updater.dispose()
   })
-  process.on("uncaughtException", (error) => void diagnostics.record("main", error.name))
-  process.on("unhandledRejection", () => void diagnostics.record("main", "unhandled-rejection"))
+  process.on(
+    "uncaughtException",
+    () => void diagnostics.recordEvent({ origin: "main", type: "application.uncaught-exception" }),
+  )
+  process.on(
+    "unhandledRejection",
+    () => void diagnostics.recordEvent({ origin: "main", type: "application.unhandled-rejection" }),
+  )
   app.on("child-process-gone", (_event, details) => {
-    if (details.type === "GPU") void diagnostics.record("gpu", details.reason)
+    if (details.type === "GPU")
+      void diagnostics.recordEvent({
+        data: { processExitReason: normalizeDiagnosticProcessExitReason(details.reason) },
+        origin: "gpu",
+        type: "gpu.process-error",
+      })
   })
   if (initialDeepLink) await handleDeepLink(initialDeepLink)
 

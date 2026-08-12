@@ -73,7 +73,7 @@ describe("主窗口外部导航安全", () => {
 function createController() {
   return new WindowController(
     { getSettings: vi.fn() } as unknown as ConfigStore,
-    { record: vi.fn() } as unknown as Diagnostics,
+    { recordEvent: vi.fn() } as unknown as Diagnostics,
     "/app/preload.cjs",
     "/app/logo.png",
   )

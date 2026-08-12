@@ -93,23 +93,15 @@ describe("Diagnostics", () => {
     expect((await records(logPath)).at(-1)?.data?.attempt).toBe(11)
   })
 
-  it("统计当前、轮转和兼容诊断日志的聚合大小", async () => {
+  it("统计当前和轮转诊断日志的聚合大小", async () => {
     const { diagnostics, logPath } = await createDiagnostics({ maxLogBytes: 500 })
-    const legacyPath = path.join(path.dirname(logPath), "crashes.jsonl")
-    const legacyRotatedPath = `${legacyPath}.1`
 
     for (let index = 0; index < 12; index += 1)
       await diagnostics.recordEvent(realtimeState("connected", index))
-    await appendFile(legacyPath, "legacy diagnostic record\n")
-    await appendFile(legacyRotatedPath, "legacy rotated diagnostic record\n")
 
     const expectedBytes = (
       await Promise.all(
-        [logPath, `${logPath}.1`, legacyPath, legacyRotatedPath].map((filePath) =>
-          stat(filePath)
-            .then((file) => file.size)
-            .catch(() => 0),
-        ),
+        [logPath, `${logPath}.1`].map((filePath) => stat(filePath).then((file) => file.size)),
       )
     ).reduce((total, size) => total + size, 0)
 
@@ -122,9 +114,7 @@ describe("Diagnostics", () => {
   it("清理排在写入队列之后，保留导出文件与递增的事件序号", async () => {
     const { diagnostics, logPath } = await createDiagnostics()
     const exportedPath = path.join(path.dirname(logPath), "exported-diagnostics.json")
-    const legacyRotatedPath = path.join(path.dirname(logPath), "crashes.jsonl.1")
     await appendFile(exportedPath, "exported package")
-    await appendFile(legacyRotatedPath, "legacy rotated diagnostic record\n")
 
     const recorded = diagnostics.recordEvent(realtimeState("connected", 1))
     const cleared = diagnostics.clearStorage()
@@ -132,7 +122,6 @@ describe("Diagnostics", () => {
 
     await expect(diagnostics.getStorageStats()).resolves.toEqual({ bytes: 0, status: "available" })
     await expect(readFile(exportedPath, "utf8")).resolves.toBe("exported package")
-    await expect(stat(legacyRotatedPath)).rejects.toThrow()
 
     const afterClear = await diagnostics.recordEvent(realtimeState("connected", 2))
     expect(afterClear?.eventSeq).toBe(2)
@@ -193,41 +182,30 @@ describe("Diagnostics", () => {
     expect(exported.events.map((record) => record.eventSeq)).toEqual([1, 2])
   })
 
-  it("旧 schema 和未知字段仍可读取，缺少 eventSeq 时保持文件顺序", async () => {
-    const { directory, logPath } = await createDiagnostics()
-    const exportPath = path.join(path.dirname(logPath), "export-legacy.json")
-    electronMocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: exportPath })
-    await appendFile(
-      path.join(path.dirname(logPath), "crashes.jsonl.1"),
-      `${JSON.stringify({
-        arch: "x64",
-        code: "old-rotated-first",
-        processType: "main",
-        timestamp: "2024-12-31T23:59:00.000Z",
-        version: "0.0.1",
-      })}\n`,
-    )
-    await appendFile(
-      path.join(path.dirname(logPath), "crashes.jsonl"),
-      `${JSON.stringify({
-        arch: "x64",
-        code: "old-first",
-        processType: "main",
-        timestamp: "2025-01-01T00:00:00.000Z",
-        unknownField: "ignored-by-new-reader",
-        version: "0.0.1",
-      })}\n`,
-    )
+  it("初始化时精准清除旧诊断文件且不影响新日志", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-diagnostics-migration-test-"))
+    temporaryDirectories.push(directory)
+    const diagnosticsDirectory = path.join(directory, "diagnostics")
+    const legacyPath = path.join(diagnosticsDirectory, "crashes.jsonl")
+    const legacyRotatedPath = `${legacyPath}.1`
+    const unrelatedPath = path.join(diagnosticsDirectory, "keep.json")
+    await mkdir(diagnosticsDirectory, { recursive: true })
+    await Promise.all([
+      appendFile(legacyPath, "obsolete diagnostic record\n"),
+      appendFile(legacyRotatedPath, "obsolete rotated diagnostic record\n"),
+      appendFile(unrelatedPath, "preserve this file\n"),
+    ])
 
-    const restartedDiagnostics = new Diagnostics(directory)
-    await restartedDiagnostics.initialize()
-    await restartedDiagnostics.recordEvent(realtimeState("connected", 1))
-    await restartedDiagnostics.export()
+    const diagnostics = new Diagnostics(directory)
+    await diagnostics.initialize()
+    await diagnostics.recordEvent(realtimeState("connected", 1))
 
-    const exported = await readExport(exportPath)
-    expect(exported.events[0]).toMatchObject({ code: "old-rotated-first" })
-    expect(exported.events[1]).toMatchObject({ code: "old-first" })
-    expect(exported.events[2]).toMatchObject({ eventSeq: 1 })
+    await expect(stat(legacyPath)).rejects.toThrow()
+    await expect(stat(legacyRotatedPath)).rejects.toThrow()
+    await expect(readFile(unrelatedPath, "utf8")).resolves.toBe("preserve this file\n")
+    await expect(
+      readFile(path.join(diagnosticsDirectory, "realtime.jsonl"), "utf8"),
+    ).resolves.toContain('"eventSeq":1')
   })
 
   it("重启后基于同一时间线导出相同的连接汇总", async () => {

@@ -26,7 +26,7 @@ const GLOBAL_KINDS = new Set<ShortcutKind>(["screenshot", "search"])
 type ShortcutRegistrar = Pick<typeof globalShortcut, "register" | "unregister">
 
 type ShortcutDependencies = Readonly<{
-  diagnostics: Pick<Diagnostics, "record">
+  diagnostics: Pick<Diagnostics, "recordEvent">
   registrar?: ShortcutRegistrar
   screenshots: Pick<ScreenshotController, "start">
   store: Pick<ConfigStore, "getSettings" | "setSettings">
@@ -148,7 +148,7 @@ export class ShortcutManager {
 
     if (global && !this.registrar.register(candidate, this.handlerFor(kind))) {
       const restored = !wasRecording || this.restoreAfterRecording(kind)
-      void this.dependencies.diagnostics.record("main", `${kind}-shortcut-unavailable`)
+      void this.recordUnavailableShortcut(kind)
       return { state: this.getState(kind), status: restored ? "conflict" : "restore_failed" }
     }
 
@@ -215,7 +215,7 @@ export class ShortcutManager {
       return
     this.registered[kind] = this.registrar.register(this.accelerators[kind]!, this.handlerFor(kind))
     if (!this.registered[kind]) {
-      void this.dependencies.diagnostics.record("main", `${kind}-shortcut-unavailable`)
+      void this.recordUnavailableShortcut(kind)
     }
   }
 
@@ -223,6 +223,15 @@ export class ShortcutManager {
     if (!isGlobalKind(kind) || !this.accelerators[kind] || !this.registered[kind]) return
     this.registrar.unregister(this.accelerators[kind]!)
     this.registered[kind] = false
+  }
+
+  private recordUnavailableShortcut(kind: ShortcutKind): void {
+    if (!isGlobalKind(kind)) return
+    void this.dependencies.diagnostics.recordEvent({
+      data: { shortcutKind: kind },
+      origin: "main",
+      type: "shortcut.unavailable",
+    })
   }
 
   private restoreAfterRecording(kind: ShortcutKind): boolean {
@@ -252,6 +261,6 @@ export class ShortcutManager {
   }
 }
 
-function isGlobalKind(kind: ShortcutKind): boolean {
+function isGlobalKind(kind: ShortcutKind): kind is "screenshot" | "search" {
   return GLOBAL_KINDS.has(kind)
 }

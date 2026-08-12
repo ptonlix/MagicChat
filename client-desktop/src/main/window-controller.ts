@@ -4,6 +4,7 @@ import { Diagnostics } from "@main/diagnostics"
 import { resolveWindowCloseAction } from "@main/window-close-policy"
 import { monitorWindowResponsiveness } from "@main/window-responsiveness"
 import { DESKTOP_TITLEBAR_HEIGHT } from "@shared/bridge"
+import { normalizeDiagnosticProcessExitReason } from "@shared/diagnostics-contract"
 
 export class WindowController {
   private mainWindow?: BrowserWindow
@@ -45,7 +46,11 @@ export class WindowController {
     })
     window.on("close", (event) => this.handleClose(event))
     window.webContents.on("render-process-gone", (_event, details) => {
-      void this.diagnostics.record("renderer", details.reason)
+      void this.diagnostics.recordEvent({
+        data: { processExitReason: normalizeDiagnosticProcessExitReason(details.reason) },
+        origin: "renderer",
+        type: "renderer.process-gone",
+      })
       if (!this.quitting) void window.loadURL("magicchat-app://app/recovery.html")
     })
     monitorWindowResponsiveness(window, this.diagnostics)

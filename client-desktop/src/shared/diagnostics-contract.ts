@@ -1,4 +1,4 @@
-export const DIAGNOSTIC_SCHEMA_VERSION = 4 as const
+export const DIAGNOSTIC_SCHEMA_VERSION = 5 as const
 
 export const DIAGNOSTIC_ORIGINS = ["main", "renderer", "gpu"] as const
 export type DiagnosticOrigin = (typeof DIAGNOSTIC_ORIGINS)[number]
@@ -32,13 +32,40 @@ export const DIAGNOSTIC_TYPES = [
   "message-cache.state-changed",
   "conversation-ui.view-changed",
   "conversation-ui.state-observed",
+  "application.startup-incomplete",
+  "application.document-window-state-load-failed",
+  "application.uncaught-exception",
+  "application.unhandled-rejection",
+  "document-window.load-failed",
   "environment.lifecycle-changed",
   "environment.window-state-changed",
   "environment.network-changed",
   "runtime.stall-observed",
   "gpu.process-error",
+  "renderer.process-gone",
+  "shortcut.unavailable",
+  "window.unresponsive",
 ] as const
 export type DiagnosticType = (typeof DIAGNOSTIC_TYPES)[number]
+
+export const DIAGNOSTIC_PROCESS_EXIT_REASONS = [
+  "abnormal-exit",
+  "clean-exit",
+  "crashed",
+  "integrity-failure",
+  "killed",
+  "launch-failed",
+  "oom",
+  "unknown",
+] as const
+export type DiagnosticProcessExitReason = (typeof DIAGNOSTIC_PROCESS_EXIT_REASONS)[number]
+
+export function normalizeDiagnosticProcessExitReason(value: unknown): DiagnosticProcessExitReason {
+  return typeof value === "string" &&
+    (DIAGNOSTIC_PROCESS_EXIT_REASONS as readonly string[]).includes(value)
+    ? (value as DiagnosticProcessExitReason)
+    : "unknown"
+}
 
 export type DiagnosticContext = Readonly<{
   connectionInstanceId?: string
@@ -145,6 +172,7 @@ const diagnosticDataFields = {
   pageNewestSeq: { kind: "number", maximum: 1_000_000_000 },
   pendingLatestMessageCount: { kind: "number", maximum: 1_000_000_000 },
   pendingRequestCount: { kind: "number", maximum: 1_000_000_000 },
+  processExitReason: { kind: "enum", values: DIAGNOSTIC_PROCESS_EXIT_REASONS },
   previousReady: { kind: "boolean" },
   previousStatus: {
     kind: "enum",
@@ -178,6 +206,7 @@ const diagnosticDataFields = {
   returnedLastSeq: { kind: "number", maximum: 1_000_000_000 },
   seqDelta: { kind: "number", maximum: 1_000_000_000 },
   status: { kind: "enum", values: ["connected", "connecting", "disconnected", "reconnecting"] },
+  shortcutKind: { kind: "enum", values: ["screenshot", "search"] },
   suppressedCount: { kind: "number", maximum: 1_000_000_000 },
   suppressedFromEventSeq: { kind: "number", maximum: 1_000_000_000 },
   suppressedToEventSeq: { kind: "number", maximum: 1_000_000_000 },
@@ -189,6 +218,10 @@ const diagnosticDataFields = {
   windowMinimized: { kind: "boolean" },
   windowStartedAt: { kind: "timestamp" },
   windowVisible: { kind: "boolean" },
+  windowResponsivenessPhase: {
+    kind: "enum",
+    values: ["detected", "prompted", "recovered", "reloaded", "waited", "prompt-failed", "closed"],
+  },
 } as const satisfies Record<string, DiagnosticDataFieldDefinition>
 
 type DiagnosticDataKey = keyof typeof diagnosticDataFields
@@ -237,6 +270,10 @@ export type DiagnosticData = Readonly<{
 }>
 
 const diagnosticDataKeysByType = {
+  "application.document-window-state-load-failed": [],
+  "application.startup-incomplete": [],
+  "application.uncaught-exception": [],
+  "application.unhandled-rejection": [],
   "conversation-list.completed": ["durationMs", "endpoint", "responseStatus", "returnedCount"],
   "conversation-list.failed": ["durationMs", "endpoint", "error"],
   "conversation-list.seq-diverged": ["httpSyncedThroughSeq", "lastMessageSeq", "seqDelta"],
@@ -249,6 +286,7 @@ const diagnosticDataKeysByType = {
     "viewMode",
   ],
   "conversation-ui.view-changed": ["viewMode"],
+  "document-window.load-failed": [],
   "environment.lifecycle-changed": [
     "durationMs",
     "eventLoopLagMs",
@@ -269,6 +307,7 @@ const diagnosticDataKeysByType = {
     "longTaskCount",
     "longTaskMaxDurationMs",
     "reason",
+    "processExitReason",
   ],
   "message-cache.state-changed": [
     "afterSeq",
@@ -344,6 +383,9 @@ const diagnosticDataKeysByType = {
     "windowMinimized",
     "windowVisible",
   ],
+  "renderer.process-gone": ["processExitReason"],
+  "shortcut.unavailable": ["shortcutKind"],
+  "window.unresponsive": ["durationMs", "windowResponsivenessPhase"],
 } as const satisfies Record<DiagnosticType, readonly DiagnosticDataKey[]>
 
 const diagnosticRequiredContextKeysByType = {
@@ -351,6 +393,7 @@ const diagnosticRequiredContextKeysByType = {
   "message-sync.page-received": ["conversationId", "requestId", "syncOperationId"],
   "message-sync.page-requested": ["conversationId", "requestId", "syncOperationId"],
   "realtime.state-changed": ["connectionInstanceId", "episodeId", "targetScope"],
+  "window.unresponsive": ["episodeId"],
 } as const satisfies Partial<Record<DiagnosticType, readonly (typeof identifierFields)[number][]>>
 
 const diagnosticRequiredDataKeysByType = {
@@ -366,6 +409,10 @@ const diagnosticRequiredDataKeysByType = {
   ],
   "message-sync.page-requested": ["afterSeq", "endpoint"],
   "realtime.state-changed": ["ready", "status"],
+  "gpu.process-error": ["processExitReason"],
+  "renderer.process-gone": ["processExitReason"],
+  "shortcut.unavailable": ["shortcutKind"],
+  "window.unresponsive": ["windowResponsivenessPhase"],
 } as const satisfies Partial<Record<DiagnosticType, readonly DiagnosticDataKey[]>>
 
 type RequiredDiagnosticContextKey<Type extends DiagnosticType> =

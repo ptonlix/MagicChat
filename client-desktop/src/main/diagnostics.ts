@@ -4,29 +4,19 @@ import path from "node:path"
 import { app, crashReporter, dialog } from "electron"
 import {
   DIAGNOSTIC_SCHEMA_VERSION,
-  createDiagnosticEventInput,
   parseDiagnosticEvent,
   parseDiagnosticEventInput,
-  type DiagnosticData,
   type DiagnosticEvent,
   type DiagnosticEventInput,
-  type DiagnosticOrigin,
   type DiagnosticStorageStats,
   type DiagnosticType,
 } from "@shared/diagnostics-contract"
 import type { RendererRuntimeSnapshot } from "@shared/bridge"
 
-type ResourceSnapshot = {
-  processes: ReadonlyArray<{ cpuPercent: number; memoryMb: number; type: string }>
-  system: { freeMemoryMb: number; totalMemoryMb: number }
-}
-
-type RendererSnapshot = RendererRuntimeSnapshot & { ageMs: number }
-type LegacyRecordDetails = {
+type RuntimeStallDetails = {
   durationMs?: number
-  episodeId?: string
-  resources?: ResourceSnapshot
-  runtime?: RendererSnapshot
+  memoryMb: number
+  runtime?: RendererRuntimeSnapshot
 }
 type DiagnosticsState = { eventSeq: number; rotationCount: number }
 export type DiagnosticEpisodeReason =
@@ -40,25 +30,10 @@ export type DiagnosticEpisodeReason =
 export const diagnosticLogMaxBytes = 5 * 1024 * 1024
 export const runtimeStallCooldownMs = 30_000
 
-export type LegacyDiagnosticRecord = {
-  arch: string
-  code: string
-  durationMs?: number
-  episodeId?: string
-  platform: string
-  processType: "gpu" | "main" | "renderer"
-  resources?: ResourceSnapshot
-  runtime?: RendererSnapshot
-  timestamp: string
-  version: string
-}
 export type DiagnosticRecord = DiagnosticEvent
-export type ExportedDiagnosticRecord = DiagnosticRecord | LegacyDiagnosticRecord
 
 export class Diagnostics {
   private readonly logPath: string
-  private readonly legacyLogPath: string
-  private readonly legacyRotatedLogPath: string
   private readonly rotatedLogPath: string
   private readonly statePath: string
   private readonly maxLogBytes: number
@@ -66,9 +41,7 @@ export class Diagnostics {
   private currentEpisodeId?: string
   private currentEpisodeReason?: DiagnosticEpisodeReason
   private lastRuntimeStallAt?: number
-  private pendingRuntimeStall?: Required<
-    Pick<LegacyRecordDetails, "durationMs" | "resources" | "runtime">
-  >
+  private pendingRuntimeStall?: Required<RuntimeStallDetails>
   private persistenceEnabled = false
   private rendererRuntime?: { receivedAt: number; snapshot: RendererRuntimeSnapshot }
   private runtimeStallTimer?: ReturnType<typeof setTimeout>
@@ -80,8 +53,6 @@ export class Diagnostics {
     options: { maxLogBytes?: number; stallCooldownMs?: number } = {},
   ) {
     this.logPath = path.join(userDataPath, "diagnostics", "realtime.jsonl")
-    this.legacyLogPath = path.join(userDataPath, "diagnostics", "crashes.jsonl")
-    this.legacyRotatedLogPath = `${this.legacyLogPath}.1`
     this.rotatedLogPath = `${this.logPath}.1`
     this.statePath = path.join(userDataPath, "diagnostics", "realtime-state.json")
     this.maxLogBytes = options.maxLogBytes ?? diagnosticLogMaxBytes
@@ -92,17 +63,15 @@ export class Diagnostics {
     this.persistenceEnabled = false
     try {
       await mkdir(path.dirname(this.logPath), { recursive: true })
+      await removeObsoleteDiagnosticLogs(path.dirname(this.logPath)).catch(() => undefined)
       await Promise.all([
-        repairTruncatedTail(this.legacyLogPath),
-        repairTruncatedTail(this.legacyRotatedLogPath),
         repairTruncatedTail(this.logPath),
         repairTruncatedTail(this.rotatedLogPath),
       ])
       const state = await readState(this.statePath)
       const records = await this.readRecords()
       const lastEventSeq = records.reduce(
-        (maximum, record) =>
-          isNewDiagnosticRecord(record) ? Math.max(maximum, record.eventSeq) : maximum,
+        (maximum, record) => Math.max(maximum, record.eventSeq),
         0,
       )
       this.state = {
@@ -124,38 +93,6 @@ export class Diagnostics {
     } catch {
       // Crash Reporter 不可用时保留应用核心功能。
     }
-  }
-
-  /** 旧调用点的兼容入口；新的实时诊断必须改用 recordEvent。 */
-  async record(
-    processType: LegacyDiagnosticRecord["processType"],
-    code: string,
-    details: LegacyRecordDetails = {},
-  ): Promise<void> {
-    const type = legacyType(processType, code)
-    const data: DiagnosticData = {
-      ...(Number.isFinite(details.durationMs)
-        ? { durationMs: bounded(details.durationMs ?? 0, 1_000_000_000) }
-        : {}),
-      ...(details.runtime
-        ? {
-            eventLoopLagMs: bounded(details.runtime.eventLoopLagMs, 600_000),
-            longTaskCount: bounded(details.runtime.longTasks.count, 100_000),
-            longTaskMaxDurationMs: bounded(details.runtime.longTasks.maxDurationMs, 600_000),
-          }
-        : {}),
-      ...(type === "gpu.process-error" ? { reason: "unknown" } : {}),
-    }
-    await this.recordEvent(
-      createDiagnosticEventInput(
-        type,
-        processType,
-        details.episodeId && isIdentifier(details.episodeId)
-          ? { episodeId: details.episodeId }
-          : undefined,
-        Object.keys(data).length > 0 ? data : undefined,
-      ),
-    )
   }
 
   async recordEvent(input: DiagnosticEventInput): Promise<DiagnosticRecord | undefined> {
@@ -219,29 +156,10 @@ export class Diagnostics {
     ) {
       this.queueRuntimeStall({
         durationMs: Math.max(snapshot.eventLoopLagMs, snapshot.longTasks.maxDurationMs),
-        resources: collectResources(),
-        runtime: { ...snapshot, ageMs: 0 },
+        memoryMb: systemFreeMemoryMb(),
+        runtime: snapshot,
       })
     }
-  }
-
-  async recordRendererLifecycle(
-    code: string,
-    episodeId: string,
-    durationMs?: number,
-  ): Promise<void> {
-    const runtime = this.rendererRuntime
-      ? {
-          ...this.rendererRuntime.snapshot,
-          ageMs: Math.max(0, Date.now() - this.rendererRuntime.receivedAt),
-        }
-      : undefined
-    await this.record("renderer", code, {
-      durationMs,
-      episodeId,
-      resources: collectResources(),
-      runtime,
-    })
   }
 
   async export(): Promise<{ path?: string }> {
@@ -283,9 +201,7 @@ export class Diagnostics {
     await this.flushPendingRuntimeStall()
     const clear = this.writeQueue.then(async () => {
       await Promise.all(
-        [this.logPath, this.rotatedLogPath, this.legacyLogPath, this.legacyRotatedLogPath].map(
-          (filePath) => rm(filePath, { force: true }),
-        ),
+        [this.logPath, this.rotatedLogPath].map((filePath) => rm(filePath, { force: true })),
       )
       this.state.rotationCount = 0
       await this.writeState()
@@ -299,11 +215,7 @@ export class Diagnostics {
     if (!this.persistenceEnabled) return { bytes: 0, status: "unavailable" }
     try {
       const bytes = (
-        await Promise.all(
-          [this.logPath, this.rotatedLogPath, this.legacyLogPath, this.legacyRotatedLogPath].map(
-            diagnosticLogSize,
-          ),
-        )
+        await Promise.all([this.logPath, this.rotatedLogPath].map(diagnosticLogSize))
       ).reduce((total, size) => total + size, 0)
       if (!Number.isSafeInteger(bytes)) throw new Error("诊断日志大小超出安全范围")
       return { bytes, status: "available" }
@@ -312,34 +224,22 @@ export class Diagnostics {
     }
   }
 
-  private async readRecords(): Promise<ExportedDiagnosticRecord[]> {
+  private async readRecords(): Promise<DiagnosticRecord[]> {
     try {
       const contents = await Promise.all([
-        readOptional(this.legacyRotatedLogPath),
-        readOptional(this.legacyLogPath),
         readOptional(this.rotatedLogPath),
         readOptional(this.logPath),
       ])
-      const records = contents
+      return contents
         .flatMap((content) => content.split("\n").filter(Boolean))
-        .flatMap((line, order) => {
+        .flatMap((line) => {
           try {
-            const parsed: unknown = JSON.parse(line)
-            const record = parseStoredRecord(parsed)
-            return record ? [{ order, record }] : []
+            return [parseDiagnosticEvent(JSON.parse(line) as unknown)]
           } catch {
             return []
           }
         })
-      return records
-        .sort((left, right) => {
-          if (isNewDiagnosticRecord(left.record) && isNewDiagnosticRecord(right.record))
-            return left.record.eventSeq - right.record.eventSeq
-          if (isNewDiagnosticRecord(left.record)) return 1
-          if (isNewDiagnosticRecord(right.record)) return -1
-          return left.order - right.order
-        })
-        .map(({ record }) => record)
+        .sort((left, right) => left.eventSeq - right.eventSeq)
     } catch {
       return []
     }
@@ -364,9 +264,7 @@ export class Diagnostics {
     await rename(temporaryPath, this.statePath)
   }
 
-  private queueRuntimeStall(
-    details: Required<Pick<LegacyRecordDetails, "durationMs" | "resources" | "runtime">>,
-  ): void {
+  private queueRuntimeStall(details: Required<RuntimeStallDetails>): void {
     const now = Date.now()
     const cooldownElapsed =
       this.lastRuntimeStallAt === undefined || now - this.lastRuntimeStallAt >= this.stallCooldownMs
@@ -407,9 +305,7 @@ export class Diagnostics {
     await this.recordRuntimeStall(pending)
   }
 
-  private async recordRuntimeStall(
-    details: Required<Pick<LegacyRecordDetails, "durationMs" | "resources" | "runtime">>,
-  ): Promise<void> {
+  private async recordRuntimeStall(details: Required<RuntimeStallDetails>): Promise<void> {
     await this.recordEvent({
       ...(this.currentEpisodeId ? { context: { episodeId: this.currentEpisodeId } } : {}),
       data: {
@@ -419,7 +315,7 @@ export class Diagnostics {
         eventLoopLagMs: bounded(details.runtime.eventLoopLagMs, 600_000),
         longTaskCount: bounded(details.runtime.longTasks.count, 100_000),
         longTaskMaxDurationMs: bounded(details.runtime.longTasks.maxDurationMs, 600_000),
-        memoryMb: bounded(details.resources.system.freeMemoryMb, 1_000_000),
+        memoryMb: bounded(details.memoryMb, 1_000_000),
         navigatorOnline: details.runtime.navigatorOnline ?? false,
         ...(this.currentEpisodeReason ? { reason: this.currentEpisodeReason } : {}),
         windowFocused: details.runtime.windowFocused ?? false,
@@ -432,19 +328,18 @@ export class Diagnostics {
   }
 }
 
-function timeline(events: ReadonlyArray<ExportedDiagnosticRecord>, rotationCount: number) {
-  const newEvents = events.filter(isNewDiagnosticRecord)
+function timeline(events: ReadonlyArray<DiagnosticRecord>, rotationCount: number) {
   return {
     eventCount: events.length,
-    firstEventSeq: newEvents[0]?.eventSeq,
+    firstEventSeq: events[0]?.eventSeq,
     firstTimestamp: events[0]?.timestamp,
-    lastEventSeq: newEvents.at(-1)?.eventSeq,
+    lastEventSeq: events.at(-1)?.eventSeq,
     lastTimestamp: events.at(-1)?.timestamp,
     rotationCount,
   }
 }
 
-function summarize(events: ReadonlyArray<ExportedDiagnosticRecord>) {
+function summarize(events: ReadonlyArray<DiagnosticRecord>) {
   const byType: Record<string, number> = {}
   const connectionCounters = {
     authorizationFailures: 0,
@@ -457,7 +352,6 @@ function summarize(events: ReadonlyArray<ExportedDiagnosticRecord>) {
   const syncOperations = new Map<string, string>()
   let suppressedCount = 0
   for (const event of events) {
-    if (!isNewDiagnosticRecord(event)) continue
     byType[event.type] = (byType[event.type] ?? 0) + 1
     if (event.type === "realtime.socket-closed") connectionCounters.closes += 1
     if (event.type === "realtime.reconnect-scheduled") connectionCounters.reconnects += 1
@@ -492,34 +386,6 @@ function isSyncOutcome(type: DiagnosticType): boolean {
     type === "message-sync.failed" ||
     type === "message-sync.cancelled" ||
     type === "message-sync.skipped"
-  )
-}
-
-function parseStoredRecord(value: unknown): ExportedDiagnosticRecord | undefined {
-  try {
-    return parseDiagnosticEvent(value)
-  } catch {
-    return isLegacyDiagnosticRecord(value) ? value : undefined
-  }
-}
-
-function isNewDiagnosticRecord(record: ExportedDiagnosticRecord): record is DiagnosticRecord {
-  return "eventSeq" in record
-}
-
-function isLegacyDiagnosticRecord(value: unknown): value is LegacyDiagnosticRecord {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  const record = value as Partial<LegacyDiagnosticRecord>
-  return Boolean(
-    typeof record.timestamp === "string" &&
-    typeof record.version === "string" &&
-    (record.processType === "gpu" ||
-      record.processType === "main" ||
-      record.processType === "renderer") &&
-    typeof record.code === "string" &&
-    record.code.length <= 160 &&
-    (record.durationMs === undefined ||
-      (Number.isFinite(record.durationMs) && (record.durationMs ?? -1) >= 0)),
   )
 }
 
@@ -589,34 +455,21 @@ async function repairTruncatedTail(filePath: string): Promise<void> {
   }
 }
 
-function collectResources(): ResourceSnapshot {
+function systemFreeMemoryMb(): number {
   const memory = process.getSystemMemoryInfo()
-  return {
-    processes: app.getAppMetrics().map((metric) => ({
-      cpuPercent: bounded(metric.cpu.percentCPUUsage, 100_000),
-      memoryMb: bounded(metric.memory.workingSetSize / 1024, 1_000_000),
-      type: String(metric.type).slice(0, 32),
-    })),
-    system: {
-      freeMemoryMb: bounded(memory.free / 1024, 1_000_000),
-      totalMemoryMb: bounded(memory.total / 1024, 1_000_000),
-    },
-  }
+  return bounded(memory.free / 1024, 1_000_000)
 }
 
 function bounded(value: number, maximum: number): number {
   return Math.min(maximum, Math.max(0, Math.round(Number.isFinite(value) ? value : 0)))
 }
 
-function legacyType(processType: DiagnosticOrigin, code: string): DiagnosticType {
-  if (processType === "gpu") return "gpu.process-error"
-  if (code.includes("unresponsive") || code.includes("runtime-stall"))
-    return "runtime.stall-observed"
-  return "environment.lifecycle-changed"
-}
-
-function isIdentifier(value: string): boolean {
-  return /^[a-zA-Z0-9_-]{1,128}$/.test(value)
+async function removeObsoleteDiagnosticLogs(diagnosticsDirectory: string): Promise<void> {
+  await Promise.all(
+    ["crashes.jsonl", "crashes.jsonl.1"].map((fileName) =>
+      rm(path.join(diagnosticsDirectory, fileName), { force: true }),
+    ),
+  )
 }
 
 export function releaseChannel(): "preview" | "stable" | "test" {

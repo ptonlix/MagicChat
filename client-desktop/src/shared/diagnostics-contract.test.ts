@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  normalizeDiagnosticProcessExitReason,
   parseDiagnosticEventInput,
   parseDiagnosticContext,
   type DiagnosticDataForType,
@@ -149,6 +150,26 @@ describe("诊断事件契约", () => {
         data: { afterSeq: 42 },
         origin: "renderer",
         type: "message-sync.cache-committed",
+      }),
+    ).toThrow("诊断事件字段无效")
+  })
+
+  it("将 Main 故障事件限制为预定义 type 与枚举字段", () => {
+    const event = parseDiagnosticEventInput({
+      data: { processExitReason: "crashed" },
+      origin: "renderer",
+      type: "renderer.process-gone",
+    })
+    expect(event).toMatchObject({
+      data: { processExitReason: "crashed" },
+      type: "renderer.process-gone",
+    })
+    expect(normalizeDiagnosticProcessExitReason("unexpected-value")).toBe("unknown")
+    expect(() =>
+      parseDiagnosticEventInput({
+        data: { processExitReason: "free-text" },
+        origin: "renderer",
+        type: "renderer.process-gone",
       }),
     ).toThrow("诊断事件字段无效")
   })
