@@ -112,14 +112,30 @@ const choiceSnapshotBatchSize = 100
 const maxReactionSnapshotCatchUpAttempts = 3
 const messageCacheFallbackNotice = "本地消息缓存暂时不可用，已从服务器加载"
 
-export function ClientDataProvider({ children }: { children: ReactNode }) {
+export function ClientDataProvider({
+  children,
+  workspaceErrorAction,
+}: {
+  children: ReactNode
+  workspaceErrorAction?: ReactNode
+}) {
   const target = useDesktopTarget()
   const targetKey = `${target.id}\u0000${target.normalizedUrl}\u0000${target.userId}`
 
-  return <ClientDataProviderForTarget key={targetKey}>{children}</ClientDataProviderForTarget>
+  return (
+    <ClientDataProviderForTarget key={targetKey} workspaceErrorAction={workspaceErrorAction}>
+      {children}
+    </ClientDataProviderForTarget>
+  )
 }
 
-function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
+function ClientDataProviderForTarget({
+  children,
+  workspaceErrorAction,
+}: {
+  children: ReactNode
+  workspaceErrorAction?: ReactNode
+}) {
   const location = useLocation()
   const navigate = useNavigate()
   const { setAuthenticated } = useAppInfo()
@@ -2528,6 +2544,7 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
       <ClientDataErrorPage
         message={bootstrapError?.message ?? "加载工作区失败"}
         onRetry={() => void retryBootstrap()}
+        workspaceErrorAction={workspaceErrorAction}
       />
     )
   }

@@ -358,6 +358,10 @@ img {
     max-width: 13rem;
   }
 
+  .client-data-error-update {
+    margin-top: 0.75rem;
+  }
+
   .client-data-error-checks {
     border-left: 1px solid oklch(0.5 0.06 174 / 16%);
     padding: 0.35rem 0 0.35rem clamp(1.75rem, 4vw, 3rem);

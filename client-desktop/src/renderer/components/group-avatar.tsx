@@ -94,6 +94,7 @@ function buildGroupAvatarEntries(members: GroupAvatarMember[]) {
       avatar: member.avatar,
       displayName: getMemberDisplayName(member),
     }))
+    .filter((member) => member.avatar || member.displayName)
     .slice(0, 4)
 
   return entries

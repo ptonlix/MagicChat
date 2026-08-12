@@ -1,4 +1,5 @@
 import { AlertTriangle, CloudOff, RefreshCw, Server, ShieldCheck, Wifi } from "lucide-react"
+import type { ReactNode } from "react"
 
 import { useLocale } from "@/components/locale-provider"
 import { ClientDocumentTitle } from "@/components/client-document-title"
@@ -7,9 +8,14 @@ import { Button } from "@/components/ui/button"
 type ClientDataErrorPageProps = {
   message: string
   onRetry: () => void
+  workspaceErrorAction?: ReactNode
 }
 
-export function ClientDataErrorPage({ message, onRetry }: ClientDataErrorPageProps) {
+export function ClientDataErrorPage({
+  message,
+  onRetry,
+  workspaceErrorAction,
+}: ClientDataErrorPageProps) {
   const { t } = useLocale()
   const connectionChecks = [
     {
@@ -65,6 +71,9 @@ export function ClientDataErrorPage({ message, onRetry }: ClientDataErrorPagePro
               </Button>
               <p>{t("error.reloadHint")}</p>
             </div>
+            {workspaceErrorAction && (
+              <div className="client-data-error-update">{workspaceErrorAction}</div>
+            )}
           </section>
 
           <aside className="client-data-error-checks" aria-label={t("error.checks")}>

@@ -37,4 +37,23 @@ describe("GroupAvatar", () => {
       restoreHost()
     }
   })
+
+  it("成员资料不可用时显示群聊图标而不是问号", () => {
+    const { container } = render(
+      <GroupAvatar
+        members={[
+          {
+            avatar: "",
+            name: "",
+            nickname: "",
+            role: "owner",
+          },
+        ]}
+        name="测试群"
+      />,
+    )
+
+    expect(container).not.toHaveTextContent("?")
+    expect(container.querySelector("svg")).toBeInTheDocument()
+  })
 })

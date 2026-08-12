@@ -69,7 +69,7 @@ function NormalRoutes({ updatePrompt }: { updatePrompt?: ReactNode }) {
           </>
         }
       />
-      <Route element={<AuthenticatedProviderShell />}>
+      <Route element={<AuthenticatedProviderShell workspaceErrorAction={updatePrompt} />}>
         <Route
           path="/tasks/:projectId/:taskId?"
           element={
@@ -154,9 +154,13 @@ function DocumentRoutes({ context }: { context: DocumentWindowRouteContext }) {
   )
 }
 
-function AuthenticatedProviderShell() {
+function AuthenticatedProviderShell({
+  workspaceErrorAction,
+}: {
+  workspaceErrorAction?: ReactNode
+}) {
   return (
-    <ClientDataProvider>
+    <ClientDataProvider workspaceErrorAction={workspaceErrorAction}>
       <ClientRealtimeProvider>
         <ClientConversationRealtimeSync />
         <ClientUserDirectoryRealtimeSync />

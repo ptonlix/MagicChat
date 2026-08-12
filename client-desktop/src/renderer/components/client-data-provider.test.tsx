@@ -795,7 +795,7 @@ describe("ClientDataProvider", () => {
 
     render(
       <MemoryRouter>
-        <ClientDataProvider>
+        <ClientDataProvider workspaceErrorAction={<button type="button">新版本</button>}>
           <div>工作区内容</div>
         </ClientDataProvider>
       </MemoryRouter>,
@@ -809,6 +809,7 @@ describe("ClientDataProvider", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("暂时无法连接到工作区服务")
     expect(screen.getByRole("complementary", { name: "连接检查" })).toBeVisible()
     expect(screen.getByAltText("即应")).toBeVisible()
+    expect(screen.getByRole("button", { name: "新版本" })).toBeVisible()
 
     shouldFail = false
     screen.getByRole("button", { name: "重新加载" }).click()
