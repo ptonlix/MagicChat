@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -40,7 +40,20 @@ describe("FriendManagementDialog", () => {
     })
 
     await user.click(screen.getByRole("button", { name: "删除" }))
-    expect(deleteFriend).toHaveBeenCalledWith(bob.id)
+    expect(deleteFriend).not.toHaveBeenCalled()
+    const confirmation = screen.getByRole("alertdialog", { name: "删除好友" })
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    expect(confirmation).not.toBeInTheDocument()
+    expect(deleteFriend).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "删除" }))
+    await user.click(
+      within(screen.getByRole("alertdialog", { name: "删除好友" })).getByRole("button", {
+        name: "删除",
+      }),
+    )
+    await waitFor(() => expect(deleteFriend).toHaveBeenCalledWith(bob.id))
+    expect(screen.queryByRole("alertdialog", { name: "删除好友" })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("tab", { name: /收到/ }))
     await user.click(screen.getByRole("button", { name: "接受" }))
@@ -103,6 +116,26 @@ describe("FriendManagementDialog", () => {
     await user.click(await screen.findByRole("button", { name: "查看资料" }))
 
     expect(onSelectUser).toHaveBeenCalledWith(dave.id)
+  })
+
+  it("keeps the deletion confirmation open when removing a friend fails", async () => {
+    const user = userEvent.setup()
+    const alice = createUser("user-1", "Alice")
+    const bob = createUser("user-2", "Bob")
+    const deleteFriend = vi.fn().mockRejectedValue(new Error("删除失败"))
+
+    renderDialog({
+      contacts: [alice, bob],
+      currentUserId: alice.id,
+      deleteFriend,
+    })
+
+    await user.click(screen.getByRole("button", { name: "删除" }))
+    const confirmation = screen.getByRole("alertdialog", { name: "删除好友" })
+    await user.click(within(confirmation).getByRole("button", { name: "删除" }))
+
+    await waitFor(() => expect(deleteFriend).toHaveBeenCalledWith(bob.id))
+    expect(confirmation).toBeInTheDocument()
   })
 })
 

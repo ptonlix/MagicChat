@@ -4,6 +4,16 @@ import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useLocale } from "@/components/locale-provider"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -54,12 +64,17 @@ export function FriendManagementDialog({
   const [resultIds, setResultIds] = React.useState<string[]>([])
   const [searching, setSearching] = React.useState(false)
   const [updatingKey, setUpdatingKey] = React.useState("")
+  const [friendToDelete, setFriendToDelete] = React.useState<ContactUser | null>(null)
   const friends = contacts.filter((contact) => contact.id !== currentUserId)
   const friendIds = new Set(friends.map((friend) => friend.id))
   const pendingIds = new Set([
     ...incomingRequests.map((request) => request.requesterUserId),
     ...outgoingRequests.map((request) => request.addresseeUserId),
   ])
+
+  React.useEffect(() => {
+    if (!open) setFriendToDelete(null)
+  }, [open])
 
   async function handleSearch(event: React.FormEvent) {
     event.preventDefault()
@@ -78,20 +93,28 @@ export function FriendManagementDialog({
   }
 
   async function run(key: string, action: () => Promise<void>, success: string) {
-    if (updatingKey) return
+    if (updatingKey) return false
     setUpdatingKey(key)
     try {
       await action()
       toast.success(success)
+      return true
     } catch (error) {
       toast.error(getClientDataErrorMessage(error, t("friend.actionFailed")))
+      return false
     } finally {
       setUpdatingKey("")
     }
   }
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setFriendToDelete(null)
+        onOpenChange(nextOpen)
+      }}
+      open={open}
+    >
       <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("friend.title")}</DialogTitle>
@@ -118,9 +141,7 @@ export function FriendManagementDialog({
               user ? (
                 <Button
                   disabled={Boolean(updatingKey)}
-                  onClick={() =>
-                    void run(`delete:${user.id}`, () => deleteFriend(user.id), t("friend.deleted"))
-                  }
+                  onClick={() => setFriendToDelete(user)}
                   size="sm"
                   variant="outline"
                 >
@@ -249,6 +270,51 @@ export function FriendManagementDialog({
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <AlertDialog
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setFriendToDelete(null)
+        }}
+        open={friendToDelete !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("friend.deleteConfirm")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("friend.deleteDescription", {
+                name:
+                  friendToDelete?.nickname ||
+                  friendToDelete?.name ||
+                  (friendToDelete ? shortUserId(friendToDelete.id) : ""),
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(updatingKey)}>
+              {t("friend.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(updatingKey)}
+              onClick={(event) => {
+                event.preventDefault()
+                if (!friendToDelete) return
+                void run(
+                  `delete:${friendToDelete.id}`,
+                  () => deleteFriend(friendToDelete.id),
+                  t("friend.deleted"),
+                ).then((succeeded) => {
+                  if (succeeded) setFriendToDelete(null)
+                })
+              }}
+              variant="destructive"
+            >
+              {updatingKey === `delete:${friendToDelete?.id ?? ""}` && (
+                <Loader2Icon aria-hidden="true" className="animate-spin" />
+              )}
+              {t("friend.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

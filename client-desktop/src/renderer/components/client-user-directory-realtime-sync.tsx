@@ -16,6 +16,8 @@ export function ClientUserDirectoryRealtimeSync() {
   } = useClientData()
   const usersByIdRef = React.useRef(usersById)
   const friendRefreshPendingRef = React.useRef(false)
+  const friendRefreshDirtyRef = React.useRef(false)
+  const friendRefreshScheduledRef = React.useRef(false)
   const wasReadyRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -41,12 +43,26 @@ export function ClientUserDirectoryRealtimeSync() {
 
   React.useEffect(() => {
     const refreshVisibleContacts = () => {
-      if (!location.pathname.startsWith("/contacts") || friendRefreshPendingRef.current) return
-      friendRefreshPendingRef.current = true
+      if (!location.pathname.startsWith("/contacts")) return
+      if (friendRefreshPendingRef.current) {
+        friendRefreshDirtyRef.current = true
+        return
+      }
+      if (friendRefreshScheduledRef.current) return
+      friendRefreshScheduledRef.current = true
       queueMicrotask(() => {
-        void Promise.allSettled([refreshContacts(), refreshFriendRequests?.()]).finally(() => {
-          friendRefreshPendingRef.current = false
-        })
+        friendRefreshScheduledRef.current = false
+        friendRefreshPendingRef.current = true
+        void (async () => {
+          try {
+            do {
+              friendRefreshDirtyRef.current = false
+              await Promise.allSettled([refreshContacts(), refreshFriendRequests?.()])
+            } while (friendRefreshDirtyRef.current)
+          } finally {
+            friendRefreshPendingRef.current = false
+          }
+        })()
       })
     }
     const events = [

@@ -504,9 +504,9 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
         throw requestError
       }
 
-      await refreshFriendRequests()
+      await refreshFriendData()
     },
-    [handleError, reconcileFailedFriendMutation, refreshFriendRequests],
+    [handleError, reconcileFailedFriendMutation, refreshFriendData],
   )
 
   const cancelFriendRequest = useCallback(
@@ -519,9 +519,9 @@ function ClientDataProviderForTarget({ children }: { children: ReactNode }) {
         throw requestError
       }
 
-      await refreshFriendRequests()
+      await refreshFriendData()
     },
-    [handleError, reconcileFailedFriendMutation, refreshFriendRequests],
+    [handleError, reconcileFailedFriendMutation, refreshFriendData],
   )
 
   const deleteFriend = useCallback(

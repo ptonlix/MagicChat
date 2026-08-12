@@ -607,6 +607,78 @@ describe("ClientDataProvider", () => {
   })
 
   it.each([
+    ["reject", "/api/client/friend-requests/request-1/reject"],
+    ["cancel", "/api/client/friend-requests/request-1"],
+  ] as const)(
+    "refreshes friend data after a successful %s mutation",
+    async (action, mutationUrl) => {
+      vi.useFakeTimers()
+      let contactsRequestCount = 0
+      let incomingRequestCount = 0
+      let outgoingRequestCount = 0
+      const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === "/api/client/me") {
+          return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+        }
+        if (url === "/api/client/contacts") {
+          contactsRequestCount += 1
+          return Promise.resolve(jsonResponse(createFriendsContactsResponse(["friend-user"])))
+        }
+        if (url === "/api/client/friend-requests?direction=incoming") {
+          incomingRequestCount += 1
+          return Promise.resolve(jsonResponse(createFriendRequestsResponse([])))
+        }
+        if (url === "/api/client/friend-requests?direction=outgoing") {
+          outgoingRequestCount += 1
+          return Promise.resolve(jsonResponse(createFriendRequestsResponse([])))
+        }
+        if (url === mutationUrl && init?.method === (action === "cancel" ? "DELETE" : "POST")) {
+          return Promise.resolve(
+            jsonResponse({ data: createFriendRequestResponse(), success: true }),
+          )
+        }
+        if (url === "/api/client/conversations") {
+          return Promise.resolve(jsonResponse(createConversationsResponse([])))
+        }
+        if (url === "/api/client/projects?limit=100") {
+          return Promise.resolve(jsonResponse(createProjectsResponse()))
+        }
+        if (url === "/api/client/users/resolve") {
+          return Promise.resolve(jsonResponse({ data: { users: [] }, success: true }))
+        }
+        return Promise.reject(new Error(`unexpected request: ${url}`))
+      })
+      vi.stubGlobal("fetch", fetchMock)
+
+      render(
+        <MemoryRouter>
+          <ClientDataProvider>
+            <FriendMutationProbe action={action} />
+          </ClientDataProvider>
+        </MemoryRouter>,
+      )
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      expect(incomingRequestCount).toBe(1)
+      const contactsBeforeMutation = contactsRequestCount
+      const incomingBeforeMutation = incomingRequestCount
+      const outgoingBeforeMutation = outgoingRequestCount
+
+      await act(async () => {
+        screen.getByRole("button", { name: `${action} friend mutation` }).click()
+      })
+
+      expect(screen.getByTestId("friend-mutation-result")).toHaveTextContent("success")
+      expect(contactsRequestCount).toBe(contactsBeforeMutation + 1)
+      expect(incomingRequestCount).toBe(incomingBeforeMutation + 1)
+      expect(outgoingRequestCount).toBe(outgoingBeforeMutation + 1)
+    },
+  )
+
+  it.each([
     ["create", "/api/client/friend-requests", "POST"],
     ["accept", "/api/client/friend-requests/request-1/accept", "POST"],
     ["reject", "/api/client/friend-requests/request-1/reject", "POST"],

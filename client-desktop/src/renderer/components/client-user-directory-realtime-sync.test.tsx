@@ -107,6 +107,39 @@ describe("ClientUserDirectoryRealtimeSync", () => {
     expect(refreshFriendRequests).toHaveBeenCalledOnce()
   })
 
+  it("runs one trailing refresh when a friend event arrives during an active refresh", async () => {
+    const contactsRefresh = createDeferred<void>()
+    const friendRequestsRefresh = createDeferred<void>()
+    refreshContacts.mockImplementationOnce(() => contactsRefresh.promise)
+    refreshFriendRequests.mockImplementationOnce(() => friendRequestsRefresh.promise)
+
+    render(
+      <MemoryRouter initialEntries={["/contacts"]}>
+        <ClientUserDirectoryRealtimeSync />
+      </MemoryRouter>,
+    )
+
+    act(() => {
+      callbacks.get("friend.request.created")?.({ request_id: "request-1" })
+    })
+    await waitFor(() => expect(refreshContacts).toHaveBeenCalledOnce())
+    expect(refreshFriendRequests).toHaveBeenCalledOnce()
+
+    act(() => {
+      callbacks.get("friend.request.updated")?.({ request_id: "request-2" })
+    })
+    expect(refreshContacts).toHaveBeenCalledOnce()
+    expect(refreshFriendRequests).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      contactsRefresh.resolve()
+      friendRequestsRefresh.resolve()
+    })
+
+    await waitFor(() => expect(refreshContacts).toHaveBeenCalledTimes(2))
+    expect(refreshFriendRequests).toHaveBeenCalledTimes(2)
+  })
+
   it("unsubscribes every handler on unmount", () => {
     const view = render(
       <MemoryRouter>
@@ -156,3 +189,11 @@ describe("ClientUserDirectoryRealtimeSync", () => {
     expect(invalidateUsers).toHaveBeenCalledTimes(2)
   })
 })
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
