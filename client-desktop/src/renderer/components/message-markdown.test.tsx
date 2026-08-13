@@ -66,6 +66,10 @@ describe("MessageMarkdown", () => {
     ["javascript", "const answer = 42"],
     ["typescript", "const answer: number = 42"],
     ["json", '{"answer": 42}'],
+    ["c++", "int main() { return 0; }"],
+    ["c#", "var answer = 42;"],
+    ["f#", "let answer = 42"],
+    ["文言", "吾有一數。曰三。"],
   ])("高亮 %s 围栏代码", async (language, code) => {
     const { container } = render(<MessageMarkdown content={`\`\`\`${language}\n${code}\n\`\`\``} />)
 

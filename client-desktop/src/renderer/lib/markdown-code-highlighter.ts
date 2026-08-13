@@ -6,6 +6,12 @@ import githubLight from "@shikijs/themes/github-light"
 
 const initialLanguageNames = new Set(["py", "python"])
 const loadedLanguages = new Map<string, Promise<void>>()
+const languageFileAliases = new Map([
+  ["c++", "cpp"],
+  ["c#", "csharp"],
+  ["f#", "fsharp"],
+  ["文言", "wenyan"],
+])
 
 // 避免 Oniguruma Wasm 在自定义协议下的异步加载链路，Python 直接随 Renderer 入口加载。
 const highlighterPromise = createHighlighterCore({
@@ -22,14 +28,15 @@ const languageLoaders = import.meta.glob<LanguageModule>(
 )
 
 export async function highlightMarkdownCode(code: string, language: string): Promise<string> {
-  const languageLoader = getLanguageLoader(language)
+  const languageFileName = resolveLanguageFileName(language)
+  const languageLoader = getLanguageLoader(languageFileName)
   if (!languageLoader) {
     throw new Error("不支持的代码语言")
   }
 
   const highlighter = await highlighterPromise
-  if (!initialLanguageNames.has(language)) {
-    await loadLanguage(language, languageLoader, highlighter)
+  if (!initialLanguageNames.has(languageFileName)) {
+    await loadLanguage(languageFileName, languageLoader, highlighter)
   }
 
   return highlighter.codeToHtml(code, {
@@ -39,6 +46,10 @@ export async function highlightMarkdownCode(code: string, language: string): Pro
       light: "github-light",
     },
   })
+}
+
+function resolveLanguageFileName(language: string) {
+  return languageFileAliases.get(language) ?? language
 }
 
 function getLanguageLoader(language: string) {
