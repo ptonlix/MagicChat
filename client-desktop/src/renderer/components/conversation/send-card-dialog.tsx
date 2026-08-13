@@ -70,28 +70,39 @@ function StandaloneCardDialogContent(props: SendCardDialogProps) {
 
     async function loadConversations() {
       try {
-        const [values, contacts] = await Promise.all([
-          listClientConversations(),
-          listClientContacts().catch(() => null),
-        ])
-        const initialConversations = contacts
-          ? withStandaloneGroupAvatarMembers(values, contacts.groups)
-          : values
+        const values = await listClientConversations()
         if (!active) return
 
-        setConversations(initialConversations)
-
-        const userIds = collectStandaloneGroupAvatarUserIds(initialConversations)
-        if (userIds.length === 0) return
-
-        try {
-          const users = await resolveStandaloneGroupAvatarUsers(userIds, controller.signal)
-          if (active) setConversations(withStandaloneGroupAvatarUsers(initialConversations, users))
-        } catch {
-          // 头像补全为非阻塞增强，保留已加载的会话并回退至群组图标。
-        }
+        setConversations(values)
+        void hydrateStandaloneGroupAvatars(values, controller.signal)
       } catch (error) {
         if (active) toast.error(error instanceof Error ? error.message : t("sendCard.loadFailed"))
+      }
+    }
+
+    async function hydrateStandaloneGroupAvatars(
+      values: readonly ClientConversation[],
+      signal: AbortSignal,
+    ) {
+      try {
+        const contacts = await listClientContacts(undefined, signal)
+        if (!active || signal.aborted) return
+
+        const conversationsWithAvatarMembers = withStandaloneGroupAvatarMembers(
+          values,
+          contacts.groups,
+        )
+        setConversations(conversationsWithAvatarMembers)
+
+        const userIds = collectStandaloneGroupAvatarUserIds(conversationsWithAvatarMembers)
+        if (userIds.length === 0) return
+
+        const users = await resolveStandaloneGroupAvatarUsers(userIds, signal)
+        if (active && !signal.aborted) {
+          setConversations(withStandaloneGroupAvatarUsers(conversationsWithAvatarMembers, users))
+        }
+      } catch {
+        // 头像补全为非阻塞增强，保留已加载的会话并回退至群组图标。
       }
     }
 

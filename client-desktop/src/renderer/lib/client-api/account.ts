@@ -217,10 +217,11 @@ export async function deleteFriend(userId: string, fetcher: ClientDataFetch = fe
   }
 }
 
-export async function listClientContacts(fetcher: ClientDataFetch = fetch) {
+export async function listClientContacts(fetcher: ClientDataFetch = fetch, signal?: AbortSignal) {
   const response = await fetcher("/api/client/contacts", {
     credentials: "include",
     method: "GET",
+    signal,
   })
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListClientContactsResponse>

@@ -94,6 +94,7 @@ describe("client data API", () => {
   })
 
   it("loads unified client contacts with credentials", async () => {
+    const controller = new AbortController()
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -153,7 +154,7 @@ describe("client data API", () => {
       ),
     )
 
-    await expect(listClientContacts(fetcher)).resolves.toEqual({
+    await expect(listClientContacts(fetcher, controller.signal)).resolves.toEqual({
       apps: [
         {
           avatar: "/assets/apps/assistant.webp",
@@ -206,6 +207,7 @@ describe("client data API", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/client/contacts", {
       credentials: "include",
       method: "GET",
+      signal: controller.signal,
     })
   })
 

@@ -67,6 +67,7 @@ const mocks = vi.hoisted(() => ({
   ],
   resolveClientUsers: vi.fn(),
   sendConversationCard: vi.fn(),
+  sendConversationCardMessage: vi.fn(),
 }))
 
 vi.mock("@/lib/client-data-context", () => ({
@@ -85,6 +86,10 @@ vi.mock("@/lib/client-api/conversations", () => ({
   listClientConversations: mocks.listClientConversations,
 }))
 
+vi.mock("@/lib/client-api/messages", () => ({
+  sendConversationCardMessage: mocks.sendConversationCardMessage,
+}))
+
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }))
 
 describe("SendCardDialog", () => {
@@ -92,6 +97,7 @@ describe("SendCardDialog", () => {
     mocks.listClientContacts.mockReset()
     mocks.listClientConversations.mockReset()
     mocks.resolveClientUsers.mockReset()
+    mocks.sendConversationCardMessage.mockReset()
     toastError.mockReset()
     toastSuccess.mockReset()
   })
@@ -176,6 +182,36 @@ describe("SendCardDialog", () => {
     const groupTarget = await screen.findByRole("radio", { name: "设计群" })
     expect(groupTarget.closest("label")?.querySelectorAll("img")).toHaveLength(2)
     expect(mocks.resolveClientUsers).not.toHaveBeenCalled()
+  })
+
+  it("keeps conversations selectable while contact avatars are still loading", async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const card = createCard()
+    mocks.listClientConversations.mockResolvedValue([mocks.conversations[0]])
+    mocks.listClientContacts.mockImplementation(() => new Promise(() => undefined))
+    mocks.sendConversationCardMessage.mockResolvedValue({ id: "message-1" })
+
+    render(
+      <MemoryRouter>
+        <StandaloneCardDialog card={card} onOpenChange={onOpenChange} open />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole("radio", { name: "设计群" }))
+    await user.click(screen.getByRole("button", { name: "发送" }))
+
+    await waitFor(() => {
+      expect(mocks.sendConversationCardMessage).toHaveBeenCalledWith(
+        "conversation-1",
+        expect.objectContaining({
+          description: card.description,
+          title: card.title,
+          url: card.url,
+        }),
+      )
+    })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it("resolves group avatar members that are unavailable from contacts in a document child window", async () => {
@@ -340,6 +376,9 @@ describe("SendCardDialog", () => {
   })
 
   it("keeps sending available when group avatar hydration fails", async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const card = createCard()
     mocks.listClientConversations.mockResolvedValue([mocks.conversations[0]])
     mocks.listClientContacts.mockResolvedValue({
       apps: [],
@@ -369,10 +408,11 @@ describe("SendCardDialog", () => {
       userIds: [],
     })
     mocks.resolveClientUsers.mockRejectedValue(new Error("用户资料暂不可用"))
+    mocks.sendConversationCardMessage.mockResolvedValue({ id: "message-1" })
 
     render(
       <MemoryRouter>
-        <StandaloneCardDialog card={createCard()} onOpenChange={vi.fn()} open />
+        <StandaloneCardDialog card={card} onOpenChange={onOpenChange} open />
       </MemoryRouter>,
     )
 
@@ -386,6 +426,20 @@ describe("SendCardDialog", () => {
     })
     expect(toastError).not.toHaveBeenCalled()
     expect(groupTarget.closest("label")?.querySelector("svg")).toBeInTheDocument()
+
+    await user.click(groupTarget)
+    await user.click(screen.getByRole("button", { name: "发送" }))
+    await waitFor(() => {
+      expect(mocks.sendConversationCardMessage).toHaveBeenCalledWith(
+        "conversation-1",
+        expect.objectContaining({
+          description: card.description,
+          title: card.title,
+          url: card.url,
+        }),
+      )
+    })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })
 
