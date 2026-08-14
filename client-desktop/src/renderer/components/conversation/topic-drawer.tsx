@@ -1135,7 +1135,7 @@ export function TopicSourceBanner({
       className={cn(
         "max-w-full min-w-0 rounded-md p-3 text-sm leading-relaxed shadow-sm",
         fromCurrentUser
-          ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
+          ? "bg-primary/10 text-foreground dark:bg-primary/15"
           : "bg-zinc-100 text-foreground dark:bg-zinc-800",
       )}
       data-message-action-trigger={

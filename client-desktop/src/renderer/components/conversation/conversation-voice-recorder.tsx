@@ -24,7 +24,7 @@ export function VoiceRecordingPanel({
             className={cn(
               "w-1 rounded-full transition-[height,background-color] duration-75",
               status === "recording"
-                ? "bg-teal-500"
+                ? "bg-primary"
                 : status === "recorded"
                   ? "bg-foreground/40"
                   : "bg-muted-foreground/20",

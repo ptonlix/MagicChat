@@ -207,11 +207,11 @@ export const MessageBubble = React.memo(function MessageBubble({
         message.body.type === "text" && !message.topic ? "max-w-120" : "max-w-full",
         flushImageBubble ? "overflow-hidden p-0" : "p-3",
         fromMe
-          ? "bg-teal-100/60 text-foreground dark:bg-teal-950/80"
+          ? "bg-primary/10 text-foreground dark:bg-primary/15"
           : "bg-zinc-100 text-foreground dark:bg-zinc-800",
         !selectionMode &&
           (fromMe
-            ? "hover:bg-teal-100/80 data-[state=open]:bg-teal-100/80 hover:dark:bg-teal-950 dark:data-[state=open]:bg-teal-950"
+            ? "hover:bg-primary/15 data-[state=open]:bg-primary/15 hover:dark:bg-primary/20 dark:data-[state=open]:bg-primary/20"
             : "hover:bg-zinc-200/60 data-[state=open]:bg-zinc-200 hover:dark:bg-zinc-700/60 dark:data-[state=open]:bg-zinc-700"),
       )}
       data-message-action-trigger={!selectionMode && !unavailable ? "" : undefined}
@@ -651,7 +651,7 @@ function TopicReplyPreview({
       )}
       <div className="flex w-full items-center justify-between gap-3">
         <button
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 transition-colors hover:text-teal-500 disabled:pointer-events-none dark:text-teal-400 dark:hover:text-teal-300"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/80 disabled:pointer-events-none"
           disabled={!onOpen}
           onClick={onOpen}
           type="button"

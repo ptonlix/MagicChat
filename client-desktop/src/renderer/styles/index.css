@@ -130,6 +130,51 @@ img {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+:root[data-color-theme="blue"] {
+  --accent: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --primary: var(--color-blue-600);
+  --ring: var(--color-blue-600);
+  --sidebar-primary: var(--color-blue-600);
+  --sidebar-ring: var(--color-blue-600);
+}
+
+:root[data-color-theme="violet"] {
+  --accent: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --primary: var(--color-violet-600);
+  --ring: var(--color-violet-600);
+  --sidebar-primary: var(--color-violet-600);
+  --sidebar-ring: var(--color-violet-600);
+}
+
+:root[data-color-theme="rose"] {
+  --accent: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --primary: var(--color-rose-600);
+  --ring: var(--color-rose-600);
+  --sidebar-primary: var(--color-rose-600);
+  --sidebar-ring: var(--color-rose-600);
+}
+
+:root[data-color-theme="amber"] {
+  --accent: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --primary: var(--color-amber-700);
+  --ring: var(--color-amber-700);
+  --sidebar-primary: var(--color-amber-700);
+  --sidebar-ring: var(--color-amber-700);
+}
+
+:root[data-color-theme="emerald"] {
+  --accent: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --primary: var(--color-emerald-700);
+  --ring: var(--color-emerald-700);
+  --sidebar-primary: var(--color-emerald-700);
+  --sidebar-ring: var(--color-emerald-700);
+}
+
+:root[data-color-theme] ::selection {
+  background: color-mix(in oklch, var(--primary) 25%, var(--background));
+  color: var(--foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -481,6 +526,30 @@ img {
     z-index: 1;
   }
 
+  .brand-loading-moli {
+    align-items: center;
+    background: linear-gradient(145deg, oklch(0.54 0.16 174), oklch(0.45 0.125 184));
+    color: oklch(0.985 0.01 165);
+    display: flex;
+    justify-content: center;
+  }
+
+  .brand-loading-moli > svg:first-child {
+    height: 2.7rem;
+    stroke-width: 1.7;
+    width: 2.7rem;
+  }
+
+  .brand-loading-moli-sparkle {
+    animation: brand-moli-sparkle 1.2s ease-in-out infinite;
+    bottom: 0.78rem;
+    height: 1.1rem;
+    position: absolute;
+    right: 0.72rem;
+    stroke-width: 2.3;
+    width: 1.1rem;
+  }
+
   .brand-loading-ring {
     animation: brand-ring-pulse 2.4s ease-out infinite;
     border: 1px solid oklch(0.68 0.14 174 / 48%);
@@ -524,6 +593,21 @@ img {
   }
   .brand-loading-dots i:nth-child(3) {
     animation-delay: 280ms;
+  }
+
+  .brand-loading-progress {
+    background: oklch(0.48 0.045 174 / 16%);
+    border-radius: 999px;
+    height: 0.38rem;
+    overflow: hidden;
+    width: 14rem;
+  }
+
+  .client-loading-progress-indicator {
+    background: oklch(0.56 0.15 174);
+    border-radius: inherit;
+    height: 100%;
+    width: 33.333%;
   }
 
   .brand-loading-orb {
@@ -636,6 +720,10 @@ img {
   }
   .dark .brand-loading-copy span {
     color: oklch(0.72 0.025 174);
+  }
+
+  .dark .brand-loading-moli {
+    background: linear-gradient(145deg, oklch(0.57 0.145 174), oklch(0.43 0.115 184));
   }
 
   .client-loading-progress-indicator {
@@ -810,6 +898,18 @@ img {
   }
 }
 
+@keyframes brand-moli-sparkle {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.8) rotate(-12deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(12deg);
+  }
+}
+
 @keyframes brand-orb-drift {
   from {
     transform: translate3d(0, 0, 0) scale(1);
@@ -826,6 +926,17 @@ img {
 
   100% {
     transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-loading-mark,
+  .brand-loading-ring,
+  .brand-loading-moli-sparkle,
+  .brand-loading-dots i,
+  .client-loading-progress-indicator {
+    animation: none;
+    transform: none;
   }
 }
 

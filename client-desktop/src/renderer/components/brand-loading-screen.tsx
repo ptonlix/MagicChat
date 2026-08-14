@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils"
 import { useLocale } from "@/components/locale-provider"
+import { Flower2, Sparkles } from "lucide-react"
 
 type BrandLoadingScreenProps = {
   className?: string
@@ -11,23 +12,35 @@ export function BrandLoadingScreen({ className, detail, message }: BrandLoadingS
   const { t } = useLocale()
   const detailText = detail ?? t("brandLoading.detail")
   return (
-    <main
-      className={cn(
-        "flex h-svh items-center justify-center bg-background text-foreground",
-        className,
-      )}
-    >
-      <div className="flex w-56 flex-col items-center gap-3">
-        <div className="text-center text-sm text-muted-foreground">
-          {message ? `${message} · ${detailText}` : detailText}
+    <main className={cn("brand-loading-screen text-foreground", className)}>
+      <div className="brand-loading-content">
+        <div className="brand-loading-mark-wrap">
+          <span aria-hidden="true" className="brand-loading-ring" />
+          <div
+            aria-label={t("brandLoading.moli")}
+            className="brand-loading-mark brand-loading-moli"
+            role="img"
+          >
+            <Flower2 aria-hidden="true" />
+            <Sparkles aria-hidden="true" className="brand-loading-moli-sparkle" />
+          </div>
+        </div>
+        <div className="brand-loading-copy">
+          {message && <strong>{message}</strong>}
+          <span>{detailText}</span>
+        </div>
+        <div aria-hidden="true" className="brand-loading-dots">
+          <i />
+          <i />
+          <i />
         </div>
         <div
           aria-label={t("brandLoading.progress")}
           aria-valuetext={t("brandLoading.loading")}
-          className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+          className="brand-loading-progress"
           role="progressbar"
         >
-          <div className="client-loading-progress-indicator h-full w-1/3 rounded-full bg-primary" />
+          <div className="client-loading-progress-indicator" />
         </div>
       </div>
     </main>

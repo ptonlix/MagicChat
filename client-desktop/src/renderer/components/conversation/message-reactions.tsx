@@ -72,7 +72,7 @@ export function MessageReactionChips({
             className={cn(
               "inline-flex min-h-6 max-w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 rounded-md px-2 py-0.5 text-xs whitespace-normal transition-colors",
               align === "end"
-                ? "bg-background/60 text-foreground dark:bg-teal-900"
+                ? "bg-background/60 text-foreground dark:bg-primary/15"
                 : "bg-zinc-200 text-foreground dark:bg-zinc-700",
               !canToggle && "opacity-80",
             )}

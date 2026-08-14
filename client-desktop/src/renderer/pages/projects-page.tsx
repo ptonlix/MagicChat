@@ -274,7 +274,7 @@ function ProjectListButton({
     <SidebarMenuItem>
       <SidebarMenuButton
         aria-pressed={active}
-        className="h-16 gap-3 py-2 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900"
+        className="h-16 gap-3 py-2 data-active:bg-primary/10 data-active:hover:bg-primary/10 dark:data-active:bg-primary/15 dark:data-active:hover:bg-primary/15"
         isActive={active}
         onClick={onSelect}
         size="lg"

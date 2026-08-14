@@ -554,7 +554,7 @@ function isMessageAvailable(message: ConversationPanelMessage) {
 const messageTimeMarkerThresholdMs = 60 * 60 * 1000
 const historyRetentionMs = 3 * 60 * 1000
 const historyHighlightDurationMs = 2_000
-const historyHighlightClasses = ["rounded-md", "ring-2", "ring-teal-500/70"]
+const historyHighlightClasses = ["rounded-md", "ring-2", "ring-primary/70"]
 
 function noop() {}
 

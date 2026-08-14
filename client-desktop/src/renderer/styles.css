@@ -152,7 +152,8 @@ body,
 }
 .desktop-frame[data-platform="darwin"] .app-navigation-rail {
   -webkit-app-region: drag;
-  padding-top: calc(var(--desktop-titlebar-height) + 12px);
+  margin-top: var(--desktop-titlebar-height);
+  padding-top: 12px;
   width: 56px;
 }
 .desktop-frame[data-platform="darwin"] .app-navigation-rail :is(a, button) {
@@ -168,15 +169,24 @@ body,
   -webkit-app-region: no-drag;
 }
 .desktop-mac-window-controls {
-  -webkit-app-region: no-drag;
   align-items: center;
+  box-sizing: border-box;
   display: flex;
-  gap: 2px;
-  height: 100%;
+  flex: 0 0 56px;
+  gap: 1px;
+  height: var(--desktop-titlebar-height);
+  isolation: isolate;
   justify-content: center;
-  padding: 0 2px;
+  left: 0;
+  padding: 0 3px;
+  pointer-events: auto;
+  inset: 0;
+  position: absolute;
+  width: 56px;
+  z-index: 60;
 }
 .desktop-mac-window-control {
+  -webkit-app-region: no-drag !important;
   align-items: center;
   background: transparent;
   border: 0;
@@ -184,21 +194,23 @@ body,
   color: #4a3024;
   cursor: pointer;
   display: inline-flex;
-  height: 14px;
+  flex: 0 0 16px;
+  height: 16px;
   justify-content: center;
   padding: 0;
+  pointer-events: auto;
   position: relative;
-  width: 14px;
+  width: 16px;
 }
 .desktop-mac-window-control::before {
   background: #ff5f57;
   border-radius: 50%;
   content: "";
-  height: 10px;
+  height: 12px;
   inset: 0;
   margin: auto;
   position: absolute;
-  width: 10px;
+  width: 12px;
 }
 .desktop-mac-window-control-minimize {
   color: #59430c;
@@ -219,12 +231,14 @@ body,
 .desktop-mac-window-control > svg {
   flex: none;
   opacity: 0;
+  pointer-events: none;
   position: relative;
+  transition: opacity 120ms ease;
   z-index: 1;
 }
-.desktop-mac-window-controls:hover .desktop-mac-window-control > svg,
+.desktop-mac-window-control:hover > svg,
 .desktop-mac-window-control:focus-visible > svg {
-  opacity: 0.75;
+  opacity: 0.9;
 }
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -235,6 +249,10 @@ body,
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation-duration: 1ms;
+  }
+
+  .desktop-mac-window-control > svg {
+    transition: none;
   }
 }
 .server-setup {

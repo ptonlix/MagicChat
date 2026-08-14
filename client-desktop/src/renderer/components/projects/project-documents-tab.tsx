@@ -744,7 +744,7 @@ function DocumentDropPosition({
         <div
           className={cn(
             "absolute top-1/2 right-0 left-0 h-0.5 -translate-y-1/2",
-            isOver && "bg-teal-500",
+            isOver && "bg-primary",
           )}
         />
       </div>

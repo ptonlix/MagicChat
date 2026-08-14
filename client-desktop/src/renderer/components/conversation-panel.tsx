@@ -381,12 +381,12 @@ function ConversationFileDropOverlay({ kind }: { kind: DraggedFileKind }) {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-teal-700/10 p-3 backdrop-blur-[2px]"
+      className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-primary/10 p-3 backdrop-blur-[2px]"
       data-testid="conversation-file-drop-overlay"
       role="status"
     >
-      <div className="flex size-full max-h-60 max-w-100 flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-teal-500 bg-background/60 text-teal-700 dark:text-teal-300">
-        <span className="flex size-11 items-center justify-center rounded-full bg-teal-500/15">
+      <div className="flex size-full max-h-60 max-w-100 flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-background/60 text-primary">
+        <span className="flex size-11 items-center justify-center rounded-full bg-primary/15">
           <Upload aria-hidden="true" className="size-5" />
         </span>
         <span className="text-sm font-medium">

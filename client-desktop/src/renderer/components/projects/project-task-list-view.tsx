@@ -133,7 +133,7 @@ function TaskItem({
               </button>
               {task.labels.map((label) => (
                 <Badge
-                  className="max-w-40 truncate border-teal-200 bg-teal-100 text-teal-700 dark:border-teal-800 dark:bg-teal-900 dark:text-teal-300"
+                  className="max-w-40 truncate border-primary/30 bg-primary/10 text-primary dark:bg-primary/15"
                   key={label}
                   variant="secondary"
                 >

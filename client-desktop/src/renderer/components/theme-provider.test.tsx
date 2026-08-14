@@ -10,6 +10,7 @@ let handleColorSchemeChange: (() => void) | undefined
 describe("ThemeProvider", () => {
   beforeEach(() => {
     window.localStorage.clear()
+    document.documentElement.removeAttribute("data-color-theme")
     setThemeSource.mockClear()
     handleColorSchemeChange = undefined
     Object.defineProperty(window, "matchMedia", {
@@ -70,13 +71,35 @@ describe("ThemeProvider", () => {
     await waitFor(() => expect(setThemeSource).toHaveBeenCalledTimes(2))
     expect(setThemeSource).toHaveBeenLastCalledWith("system")
   })
+
+  it("将额外配色应用到根元素并同步浅色原生主题", async () => {
+    render(
+      <ThemeProvider>
+        <ThemeControl />
+      </ThemeProvider>,
+    )
+
+    expect(document.documentElement).not.toHaveAttribute("data-color-theme")
+
+    fireEvent.click(screen.getByRole("button", { name: "切换玫红主题" }))
+
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "rose"),
+    )
+    expect(setThemeSource).toHaveBeenLastCalledWith("light")
+  })
 })
 
 function ThemeControl() {
   const { setTheme } = useTheme()
   return (
-    <button type="button" onClick={() => setTheme("light")}>
-      切换明亮主题
-    </button>
+    <>
+      <button type="button" onClick={() => setTheme("light")}>
+        切换明亮主题
+      </button>
+      <button type="button" onClick={() => setTheme("rose")}>
+        切换玫红主题
+      </button>
+    </>
   )
 }

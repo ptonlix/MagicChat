@@ -156,7 +156,7 @@ function ChoiceOption({
     <label
       className={cn(
         "flex min-w-0 items-center gap-2 rounded-md border border-foreground/10 px-3 py-2 transition-colors",
-        selected && "border-teal-500/50 bg-teal-500/10",
+        selected && "border-primary/50 bg-primary/10",
       )}
       htmlFor={htmlFor}
     >

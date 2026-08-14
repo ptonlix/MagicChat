@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronsUpDown, Download, ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react"
+import { Download, ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 
 import { useLocale } from "@/components/locale-provider"
-import { useTheme } from "@/components/theme-provider"
+import { isTheme, useTheme } from "@/components/theme-provider"
+import type { TranslationKey } from "@/lib/i18n"
 import { clearManagedMessageCache } from "@/lib/messages"
 import {
   getUpdateInstallErrorMessage,
@@ -28,6 +29,56 @@ import { SettingsCenter, type SettingsSectionId } from "./settings-center"
 import { SendMessageShortcutPicker } from "./send-message-shortcut-picker"
 import { ShortcutRecorder } from "./shortcut-recorder"
 import { DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_SEARCH_SHORTCUT } from "@shared/shortcut-contract"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+const appearanceOptions = [
+  { value: "system", label: "settings.appearance.system" },
+  { value: "light", label: "settings.appearance.light" },
+  { value: "dark", label: "settings.appearance.dark" },
+  { value: "blue", label: "settings.appearance.blue" },
+  { value: "violet", label: "settings.appearance.violet" },
+  { value: "rose", label: "settings.appearance.rose" },
+  { value: "amber", label: "settings.appearance.amber" },
+  { value: "emerald", label: "settings.appearance.emerald" },
+] as const satisfies ReadonlyArray<{
+  label: TranslationKey
+  value: string
+}>
+
+function SettingsSelect({
+  ariaLabel,
+  onValueChange,
+  options,
+  value,
+}: {
+  ariaLabel: string
+  onValueChange(value: string): void
+  options: ReadonlyArray<Readonly<{ label: TranslationKey; value: string }>>
+  value: string
+}) {
+  const { t } = useLocale()
+
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="end" className="settings-select-content" position="popper">
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {t(option.label)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
 
 export function DesktopSettingsPanel({
   platform,
@@ -129,7 +180,7 @@ export function DesktopSettingsPanel({
     }
   }
 
-  async function updateSettings(patch: DesktopSettingsPatch) {
+  async function updateSettings(patch: DesktopSettingsPatch): Promise<DesktopSettings | undefined> {
     setSettingsError("")
     try {
       const nextSettings = await window.desktop.settings.set(patch)
@@ -138,8 +189,10 @@ export function DesktopSettingsPanel({
         onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
       }
       window.dispatchEvent(new Event(DESKTOP_SETTINGS_CHANGED_EVENT))
+      return nextSettings
     } catch {
       setSettingsError(t("settings.saveError"))
+      return undefined
     }
   }
 
@@ -218,52 +271,57 @@ export function DesktopSettingsPanel({
                   <strong>{t("settings.general.closeBehavior")}</strong>
                   <small>{t("settings.general.closeBehavior.desc")}</small>
                 </span>
-                <select
+                <SettingsSelect
+                  ariaLabel={t("settings.general.closeBehavior")}
+                  options={[
+                    {
+                      label: "settings.general.closeBehavior.background",
+                      value: "background",
+                    },
+                    { label: "settings.general.closeBehavior.quit", value: "quit" },
+                  ]}
                   value={settings.closeBehavior}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     void updateSettings({
-                      closeBehavior: event.target.value as DesktopSettings["closeBehavior"],
+                      closeBehavior: value as DesktopSettings["closeBehavior"],
                     })
                   }
-                >
-                  <option value="background">
-                    {t("settings.general.closeBehavior.background")}
-                  </option>
-                  <option value="quit">{t("settings.general.closeBehavior.quit")}</option>
-                </select>
+                />
               </label>
               <label className="settings-row">
                 <span>
                   <strong>{t("settings.general.language")}</strong>
                   <small>{t("settings.general.language.desc")}</small>
                 </span>
-                <select
-                  aria-label={t("settings.general.language")}
+                <SettingsSelect
+                  ariaLabel={t("settings.general.language")}
+                  options={[
+                    { label: "settings.general.language.zhCN", value: "zh-CN" },
+                    { label: "settings.general.language.en", value: "en" },
+                  ]}
                   value={settings.language}
-                  onChange={(event) =>
-                    void updateSettings({ language: event.target.value as DesktopLanguage })
+                  onValueChange={(value) =>
+                    void updateSettings({ language: value as DesktopLanguage })
                   }
-                >
-                  <option value="zh-CN">{t("settings.general.language.zhCN")}</option>
-                  <option value="en">{t("settings.general.language.en")}</option>
-                </select>
+                />
               </label>
               <label className="settings-row">
                 <span>
                   <strong>{t("settings.general.fontScale")}</strong>
                   <small>{t("settings.general.fontScale.desc")}</small>
                 </span>
-                <select
-                  aria-label={t("settings.general.fontScale")}
+                <SettingsSelect
+                  ariaLabel={t("settings.general.fontScale")}
+                  options={[
+                    { label: "settings.general.fontScale.normal", value: "normal" },
+                    { label: "settings.general.fontScale.medium", value: "medium" },
+                    { label: "settings.general.fontScale.large", value: "large" },
+                  ]}
                   value={settings.fontScale}
-                  onChange={(event) =>
-                    void updateSettings({ fontScale: event.target.value as DesktopFontScale })
+                  onValueChange={(value) =>
+                    void updateSettings({ fontScale: value as DesktopFontScale })
                   }
-                >
-                  <option value="normal">{t("settings.general.fontScale.normal")}</option>
-                  <option value="medium">{t("settings.general.fontScale.medium")}</option>
-                  <option value="large">{t("settings.general.fontScale.large")}</option>
-                </select>
+                />
               </label>
             </section>
           )}
@@ -289,19 +347,23 @@ export function DesktopSettingsPanel({
                   <strong>{t("settings.notifications.privacy")}</strong>
                   <small>{t("settings.notifications.privacy.desc")}</small>
                 </span>
-                <select
+                <SettingsSelect
+                  ariaLabel={t("settings.notifications.privacy")}
+                  options={[
+                    { label: "settings.notifications.privacy.hidden", value: "hidden" },
+                    {
+                      label: "settings.notifications.privacy.metadata",
+                      value: "metadata",
+                    },
+                    { label: "settings.notifications.privacy.preview", value: "preview" },
+                  ]}
                   value={settings.notificationPrivacy}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     void updateSettings({
-                      notificationPrivacy: event.target
-                        .value as DesktopSettings["notificationPrivacy"],
+                      notificationPrivacy: value as DesktopSettings["notificationPrivacy"],
                     })
                   }
-                >
-                  <option value="hidden">{t("settings.notifications.privacy.hidden")}</option>
-                  <option value="metadata">{t("settings.notifications.privacy.metadata")}</option>
-                  <option value="preview">{t("settings.notifications.privacy.preview")}</option>
-                </select>
+                />
               </label>
             </section>
           )}
@@ -310,25 +372,14 @@ export function DesktopSettingsPanel({
             <section aria-label={t("settings.appearance.title")} className="settings-group">
               <div className="settings-appearance-row">
                 <strong>{t("settings.appearance.colorScheme")}</strong>
-                <div className="settings-appearance-select">
-                  <select
-                    aria-label={t("settings.appearance.title")}
-                    value={theme}
-                    onChange={(event) => {
-                      const value = event.target.value
-                      if (value === "system" || value === "light" || value === "dark") {
-                        setTheme(value)
-                      }
-                    }}
-                  >
-                    <option value="system">{t("settings.appearance.system")}</option>
-                    <option value="light">{t("settings.appearance.light")}</option>
-                    <option value="dark">{t("settings.appearance.dark")}</option>
-                  </select>
-                  <span aria-hidden="true" className="settings-appearance-select-icon">
-                    <ChevronsUpDown size={16} strokeWidth={2.4} />
-                  </span>
-                </div>
+                <SettingsSelect
+                  ariaLabel={t("settings.appearance.title")}
+                  options={appearanceOptions}
+                  value={theme}
+                  onValueChange={(value) => {
+                    if (isTheme(value)) setTheme(value)
+                  }}
+                />
               </div>
             </section>
           )}

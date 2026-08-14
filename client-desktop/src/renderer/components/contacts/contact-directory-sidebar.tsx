@@ -651,7 +651,7 @@ function DirectoryListItem({
         aria-label={title}
         aria-selected={selected}
         className={cn(
-          "gap-2.5 data-active:bg-teal-100 data-active:hover:bg-teal-100 dark:data-active:bg-teal-900 dark:data-active:hover:bg-teal-900",
+          "gap-2.5 data-active:bg-primary/10 data-active:hover:bg-primary/10 dark:data-active:bg-primary/15 dark:data-active:hover:bg-primary/15",
           onAction && "pr-8",
           size === "sm" ? "h-11" : "h-12",
         )}

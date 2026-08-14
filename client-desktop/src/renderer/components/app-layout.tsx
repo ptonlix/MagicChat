@@ -6,6 +6,7 @@ import {
   LogOut,
   MessageCircleMore,
   Moon,
+  Palette,
   Settings,
   Sun,
   SunMoon,
@@ -62,6 +63,11 @@ const themeItems = [
   { value: "system", label: "nav.theme.system", icon: SunMoon },
   { value: "light", label: "nav.theme.light", icon: Sun },
   { value: "dark", label: "nav.theme.dark", icon: Moon },
+  { value: "blue", label: "nav.theme.blue", icon: Palette },
+  { value: "violet", label: "nav.theme.violet", icon: Palette },
+  { value: "rose", label: "nav.theme.rose", icon: Palette },
+  { value: "amber", label: "nav.theme.amber", icon: Palette },
+  { value: "emerald", label: "nav.theme.emerald", icon: Palette },
 ] as const
 
 type ThemeValue = (typeof themeItems)[number]["value"]
@@ -139,7 +145,7 @@ function ProductWebsiteLink() {
   return (
     <Button
       asChild
-      className="rounded-md hover:bg-transparent hover:text-teal-500 dark:hover:bg-transparent"
+      className="rounded-md hover:bg-transparent hover:text-primary dark:hover:bg-transparent"
       size="icon-sm"
       variant="ghost"
     >
@@ -309,7 +315,7 @@ function SidebarSettingsButton() {
     <>
       <Button
         aria-label={t("user.settings")}
-        className="rounded-md hover:bg-transparent hover:text-teal-500 aria-expanded:bg-transparent aria-expanded:text-teal-500 dark:hover:bg-transparent"
+        className="rounded-md hover:bg-transparent hover:text-primary aria-expanded:bg-transparent aria-expanded:text-primary dark:hover:bg-transparent"
         onClick={handleSettingsOpen}
         size="icon-sm"
         title={t("user.settings")}
@@ -378,9 +384,8 @@ function MainNavItem({
   const { t } = useLocale()
   const active = Boolean(useMatch({ path: item.to, end: false }))
   const Icon = item.icon
-  const accessibleLabel = showNotification
-    ? t("nav.unread", { label: t(item.label) })
-    : t(item.label)
+  const label = t(item.label)
+  const accessibleLabel = showNotification ? t("nav.unread", { label }) : label
 
   return (
     <Button
@@ -390,10 +395,10 @@ function MainNavItem({
       className={
         active
           ? "relative rounded-full"
-          : "relative rounded-full text-teal-500 hover:bg-teal-50 hover:text-teal-500 dark:hover:bg-teal-950 dark:hover:text-teal-500"
+          : "relative rounded-full text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/15 dark:hover:text-primary"
       }
     >
-      <NavLink to={item.to} aria-label={accessibleLabel} title={item.label}>
+      <NavLink to={item.to} aria-label={accessibleLabel} title={label}>
         <Icon
           className="size-4 [stroke-width:2] transition-[stroke-width] group-hover/button:[stroke-width:2.5]"
           strokeWidth={2}
@@ -418,7 +423,7 @@ function GithubLink() {
   return (
     <Button
       asChild
-      className="rounded-md hover:bg-transparent hover:text-teal-500 dark:hover:bg-transparent"
+      className="rounded-md hover:bg-transparent hover:text-primary dark:hover:bg-transparent"
       size="icon-sm"
       variant="ghost"
     >
@@ -462,14 +467,14 @@ function ThemeSwitcher() {
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="rounded-md hover:bg-transparent hover:text-teal-500 aria-expanded:bg-transparent aria-expanded:text-teal-500 data-[state=open]:bg-transparent data-[state=open]:text-teal-500 dark:hover:bg-transparent"
+          className="rounded-md hover:bg-transparent hover:text-primary aria-expanded:bg-transparent aria-expanded:text-primary data-[state=open]:bg-transparent data-[state=open]:text-primary dark:hover:bg-transparent"
           aria-label={t("nav.theme", { label: t(currentTheme.label) })}
           title={t("nav.theme", { label: t(currentTheme.label) })}
         >
           <CurrentIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="end" className="w-36">
+      <DropdownMenuContent side="right" align="end" className="w-40">
         <DropdownMenuRadioGroup value={theme} onValueChange={handleThemeChange}>
           {themeItems.map((item) => {
             const Icon = item.icon

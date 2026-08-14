@@ -729,7 +729,7 @@ export const ConversationPanelComposer = React.forwardRef<
                   <Avatar
                     className={cn(
                       "size-6 rounded-sm after:rounded-sm",
-                      candidate.targetType === "all" ? "bg-teal-500" : "bg-muted",
+                      candidate.targetType === "all" ? "bg-primary" : "bg-muted",
                     )}
                     data-size="sm"
                   >

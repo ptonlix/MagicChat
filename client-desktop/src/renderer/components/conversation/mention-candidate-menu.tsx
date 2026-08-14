@@ -51,7 +51,7 @@ export function MentionCandidateMenu({
         >
           <Avatar className="size-6 rounded-sm after:rounded-sm" data-size="sm">
             {candidate.targetType === "all" ? (
-              <AvatarFallback className="rounded-sm bg-teal-500 text-background">
+              <AvatarFallback className="rounded-sm bg-primary text-primary-foreground">
                 <UsersRound className="size-3.5" />
               </AvatarFallback>
             ) : candidate.avatar ? (

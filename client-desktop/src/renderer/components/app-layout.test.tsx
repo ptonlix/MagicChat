@@ -89,6 +89,18 @@ describe("AppLayout", () => {
     expect(appRail).toHaveClass("app-navigation-rail")
   })
 
+  it("导航图标使用与侧栏一致的原生中文提示", () => {
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole("link", { name: "聊天" })).toHaveAttribute("title", "聊天")
+    expect(screen.getByRole("link", { name: "通讯录" })).toHaveAttribute("title", "通讯录")
+    expect(screen.getByRole("link", { name: "项目" })).toHaveAttribute("title", "项目")
+  })
+
   it("renders the desktop update action in the sidebar footer", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>

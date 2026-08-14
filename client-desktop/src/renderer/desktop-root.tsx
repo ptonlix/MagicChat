@@ -13,9 +13,9 @@ import {
   CircleHelp,
   Download,
   LockKeyhole,
-  Maximize2,
   MessageCircleMore,
   Minus,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -141,29 +141,41 @@ function MacWindowControls() {
       <button
         aria-label="关闭窗口"
         className="desktop-mac-window-control desktop-mac-window-control-close"
-        onClick={() => void window.desktop.windowControls.close()}
+        onClick={(event) => {
+          event.stopPropagation()
+          void window.desktop.windowControls.close()
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
         title="关闭窗口"
         type="button"
       >
-        <X aria-hidden="true" size={9} strokeWidth={2.5} />
+        <X aria-hidden="true" size={8} strokeWidth={3} />
       </button>
       <button
         aria-label="最小化窗口"
         className="desktop-mac-window-control desktop-mac-window-control-minimize"
-        onClick={() => void window.desktop.windowControls.minimize()}
+        onClick={(event) => {
+          event.stopPropagation()
+          void window.desktop.windowControls.minimize()
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
         title="最小化窗口"
         type="button"
       >
-        <Minus aria-hidden="true" size={9} strokeWidth={2.5} />
+        <Minus aria-hidden="true" size={8} strokeWidth={3} />
       </button>
       <button
         aria-label="缩放窗口"
         className="desktop-mac-window-control desktop-mac-window-control-maximize"
-        onClick={() => void window.desktop.windowControls.toggleMaximize()}
+        onClick={(event) => {
+          event.stopPropagation()
+          void window.desktop.windowControls.toggleMaximize()
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
         title="缩放窗口"
         type="button"
       >
-        <Maximize2 aria-hidden="true" size={9} strokeWidth={2.5} />
+        <Plus aria-hidden="true" size={8} strokeWidth={3} />
       </button>
     </div>
   )
@@ -233,7 +245,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
   return (
     <>
       {loading ? (
-        <StatusPage text={t("startup.starting")} />
+        <StatusPage />
       ) : documentWindowRoute.kind === "invalid" ? (
         <DocumentWindowStartupError message={t(documentWindowRoute.messageKey)} />
       ) : selected ? (
@@ -800,7 +812,7 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
   )
 }
 
-function StatusPage({ detail, text }: { detail?: string; text: string }) {
+function StatusPage({ detail, text }: { detail?: string; text?: string }) {
   const { t } = useLocale()
   return <BrandLoadingScreen detail={detail ?? t("setup.preparingWorkspace")} message={text} />
 }

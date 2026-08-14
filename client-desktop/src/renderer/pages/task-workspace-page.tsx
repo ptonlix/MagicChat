@@ -273,7 +273,7 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
                 aria-label={t("taskWorkspace.switchProject")}
                 className="h-10 w-full border-0 shadow-none"
               >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-teal-500/15 text-teal-700 dark:text-teal-300">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary">
                   <Building2 className="size-4" />
                 </span>
                 <SelectValue
@@ -419,7 +419,7 @@ function WorkspaceTaskItem({
       aria-current={active ? "page" : undefined}
       className={cn(
         "grid w-full gap-1.5 rounded-md px-3 py-2.5 text-left outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-        active && "bg-teal-100 hover:bg-teal-100 dark:bg-teal-900 dark:hover:bg-teal-900",
+        active && "bg-primary/10 hover:bg-primary/10 dark:bg-primary/15 dark:hover:bg-primary/15",
       )}
       onClick={onClick}
       type="button"

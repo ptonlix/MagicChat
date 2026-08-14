@@ -272,7 +272,7 @@
   line-height: 1.45;
 }
 
-.settings-row select,
+.settings-row .settings-select-trigger,
 .settings-row input:not([type="checkbox"]) {
   background: var(--background);
   border: 1px solid var(--input);
@@ -286,7 +286,7 @@
   width: min(220px, 100%);
 }
 
-.settings-row select {
+.settings-row .settings-select-trigger {
   justify-self: end;
 }
 
@@ -363,6 +363,7 @@
     .settings-center-close,
     .settings-center-icon-button,
     .settings-release-link,
+    [data-slot="select-trigger"],
     .send-message-shortcut-select,
     .shortcut-recorder-input
   ) {
@@ -431,54 +432,29 @@
   padding: 13px 0;
 }
 
-.settings-appearance-select {
+.settings-appearance-row .settings-select-trigger {
+  appearance: none;
+  background: var(--background);
+  border-color: var(--input);
+  font-size: 13px;
+  font-weight: 600;
   grid-column: 2;
   justify-self: end;
-  position: relative;
   width: 180px;
 }
 
-.settings-appearance-select select {
-  appearance: none;
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: 8px;
-  color: var(--foreground);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+.settings-appearance-row .settings-select-trigger[data-size="default"] {
   height: 42px;
-  padding: 0 46px 0 14px;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
-  width: 100%;
 }
 
-.settings-appearance-select select:hover {
+.settings-select-trigger:hover {
   border-color: color-mix(in oklch, var(--primary) 48%, var(--input));
 }
 
-.settings-center .settings-appearance-select select:focus-visible {
+.settings-center .settings-select-trigger:focus-visible {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 22%, transparent);
   outline: none;
-}
-
-.settings-appearance-select-icon {
-  align-items: center;
-  background: var(--primary);
-  border-radius: 6px;
-  color: var(--primary-foreground);
-  display: flex;
-  height: 34px;
-  justify-content: center;
-  pointer-events: none;
-  position: absolute;
-  right: 4px;
-  top: 4px;
-  width: 34px;
 }
 
 .settings-about-brand {
@@ -700,7 +676,7 @@
     gap: 12px;
   }
 
-  .settings-row select,
+  .settings-row .settings-select-trigger,
   .settings-row input[type="checkbox"],
   .settings-secondary-button,
   .shortcut-recorder {
@@ -719,7 +695,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .settings-center-nav-item,
-  .settings-appearance-select select,
+  .settings-select-trigger,
   .settings-row input[type="checkbox"],
   .settings-row input[type="checkbox"]::after {
     transition: none;
