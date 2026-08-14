@@ -167,8 +167,8 @@ export type ClientDataContextValue = {
     announcement: string,
   ) => Promise<ClientConversation>
   refreshConversations: () => Promise<void>
-  refreshContacts: () => Promise<void>
-  refreshFriendRequests?: () => Promise<void>
+  refreshContacts: () => Promise<ContactDirectoryMode>
+  refreshFriendData: (options?: { includeContacts?: boolean }) => Promise<void>
   refreshMe: () => Promise<void>
   refreshProjects: () => Promise<void>
   loadMoreProjects: () => Promise<void>

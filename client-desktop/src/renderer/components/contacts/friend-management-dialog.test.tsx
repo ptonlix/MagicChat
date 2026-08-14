@@ -16,7 +16,58 @@ vi.mock("@/lib/client-data-api", async (importOriginal) => ({
 describe("FriendManagementDialog", () => {
   beforeEach(() => friendApiMocks.searchContactUsers.mockReset())
 
-  it("handles incoming, outgoing, and established relationships", async () => {
+  it("仅保留搜索控件，不显示额外说明或空搜索提示", () => {
+    renderDialog()
+
+    expect(screen.getByRole("searchbox", { name: "精确查找用户" })).toBeInTheDocument()
+    expect(
+      screen.queryByText("使用完整邮箱、手机号或用户 ID 精确查找用户。"),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText("输入完整信息查找用户")).not.toBeInTheDocument()
+  })
+
+  it("按更新时间合并申请历史并显示方向和终态", () => {
+    const alice = createUser("user-1", "Alice")
+    const bob = createUser("user-2", "Bob")
+    const carol = createUser("user-3", "Carol")
+    const dave = createUser("user-4", "Dave")
+
+    renderDialog({
+      currentUserId: alice.id,
+      incomingRequests: [
+        createRequest("request-in-pending", bob.id, alice.id, "pending", "2026-08-12T10:00:00Z"),
+        createRequest(
+          "request-in-accepted",
+          carol.id,
+          alice.id,
+          "accepted",
+          "2026-08-10T10:00:00Z",
+        ),
+      ],
+      outgoingRequests: [
+        createRequest(
+          "request-out-rejected",
+          alice.id,
+          dave.id,
+          "rejected",
+          "2026-08-11T10:00:00Z",
+        ),
+      ],
+      usersById: { [alice.id]: alice, [bob.id]: bob, [carol.id]: carol, [dave.id]: dave },
+    })
+
+    const history = screen.getByRole("region", { name: "申请记录" })
+    const content = history.textContent ?? ""
+    expect(content.indexOf("Bob")).toBeLessThan(content.indexOf("Dave"))
+    expect(content.indexOf("Dave")).toBeLessThan(content.indexOf("Carol"))
+    expect(within(history).getAllByText("请求添加你为好友")).toHaveLength(2)
+    expect(within(history).getByText("你发出了好友申请")).toBeInTheDocument()
+    expect(within(history).getByText("待处理")).toBeInTheDocument()
+    expect(within(history).getByText("已拒绝")).toBeInTheDocument()
+    expect(within(history).getByText("已接受")).toBeInTheDocument()
+  })
+
+  it("只对待处理的对应方向申请提供操作", async () => {
     const user = userEvent.setup()
     const alice = createUser("user-1", "Alice")
     const bob = createUser("user-2", "Bob")
@@ -24,118 +75,122 @@ describe("FriendManagementDialog", () => {
     const dave = createUser("user-4", "Dave")
     const acceptRequest = vi.fn().mockResolvedValue(undefined)
     const cancelRequest = vi.fn().mockResolvedValue(undefined)
-    const deleteFriend = vi.fn().mockResolvedValue(undefined)
     const rejectRequest = vi.fn().mockResolvedValue(undefined)
 
     renderDialog({
       acceptRequest,
       cancelRequest,
-      contacts: [alice, bob],
       currentUserId: alice.id,
-      deleteFriend,
-      incomingRequests: [createRequest("request-in", carol.id, alice.id)],
-      outgoingRequests: [createRequest("request-out", alice.id, dave.id)],
+      incomingRequests: [
+        createRequest("request-in", bob.id, alice.id, "pending", "2026-08-12T10:00:00Z"),
+        createRequest("request-done", carol.id, alice.id, "accepted", "2026-08-10T10:00:00Z"),
+      ],
+      outgoingRequests: [
+        createRequest("request-out", alice.id, dave.id, "pending", "2026-08-11T10:00:00Z"),
+      ],
       rejectRequest,
       usersById: { [alice.id]: alice, [bob.id]: bob, [carol.id]: carol, [dave.id]: dave },
     })
 
-    await user.click(screen.getByRole("button", { name: "删除" }))
-    expect(deleteFriend).not.toHaveBeenCalled()
-    const confirmation = screen.getByRole("alertdialog", { name: "删除好友" })
-    await user.click(screen.getByRole("button", { name: "取消" }))
-    expect(confirmation).not.toBeInTheDocument()
-    expect(deleteFriend).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole("button", { name: "删除" }))
-    await user.click(
-      within(screen.getByRole("alertdialog", { name: "删除好友" })).getByRole("button", {
-        name: "删除",
-      }),
-    )
-    await waitFor(() => expect(deleteFriend).toHaveBeenCalledWith(bob.id))
-    expect(screen.queryByRole("alertdialog", { name: "删除好友" })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole("tab", { name: /收到/ }))
     await user.click(screen.getByRole("button", { name: "接受" }))
-    expect(acceptRequest).toHaveBeenCalledWith("request-in")
+    await waitFor(() => expect(acceptRequest).toHaveBeenCalledWith("request-in"))
     await user.click(screen.getByRole("button", { name: "拒绝" }))
-    expect(rejectRequest).toHaveBeenCalledWith("request-in")
-
-    await user.click(screen.getByRole("tab", { name: /发出/ }))
+    await waitFor(() => expect(rejectRequest).toHaveBeenCalledWith("request-in"))
     await user.click(screen.getByRole("button", { name: "取消申请" }))
-    expect(cancelRequest).toHaveBeenCalledWith("request-out")
+    await waitFor(() => expect(cancelRequest).toHaveBeenCalledWith("request-out"))
+    expect(screen.queryByText("Carol")).toBeInTheDocument()
   })
 
-  it("resolves exact search results, excludes self, and creates a request", async () => {
+  it("精确搜索隐藏本人，并只将好友和 pending 关系禁用", async () => {
     const user = userEvent.setup()
     const alice = createUser("user-1", "Alice")
+    const bob = createUser("user-2", "Bob")
+    const carol = createUser("user-3", "Carol")
     const dave = createUser("user-4", "Dave")
     const ensureUsers = vi.fn().mockResolvedValue(undefined)
     const createRequest = vi.fn().mockResolvedValue(undefined)
-    friendApiMocks.searchContactUsers.mockResolvedValue([alice.id, dave.id])
+    friendApiMocks.searchContactUsers.mockResolvedValue([alice.id, bob.id, carol.id, dave.id])
 
     renderDialog({
-      contacts: [alice],
+      contacts: [alice, bob],
       createRequest,
       currentUserId: alice.id,
       ensureUsers,
-      usersById: { [alice.id]: alice, [dave.id]: dave },
+      incomingRequests: [
+        createRequestData("request-in", carol.id, alice.id, "pending", "2026-08-12T10:00:00Z"),
+      ],
+      outgoingRequests: [
+        createRequestData("request-out", alice.id, dave.id, "canceled", "2026-08-11T10:00:00Z"),
+      ],
+      usersById: { [alice.id]: alice, [bob.id]: bob, [carol.id]: carol, [dave.id]: dave },
     })
 
-    await user.click(screen.getByRole("tab", { name: "添加" }))
-    await user.type(screen.getByRole("textbox", { name: "精确查找用户" }), "dave@example.com")
+    await user.type(screen.getByRole("searchbox", { name: "精确查找用户" }), "dave@example.com")
     await user.click(screen.getByRole("button", { name: "查找" }))
 
     await waitFor(() =>
       expect(friendApiMocks.searchContactUsers).toHaveBeenCalledWith("dave@example.com"),
     )
-    expect(ensureUsers).toHaveBeenCalledWith([alice.id, dave.id])
+    expect(ensureUsers).toHaveBeenCalledWith([alice.id, bob.id, carol.id, dave.id])
     expect(screen.queryByText("Alice")).not.toBeInTheDocument()
-
-    await user.click(await screen.findByRole("button", { name: "添加好友" }))
-    expect(createRequest).toHaveBeenCalledWith(dave.id)
+    expect(screen.getByRole("button", { name: "已是好友" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "申请处理中" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "添加好友" }))
+    await waitFor(() => expect(createRequest).toHaveBeenCalledWith(dave.id))
   })
 
-  it("opens a searched non-friend profile", async () => {
-    const user = userEvent.setup()
-    const alice = createUser("user-1", "Alice")
-    const dave = createUser("user-4", "Dave")
-    const onSelectUser = vi.fn()
-    friendApiMocks.searchContactUsers.mockResolvedValue([dave.id])
-
-    renderDialog({
-      contacts: [alice],
-      currentUserId: alice.id,
-      onSelectUser,
-      usersById: { [alice.id]: alice, [dave.id]: dave },
-    })
-
-    await user.click(screen.getByRole("tab", { name: "添加" }))
-    await user.type(screen.getByRole("textbox", { name: "精确查找用户" }), "dave@example.com")
-    await user.click(screen.getByRole("button", { name: "查找" }))
-    await user.click(await screen.findByRole("button", { name: "查看资料" }))
-
-    expect(onSelectUser).toHaveBeenCalledWith(dave.id)
-  })
-
-  it("keeps the deletion confirmation open when removing a friend fails", async () => {
+  it("支持键盘提交精确搜索，并以可访问错误呈现搜索失败", async () => {
     const user = userEvent.setup()
     const alice = createUser("user-1", "Alice")
     const bob = createUser("user-2", "Bob")
-    const deleteFriend = vi.fn().mockRejectedValue(new Error("删除失败"))
+    friendApiMocks.searchContactUsers.mockResolvedValueOnce([bob.id])
+
+    const view = renderDialog({
+      currentUserId: alice.id,
+      ensureUsers: vi.fn().mockResolvedValue(undefined),
+      usersById: { [alice.id]: alice, [bob.id]: bob },
+    })
+    const searchbox = screen.getByRole("searchbox", { name: "精确查找用户" })
+    searchbox.focus()
+    expect(searchbox).toHaveFocus()
+    await user.type(searchbox, "bob@example.com")
+    await user.keyboard("{Enter}")
+    await waitFor(() => expect(friendApiMocks.searchContactUsers).toHaveBeenCalledOnce())
+    expect(screen.getByText("Bob")).toBeInTheDocument()
+
+    view.unmount()
+    friendApiMocks.searchContactUsers.mockRejectedValueOnce(new Error("查询服务暂不可用"))
+    renderDialog()
+    const failedSearchbox = screen.getByRole("searchbox", { name: "精确查找用户" })
+    failedSearchbox.focus()
+    await user.type(failedSearchbox, "bob@example.com")
+    await user.keyboard("{Enter}")
+    expect(await screen.findByRole("alert")).toHaveTextContent("查找用户失败")
+  })
+
+  it("失败后恢复待处理操作，且不保留旧入口", async () => {
+    const user = userEvent.setup()
+    const alice = createUser("user-1", "Alice")
+    const bob = createUser("user-2", "Bob")
+    const rejectRequest = vi.fn().mockRejectedValue(new Error("请求失败"))
 
     renderDialog({
-      contacts: [alice, bob],
       currentUserId: alice.id,
-      deleteFriend,
+      incomingRequests: [
+        createRequest("request-in", bob.id, alice.id, "pending", "2026-08-12T10:00:00Z"),
+      ],
+      rejectRequest,
+      usersById: { [alice.id]: alice, [bob.id]: bob },
     })
 
-    await user.click(screen.getByRole("button", { name: "删除" }))
-    const confirmation = screen.getByRole("alertdialog", { name: "删除好友" })
-    await user.click(within(confirmation).getByRole("button", { name: "删除" }))
-
-    await waitFor(() => expect(deleteFriend).toHaveBeenCalledWith(bob.id))
-    expect(confirmation).toBeInTheDocument()
+    const rejectButton = screen.getByRole("button", { name: "拒绝" })
+    await user.click(rejectButton)
+    await waitFor(() => expect(rejectRequest).toHaveBeenCalledWith("request-in"))
+    expect(rejectButton).toBeEnabled()
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "删除" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "查看资料" })).not.toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toHaveClass("max-h-[calc(100svh-2rem)]")
   })
 })
 
@@ -147,7 +202,6 @@ function renderDialog(props: Partial<ComponentProps<typeof FriendManagementDialo
       contacts={[]}
       createRequest={vi.fn().mockResolvedValue(undefined)}
       currentUserId="user-1"
-      deleteFriend={vi.fn().mockResolvedValue(undefined)}
       ensureUsers={vi.fn().mockResolvedValue(undefined)}
       incomingRequests={[]}
       onOpenChange={vi.fn()}
@@ -178,14 +232,26 @@ function createRequest(
   id: string,
   requesterUserId: string,
   addresseeUserId: string,
+  status: FriendRequest["status"],
+  updatedAt: string,
+) {
+  return createRequestData(id, requesterUserId, addresseeUserId, status, updatedAt)
+}
+
+function createRequestData(
+  id: string,
+  requesterUserId: string,
+  addresseeUserId: string,
+  status: FriendRequest["status"],
+  updatedAt: string,
 ): FriendRequest {
   return {
     addresseeUserId,
-    createdAt: "2026-08-11T00:00:00Z",
-    handledAt: null,
+    createdAt: updatedAt,
+    handledAt: status === "pending" ? null : updatedAt,
     id,
     requesterUserId,
-    status: "pending",
-    updatedAt: "2026-08-11T00:00:00Z",
+    status,
+    updatedAt,
   }
 }

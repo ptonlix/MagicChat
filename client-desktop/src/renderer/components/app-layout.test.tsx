@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   clientData: {
     clearMessageScope: vi.fn(),
     conversations: [] as Array<{ unreadCount: number }>,
+    incomingFriendRequests: [] as Array<{
+      status: "accepted" | "canceled" | "pending" | "rejected"
+    }>,
     me: {
       avatar: "",
       createdAt: "2026-07-09T00:00:00Z",
@@ -36,6 +39,7 @@ const mocks = vi.hoisted(() => ({
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.clientData.conversations = []
+  mocks.clientData.incomingFriendRequests = []
 })
 
 vi.mock("@/lib/client-data-context", () => ({
@@ -125,6 +129,19 @@ describe("AppLayout", () => {
     for (const control of leftRailControls) {
       expect(control.querySelector("svg")).toHaveClass("size-5")
     }
+  })
+
+  it("仅按入站 pending 申请显示通讯录提醒，不影响聊天未读标签", () => {
+    mocks.clientData.incomingFriendRequests = [{ status: "pending" }, { status: "accepted" }]
+
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole("link", { name: "通讯录，有待处理的新朋友申请" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "聊天" })).toBeInTheDocument()
   })
 
   it("renders the desktop update action in the sidebar footer", () => {

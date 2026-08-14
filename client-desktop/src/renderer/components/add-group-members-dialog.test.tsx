@@ -180,6 +180,7 @@ function createClientDataContextValue(
     restoreConversation: vi.fn(),
     refreshContacts: vi.fn(),
     refreshConversations: vi.fn(),
+    refreshFriendData: vi.fn(),
     refreshMe: vi.fn(),
     refreshProjects: vi.fn(),
     removeConversation: vi.fn(),

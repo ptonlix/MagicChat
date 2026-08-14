@@ -101,7 +101,7 @@ describe("ContactDirectorySidebar", () => {
     expect(organizationTrigger).toBeInTheDocument()
   })
 
-  it("shows friend-specific labels and management only in friends mode", async () => {
+  it("仅在 friends 模式显示新朋友入口、待处理徽标和手动刷新", async () => {
     const onOpenFriendManagement = vi.fn()
     const props = createSidebarProps({
       contacts: [
@@ -118,6 +118,7 @@ describe("ContactDirectorySidebar", () => {
         },
       ],
       directoryMode: "friends",
+      incomingPendingFriendRequestCount: 101,
       onOpenFriendManagement,
     })
     const user = userEvent.setup()
@@ -128,9 +129,13 @@ describe("ContactDirectorySidebar", () => {
     )
 
     expect(screen.getByRole("heading", { name: "我的好友" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "好友管理" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "新朋友，101 条待处理申请" })).toBeInTheDocument()
+    const pendingFriendRequestBadge = screen.getByText("99+")
+    expect(pendingFriendRequestBadge).toHaveAttribute("data-variant", "destructive")
+    expect(pendingFriendRequestBadge).toHaveClass("bg-red-500")
+    expect(screen.getByRole("button", { name: "刷新" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "我的好友" })).toHaveTextContent("我的好友1")
-    await user.click(screen.getByRole("button", { name: "好友管理" }))
+    await user.click(screen.getByRole("button", { name: "新朋友，101 条待处理申请" }))
     expect(onOpenFriendManagement).toHaveBeenCalledOnce()
 
     view.rerender(
@@ -138,7 +143,7 @@ describe("ContactDirectorySidebar", () => {
         <ContactDirectorySidebar {...props} directoryMode="organization" />
       </SidebarProvider>,
     )
-    expect(screen.queryByRole("button", { name: "好友管理" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /新朋友/ })).not.toBeInTheDocument()
   })
 
   it("creates an application and shows its access information", async () => {

@@ -453,6 +453,72 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("contact-ids")).toHaveTextContent("new-user")
   })
 
+  it("在通讯录响应切换到 friends 模式后加载待处理申请", async () => {
+    vi.useFakeTimers()
+    let contactsRequestCount = 0
+    let incomingRequestCount = 0
+    let outgoingRequestCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/client/me") {
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      }
+      if (url === "/api/client/contacts") {
+        contactsRequestCount += 1
+        return Promise.resolve(
+          jsonResponse(
+            contactsRequestCount === 1
+              ? createContactsResponse()
+              : createFriendsContactsResponse([]),
+          ),
+        )
+      }
+      if (url === "/api/client/friend-requests?direction=incoming") {
+        incomingRequestCount += 1
+        return Promise.resolve(jsonResponse(createFriendRequestsResponse(["request-incoming"])))
+      }
+      if (url === "/api/client/friend-requests?direction=outgoing") {
+        outgoingRequestCount += 1
+        return Promise.resolve(jsonResponse(createFriendRequestsResponse([])))
+      }
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(jsonResponse(createConversationsResponse([])))
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/users/resolve") {
+        return Promise.resolve(jsonResponse({ data: { users: [] }, success: true }))
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <FriendDataRefreshProbe />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(screen.getByTestId("contact-directory-mode")).toHaveTextContent("organization")
+    expect(incomingRequestCount).toBe(0)
+    expect(outgoingRequestCount).toBe(0)
+
+    await act(async () => {
+      screen.getByRole("button", { name: "refresh friend data" }).click()
+    })
+
+    expect(screen.getByTestId("contact-directory-mode")).toHaveTextContent("friends")
+    expect(screen.getByTestId("incoming-request-ids")).toHaveTextContent("request-incoming")
+    expect(incomingRequestCount).toBe(1)
+    expect(outgoingRequestCount).toBe(1)
+  })
+
   it("keeps the newest friend requests when concurrent refreshes resolve out of order", async () => {
     vi.useFakeTimers()
     const olderIncoming = createDeferred<Response>()
@@ -609,6 +675,7 @@ describe("ClientDataProvider", () => {
   it.each([
     ["reject", "/api/client/friend-requests/request-1/reject"],
     ["cancel", "/api/client/friend-requests/request-1"],
+    ["delete", "/api/client/friends/friend-user"],
   ] as const)(
     "refreshes friend data after a successful %s mutation",
     async (action, mutationUrl) => {
@@ -633,7 +700,10 @@ describe("ClientDataProvider", () => {
           outgoingRequestCount += 1
           return Promise.resolve(jsonResponse(createFriendRequestsResponse([])))
         }
-        if (url === mutationUrl && init?.method === (action === "cancel" ? "DELETE" : "POST")) {
+        if (
+          url === mutationUrl &&
+          init?.method === (action === "cancel" || action === "delete" ? "DELETE" : "POST")
+        ) {
           return Promise.resolve(
             jsonResponse({ data: createFriendRequestResponse(), success: true }),
           )
@@ -1800,15 +1870,33 @@ function ContactRefreshRaceProbe() {
 }
 
 function FriendRequestRefreshRaceProbe() {
-  const { incomingFriendRequests = [], refreshFriendRequests } = useClientData()
+  const { incomingFriendRequests = [], refreshFriendData } = useClientData()
 
   return (
     <>
       <button
         aria-label="refresh friend requests"
-        onClick={() => void refreshFriendRequests?.()}
+        onClick={() => void refreshFriendData({ includeContacts: false })}
         type="button"
       />
+      <div data-testid="incoming-request-ids">
+        {incomingFriendRequests.map((request) => request.id).join(",")}
+      </div>
+    </>
+  )
+}
+
+function FriendDataRefreshProbe() {
+  const { contactDirectoryMode, incomingFriendRequests = [], refreshFriendData } = useClientData()
+
+  return (
+    <>
+      <button
+        aria-label="refresh friend data"
+        onClick={() => void refreshFriendData()}
+        type="button"
+      />
+      <div data-testid="contact-directory-mode">{contactDirectoryMode}</div>
       <div data-testid="incoming-request-ids">
         {incomingFriendRequests.map((request) => request.id).join(",")}
       </div>

@@ -116,6 +116,54 @@ describe("ForwardMessageDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it("将好友授权失败保留在对应转发目标，不影响其他成功目标", async () => {
+    const user = userEvent.setup()
+    const onForward = vi.fn().mockResolvedValue({
+      failedCount: 1,
+      results: [
+        {
+          conversationId: "conversation-1",
+          messages: [],
+          status: "sent" as const,
+        },
+        {
+          conversationId: "conversation-2",
+          error: {
+            code: "direct_friendship_required",
+            message: "仅支持向好友发送私信",
+          },
+          messages: [],
+          status: "failed" as const,
+        },
+      ],
+      sentCount: 1,
+    })
+
+    render(
+      <ForwardMessageDialog
+        conversations={[
+          createConversation("conversation-1", "产品群", "group"),
+          createConversation("conversation-2", "旧私聊", "direct"),
+        ]}
+        messageCount={1}
+        onComplete={vi.fn()}
+        onForward={onForward}
+        onOpenChange={vi.fn()}
+        open
+      />,
+    )
+
+    await user.click(screen.getByRole("checkbox", { name: "产品群" }))
+    await user.click(screen.getByRole("checkbox", { name: "旧私聊" }))
+    await user.click(screen.getByRole("button", { name: "转发（2）" }))
+
+    await waitFor(() => expect(onForward).toHaveBeenCalledOnce())
+    expect(screen.getByText("仅支持向好友发送私信")).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "产品群" })).toBeDisabled()
+    expect(screen.getByRole("checkbox", { name: "旧私聊" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "转发（1）" })).toBeInTheDocument()
+  })
+
   it("cannot close while forwarding is in progress", async () => {
     const user = userEvent.setup()
     const deferred = createDeferred<ForwardConversationMessagesResult>()

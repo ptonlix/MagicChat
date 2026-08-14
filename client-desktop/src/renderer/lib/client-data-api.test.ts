@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   addGroupConversationMembers,
   ClientDataRequestError,
+  createDirectConversation,
   createGroupConversation,
   createFriendRequest,
   deleteFriend,
@@ -23,6 +24,7 @@ import {
   sendConversationCardMessage,
   sendConversationEntityCardMessage,
   sendConversationTextMessage,
+  sendConversationVoiceMessage,
   restoreConversation,
   resolveClientUsers,
   searchContactUsers,
@@ -31,6 +33,95 @@ import {
 } from "@/lib/client-data-api"
 
 describe("client data API", () => {
+  it("保留一对一会话的好友授权失败错误信封并允许重试", async () => {
+    const fetcher = vi.fn(() => Promise.resolve(directFriendshipRequiredResponse()))
+
+    await expect(createDirectConversation("user-2", fetcher)).rejects.toMatchObject({
+      code: "direct_friendship_required",
+      message: "仅支持向好友发送私信",
+      status: 403,
+    })
+    await expect(createDirectConversation("user-2", fetcher)).rejects.toMatchObject({
+      code: "direct_friendship_required",
+      message: "仅支持向好友发送私信",
+      status: 403,
+    })
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/direct",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+
+  it("为全部消息发送路径保留好友授权失败错误信封", async () => {
+    const fetcher = vi.fn(() => Promise.resolve(directFriendshipRequiredResponse()))
+    const conversationId = "conversation-1"
+    const operations = [
+      sendConversationTextMessage(
+        conversationId,
+        { clientMessageId: "text-1", content: "文本" },
+        fetcher,
+      ),
+      sendConversationMarkdownMessage(
+        conversationId,
+        { clientMessageId: "markdown-1", content: "**富文本**" },
+        fetcher,
+      ),
+      sendConversationLinkMessage(
+        conversationId,
+        { clientMessageId: "link-1", url: "https://example.com" },
+        fetcher,
+      ),
+      sendConversationCardMessage(
+        conversationId,
+        {
+          clientMessageId: "card-1",
+          description: "描述",
+          title: "标题",
+          url: "/projects/project-1",
+        },
+        fetcher,
+      ),
+      sendConversationFileMessage(
+        conversationId,
+        {
+          clientMessageId: "file-1",
+          file: new File(["file"], "report.txt", { type: "text/plain" }),
+        },
+        fetcher,
+      ),
+      sendConversationImageMessage(
+        conversationId,
+        {
+          clientMessageId: "image-1",
+          image: new File(["image"], "photo.webp", { type: "image/webp" }),
+        },
+        fetcher,
+      ),
+      sendConversationVoiceMessage(
+        conversationId,
+        {
+          clientMessageId: "voice-1",
+          durationMS: 1_000,
+          transcript: "语音",
+          voice: new Blob(["voice"], { type: "audio/webm" }),
+        },
+        fetcher,
+      ),
+    ]
+
+    for (const operation of operations) {
+      await expect(operation).rejects.toMatchObject({
+        code: "direct_friendship_required",
+        message: "仅支持向好友发送私信",
+        status: 403,
+      })
+    }
+
+    expect(fetcher).toHaveBeenCalledTimes(7)
+  })
+
   it("validates choice notification sequence numbers", () => {
     expect(
       normalizeConversationMemberChoiceReceivedEventPayload({
@@ -307,12 +398,6 @@ describe("client data API", () => {
         ),
       )
       .mockResolvedValueOnce(friendRequestResponse("request/一"))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ success: true, data: {} }), {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        }),
-      )
 
     await expect(
       searchContactUsers("alice@example.com", fetcher, controller.signal),
@@ -324,12 +409,23 @@ describe("client data API", () => {
     )
     await createFriendRequest("user/一", fetcher)
     expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toEqual({ user_id: "user/一" })
-    await deleteFriend("user/一", fetcher)
-    expect(fetcher).toHaveBeenLastCalledWith("/api/client/friends/user%2F%E4%B8%80", {
+    expect(() => createFriendRequest(" ", fetcher)).toThrow("好友标识格式不正确")
+  })
+
+  it("保留与 Web 对等的删除好友受控 API", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: { user_id: "user/一" } }), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      }),
+    )
+
+    await expect(deleteFriend("user/一", fetcher)).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenCalledWith("/api/client/friends/user%2F%E4%B8%80", {
       credentials: "include",
       method: "DELETE",
     })
-    expect(() => createFriendRequest(" ", fetcher)).toThrow("好友标识格式不正确")
+    await expect(deleteFriend(" ", fetcher)).rejects.toThrow("好友标识格式不正确")
   })
 
   it("maps friend request envelopes and Server failures", async () => {
@@ -1585,4 +1681,20 @@ function friendRequestResponse(id: string) {
     headers: { "content-type": "application/json" },
     status: 200,
   })
+}
+
+function directFriendshipRequiredResponse() {
+  return new Response(
+    JSON.stringify({
+      error: {
+        code: "direct_friendship_required",
+        message: "仅支持向好友发送私信",
+      },
+      success: false,
+    }),
+    {
+      headers: { "content-type": "application/json" },
+      status: 403,
+    },
+  )
 }

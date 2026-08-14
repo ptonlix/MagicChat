@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { MESSAGE_CACHE_LIMITS } from "@shared/message-cache-contract"
 import {
   parseMessageCacheCommit,
@@ -13,6 +13,10 @@ const scope = {
 }
 
 describe("消息缓存 IPC 输入校验", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it("原子拒绝混合会话、畸形 JSON 和重复 seq", () => {
     expect(() =>
       parseMessageCacheRecords(
@@ -75,6 +79,23 @@ describe("消息缓存 IPC 输入校验", () => {
         scope,
       ).generation,
     ).toEqual({ conversation: 0, global: 0, server: 0, user: 0 })
+  })
+
+  it("开发环境允许本地 HTTP 服务端，仍拒绝远程 HTTP 服务端", () => {
+    vi.stubEnv("NODE_ENV", "development")
+
+    expect(
+      parseMessageCacheScope({
+        ...scope,
+        target: { ...scope.target, normalizedUrl: "http://localhost:20080" },
+      }),
+    ).toMatchObject({ target: { normalizedUrl: "http://localhost:20080" } })
+    expect(() =>
+      parseMessageCacheScope({
+        ...scope,
+        target: { ...scope.target, normalizedUrl: "http://chat.example.com" },
+      }),
+    ).toThrow()
   })
 })
 

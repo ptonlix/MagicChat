@@ -20,7 +20,6 @@ import { FriendManagementDialog } from "@/components/contacts/friend-management-
 import {
   AppDetailPanel,
   ContactDetailPanel,
-  type ContactFriendAction,
   ContactEmptyState,
   GroupDetailPanel,
 } from "@/components/contacts/contact-detail-panels"
@@ -35,6 +34,7 @@ import {
 } from "@/lib/client-api/apps"
 import { useAppInfo } from "@/lib/app-info-context"
 import { useClientData, useClientUser } from "@/lib/client-data-context"
+import { getClientDataErrorMessage } from "@/lib/client-data-state"
 import { formatContactPhone } from "@/lib/contact-format"
 import { sortContactsByDisplayName } from "@/lib/contact-sort"
 import { cn } from "@/lib/utils"
@@ -56,14 +56,13 @@ export function ContactsPage() {
     acceptFriendRequest,
     rejectFriendRequest,
     cancelFriendRequest,
-    deleteFriend,
-    refreshFriendRequests,
     joinGroupConversation,
     me,
     openAppConversation,
     openDirectConversation,
     refreshContacts,
     refreshConversations,
+    refreshFriendData,
     restoreConversation,
   } = useClientData()
   const location = useLocation()
@@ -79,7 +78,7 @@ export function ContactsPage() {
   const routedUser = useClientUser(activeSelection?.type === "user" ? activeSelection.id : "")
   const [openingDirectoryItemKey, setOpeningDirectoryItemKey] = React.useState("")
   const [friendManagementOpen, setFriendManagementOpen] = React.useState(false)
-  const [friendActionKey, setFriendActionKey] = React.useState("")
+  const [updatingFriendUserId, setUpdatingFriendUserId] = React.useState("")
   const [appCredentials, setAppCredentials] = React.useState<ClientAppCredentials | null>(null)
   const [appProfile, setAppProfile] = React.useState<ClientOwnedApp | null>(null)
   const [loadingAccessInfoAppId, setLoadingAccessInfoAppId] = React.useState("")
@@ -139,6 +138,12 @@ export function ContactsPage() {
     activeSelection?.type === "user" && routedUser
       ? ({ contact: routedUser, type: "user" } as const)
       : resolveActiveDirectoryItem(activeSelection, contactApps, contacts, contactGroups)
+  const activeUserIsFriend =
+    activeItem?.type === "user" && contacts.some((contact) => contact.id === activeItem.contact.id)
+  const activeUserOutgoingRequest =
+    activeItem?.type === "user"
+      ? outgoingFriendRequests.find((request) => request.addresseeUserId === activeItem.contact.id)
+      : undefined
 
   React.useEffect(() => {
     if (contactDirectoryMode !== "friends") {
@@ -147,8 +152,24 @@ export function ContactsPage() {
   }, [contactDirectoryMode])
 
   React.useEffect(() => {
-    if (friendManagementOpen) void refreshFriendRequests?.().catch(() => undefined)
-  }, [friendManagementOpen, refreshFriendRequests])
+    if (friendManagementOpen) {
+      void refreshFriendData({ includeContacts: false }).catch(() => undefined)
+    }
+  }, [friendManagementOpen, refreshFriendData])
+
+  async function addFriend(contact: ContactUser) {
+    if (!createFriendRequest || updatingFriendUserId) return
+
+    setUpdatingFriendUserId(contact.id)
+    try {
+      await createFriendRequest(contact.id)
+      toast.success(t("friend.requestSent"))
+    } catch (error) {
+      toast.error(getClientDataErrorMessage(error, t("friend.requestFailed")))
+    } finally {
+      setUpdatingFriendUserId("")
+    }
+  }
 
   async function startDirectConversation(contact: ContactUser) {
     if (
@@ -165,8 +186,8 @@ export function ContactsPage() {
     try {
       const conversation = await openDirectConversation(contact.id)
       navigate(`/chat/${encodeURIComponent(conversation.id)}`)
-    } catch {
-      toast.error(t("contacts.privateChatFailed"))
+    } catch (error) {
+      toast.error(getClientDataErrorMessage(error, t("contacts.privateChatFailed")))
     } finally {
       setOpeningDirectoryItemKey((currentItemKey) =>
         currentItemKey === itemKey ? "" : currentItemKey,
@@ -257,112 +278,6 @@ export function ContactsPage() {
     navigate(getDirectorySelectionPath(selection))
   }
 
-  const getFriendAction = React.useCallback(
-    (contact: ContactUser): ContactFriendAction | undefined => {
-      if (contactDirectoryMode !== "friends" || contact.id === me.id) return undefined
-      const pending = (key: string) => friendActionKey === key
-      const run = async (
-        key: string,
-        action: () => Promise<void>,
-        successKey: Parameters<typeof t>[0],
-      ): Promise<boolean> => {
-        if (friendActionKey) return false
-        setFriendActionKey(key)
-        try {
-          await action()
-          toast.success(t(successKey))
-          return true
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : t("friend.actionFailed"))
-          return false
-        } finally {
-          setFriendActionKey("")
-        }
-      }
-      if (contacts.some((candidate) => candidate.id === contact.id)) {
-        return {
-          kind: "delete",
-          labelKey: "friend.delete",
-          onAction: () =>
-            run(
-              `delete:${contact.id}`,
-              () => deleteFriend?.(contact.id) ?? Promise.resolve(),
-              "friend.deleted",
-            ),
-          pending: pending(`delete:${contact.id}`),
-        }
-      }
-      const incoming = incomingFriendRequests.find(
-        (request) => request.requesterUserId === contact.id,
-      )
-      if (incoming) {
-        return {
-          kind: "accept",
-          labelKey: "friend.accept",
-          onAction: () =>
-            run(
-              `accept:${incoming.id}`,
-              () => acceptFriendRequest?.(incoming.id) ?? Promise.resolve(),
-              "friend.accepted",
-            ),
-          pending: pending(`accept:${incoming.id}`),
-          secondaryAction: {
-            kind: "reject",
-            labelKey: "friend.reject",
-            onAction: () =>
-              run(
-                `reject:${incoming.id}`,
-                () => rejectFriendRequest?.(incoming.id) ?? Promise.resolve(),
-                "friend.rejected",
-              ),
-            pending: pending(`reject:${incoming.id}`),
-          },
-        }
-      }
-      const outgoing = outgoingFriendRequests.find(
-        (request) => request.addresseeUserId === contact.id,
-      )
-      if (outgoing) {
-        return {
-          kind: "cancel",
-          labelKey: "friend.cancelRequest",
-          onAction: () =>
-            run(
-              `cancel:${outgoing.id}`,
-              () => cancelFriendRequest?.(outgoing.id) ?? Promise.resolve(),
-              "friend.requestCanceled",
-            ),
-          pending: pending(`cancel:${outgoing.id}`),
-        }
-      }
-      return {
-        kind: "add",
-        labelKey: "friend.add",
-        onAction: () =>
-          run(
-            `add:${contact.id}`,
-            () => createFriendRequest?.(contact.id) ?? Promise.resolve(),
-            "friend.requestSent",
-          ),
-        pending: pending(`add:${contact.id}`),
-      }
-    },
-    [
-      acceptFriendRequest,
-      cancelFriendRequest,
-      contactDirectoryMode,
-      contacts,
-      createFriendRequest,
-      deleteFriend,
-      friendActionKey,
-      incomingFriendRequests,
-      me.id,
-      outgoingFriendRequests,
-      rejectFriendRequest,
-      t,
-    ],
-  )
-
   return (
     <SidebarProvider
       className="min-h-0 min-w-0 flex-1"
@@ -383,6 +298,9 @@ export function ContactsPage() {
         contactsRefreshing={contactsRefreshing}
         currentUserId={me.id}
         groups={filteredGroups}
+        incomingPendingFriendRequestCount={
+          incomingFriendRequests.filter((request) => request.status === "pending").length
+        }
         organizationName={organizationName}
         onActiveTabChange={updateActiveTab}
         onKeywordChange={updateActiveKeyword}
@@ -446,13 +364,31 @@ export function ContactsPage() {
             />
           ) : activeItem?.type === "user" ? (
             <ContactDetailPanel
+              addFriendLabel={
+                contactDirectoryMode === "friends" &&
+                activeItem.contact.id !== me.id &&
+                !activeUserIsFriend &&
+                createFriendRequest
+                  ? activeUserOutgoingRequest
+                    ? t("friend.waiting")
+                    : t("friend.add")
+                  : undefined
+              }
+              addingFriend={updatingFriendUserId === activeItem.contact.id}
               contact={activeItem.contact}
               canStartConversation={
                 activeItem.contact.id !== me.id &&
-                (contactDirectoryMode !== "friends" ||
-                  contacts.some((contact) => contact.id === activeItem.contact.id))
+                (contactDirectoryMode !== "friends" || activeUserIsFriend)
               }
-              friendAction={getFriendAction(activeItem.contact)}
+              onAddFriend={
+                contactDirectoryMode === "friends" &&
+                activeItem.contact.id !== me.id &&
+                !activeUserIsFriend &&
+                !activeUserOutgoingRequest &&
+                createFriendRequest
+                  ? () => void addFriend(activeItem.contact)
+                  : undefined
+              }
               onStartConversation={() => void startDirectConversation(activeItem.contact)}
               startingConversation={
                 openingDirectoryItemKey === directoryItemKey("user", activeItem.contact.id)
@@ -481,22 +417,16 @@ export function ContactsPage() {
         createFriendRequest &&
         acceptFriendRequest &&
         rejectFriendRequest &&
-        cancelFriendRequest &&
-        deleteFriend && (
+        cancelFriendRequest && (
           <FriendManagementDialog
             acceptRequest={acceptFriendRequest}
             cancelRequest={cancelFriendRequest}
             contacts={contacts}
             createRequest={createFriendRequest}
             currentUserId={me.id}
-            deleteFriend={deleteFriend}
             ensureUsers={ensureUsers}
             incomingRequests={incomingFriendRequests}
             onOpenChange={setFriendManagementOpen}
-            onSelectUser={(userId) => {
-              setFriendManagementOpen(false)
-              navigate(`/contacts/user/${encodeURIComponent(userId)}`)
-            }}
             open={friendManagementOpen}
             outgoingRequests={outgoingFriendRequests}
             rejectRequest={rejectFriendRequest}

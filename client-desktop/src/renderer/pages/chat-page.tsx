@@ -39,6 +39,7 @@ import {
 import { CreateGroupConversationDialog } from "@/components/conversation/create-group-conversation-dialog"
 import { ForwardMessageDialog } from "@/components/conversation/forward-message-dialog"
 import { ConversationSidebar } from "@/components/conversation/conversation-sidebar"
+import { FriendManagementDialog } from "@/components/contacts/friend-management-dialog"
 import {
   TopicArchiveAction,
   TopicDrawer,
@@ -141,9 +142,12 @@ export function ChatPage() {
   const navigationIntentRef = React.useRef(0)
   const { conversationId } = useParams<{ conversationId?: string }>()
   const {
+    acceptFriendRequest,
+    cancelFriendRequest,
     contactApps,
     contactGroups,
     contacts,
+    createFriendRequest,
     usersById = {},
     conversations,
     consumeConversationMessageFocus,
@@ -151,6 +155,7 @@ export function ChatPage() {
     compactConversationMessages,
     dismissConversation,
     ensureConversationMessages,
+    ensureUsers,
     focusConversationMessage,
     getConversation,
     getConversationMessageState,
@@ -164,10 +169,12 @@ export function ChatPage() {
     restoreConversation,
     joinGroupConversation,
     refreshConversations,
+    refreshFriendData,
     registerConversationMessageView,
     replaceWithLatestMessages,
     respondToChoice,
     revokeConversationMessage,
+    rejectFriendRequest,
     sendConversationFile,
     sendConversationImage,
     sendConversationLink,
@@ -179,11 +186,14 @@ export function ChatPage() {
     setMessageReaction,
     setForegroundConversationId,
     updateMessageTopic,
+    incomingFriendRequests = [],
+    outgoingFriendRequests = [],
   } = useClientData()
   const { clearConversationDraft, drafts, flushDrafts, updateConversationDraft } =
     useConversationDrafts(me.id)
   const [richTextMode, setRichTextMode] = React.useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = React.useState(false)
+  const [friendManagementOpen, setFriendManagementOpen] = React.useState(false)
   const [forwardOperation, setForwardOperation] = React.useState<ForwardOperation | null>(null)
   const [createTopicOperation, setCreateTopicOperation] =
     React.useState<CreateTopicOperation | null>(null)
@@ -201,6 +211,11 @@ export function ChatPage() {
   const topicSourceChoiceRequestIdRef = React.useRef(0)
   const [topicSourceReaction, setTopicSourceReaction] =
     React.useState<TopicSourceReactionState | null>(null)
+  React.useEffect(() => {
+    if (friendManagementOpen) {
+      void refreshFriendData({ includeContacts: false }).catch(() => undefined)
+    }
+  }, [friendManagementOpen, refreshFriendData])
   React.useEffect(() => () => setForegroundConversationId?.(""), [setForegroundConversationId])
   const requestedConversationId = conversationId ?? ""
   React.useLayoutEffect(() => {
@@ -1099,6 +1114,7 @@ export function ChatPage() {
         conversations={conversations}
         currentUser={me}
         drafts={drafts}
+        onAddFriend={() => setFriendManagementOpen(true)}
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
         onDismissConversation={deleteConversation}
         onSelectDirectoryItem={(item) => void selectDirectoryItem(item)}
@@ -1176,6 +1192,26 @@ export function ChatPage() {
         onCreate={startGroupConversation}
         onOpenChange={setCreateGroupDialogOpen}
       />
+      {ensureUsers &&
+        createFriendRequest &&
+        acceptFriendRequest &&
+        rejectFriendRequest &&
+        cancelFriendRequest && (
+          <FriendManagementDialog
+            acceptRequest={acceptFriendRequest}
+            cancelRequest={cancelFriendRequest}
+            contacts={contacts}
+            createRequest={createFriendRequest}
+            currentUserId={me.id}
+            ensureUsers={ensureUsers}
+            incomingRequests={incomingFriendRequests}
+            onOpenChange={setFriendManagementOpen}
+            open={friendManagementOpen}
+            outgoingRequests={outgoingFriendRequests}
+            rejectRequest={rejectFriendRequest}
+            usersById={usersById}
+          />
+        )}
       <CreateTopicConfirmDialog
         onConfirm={() => void confirmCreateTopic()}
         onOpenChange={(open) => {

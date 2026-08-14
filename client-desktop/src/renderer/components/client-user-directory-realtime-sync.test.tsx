@@ -1,11 +1,9 @@
 import { act, render, waitFor } from "@testing-library/react"
-import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const callbacks = new Map<string, (payload: unknown) => void>()
 const invalidateUsers = vi.fn()
-const refreshContacts = vi.fn().mockResolvedValue(undefined)
-const refreshFriendRequests = vi.fn().mockResolvedValue(undefined)
+const refreshFriendData = vi.fn().mockResolvedValue(undefined)
 const updateUserPresence = vi.fn()
 let realtimeReady = false
 
@@ -22,8 +20,7 @@ vi.mock("@/lib/realtime-context", () => ({
 vi.mock("@/lib/client-data-context", () => ({
   useClientData: () => ({
     invalidateUsers: (...args: Parameters<typeof invalidateUsers>) => invalidateUsers(...args),
-    refreshContacts,
-    refreshFriendRequests,
+    refreshFriendData,
     updateUserPresence,
     usersById: {
       "user-1": {
@@ -47,18 +44,14 @@ describe("ClientUserDirectoryRealtimeSync", () => {
   beforeEach(() => {
     callbacks.clear()
     invalidateUsers.mockClear()
-    refreshContacts.mockClear()
-    refreshFriendRequests.mockClear()
+    refreshFriendData.mockReset()
+    refreshFriendData.mockResolvedValue(undefined)
     updateUserPresence.mockClear()
     realtimeReady = false
   })
 
-  it("refreshes only an already-cached profile and patches valid presence", () => {
-    render(
-      <MemoryRouter initialEntries={["/chat"]}>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
+  it("只失效已缓存的资料并更新有效在线状态", () => {
+    render(<ClientUserDirectoryRealtimeSync />)
 
     act(() => {
       callbacks.get("user.profile.updated")?.({
@@ -81,112 +74,103 @@ describe("ClientUserDirectoryRealtimeSync", () => {
     expect(updateUserPresence).toHaveBeenCalledWith("user-1", true, "2026-08-02T00:00:00.000Z")
   })
 
-  it("coalesces friend events only while contacts are visible", async () => {
-    render(
-      <MemoryRouter initialEntries={["/contacts/user/user-1"]}>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
-
-    act(() => {
-      callbacks.get("friend.request.created")?.({})
-      callbacks.get("contact.directory.mode.updated")?.({ mode: "unsupported" })
-    })
-
-    await Promise.resolve()
-    expect(refreshContacts).not.toHaveBeenCalled()
-    expect(refreshFriendRequests).not.toHaveBeenCalled()
+  it("在聊天页也会仅刷新好友申请", async () => {
+    render(<ClientUserDirectoryRealtimeSync />)
 
     act(() => {
       callbacks.get("friend.request.created")?.({ request_id: "request-1" })
-      callbacks.get("friendship.created")?.({})
+    })
+
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledWith({ includeContacts: false }))
+  })
+
+  it("好友关系和目录模式事件优先请求目录后申请同步", async () => {
+    render(<ClientUserDirectoryRealtimeSync />)
+
+    act(() => {
+      callbacks.get("friendship.deleted")?.({})
       callbacks.get("contact.directory.mode.updated")?.({ mode: "friends" })
     })
 
-    await waitFor(() => expect(refreshContacts).toHaveBeenCalledOnce())
-    expect(refreshFriendRequests).toHaveBeenCalledOnce()
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledOnce())
+    expect(refreshFriendData).toHaveBeenCalledWith({ includeContacts: true })
   })
 
-  it("runs one trailing refresh when a friend event arrives during an active refresh", async () => {
-    const contactsRefresh = createDeferred<void>()
-    const friendRequestsRefresh = createDeferred<void>()
-    refreshContacts.mockImplementationOnce(() => contactsRefresh.promise)
-    refreshFriendRequests.mockImplementationOnce(() => friendRequestsRefresh.promise)
-
-    render(
-      <MemoryRouter initialEntries={["/contacts"]}>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
+  it("合并活跃刷新期间的事件，并至多追加一轮尾随刷新", async () => {
+    const initialRefresh = createDeferred<void>()
+    const trailingRefresh = createDeferred<void>()
+    refreshFriendData.mockImplementationOnce(() => initialRefresh.promise)
+    refreshFriendData.mockImplementationOnce(() => trailingRefresh.promise)
+    render(<ClientUserDirectoryRealtimeSync />)
 
     act(() => {
       callbacks.get("friend.request.created")?.({ request_id: "request-1" })
     })
-    await waitFor(() => expect(refreshContacts).toHaveBeenCalledOnce())
-    expect(refreshFriendRequests).toHaveBeenCalledOnce()
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledOnce())
+    expect(refreshFriendData).toHaveBeenLastCalledWith({ includeContacts: false })
 
     act(() => {
       callbacks.get("friend.request.updated")?.({ request_id: "request-2" })
+      callbacks.get("friendship.created")?.({ request_id: "request-2" })
     })
-    expect(refreshContacts).toHaveBeenCalledOnce()
-    expect(refreshFriendRequests).toHaveBeenCalledOnce()
 
     await act(async () => {
-      contactsRefresh.resolve()
-      friendRequestsRefresh.resolve()
+      initialRefresh.resolve()
     })
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledTimes(2))
+    expect(refreshFriendData).toHaveBeenLastCalledWith({ includeContacts: true })
 
-    await waitFor(() => expect(refreshContacts).toHaveBeenCalledTimes(2))
-    expect(refreshFriendRequests).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      trailingRefresh.resolve()
+    })
+    expect(refreshFriendData).toHaveBeenCalledTimes(2)
   })
 
-  it("unsubscribes every handler on unmount", () => {
-    const view = render(
-      <MemoryRouter>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
-    expect(callbacks.size).toBe(7)
-    view.unmount()
-    expect(callbacks.size).toBe(0)
+  it("忽略畸形事件并吞掉单次同步失败", async () => {
+    refreshFriendData.mockRejectedValueOnce(new Error("请求失败"))
+    render(<ClientUserDirectoryRealtimeSync />)
+
+    act(() => {
+      callbacks.get("friend.request.created")?.({})
+      callbacks.get("friendship.created")?.({ request_id: "" })
+      callbacks.get("contact.directory.mode.updated")?.({ mode: "unsupported" })
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(refreshFriendData).not.toHaveBeenCalled()
+
+    act(() => {
+      callbacks.get("friend.request.updated")?.({ request_id: "request-1" })
+    })
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledOnce())
   })
 
-  it("invalidates cached users once per realtime-ready transition", () => {
-    const view = render(
-      <MemoryRouter>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
+  it("在每个 realtime ready 周期补偿同步并失效缓存用户", async () => {
+    const view = render(<ClientUserDirectoryRealtimeSync />)
 
     realtimeReady = true
-    view.rerender(
-      <MemoryRouter>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
-    expect(invalidateUsers).toHaveBeenCalledTimes(1)
-    expect(invalidateUsers).toHaveBeenLastCalledWith(["user-1"])
+    view.rerender(<ClientUserDirectoryRealtimeSync />)
+    expect(invalidateUsers).toHaveBeenCalledWith(["user-1"])
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledOnce())
+    expect(refreshFriendData).toHaveBeenLastCalledWith({ includeContacts: true })
 
-    view.rerender(
-      <MemoryRouter>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
+    view.rerender(<ClientUserDirectoryRealtimeSync />)
     expect(invalidateUsers).toHaveBeenCalledTimes(1)
 
     realtimeReady = false
-    view.rerender(
-      <MemoryRouter>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
+    view.rerender(<ClientUserDirectoryRealtimeSync />)
     realtimeReady = true
-    view.rerender(
-      <MemoryRouter>
-        <ClientUserDirectoryRealtimeSync />
-      </MemoryRouter>,
-    )
+    view.rerender(<ClientUserDirectoryRealtimeSync />)
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledTimes(2))
     expect(invalidateUsers).toHaveBeenCalledTimes(2)
+  })
+
+  it("卸载时清理全部 realtime 订阅", () => {
+    const view = render(<ClientUserDirectoryRealtimeSync />)
+    expect(callbacks.size).toBe(7)
+    view.unmount()
+    expect(callbacks.size).toBe(0)
   })
 })
 

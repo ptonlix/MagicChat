@@ -1,23 +1,15 @@
 import * as React from "react"
-import { useLocation } from "react-router"
 
 import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
 
+type FriendRefreshIntent = "directory" | "requests"
+
 export function ClientUserDirectoryRealtimeSync() {
-  const location = useLocation()
   const { ready, subscribeRealtimeEvent } = useRealtime()
-  const {
-    invalidateUsers,
-    refreshContacts,
-    refreshFriendRequests,
-    updateUserPresence,
-    usersById = {},
-  } = useClientData()
+  const { invalidateUsers, refreshFriendData, updateUserPresence, usersById = {} } = useClientData()
   const usersByIdRef = React.useRef(usersById)
-  const friendRefreshPendingRef = React.useRef(false)
-  const friendRefreshDirtyRef = React.useRef(false)
-  const friendRefreshScheduledRef = React.useRef(false)
+  const requestFriendRefreshRef = React.useRef<((intent: FriendRefreshIntent) => void) | null>(null)
   const wasReadyRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -42,50 +34,89 @@ export function ClientUserDirectoryRealtimeSync() {
   }, [invalidateUsers, subscribeRealtimeEvent, updateUserPresence])
 
   React.useEffect(() => {
-    const refreshVisibleContacts = () => {
-      if (!location.pathname.startsWith("/contacts")) return
-      if (friendRefreshPendingRef.current) {
-        friendRefreshDirtyRef.current = true
+    let active = true
+    let refreshRunning = false
+    let refreshScheduled = false
+    let runningTrailingRefresh = false
+    let queuedIntent: FriendRefreshIntent | null = null
+    let trailingIntent: FriendRefreshIntent | null = null
+
+    const mergeIntent = (
+      current: FriendRefreshIntent | null,
+      next: FriendRefreshIntent,
+    ): FriendRefreshIntent =>
+      current === "directory" || next === "directory" ? "directory" : "requests"
+
+    const runRefresh = async (intent: FriendRefreshIntent) => {
+      try {
+        await refreshFriendData({ includeContacts: intent === "directory" })
+      } catch {
+        // 单次刷新失败不能中断 realtime 事件回调链。
+      }
+    }
+
+    const requestFriendRefresh = (intent: FriendRefreshIntent) => {
+      if (!active) return
+      if (refreshRunning) {
+        if (runningTrailingRefresh) return
+        trailingIntent = mergeIntent(trailingIntent, intent)
         return
       }
-      if (friendRefreshScheduledRef.current) return
-      friendRefreshScheduledRef.current = true
+      queuedIntent = mergeIntent(queuedIntent, intent)
+      if (refreshScheduled) return
+      refreshScheduled = true
       queueMicrotask(() => {
-        friendRefreshScheduledRef.current = false
-        friendRefreshPendingRef.current = true
+        refreshScheduled = false
+        if (!active || refreshRunning || !queuedIntent) return
+        const initialIntent = queuedIntent
+        queuedIntent = null
+        refreshRunning = true
         void (async () => {
-          try {
-            do {
-              friendRefreshDirtyRef.current = false
-              await Promise.allSettled([refreshContacts(), refreshFriendRequests?.()])
-            } while (friendRefreshDirtyRef.current)
-          } finally {
-            friendRefreshPendingRef.current = false
+          await runRefresh(initialIntent)
+          if (active && trailingIntent) {
+            const nextIntent = trailingIntent
+            trailingIntent = null
+            runningTrailingRefresh = true
+            await runRefresh(nextIntent)
+            runningTrailingRefresh = false
           }
+          refreshRunning = false
         })()
       })
     }
-    const events = [
-      ["friend.request.created", isFriendRequestEvent],
-      ["friend.request.updated", isFriendRequestEvent],
-      ["friendship.created", isFriendshipEvent],
-      ["friendship.deleted", isFriendshipEvent],
-      ["contact.directory.mode.updated", isDirectoryModeEvent],
-    ] as const
-    const unsubscribers = events.map(([eventName, isValid]) =>
-      subscribeRealtimeEvent(eventName, (payload) => {
-        if (isValid(payload)) refreshVisibleContacts()
+
+    requestFriendRefreshRef.current = requestFriendRefresh
+    const unsubscribers = [
+      subscribeRealtimeEvent("friend.request.created", (payload) => {
+        if (isFriendRequestEvent(payload)) requestFriendRefresh("requests")
       }),
-    )
+      subscribeRealtimeEvent("friend.request.updated", (payload) => {
+        if (isFriendRequestEvent(payload)) requestFriendRefresh("requests")
+      }),
+      subscribeRealtimeEvent("friendship.created", (payload) => {
+        if (isFriendshipEvent(payload)) requestFriendRefresh("directory")
+      }),
+      subscribeRealtimeEvent("friendship.deleted", (payload) => {
+        if (isFriendshipEvent(payload)) requestFriendRefresh("directory")
+      }),
+      subscribeRealtimeEvent("contact.directory.mode.updated", (payload) => {
+        if (isDirectoryModeEvent(payload)) requestFriendRefresh("directory")
+      }),
+    ]
+
     return () => {
+      active = false
+      requestFriendRefreshRef.current = null
       for (const unsubscribe of unsubscribers) unsubscribe()
     }
-  }, [location.pathname, refreshContacts, refreshFriendRequests, subscribeRealtimeEvent])
+  }, [refreshFriendData, subscribeRealtimeEvent])
 
   React.useEffect(() => {
     const becameReady = ready && !wasReadyRef.current
     wasReadyRef.current = ready
-    if (becameReady) invalidateUsers?.(Object.keys(usersByIdRef.current))
+    if (!becameReady) return
+    invalidateUsers?.(Object.keys(usersByIdRef.current))
+    requestFriendRefreshRef.current?.("directory")
   }, [invalidateUsers, ready])
 
   return null
@@ -139,7 +170,8 @@ function isFriendRequestEvent(payload: unknown) {
 function isFriendshipEvent(payload: unknown) {
   return (
     isRealtimeRecord(payload) &&
-    (payload.request_id === undefined || typeof payload.request_id === "string")
+    (payload.request_id === undefined ||
+      (typeof payload.request_id === "string" && Boolean(payload.request_id.trim())))
   )
 }
 

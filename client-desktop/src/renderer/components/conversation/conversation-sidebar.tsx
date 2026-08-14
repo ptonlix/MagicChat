@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BellOff, Bot, Pin, Plus } from "lucide-react"
+import { BellOff, Bot, Pin, Plus, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
@@ -71,6 +71,7 @@ export function ConversationSidebar({
   currentUser,
   drafts,
   onCreateGroup,
+  onAddFriend,
   onDismissConversation,
   onSelectDirectoryItem = () => undefined,
   onSelectMessageResult,
@@ -88,6 +89,7 @@ export function ConversationSidebar({
   currentUser: ClientUser
   drafts: ConversationDrafts
   onCreateGroup: () => void
+  onAddFriend?: () => void
   onDismissConversation?: (conversationId: string) => Promise<void>
   onSelectDirectoryItem?: (item: DirectorySearchItem) => void
   onSelectMessageResult?: (result: ClientMessageSearchResult) => void
@@ -304,10 +306,16 @@ export function ConversationSidebar({
                   <Plus className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-32">
+              <DropdownMenuContent align="end" className="w-36">
                 <DropdownMenuItem onSelect={onCreateGroup}>
                   {t("sidebar.startGroup")}
                 </DropdownMenuItem>
+                {onAddFriend && (
+                  <DropdownMenuItem onSelect={onAddFriend}>
+                    <UserPlus aria-hidden="true" className="size-4" />
+                    {t("sidebar.addFriend")}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

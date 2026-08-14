@@ -1,15 +1,15 @@
 # Desktop 与 Web 聊天能力差异清单
 
-更新日期：2026-08-12
+更新日期：2026-08-14
 
 行为基线：`02189fe2`、`51d536b9`、`f849d57c`、`3e0a4982`、`73dc2b15`、`4797a7a4`。
 
 本轮增量基线：`b67c30c`、`ee7207e`、`496e227`、`0f6149d`、`863789d`、
 `53f19a9`、`d00796a`、`25457e1`。
 
-本次 Desktop 同步基线：`ba53e63`（按 ID 用户目录、好友关系与实时资料）和
-`6c5c5b8`（文档块编辑与文档卡片）。不迁移 Web 官网、Admin、Assistant 路由、
-`BroadcastChannel` 或浏览器新标签页行为。
+本次 Desktop 同步基线：`ba53e63`（按 ID 用户目录、好友关系与实时资料）、
+`7ec004c`（新朋友体验）、`ea2e64b`（好友私信授权）和 `6c5c5b8`（文档块编辑与
+文档卡片）。不迁移 Web 官网、Admin、Assistant 路由、`BroadcastChannel` 或浏览器新标签页行为。
 
 ## 本轮增量对照清单
 
@@ -17,6 +17,13 @@
   资料通过受控 `users/resolve` 批量补全，并提供好友搜索、申请、接受、拒绝、取消和删除。
   Desktop 对应 Renderer 内存目录、ClientData Provider、实时同步、通讯录和项目/任务资料
   hydration；保留旧 `users` contacts 响应的受限升级兼容，且不持久化或跨 Target 复用资料。
+- `7ec004c`：好友入口升级为“新朋友”。Desktop 对应全局通讯录待处理提醒、friends
+  通讯录的新朋友入口及数量、聊天新建菜单的添加好友入口，以及按时间合并申请历史的单页对话框；
+  资料页保留与当前 Web 一致的添加好友/等待接受状态，不保留好友列表标签或删除好友入口，
+  但保留与 Web 相同的 `deleteFriend` 内部数据层契约。
+- `ea2e64b`：friends 模式下 Server 对新建私信、全部消息发送、上传和转发强制好友关系。
+  Desktop 对应保留 `direct_friendship_required` 403 的服务端消息、草稿/引用和重试行为，
+  不在 Renderer 以本地通讯录缓存代替 Server 授权。
 - `6c5c5b8`：文档支持块背景、inline code mark 互斥、块级插入/转换/颜色操作和文档卡片。
   Desktop 对应独立 Tiptap extension、编辑器样式、主窗口 `SendCardDialog` 与子窗口窄化卡片
   流程；保留 Hocuspocus Bridge、内部文档路由和子窗口不挂载聊天 Provider 的边界。
@@ -53,8 +60,15 @@
   任务和文档贡献者保留 ID 基础数据，资料未到达时显示稳定截短 ID，不将目录写入消息缓存或诊断。
 - 用户实时资料：已安全处理 `user.profile.updated` 和 `user.presence.updated`。资料更新只刷新
   已缓存用户，在线状态只 patch 已缓存资料，畸形事件不会中断实时连接。
-- 好友目录：已支持 `organization`/`friends` 模式、精确用户搜索、申请生命周期、联系人详情关系
-  操作、好友私聊限制和关系/目录模式实时合并刷新；所有请求仍经 Main/Preload 的既有受控 fetch。
+- 新朋友与好友目录：已支持 `organization`/`friends` 模式、精确用户搜索、申请生命周期、
+  全局待处理提醒、通讯录/聊天一致入口及单页合并申请历史。申请、关系和目录模式实时事件在
+  全部主应用路由有界合并刷新，并在 realtime 重新就绪后补偿同步；联系人详情保留 Web 当前的
+  添加好友/等待接受入口，删除好友 UI 已从 Desktop Renderer 移除。`deleteFriend` 的受控 API、
+  Context 与 Provider mutation 保持与 Web 一致，但当前没有 Renderer 界面调用它；所有请求仍经
+  Main/Preload 的既有受控 fetch。
+- 好友私信授权：新建私信、文本、富文本、链接、卡片、文件、图片、语音和转发均保留 Server
+  `direct_friendship_required` 403 的错误 envelope；失败不会伪造会话或消息成功状态，也不清空
+  草稿或引用上下文。
 - 文档跨端编辑：已支持 `blockBackgroundColor` 的 JSON/HTML/Yjs 保真、inline code 互斥、插入
   上下段落、块转换、段落背景、文字颜色和删除，以及嵌套列表、代码块与正文样式对齐。
 - 文档卡片：主文档工作区使用受控会话选择与发送流程，文档子窗口使用独立窄化 dialog；两者都
@@ -128,7 +142,7 @@
 - 导出、文档信息、全局文档搜索、Markdown/文件/脑图/表格和多实例 document-server 广播仍未实现，
   也不显示占位入口。文档卡片分享和受控文档子窗口已实现；它们不等同于浏览器多标签行为。
 - 本次用户目录、好友与文档同步仍需连接兼容 Server 完成 contacts 新旧协议、仅 ID DTO、
-  profile/presence、好友全流程、目录模式切换和好友私聊限制联调；并需 Web/Desktop 双客户端验证
+  profile/presence、新朋友申请创建/处理、目录模式切换、realtime 重连和好友私信 403 联调；并需 Web/Desktop 双客户端验证
   块背景、inline code、块操作、文档卡片、权限撤销、断网重连和 Server 重启。
 - 核心文档 V1 仍需完成三档窗口、多缩放及 macOS/Windows/Linux 真机验收。
 
@@ -141,6 +155,8 @@
 - 通知架构保持端侧差异：Web 继续使用浏览器通知偏好；Desktop 使用系统通知权限、全局隐私设置和服务端免打扰状态，对应测试也按 Desktop 原生链路组织。
 - 接近 200 MiB 文件的峰值内存、取消及失败清理仍需在打包应用连接兼容 Server 后实测。
 - 1280x820、1024x640、760x560 三档窗口的浅色/深色主题、长文本、焦点、对话框、筛选、嵌套话题和活动上传仍需真机视觉验收。
+- 新朋友导航提醒、通讯录徽标、聊天菜单和申请对话框在上述三档窗口的浅色/深色主题，及
+  Windows、macOS、Linux 真机键盘焦点验收仍未完成。
 - 跨客户端图片说明、选择消息重连、会话隐藏/恢复和破坏性操作仍需打包 Desktop 连接兼容 Server 的联调冒烟验收。
 
 ## 平台验收矩阵
@@ -148,7 +164,7 @@
 - 自动化：协议、缓存、搜索、ASR Bridge/Controller、PCM 编码、语音上传/播放和资源清理已纳入
   Vitest；Renderer 边界检查确保未引入 Node/Electron 或 `client-web/src` 依赖。
 - macOS：当前开发环境已完成自动化与生产构建验证；麦克风权限、真实 ASR、系统代理、
-  休眠/恢复及正式安装包 M4A 播放仍需人工记录。
+- 休眠/恢复及正式安装包 M4A 播放仍需人工记录；新朋友流程尚未在真机人工验收。
 - Windows：正式安装包中的麦克风、ASR、代理、休眠/恢复和 M4A/AAC-LC 尚未人工验收。
 - Linux：正式安装包中的麦克风、ASR、代理、休眠/恢复和 M4A/AAC-LC 尚未人工验收。
 - M4A 预期：项目锁定 `electron@43.2.0`，官方 Electron 发行构建具备 proprietary codecs

@@ -191,6 +191,7 @@ function ClientDataProviderForTarget({
   const includedConversationIdRef = useRef(includedConversationId)
   const contactsRefreshEpochRef = useRef(0)
   const friendRequestsRefreshEpochRef = useRef(0)
+  const contactDirectoryModeRef = useRef<ContactDirectoryMode>(contactDirectoryMode)
   const conversationRefreshEpochRef = useRef(0)
   const [userDirectory] = useState(
     () =>
@@ -214,6 +215,10 @@ function ClientDataProviderForTarget({
       userDirectory.updateUserPresence(userId, online, lastOnlineAt),
     [userDirectory],
   )
+
+  useEffect(() => {
+    contactDirectoryModeRef.current = contactDirectoryMode
+  }, [contactDirectoryMode])
   const visibleContactGroups = useMemo(
     () => hydrateContactGroupUsers(contactGroups, contactApps, usersById),
     [contactApps, contactGroups, usersById],
@@ -348,6 +353,7 @@ function ClientDataProviderForTarget({
         setConversations([])
         setConversationMessageStates({})
         setContactApps([])
+        contactDirectoryModeRef.current = "organization"
         setContactDirectoryMode("organization")
         setContactGroups([])
         setContactUserIds([])
@@ -389,7 +395,7 @@ function ClientDataProviderForTarget({
   )
 
   const refreshContacts = useCallback(
-    () =>
+    async (): Promise<ContactDirectoryMode> =>
       trackDiagnosticRefresh("contacts", async () => {
         const requestEpoch = ++contactsRefreshEpochRef.current
         const isInitialLoad =
@@ -400,8 +406,11 @@ function ClientDataProviderForTarget({
 
         try {
           const nextContacts = await listClientContacts()
-          if (contactsRefreshEpochRef.current !== requestEpoch) return
+          if (!mountedRef.current || contactsRefreshEpochRef.current !== requestEpoch) {
+            return contactDirectoryModeRef.current
+          }
           setContactApps(nextContacts.apps)
+          contactDirectoryModeRef.current = nextContacts.directoryMode
           setContactDirectoryMode(nextContacts.directoryMode)
           setContactGroups(nextContacts.groups)
           userDirectory.seed(nextContacts.initialUsers)
@@ -414,6 +423,7 @@ function ClientDataProviderForTarget({
             setIncomingFriendRequests([])
             setOutgoingFriendRequests([])
           }
+          return nextContacts.directoryMode
         } catch (error) {
           const requestError = handleError(error, "加载通讯录失败")
           if (contactsRefreshEpochRef.current === requestEpoch) setContactsError(requestError)
@@ -428,59 +438,58 @@ function ClientDataProviderForTarget({
     [contactApps.length, contactGroups.length, contacts.length, handleError, userDirectory],
   )
 
-  const refreshFriendRequests = useCallback(async () => {
-    const requestEpoch = ++friendRequestsRefreshEpochRef.current
-    if (contactDirectoryMode !== "friends") {
-      if (friendRequestsRefreshEpochRef.current === requestEpoch) {
-        setFriendRequestsError(null)
-        setFriendRequestsLoading(false)
-        setIncomingFriendRequests([])
-        setOutgoingFriendRequests([])
+  const refreshFriendRequests = useCallback(
+    async (directoryMode = contactDirectoryModeRef.current) => {
+      const requestEpoch = ++friendRequestsRefreshEpochRef.current
+      if (directoryMode !== "friends") {
+        if (mountedRef.current && friendRequestsRefreshEpochRef.current === requestEpoch) {
+          setFriendRequestsError(null)
+          setFriendRequestsLoading(false)
+          setIncomingFriendRequests([])
+          setOutgoingFriendRequests([])
+        }
+        return
       }
-      return
-    }
-    setFriendRequestsLoading(true)
-    setFriendRequestsError(null)
-    try {
-      const [incoming, outgoing] = await Promise.all([
-        listFriendRequests("incoming"),
-        listFriendRequests("outgoing"),
-      ])
-      if (friendRequestsRefreshEpochRef.current !== requestEpoch) return
-      setIncomingFriendRequests(incoming)
-      setOutgoingFriendRequests(outgoing)
-      void userDirectory
-        .ensureUsers([
-          ...incoming.map((request) => request.requesterUserId),
-          ...outgoing.map((request) => request.addresseeUserId),
+      setFriendRequestsLoading(true)
+      setFriendRequestsError(null)
+      try {
+        const [incoming, outgoing] = await Promise.all([
+          listFriendRequests("incoming"),
+          listFriendRequests("outgoing"),
         ])
-        .catch(() => undefined)
-    } catch (error) {
-      const requestError = handleError(error, "加载好友申请失败")
-      if (friendRequestsRefreshEpochRef.current === requestEpoch) {
-        setFriendRequestsError(requestError)
+        if (!mountedRef.current || friendRequestsRefreshEpochRef.current !== requestEpoch) return
+        setIncomingFriendRequests(incoming)
+        setOutgoingFriendRequests(outgoing)
+        void userDirectory
+          .ensureUsers([
+            ...incoming.map((request) => request.requesterUserId),
+            ...outgoing.map((request) => request.addresseeUserId),
+          ])
+          .catch(() => undefined)
+      } catch (error) {
+        const requestError = handleError(error, "加载好友申请失败")
+        if (mountedRef.current && friendRequestsRefreshEpochRef.current === requestEpoch) {
+          setFriendRequestsError(requestError)
+        }
+        throw requestError
+      } finally {
+        if (mountedRef.current && friendRequestsRefreshEpochRef.current === requestEpoch) {
+          setFriendRequestsLoading(false)
+        }
       }
-      throw requestError
-    } finally {
-      if (friendRequestsRefreshEpochRef.current === requestEpoch) {
-        setFriendRequestsLoading(false)
-      }
-    }
-  }, [contactDirectoryMode, handleError, userDirectory])
+    },
+    [handleError, userDirectory],
+  )
 
-  useEffect(() => {
-    if (contactDirectoryMode === "friends") {
-      void refreshFriendRequests().catch(() => undefined)
-    }
-  }, [contactDirectoryMode, refreshFriendRequests])
-
-  const refreshFriendData = useCallback(async () => {
-    const results = await Promise.allSettled([refreshContacts(), refreshFriendRequests()])
-    const failedResult = results.find((result) => result.status === "rejected")
-    if (failedResult?.status === "rejected") {
-      throw failedResult.reason
-    }
-  }, [refreshContacts, refreshFriendRequests])
+  const refreshFriendData = useCallback(
+    async ({ includeContacts = true }: { includeContacts?: boolean } = {}) => {
+      const directoryMode = includeContacts
+        ? await refreshContacts()
+        : contactDirectoryModeRef.current
+      await refreshFriendRequests(directoryMode)
+    },
+    [refreshContacts, refreshFriendRequests],
+  )
 
   const reconcileFailedFriendMutation = useCallback(
     async () => refreshFriendData().catch(() => undefined),
@@ -2424,6 +2433,7 @@ function ClientDataProviderForTarget({
       setMe(nextMe)
       if (contactsRefreshEpochRef.current === contactsRequestEpoch) {
         setContactApps(nextContacts.apps)
+        contactDirectoryModeRef.current = nextContacts.directoryMode
         setContactDirectoryMode(nextContacts.directoryMode)
         setContactGroups(nextContacts.groups)
         userDirectory.seed(nextContacts.initialUsers)
@@ -2435,6 +2445,8 @@ function ClientDataProviderForTarget({
           setFriendRequestsLoading(false)
           setIncomingFriendRequests([])
           setOutgoingFriendRequests([])
+        } else {
+          void refreshFriendRequests(nextContacts.directoryMode).catch(() => undefined)
         }
       }
       setConversations(orderConversations(nextConversations))
@@ -2459,7 +2471,7 @@ function ClientDataProviderForTarget({
       setContactsLoading(false)
       setProjectsLoading(false)
     }
-  }, [handleError, userDirectory])
+  }, [handleError, refreshFriendRequests, userDirectory])
 
   const retryBootstrap = useCallback(async () => {
     setBootstrapError(null)
@@ -2467,10 +2479,18 @@ function ClientDataProviderForTarget({
     setConversations([])
     setConversationMessageStates({})
     setContactApps([])
+    contactDirectoryModeRef.current = "organization"
+    setContactDirectoryMode("organization")
     setContactGroups([])
+    setContactUserIds([])
     setContactsError(null)
     setContactsLoading(true)
     setContactsRefreshing(false)
+    friendRequestsRefreshEpochRef.current += 1
+    setFriendRequestsError(null)
+    setFriendRequestsLoading(false)
+    setIncomingFriendRequests([])
+    setOutgoingFriendRequests([])
     setPersonalProject(null)
     setProjects([])
     setProjectsError(null)
@@ -2616,7 +2636,7 @@ function ClientDataProviderForTarget({
     projectsRefreshing,
     refreshConversations,
     refreshContacts,
-    refreshFriendRequests,
+    refreshFriendData,
     refreshMe,
     refreshProjects,
     replaceWithLatestMessages,

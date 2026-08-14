@@ -74,10 +74,19 @@ type ThemeValue = (typeof themeItems)[number]["value"]
 
 export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
   const { t } = useLocale()
-  const { clearMessageScope, conversations, me, refreshMe } = useClientData()
+  const {
+    clearMessageScope,
+    conversations,
+    incomingFriendRequests = [],
+    me,
+    refreshMe,
+  } = useClientData()
   const totalUnreadCount = getTotalUnreadCount(conversations)
   const notifiableUnreadCount = getNotifiableUnreadCount(conversations)
   const hasUnreadMessages = totalUnreadCount > 0
+  const pendingIncomingFriendRequestCount = incomingFriendRequests.filter(
+    (request) => request.status === "pending",
+  ).length
   const trayMessages = useMemo(() => selectUnreadTrayMessages(conversations), [conversations])
   useEffect(() => {
     setHostBadge(notifiableUnreadCount)
@@ -120,7 +129,17 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
             <MainNavItem
               key={item.to}
               item={item}
-              showNotification={item.to === "/chat" && hasUnreadMessages}
+              showNotification={
+                (item.to === "/chat" && hasUnreadMessages) ||
+                (item.to === "/contacts" && pendingIncomingFriendRequestCount > 0)
+              }
+              notificationAccessibleLabel={
+                item.to === "/chat" && hasUnreadMessages
+                  ? t("nav.unread", { label: t(item.label) })
+                  : item.to === "/contacts" && pendingIncomingFriendRequestCount > 0
+                    ? t("nav.friendRequests", { label: t(item.label) })
+                    : undefined
+              }
               notificationAnimationActive={item.to === "/chat" && notificationAnimation.active}
               notificationAnimationVersion={notificationAnimation.version}
               onNotificationAnimationEnd={handleNotificationAnimationEnd}
@@ -372,12 +391,14 @@ function MainNavItem({
   item,
   notificationAnimationActive,
   notificationAnimationVersion,
+  notificationAccessibleLabel,
   onNotificationAnimationEnd,
   showNotification,
 }: {
   item: (typeof navItems)[number]
   notificationAnimationActive: boolean
   notificationAnimationVersion: number
+  notificationAccessibleLabel?: string
   onNotificationAnimationEnd: () => void
   showNotification: boolean
 }) {
@@ -385,7 +406,7 @@ function MainNavItem({
   const active = Boolean(useMatch({ path: item.to, end: false }))
   const Icon = item.icon
   const label = t(item.label)
-  const accessibleLabel = showNotification ? t("nav.unread", { label }) : label
+  const accessibleLabel = notificationAccessibleLabel ?? label
 
   return (
     <Button

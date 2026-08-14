@@ -7,7 +7,7 @@ import {
   MessageCircle,
   RefreshCw,
   Search,
-  UsersRound,
+  UserPlus,
 } from "lucide-react"
 
 import type { DirectorySelection, DirectoryTab } from "@/components/contacts/contact-directory"
@@ -44,6 +44,7 @@ export function ContactDirectorySidebar({
   contactsRefreshing,
   currentUserId,
   groups,
+  incomingPendingFriendRequestCount = 0,
   organizationName,
   onActiveTabChange,
   onKeywordChange,
@@ -65,6 +66,7 @@ export function ContactDirectorySidebar({
   contactsRefreshing: boolean
   currentUserId: string
   groups: ContactGroup[]
+  incomingPendingFriendRequestCount?: number
   organizationName: string
   onActiveTabChange: (tab: DirectoryTab) => void
   onKeywordChange: (keyword: string) => void
@@ -106,16 +108,33 @@ export function ContactDirectorySidebar({
           </h1>
           <div className="flex items-center gap-1">
             {directoryMode === "friends" && onOpenFriendManagement && (
-              <Button
-                aria-label={t("contacts.friendManagement")}
-                onClick={onOpenFriendManagement}
-                size="icon-sm"
-                title={t("contacts.friendManagement")}
-                type="button"
-                variant="ghost"
-              >
-                <UsersRound className="size-4" />
-              </Button>
+              <span className="relative">
+                <Button
+                  aria-label={
+                    incomingPendingFriendRequestCount > 0
+                      ? t("contacts.newFriendsAria", {
+                          count: incomingPendingFriendRequestCount,
+                        })
+                      : t("contacts.newFriends")
+                  }
+                  onClick={onOpenFriendManagement}
+                  size="icon-sm"
+                  title={t("contacts.newFriends")}
+                  type="button"
+                  variant="ghost"
+                >
+                  <UserPlus className="size-4" />
+                </Button>
+                {incomingPendingFriendRequestCount > 0 && (
+                  <Badge
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -top-1 -right-1 h-4 min-w-4 justify-center bg-red-500 px-1 py-0 text-[10px] leading-4 font-normal text-white hover:bg-red-500 dark:bg-red-500"
+                    variant="destructive"
+                  >
+                    {formatPendingFriendRequestCount(incomingPendingFriendRequestCount)}
+                  </Badge>
+                )}
+              </span>
             )}
             <Button
               aria-label={t("contacts.refresh")}
@@ -334,6 +353,10 @@ export function ContactDirectorySidebar({
       />
     </Sidebar>
   )
+}
+
+function formatPendingFriendRequestCount(count: number) {
+  return count > 99 ? "99+" : String(count)
 }
 
 function DirectoryList({

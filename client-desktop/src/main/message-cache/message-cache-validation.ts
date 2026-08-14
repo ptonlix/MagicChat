@@ -154,9 +154,19 @@ function parsePayload(value: unknown): string {
 
 function parseUrl(value: unknown): string {
   if (typeof value !== "string") invalid()
-  const normalized = normalizeServerUrl(value, !process.env.MAGICCHAT_RELEASE_CHANNEL)
+  const normalized = normalizeServerUrl(value, isDevelopmentLocalHttpUrl(value))
   if (normalized !== value) invalid()
   return normalized
+}
+
+function isDevelopmentLocalHttpUrl(value: string): boolean {
+  if (process.env.NODE_ENV !== "development") return false
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname)
+  } catch {
+    return false
+  }
 }
 
 function parseBoolean(value: unknown): boolean {
