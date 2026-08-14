@@ -158,6 +158,15 @@ body,
 .desktop-frame[data-platform="darwin"] .app-navigation-rail :is(a, button) {
   -webkit-app-region: no-drag;
 }
+.desktop-frame[data-platform="darwin"]
+  :is(.conversation-sidebar-header-surface, .conversation-panel-header-surface) {
+  -webkit-app-region: drag;
+}
+.desktop-frame[data-platform="darwin"]
+  :is(.conversation-sidebar-header-surface, .conversation-panel-header-surface)
+  :is(a, button, input, select, textarea, [role="button"], [role="tab"]) {
+  -webkit-app-region: no-drag;
+}
 .desktop-mac-window-controls {
   -webkit-app-region: no-drag;
   align-items: center;

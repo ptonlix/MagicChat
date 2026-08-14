@@ -220,6 +220,12 @@ describe("桌面设置服务器管理", () => {
     expect(source).toContain("background: #ff5f57")
     expect(source).toContain("background: #ffbd2e")
     expect(source).toContain("background: #28c840")
+    expect(source).toMatch(
+      /:is\(\.conversation-sidebar-header-surface, \.conversation-panel-header-surface\)\s*\{\s*-webkit-app-region: drag/,
+    )
+    expect(source).toMatch(
+      /:is\(a, button, input, select, textarea, \[role="button"\], \[role="tab"\]\)\s*\{\s*-webkit-app-region: no-drag/,
+    )
   })
 
   it("文档子窗口优先使用 URL 中的 serverId，不受全局服务器选择影响", async () => {

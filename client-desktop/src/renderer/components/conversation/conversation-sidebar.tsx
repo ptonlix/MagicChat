@@ -278,7 +278,7 @@ export function ConversationSidebar({
 
   return (
     <Sidebar className="border-r bg-background" collapsible="none">
-      <SidebarHeader className="gap-0 p-0">
+      <SidebarHeader className="conversation-sidebar-header-surface gap-0 p-0">
         <div className="flex h-14 items-center justify-between px-4">
           <h1 className="text-base font-medium">{t("sidebar.title")}</h1>
           <div className="flex items-center gap-1">

@@ -46,6 +46,9 @@ describe("ConversationSidebar", () => {
     expect(screen.getByRole("button", { name: "全局搜索" })).toBeInTheDocument()
     expect(screen.getByRole("tablist", { name: "会话类型" })).toBeInTheDocument()
     expect(screen.queryByRole("combobox", { name: "搜索消息" })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { name: "消息" }).closest("[data-slot='sidebar-header']"),
+    ).toHaveClass("conversation-sidebar-header-surface")
   })
 
   it("pins an ordinary conversation from its context menu", async () => {
