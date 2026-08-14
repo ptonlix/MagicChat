@@ -232,7 +232,7 @@ describe("桌面设置服务器管理", () => {
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
   })
 
-  it("macOS 聊天布局只将窗口控制按钮排除在拖拽区域外", async () => {
+  it("macOS 工作区页面统一将顶部区域作为窗口拖拽区", async () => {
     const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
 
     expect(source).toContain(
@@ -255,10 +255,10 @@ describe("桌面设置服务器管理", () => {
     )
     expect(source).toContain(".desktop-mac-window-control:hover > svg")
     expect(source).toMatch(
-      /:is\(\.conversation-sidebar-header-surface, \.conversation-panel-header-surface\)\s*\{\s*-webkit-app-region: drag/,
+      /\.app-layout-shell\s+:is\(\s*\[data-slot="sidebar-header"\],\s*\.conversation-panel-header-surface,\s*\[data-slot="sidebar-inset"\]\s*>\s*header\s*\)\s*\{\s*-webkit-app-region: drag/,
     )
     expect(source).toMatch(
-      /:is\(a, button, input, select, textarea, \[role="button"\], \[role="tab"\]\)\s*\{\s*-webkit-app-region: no-drag/,
+      /\.app-layout-shell\s+:is\(\s*\[data-slot="sidebar-header"\],\s*\.conversation-panel-header-surface,\s*\[data-slot="sidebar-inset"\]\s*>\s*header\s*\)\s*:is\(a, button, input, select, textarea, \[role="button"\], \[role="tab"\]\)\s*\{\s*-webkit-app-region: no-drag/,
     )
   })
 
