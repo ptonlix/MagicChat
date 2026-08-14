@@ -96,7 +96,7 @@ describe("ClientUserDirectoryRealtimeSync", () => {
     expect(refreshFriendData).toHaveBeenCalledWith({ includeContacts: true })
   })
 
-  it("合并活跃刷新期间的事件，并至多追加一轮尾随刷新", async () => {
+  it("合并活跃刷新期间的事件，并在尾随刷新后继续处理新事件", async () => {
     const initialRefresh = createDeferred<void>()
     const trailingRefresh = createDeferred<void>()
     refreshFriendData.mockImplementationOnce(() => initialRefresh.promise)
@@ -120,10 +120,15 @@ describe("ClientUserDirectoryRealtimeSync", () => {
     await waitFor(() => expect(refreshFriendData).toHaveBeenCalledTimes(2))
     expect(refreshFriendData).toHaveBeenLastCalledWith({ includeContacts: true })
 
+    act(() => {
+      callbacks.get("friend.request.updated")?.({ request_id: "request-3" })
+    })
+
     await act(async () => {
       trailingRefresh.resolve()
     })
-    expect(refreshFriendData).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(refreshFriendData).toHaveBeenCalledTimes(3))
+    expect(refreshFriendData).toHaveBeenLastCalledWith({ includeContacts: false })
   })
 
   it("忽略畸形事件并吞掉单次同步失败", async () => {

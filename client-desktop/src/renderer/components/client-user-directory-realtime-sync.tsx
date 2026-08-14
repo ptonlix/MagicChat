@@ -37,7 +37,6 @@ export function ClientUserDirectoryRealtimeSync() {
     let active = true
     let refreshRunning = false
     let refreshScheduled = false
-    let runningTrailingRefresh = false
     let queuedIntent: FriendRefreshIntent | null = null
     let trailingIntent: FriendRefreshIntent | null = null
 
@@ -58,7 +57,6 @@ export function ClientUserDirectoryRealtimeSync() {
     const requestFriendRefresh = (intent: FriendRefreshIntent) => {
       if (!active) return
       if (refreshRunning) {
-        if (runningTrailingRefresh) return
         trailingIntent = mergeIntent(trailingIntent, intent)
         return
       }
@@ -73,12 +71,10 @@ export function ClientUserDirectoryRealtimeSync() {
         refreshRunning = true
         void (async () => {
           await runRefresh(initialIntent)
-          if (active && trailingIntent) {
+          while (active && trailingIntent) {
             const nextIntent = trailingIntent
             trailingIntent = null
-            runningTrailingRefresh = true
             await runRefresh(nextIntent)
-            runningTrailingRefresh = false
           }
           refreshRunning = false
         })()
