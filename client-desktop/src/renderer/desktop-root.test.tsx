@@ -185,7 +185,8 @@ describe("桌面设置服务器管理", () => {
     expect(screen.queryByText("即应")).not.toBeInTheDocument()
   })
 
-  it("macOS 顶栏为原生交通灯保留左侧空间", async () => {
+  it("macOS 顶栏展示紧凑的自绘窗口控制", async () => {
+    const user = userEvent.setup()
     const bridge = createDesktopBridge()
     Object.defineProperty(window, "desktop", {
       configurable: true,
@@ -194,8 +195,31 @@ describe("桌面设置服务器管理", () => {
 
     render(<DesktopRoot />)
 
-    await waitFor(() => expect(bridge.app.info).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(document.querySelector(".desktop-frame")).toHaveAttribute("data-platform", "darwin"),
+    )
+    await user.click(screen.getByRole("button", { name: "关闭窗口" }))
+    await user.click(screen.getByRole("button", { name: "最小化窗口" }))
+    await user.click(screen.getByRole("button", { name: "缩放窗口" }))
+
+    expect(bridge.windowControls.close).toHaveBeenCalledOnce()
+    expect(bridge.windowControls.minimize).toHaveBeenCalledOnce()
+    expect(bridge.windowControls.toggleMaximize).toHaveBeenCalledOnce()
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
+  })
+
+  it("macOS 聊天布局将标题栏限制在左侧导航栏内", async () => {
+    const source = await readFile(path.resolve(process.cwd(), "src/renderer/styles.css"), "utf8")
+
+    expect(source).toContain(
+      '.desktop-frame[data-platform="darwin"]:has(.app-layout-shell) .desktop-titlebar-drag-region',
+    )
+    expect(source).toMatch(
+      /\.desktop-frame\[data-platform="darwin"\] \.(?:app-navigation-rail)\s*\{[^}]*width:\s*56px/,
+    )
+    expect(source).toContain("background: #ff5f57")
+    expect(source).toContain("background: #ffbd2e")
+    expect(source).toContain("background: #28c840")
   })
 
   it("文档子窗口优先使用 URL 中的 serverId，不受全局服务器选择影响", async () => {
@@ -1688,6 +1712,11 @@ function createDesktopBridge(
         if (subscriptionState) listener(subscriptionState)
         return unsubscribe
       }),
+    },
+    windowControls: {
+      close: vi.fn().mockResolvedValue(undefined),
+      minimize: vi.fn().mockResolvedValue(undefined),
+      toggleMaximize: vi.fn().mockResolvedValue(false),
     },
     version: 1,
   }

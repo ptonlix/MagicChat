@@ -106,8 +106,8 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
   }
 
   return (
-    <div className="flex h-svh min-h-0 bg-background pt-10 text-foreground">
-      <aside className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-3">
+    <div className="app-layout-shell flex h-svh min-h-0 bg-background text-foreground">
+      <aside className="app-navigation-rail flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-3">
         <UserAvatarMenu clearMessageScope={clearMessageScope} user={me} refreshMe={refreshMe} />
         <nav aria-label={t("nav.main")} className="flex flex-1 flex-col gap-2">
           {navItems.map((item) => (

@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => {
       }
     })
     readonly removeMenu = vi.fn()
+    readonly setWindowButtonVisibility = vi.fn()
     readonly show = vi.fn()
     readonly focus = vi.fn()
     readonly restore = vi.fn(() => {
@@ -116,6 +117,7 @@ vi.mock("electron", () => ({
 
 vi.mock("@main/window-controller", () => ({
   getMainWindowTitleBarOptions: vi.fn(() => ({ titleBarStyle: "hidden" })),
+  hideNativeWindowButtons: vi.fn(),
   installTrustedWindowSecurity: vi.fn(),
   setTrustedWindowTheme: mocks.setTrustedWindowTheme,
 }))

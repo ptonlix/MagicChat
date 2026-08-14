@@ -169,6 +169,11 @@ const bridge: DesktopBridge = {
     openReleasePage: () => ipcRenderer.invoke(IPC.updaterOpenRelease),
     subscribe: (listener) => subscribe<UpdaterState>(IPC.updaterState, listener),
   },
+  windowControls: {
+    close: () => ipcRenderer.invoke(IPC.windowClose),
+    minimize: () => ipcRenderer.invoke(IPC.windowMinimize),
+    toggleMaximize: () => ipcRenderer.invoke(IPC.windowToggleMaximize),
+  },
 }
 
 if (process.argv.includes("--magicchat-capture")) {

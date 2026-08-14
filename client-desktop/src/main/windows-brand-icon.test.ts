@@ -10,6 +10,7 @@ const electronMocks = vi.hoisted(() => {
     loadURL: vi.fn(),
     on: vi.fn(),
     removeMenu: vi.fn(),
+    setWindowButtonVisibility: vi.fn(),
     webContents: {
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),

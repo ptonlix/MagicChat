@@ -39,6 +39,7 @@ export class WindowController {
       width: 1280,
     })
     window.removeMenu()
+    hideNativeWindowButtons(window, process.platform)
     this.mainWindow = window
     installTrustedWindowSecurity(window)
     window.on("ready-to-show", () => {
@@ -131,6 +132,13 @@ export function setTrustedWindowTheme(
   })
 }
 
+export function hideNativeWindowButtons(
+  window: Pick<BrowserWindow, "setWindowButtonVisibility">,
+  platform: NodeJS.Platform,
+): void {
+  if (platform === "darwin") window.setWindowButtonVisibility(false)
+}
+
 export type TrustedWindowSecurityOptions = Readonly<{
   navigationGuard?: (url: string) => boolean
 }>
@@ -158,8 +166,7 @@ export function getMainWindowTitleBarOptions(
 > {
   if (platform === "darwin") {
     return {
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 14, y: 13 },
+      titleBarStyle: "hidden",
     }
   }
 

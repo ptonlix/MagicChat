@@ -13,11 +13,14 @@ import {
   CircleHelp,
   Download,
   LockKeyhole,
+  Maximize2,
   MessageCircleMore,
+  Minus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
   UsersRound,
+  X,
 } from "lucide-react"
 import { createBrowserRouter, RouterProvider } from "react-router"
 import { toast } from "sonner"
@@ -61,7 +64,7 @@ export function DesktopRoot() {
       <LocaleProvider>
         <ScreenshotStartFailedBridge />
         <TooltipProvider>
-          <div className="desktop-frame">
+          <div className="desktop-frame" data-platform={platform}>
             <DesktopTitlebar platform={platform} />
             <div className="desktop-content">
               <DesktopRootContent platform={platform} />
@@ -117,6 +120,7 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
   const { t } = useLocale()
   return (
     <div className="desktop-titlebar-drag-region">
+      {platform === "darwin" && <MacWindowControls />}
       {platform && platform !== "darwin" && (
         <div className="desktop-titlebar-brand">
           <img
@@ -127,6 +131,40 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
           {platform === "win32" && <span>{t("brand.name")}</span>}
         </div>
       )}
+    </div>
+  )
+}
+
+function MacWindowControls() {
+  return (
+    <div aria-label="窗口控制" className="desktop-mac-window-controls" role="group">
+      <button
+        aria-label="关闭窗口"
+        className="desktop-mac-window-control desktop-mac-window-control-close"
+        onClick={() => void window.desktop.windowControls.close()}
+        title="关闭窗口"
+        type="button"
+      >
+        <X aria-hidden="true" size={9} strokeWidth={2.5} />
+      </button>
+      <button
+        aria-label="最小化窗口"
+        className="desktop-mac-window-control desktop-mac-window-control-minimize"
+        onClick={() => void window.desktop.windowControls.minimize()}
+        title="最小化窗口"
+        type="button"
+      >
+        <Minus aria-hidden="true" size={9} strokeWidth={2.5} />
+      </button>
+      <button
+        aria-label="缩放窗口"
+        className="desktop-mac-window-control desktop-mac-window-control-maximize"
+        onClick={() => void window.desktop.windowControls.toggleMaximize()}
+        title="缩放窗口"
+        type="button"
+      >
+        <Maximize2 aria-hidden="true" size={9} strokeWidth={2.5} />
+      </button>
     </div>
   )
 }

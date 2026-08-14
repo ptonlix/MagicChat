@@ -74,6 +74,21 @@ vi.mock("@/lib/client-data-api", () => ({
 }))
 
 describe("AppLayout", () => {
+  it("保留三列布局所需的应用导航栏锚点", () => {
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>,
+    )
+
+    const appRail = screen.getByRole("complementary")
+    const shell = appRail.parentElement
+
+    expect(shell).toHaveClass("app-layout-shell")
+    expect(shell).not.toHaveClass("pt-10")
+    expect(appRail).toHaveClass("app-navigation-rail")
+  })
+
   it("renders the desktop update action in the sidebar footer", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>
