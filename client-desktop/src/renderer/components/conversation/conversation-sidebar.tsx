@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BellOff, Bot, Pin, Plus, UserPlus } from "lucide-react"
+import { BellOff, Bot, Pin, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConversationListItemMenu } from "@/components/conversation-list-item-menu"
@@ -312,7 +312,6 @@ export function ConversationSidebar({
                 </DropdownMenuItem>
                 {onAddFriend && (
                   <DropdownMenuItem onSelect={onAddFriend}>
-                    <UserPlus aria-hidden="true" className="size-4" />
                     {t("sidebar.addFriend")}
                   </DropdownMenuItem>
                 )}

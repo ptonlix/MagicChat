@@ -77,7 +77,10 @@ describe("ConversationSidebar", () => {
     )
 
     await user.click(screen.getByRole("button", { name: "新建 Agent" }))
-    await user.click(await screen.findByRole("menuitem", { name: "添加好友" }))
+    const addFriendMenuItem = await screen.findByRole("menuitem", { name: "添加好友" })
+    expect(addFriendMenuItem.querySelector("svg")).not.toBeInTheDocument()
+
+    await user.click(addFriendMenuItem)
     expect(onAddFriend).toHaveBeenCalledOnce()
   })
 
