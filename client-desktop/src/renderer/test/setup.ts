@@ -79,20 +79,24 @@ if (typeof window !== "undefined") {
     elementCompatibility.hasPointerCapture = {
       configurable: true,
       value: () => false,
+      writable: true,
     }
     elementCompatibility.releasePointerCapture = {
       configurable: true,
       value: () => undefined,
+      writable: true,
     }
     elementCompatibility.setPointerCapture = {
       configurable: true,
       value: () => undefined,
+      writable: true,
     }
   }
   if (!HTMLElement.prototype.scrollIntoView) {
     elementCompatibility.scrollIntoView = {
       configurable: true,
       value: () => undefined,
+      writable: true,
     }
   }
   if (Object.keys(elementCompatibility).length > 0) {
