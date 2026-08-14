@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
+import { DesktopWorkspaceDragRegion } from "@/components/desktop-workspace-drag-region"
 import { ProjectAvatar } from "@/components/projects/project-avatar"
 import { ProjectDocumentsTab } from "@/components/projects/project-documents-tab"
 import { ProjectGoalsTab } from "@/components/projects/project-goals-tab"
@@ -302,6 +303,7 @@ function ProjectListButton({
 function ProjectEmptyState() {
   return (
     <SidebarInset className="min-w-0 overflow-hidden bg-muted">
+      <DesktopWorkspaceDragRegion />
       <div className="flex flex-1 items-center justify-center self-stretch text-sm text-muted-foreground">
         选择一个项目查看详情
       </div>
@@ -430,6 +432,7 @@ async function loadSelectedProject(projectId: string) {
 function ProjectPanelState({ loading = false, message }: { loading?: boolean; message: string }) {
   return (
     <SidebarInset className="min-w-0 overflow-hidden bg-muted">
+      <DesktopWorkspaceDragRegion />
       <div className="flex flex-1 items-center justify-center gap-2 self-stretch text-sm text-muted-foreground">
         {loading && <Loader2 className="size-4 animate-spin" />}
         {message}
@@ -461,7 +464,10 @@ function ProjectPanel({
 
   return (
     <SidebarInset className="min-w-0 overflow-hidden">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4">
+      <header
+        className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4"
+        data-desktop-drag-region="true"
+      >
         <div className="flex min-w-0 items-center gap-2.5">
           <ProjectAvatar className="size-8" project={project} user={user} />
           <div className="min-w-0">

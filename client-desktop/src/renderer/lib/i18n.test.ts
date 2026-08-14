@@ -18,6 +18,8 @@ describe("i18n 翻译", () => {
     )
     expect(translate("zh-CN", "documentWindow.error.windowLimit")).toContain("8 个文档窗口")
     expect(translate("en", "documentWindow.error.windowLimit")).toContain("8 document windows")
+    expect(translate("zh-CN", "windowControls.close")).toBe("关闭窗口")
+    expect(translate("en", "windowControls.close")).toBe("Close window")
   })
 
   it("未知键回退为键本身", () => {

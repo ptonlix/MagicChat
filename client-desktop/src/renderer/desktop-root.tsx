@@ -136,43 +136,49 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
 }
 
 function MacWindowControls() {
+  const { t } = useLocale()
+
   return (
-    <div aria-label="窗口控制" className="desktop-mac-window-controls" role="group">
+    <div
+      aria-label={t("windowControls.group")}
+      className="desktop-mac-window-controls"
+      role="group"
+    >
       <button
-        aria-label="关闭窗口"
+        aria-label={t("windowControls.close")}
         className="desktop-mac-window-control desktop-mac-window-control-close"
         onClick={(event) => {
           event.stopPropagation()
           void window.desktop.windowControls.close()
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        title="关闭窗口"
+        title={t("windowControls.close")}
         type="button"
       >
         <X aria-hidden="true" size={8} strokeWidth={3} />
       </button>
       <button
-        aria-label="最小化窗口"
+        aria-label={t("windowControls.minimize")}
         className="desktop-mac-window-control desktop-mac-window-control-minimize"
         onClick={(event) => {
           event.stopPropagation()
           void window.desktop.windowControls.minimize()
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        title="最小化窗口"
+        title={t("windowControls.minimize")}
         type="button"
       >
         <Minus aria-hidden="true" size={8} strokeWidth={3} />
       </button>
       <button
-        aria-label="缩放窗口"
+        aria-label={t("windowControls.maximize")}
         className="desktop-mac-window-control desktop-mac-window-control-maximize"
         onClick={(event) => {
           event.stopPropagation()
           void window.desktop.windowControls.toggleMaximize()
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        title="缩放窗口"
+        title={t("windowControls.maximize")}
         type="button"
       >
         <Plus aria-hidden="true" size={8} strokeWidth={3} />

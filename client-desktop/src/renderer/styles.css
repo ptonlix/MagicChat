@@ -159,25 +159,35 @@ body,
 .desktop-frame[data-platform="darwin"] .app-navigation-rail :is(a, button) {
   -webkit-app-region: no-drag;
 }
-/* 工作区页面顶部统一作为窗口拖拽区；新增导航页面沿用 SidebarHeader 和 SidebarInset 即可。 */
-.desktop-frame[data-platform="darwin"]
-  .app-layout-shell
-  :is(
-    [data-slot="sidebar-header"],
-    .conversation-panel-header-surface,
-    [data-slot="sidebar-inset"] > header
-  ) {
+/* 工作区页面通过此属性显式声明顶端拖拽区。 */
+.desktop-frame[data-platform="darwin"] .app-layout-shell [data-desktop-drag-region] {
   -webkit-app-region: drag;
 }
 .desktop-frame[data-platform="darwin"]
   .app-layout-shell
+  [data-desktop-drag-region]
   :is(
-    [data-slot="sidebar-header"],
-    .conversation-panel-header-surface,
-    [data-slot="sidebar-inset"] > header
-  )
-  :is(a, button, input, select, textarea, [role="button"], [role="tab"]) {
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    [contenteditable="true"],
+    [role="button"],
+    [role="combobox"],
+    [role="tab"]
+  ) {
   -webkit-app-region: no-drag;
+}
+.desktop-workspace-drag-region {
+  display: none;
+}
+.desktop-frame[data-platform="darwin"] .desktop-workspace-drag-region {
+  display: block;
+  height: 3.5rem;
+  inset: 0 0 auto;
+  position: absolute;
+  z-index: 1;
 }
 .desktop-mac-window-controls {
   align-items: center;

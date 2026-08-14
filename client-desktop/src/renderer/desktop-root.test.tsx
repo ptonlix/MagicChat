@@ -255,11 +255,9 @@ describe("桌面设置服务器管理", () => {
     )
     expect(source).toContain(".desktop-mac-window-control:hover > svg")
     expect(source).toMatch(
-      /\.app-layout-shell\s+:is\(\s*\[data-slot="sidebar-header"\],\s*\.conversation-panel-header-surface,\s*\[data-slot="sidebar-inset"\]\s*>\s*header\s*\)\s*\{\s*-webkit-app-region: drag/,
+      /\.app-layout-shell\s+\[data-desktop-drag-region\]\s*\{\s*-webkit-app-region: drag/,
     )
-    expect(source).toMatch(
-      /\.app-layout-shell\s+:is\(\s*\[data-slot="sidebar-header"\],\s*\.conversation-panel-header-surface,\s*\[data-slot="sidebar-inset"\]\s*>\s*header\s*\)\s*:is\(a, button, input, select, textarea, \[role="button"\], \[role="tab"\]\)\s*\{\s*-webkit-app-region: no-drag/,
-    )
+    expect(source).toContain(".desktop-workspace-drag-region")
   })
 
   it("文档子窗口优先使用 URL 中的 serverId，不受全局服务器选择影响", async () => {
@@ -604,6 +602,12 @@ describe("桌面设置服务器管理", () => {
     expect(await screen.findByRole("button", { name: "Notifications" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Language" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Font size" })).toBeInTheDocument()
+    expect(screen.getByRole("group", { hidden: true, name: "Window controls" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { hidden: true, name: "Close window" })).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { hidden: true, name: "Minimize window" }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { hidden: true, name: "Zoom window" })).toBeInTheDocument()
     expect(mocks.installDesktopFetch).toHaveBeenCalledTimes(hostInstallCount)
     expect(mocks.restoreFetch).not.toHaveBeenCalled()
   })

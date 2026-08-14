@@ -26,6 +26,7 @@ export function ConversationPanelHeader({
   return (
     <header
       className="conversation-panel-header-surface flex h-14 shrink-0 items-center justify-between px-5"
+      data-desktop-drag-region="true"
       data-testid="conversation-panel-header"
     >
       <div className="flex min-w-0 items-center gap-3 pr-3">

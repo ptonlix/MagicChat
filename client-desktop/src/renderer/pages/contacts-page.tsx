@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { useLocale } from "@/components/locale-provider"
+import { DesktopWorkspaceDragRegion } from "@/components/desktop-workspace-drag-region"
 
 import {
   createDirectorySelection,
@@ -397,6 +398,7 @@ export function ContactsPage() {
       />
 
       <SidebarInset className="min-w-0 overflow-hidden">
+        <DesktopWorkspaceDragRegion />
         <div
           className={cn(
             "flex min-h-0 min-w-0 flex-1 items-start justify-center overflow-hidden px-6",

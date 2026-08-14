@@ -314,6 +314,7 @@ function SidebarInput({ className, ...props }: React.ComponentProps<typeof Input
 function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
+      data-desktop-drag-region="true"
       data-slot="sidebar-header"
       data-sidebar="header"
       className={cn("flex flex-col gap-2 p-2", className)}
