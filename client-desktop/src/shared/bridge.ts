@@ -115,9 +115,6 @@ export const IPC = {
   updaterOpenRelease: "desktop:v1:updater-open-release",
   updaterState: "desktop:v1:updater-state",
   unknownServer: "desktop:v1:unknown-server",
-  windowClose: "desktop:v1:window-close",
-  windowMinimize: "desktop:v1:window-minimize",
-  windowToggleMaximize: "desktop:v1:window-toggle-maximize",
 } as const
 
 export type DesktopThemeSource = "dark" | "light" | "system"
@@ -334,11 +331,6 @@ export interface DesktopBridge {
     openManualDownload(): Promise<void>
     openReleasePage(): Promise<void>
     subscribe(listener: (state: UpdaterState) => void): () => void
-  }
-  windowControls: {
-    close(): Promise<void>
-    minimize(): Promise<void>
-    toggleMaximize(): Promise<boolean>
   }
 }
 

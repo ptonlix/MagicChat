@@ -14,13 +14,10 @@ import {
   Download,
   LockKeyhole,
   MessageCircleMore,
-  Minus,
-  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
   UsersRound,
-  X,
 } from "lucide-react"
 import { createBrowserRouter, RouterProvider } from "react-router"
 import { toast } from "sonner"
@@ -120,7 +117,6 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
   const { t } = useLocale()
   return (
     <div className="desktop-titlebar-drag-region">
-      {platform === "darwin" && <MacWindowControls />}
       {platform && platform !== "darwin" && (
         <div className="desktop-titlebar-brand">
           <img
@@ -131,58 +127,6 @@ function DesktopTitlebar({ platform }: { platform?: string }) {
           {platform === "win32" && <span>{t("brand.name")}</span>}
         </div>
       )}
-    </div>
-  )
-}
-
-function MacWindowControls() {
-  const { t } = useLocale()
-
-  return (
-    <div
-      aria-label={t("windowControls.group")}
-      className="desktop-mac-window-controls"
-      role="group"
-    >
-      <button
-        aria-label={t("windowControls.close")}
-        className="desktop-mac-window-control desktop-mac-window-control-close"
-        onClick={(event) => {
-          event.stopPropagation()
-          void window.desktop.windowControls.close()
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-        title={t("windowControls.close")}
-        type="button"
-      >
-        <X aria-hidden="true" size={8} strokeWidth={3} />
-      </button>
-      <button
-        aria-label={t("windowControls.minimize")}
-        className="desktop-mac-window-control desktop-mac-window-control-minimize"
-        onClick={(event) => {
-          event.stopPropagation()
-          void window.desktop.windowControls.minimize()
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-        title={t("windowControls.minimize")}
-        type="button"
-      >
-        <Minus aria-hidden="true" size={8} strokeWidth={3} />
-      </button>
-      <button
-        aria-label={t("windowControls.maximize")}
-        className="desktop-mac-window-control desktop-mac-window-control-maximize"
-        onClick={(event) => {
-          event.stopPropagation()
-          void window.desktop.windowControls.toggleMaximize()
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-        title={t("windowControls.maximize")}
-        type="button"
-      >
-        <Plus aria-hidden="true" size={8} strokeWidth={3} />
-      </button>
     </div>
   )
 }
@@ -485,7 +429,7 @@ function DesktopUpdatePrompt({
                   ? "motion-safe:animate-spin"
                   : ""
               }
-              size={16}
+              size={20}
             />
             <span className="sr-only">{label}</span>
           </button>

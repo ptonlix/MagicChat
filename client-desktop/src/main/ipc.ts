@@ -276,14 +276,6 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.updaterInstall, () => deps.updater.install())
   register(IPC.updaterOpenManual, () => deps.updater.openManualDownload())
   register(IPC.updaterOpenRelease, () => deps.updater.openReleasePage())
-  register(IPC.windowClose, (event) => currentWindow(event).close())
-  register(IPC.windowMinimize, (event) => currentWindow(event).minimize())
-  register(IPC.windowToggleMaximize, (event) => {
-    const window = currentWindow(event)
-    if (window.isMaximized()) window.unmaximize()
-    else window.maximize()
-    return window.isMaximized()
-  })
   register(IPC.diagnosticsExport, () => deps.diagnostics.export())
   register(IPC.messageCacheClearConversation, (_event, scope) =>
     deps.messageCache.clearConversation(scope),
@@ -397,12 +389,6 @@ function asString(value: unknown, max: number): string {
   )
     throw new Error("参数格式无效")
   return value
-}
-
-function currentWindow(event: IpcMainInvokeEvent): BrowserWindow {
-  const window = BrowserWindow.fromWebContents(event.sender)
-  if (!window || window.isDestroyed()) throw new Error("当前窗口不可用")
-  return window
 }
 
 function optionalString(value: unknown, max: number): string | undefined {

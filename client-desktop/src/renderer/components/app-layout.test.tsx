@@ -101,6 +101,32 @@ describe("AppLayout", () => {
     expect(screen.getByRole("link", { name: "项目" })).toHaveAttribute("title", "项目")
   })
 
+  it("左栏以更大尺寸展示头像和功能图标", () => {
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <AppLayout />
+      </MemoryRouter>,
+    )
+
+    expect(
+      screen.getByRole("button", { name: "用户菜单" }).querySelector("[data-slot='avatar']"),
+    ).toHaveClass("size-9")
+
+    const leftRailControls = [
+      screen.getByRole("link", { name: "聊天" }),
+      screen.getByRole("link", { name: "通讯录" }),
+      screen.getByRole("link", { name: "项目" }),
+      screen.getByRole("link", { name: "打开即应官网" }),
+      screen.getByRole("link", { name: "在 GitHub 查看 MagicChat" }),
+      screen.getByRole("button", { name: "配色：跟随系统" }),
+      screen.getByRole("button", { name: "设置" }),
+    ]
+
+    for (const control of leftRailControls) {
+      expect(control.querySelector("svg")).toHaveClass("size-5")
+    }
+  })
+
   it("renders the desktop update action in the sidebar footer", () => {
     render(
       <MemoryRouter initialEntries={["/chat"]}>

@@ -203,8 +203,7 @@ describe("桌面设置服务器管理", () => {
     await act(async () => profiles.resolve([profile]))
   })
 
-  it("macOS 顶栏展示紧凑的自绘窗口控制", async () => {
-    const user = userEvent.setup()
+  it("macOS 顶栏为原生交通灯保留左侧空间", async () => {
     const bridge = createDesktopBridge()
     Object.defineProperty(window, "desktop", {
       configurable: true,
@@ -213,22 +212,7 @@ describe("桌面设置服务器管理", () => {
 
     render(<DesktopRoot />)
 
-    await waitFor(() =>
-      expect(document.querySelector(".desktop-frame")).toHaveAttribute("data-platform", "darwin"),
-    )
-    expect(
-      screen.getByRole("group", { name: "窗口控制" }).closest(".desktop-titlebar-drag-region"),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { name: "缩放窗口" }).querySelector(".lucide-plus"),
-    ).toHaveAttribute("stroke-width", "3")
-    await user.click(screen.getByRole("button", { name: "关闭窗口" }))
-    await user.click(screen.getByRole("button", { name: "最小化窗口" }))
-    await user.click(screen.getByRole("button", { name: "缩放窗口" }))
-
-    expect(bridge.windowControls.close).toHaveBeenCalledOnce()
-    expect(bridge.windowControls.minimize).toHaveBeenCalledOnce()
-    expect(bridge.windowControls.toggleMaximize).toHaveBeenCalledOnce()
+    await waitFor(() => expect(bridge.app.info).toHaveBeenCalled())
     expect(screen.queryByRole("img", { name: "即应" })).not.toBeInTheDocument()
   })
 
@@ -238,22 +222,13 @@ describe("桌面设置服务器管理", () => {
     expect(source).toContain(
       '.desktop-frame[data-platform="darwin"]:has(.app-layout-shell) .desktop-titlebar-drag-region',
     )
+    expect(source).toContain("--desktop-macos-navigation-rail-width: 72px")
     expect(source).toMatch(
-      /\.desktop-frame\[data-platform="darwin"\]:has\(\.app-layout-shell\) \.desktop-titlebar-drag-region\s*\{[^}]*width:\s*56px/,
+      /\.desktop-frame\[data-platform="darwin"\]:has\(\.app-layout-shell\) \.desktop-titlebar-drag-region\s*\{[^}]*width:\s*var\(--desktop-macos-navigation-rail-width\)/,
     )
     expect(source).toMatch(
-      /\.desktop-frame\[data-platform="darwin"\] \.(?:app-navigation-rail)\s*\{[^}]*-webkit-app-region:\s*drag[^}]*margin-top:\s*var\(--desktop-titlebar-height\)[^}]*width:\s*56px/,
+      /\.desktop-frame\[data-platform="darwin"\] \.(?:app-navigation-rail)\s*\{[^}]*-webkit-app-region:\s*drag[^}]*margin-top:\s*var\(--desktop-titlebar-height\)[^}]*width:\s*var\(--desktop-macos-navigation-rail-width\)/,
     )
-    expect(source).toContain("background: #ff5f57")
-    expect(source).toContain("background: #ffbd2e")
-    expect(source).toContain("background: #28c840")
-    expect(source).toMatch(
-      /\.desktop-mac-window-controls\s*\{(?![^}]*-webkit-app-region)[^}]*height:\s*var\(--desktop-titlebar-height\)[^}]*inset:\s*0[^}]*position:\s*absolute[^}]*width:\s*56px/,
-    )
-    expect(source).toMatch(
-      /\.desktop-mac-window-control\s*\{[^}]*-webkit-app-region:\s*no-drag !important[^}]*height:\s*16px[^}]*width:\s*16px/,
-    )
-    expect(source).toContain(".desktop-mac-window-control:hover > svg")
     expect(source).toMatch(
       /\.app-layout-shell\s+\[data-desktop-drag-region\]\s*\{\s*-webkit-app-region: drag/,
     )
@@ -602,12 +577,6 @@ describe("桌面设置服务器管理", () => {
     expect(await screen.findByRole("button", { name: "Notifications" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Language" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Font size" })).toBeInTheDocument()
-    expect(screen.getByRole("group", { hidden: true, name: "Window controls" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { hidden: true, name: "Close window" })).toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { hidden: true, name: "Minimize window" }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole("button", { hidden: true, name: "Zoom window" })).toBeInTheDocument()
     expect(mocks.installDesktopFetch).toHaveBeenCalledTimes(hostInstallCount)
     expect(mocks.restoreFetch).not.toHaveBeenCalled()
   })
@@ -1789,11 +1758,6 @@ function createDesktopBridge(
         if (subscriptionState) listener(subscriptionState)
         return unsubscribe
       }),
-    },
-    windowControls: {
-      close: vi.fn().mockResolvedValue(undefined),
-      minimize: vi.fn().mockResolvedValue(undefined),
-      toggleMaximize: vi.fn().mockResolvedValue(false),
     },
     version: 1,
   }

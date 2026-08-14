@@ -1,16 +1,13 @@
 import { describe, expect, it, vi } from "vitest"
 
-import {
-  getMainWindowTitleBarOptions,
-  hideNativeWindowButtons,
-  setTrustedWindowTheme,
-} from "@main/window-controller"
+import { getMainWindowTitleBarOptions, setTrustedWindowTheme } from "@main/window-controller"
 import { DESKTOP_TITLEBAR_HEIGHT } from "@shared/bridge"
 
 describe("主窗口标题栏", () => {
-  it("在 macOS 隐藏原生交通灯，由应用内控件负责窗口操作", () => {
+  it("在 macOS 使用保留原生交通灯的内容式标题栏", () => {
     expect(getMainWindowTitleBarOptions("darwin")).toEqual({
-      titleBarStyle: "hidden",
+      titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 6, y: 13 },
     })
   })
 
@@ -36,15 +33,5 @@ describe("主窗口标题栏", () => {
       height: DESKTOP_TITLEBAR_HEIGHT,
       symbolColor: "#fafafa",
     })
-  })
-
-  it("仅在 macOS 隐藏原生交通灯", () => {
-    const window = { setWindowButtonVisibility: vi.fn() }
-
-    hideNativeWindowButtons(window, "darwin")
-    hideNativeWindowButtons(window, "win32")
-
-    expect(window.setWindowButtonVisibility).toHaveBeenCalledOnce()
-    expect(window.setWindowButtonVisibility).toHaveBeenCalledWith(false)
   })
 })

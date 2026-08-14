@@ -156,7 +156,7 @@ function ProductWebsiteLink() {
         target="_blank"
         title={t("nav.website.short")}
       >
-        <House aria-hidden="true" className="size-4" />
+        <House aria-hidden="true" className="size-5" />
       </a>
     </Button>
   )
@@ -236,16 +236,16 @@ function UserAvatarMenu({
           <Button
             aria-label={t("user.menu")}
             className="group/avatar-trigger mb-6 rounded-sm bg-muted transition-colors outline-none hover:bg-background focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-background"
-            size="icon-sm"
+            size="icon"
             title={displayName}
             type="button"
             variant="ghost"
           >
-            <Avatar className="size-8 rounded-sm bg-muted group-hover/avatar-trigger:bg-background group-data-[state=open]/avatar-trigger:bg-background after:rounded-sm after:transition-colors group-hover/avatar-trigger:after:border-ring group-data-[state=open]/avatar-trigger:after:border-ring">
+            <Avatar className="size-9 rounded-sm bg-muted group-hover/avatar-trigger:bg-background group-data-[state=open]/avatar-trigger:bg-background after:rounded-sm after:transition-colors group-hover/avatar-trigger:after:border-ring group-data-[state=open]/avatar-trigger:after:border-ring">
               {user.avatar && (
                 <AvatarImage alt={displayName} className="rounded-sm" src={user.avatar} />
               )}
-              <AvatarFallback className="rounded-sm text-xs">
+              <AvatarFallback className="rounded-sm text-sm">
                 {getAvatarInitial(displayName)}
               </AvatarFallback>
             </Avatar>
@@ -322,7 +322,7 @@ function SidebarSettingsButton() {
         type="button"
         variant="ghost"
       >
-        <Settings className="size-4" />
+        <Settings className="size-5" />
       </Button>
       <UserSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>
@@ -400,7 +400,7 @@ function MainNavItem({
     >
       <NavLink to={item.to} aria-label={accessibleLabel} title={label}>
         <Icon
-          className="size-4 [stroke-width:2] transition-[stroke-width] group-hover/button:[stroke-width:2.5]"
+          className="size-5 [stroke-width:2] transition-[stroke-width] group-hover/button:[stroke-width:2.5]"
           strokeWidth={2}
         />
         {showNotification && (
@@ -434,7 +434,7 @@ function GithubLink() {
         target="_blank"
         title="GitHub"
       >
-        <GithubIcon className="size-4" />
+        <GithubIcon className="size-5" />
       </a>
     </Button>
   )
@@ -471,7 +471,7 @@ function ThemeSwitcher() {
           aria-label={t("nav.theme", { label: t(currentTheme.label) })}
           title={t("nav.theme", { label: t(currentTheme.label) })}
         >
-          <CurrentIcon className="size-4" />
+          <CurrentIcon className="size-5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" className="w-40">

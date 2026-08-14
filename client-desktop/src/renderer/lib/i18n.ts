@@ -4,10 +4,6 @@ export type TranslationKey = keyof typeof zhCN
 
 const zhCN = {
   "brand.name": "即应",
-  "windowControls.group": "窗口控制",
-  "windowControls.close": "关闭窗口",
-  "windowControls.minimize": "最小化窗口",
-  "windowControls.maximize": "缩放窗口",
   "settings.title": "设置",
   "settings.description": "管理即应桌面端设置",
   "settings.close": "关闭设置",
@@ -1470,10 +1466,6 @@ const zhCN = {
 
 const en: Record<TranslationKey, string> = {
   "brand.name": "MagicChat",
-  "windowControls.group": "Window controls",
-  "windowControls.close": "Close window",
-  "windowControls.minimize": "Minimize window",
-  "windowControls.maximize": "Zoom window",
   "settings.title": "Settings",
   "settings.description": "Manage MagicChat desktop settings",
   "settings.close": "Close settings",

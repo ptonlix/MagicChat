@@ -28,7 +28,6 @@ import type { ServerProfiles } from "@main/server-profiles"
 import { normalizeDiagnosticProcessExitReason } from "@shared/diagnostics-contract"
 import {
   getMainWindowTitleBarOptions,
-  hideNativeWindowButtons,
   installTrustedWindowSecurity,
   setTrustedWindowTheme,
 } from "@main/window-controller"
@@ -158,7 +157,6 @@ export class DocumentWindowManager {
         y: bounds.y,
       })
       window.removeMenu()
-      hideNativeWindowButtons(window, process.platform)
       setTrustedWindowTheme(window, this.darkTheme, process.platform)
     } catch {
       return failedDocumentWindowResponse("load_failed", "文档窗口创建失败，请稍后重试")
