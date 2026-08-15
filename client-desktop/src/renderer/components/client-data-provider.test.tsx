@@ -453,7 +453,7 @@ describe("ClientDataProvider", () => {
     expect(screen.getByTestId("contact-ids")).toHaveTextContent("new-user")
   })
 
-  it("在通讯录响应切换到 friends 模式后加载待处理申请", async () => {
+  it("直接刷新通讯录切换到 friends 模式后加载待处理申请", async () => {
     vi.useFakeTimers()
     let contactsRequestCount = 0
     let incomingRequestCount = 0
@@ -497,7 +497,7 @@ describe("ClientDataProvider", () => {
     render(
       <MemoryRouter>
         <ClientDataProvider>
-          <FriendDataRefreshProbe />
+          <ContactRefreshFriendDataProbe />
         </ClientDataProvider>
       </MemoryRouter>,
     )
@@ -510,7 +510,8 @@ describe("ClientDataProvider", () => {
     expect(outgoingRequestCount).toBe(0)
 
     await act(async () => {
-      screen.getByRole("button", { name: "refresh friend data" }).click()
+      screen.getByRole("button", { name: "refresh contacts" }).click()
+      await vi.advanceTimersByTimeAsync(0)
     })
 
     expect(screen.getByTestId("contact-directory-mode")).toHaveTextContent("friends")
@@ -1886,16 +1887,12 @@ function FriendRequestRefreshRaceProbe() {
   )
 }
 
-function FriendDataRefreshProbe() {
-  const { contactDirectoryMode, incomingFriendRequests = [], refreshFriendData } = useClientData()
+function ContactRefreshFriendDataProbe() {
+  const { contactDirectoryMode, incomingFriendRequests = [], refreshContacts } = useClientData()
 
   return (
     <>
-      <button
-        aria-label="refresh friend data"
-        onClick={() => void refreshFriendData()}
-        type="button"
-      />
+      <button aria-label="refresh contacts" onClick={() => void refreshContacts()} type="button" />
       <div data-testid="contact-directory-mode">{contactDirectoryMode}</div>
       <div data-testid="incoming-request-ids">
         {incomingFriendRequests.map((request) => request.id).join(",")}

@@ -394,50 +394,6 @@ function ClientDataProviderForTarget({
     [handleError, me],
   )
 
-  const refreshContacts = useCallback(
-    async (): Promise<ContactDirectoryMode> =>
-      trackDiagnosticRefresh("contacts", async () => {
-        const requestEpoch = ++contactsRefreshEpochRef.current
-        const isInitialLoad =
-          contacts.length === 0 && contactApps.length === 0 && contactGroups.length === 0
-        setContactsError(null)
-        setContactsLoading(isInitialLoad)
-        setContactsRefreshing(!isInitialLoad)
-
-        try {
-          const nextContacts = await listClientContacts()
-          if (!mountedRef.current || contactsRefreshEpochRef.current !== requestEpoch) {
-            return contactDirectoryModeRef.current
-          }
-          setContactApps(nextContacts.apps)
-          contactDirectoryModeRef.current = nextContacts.directoryMode
-          setContactDirectoryMode(nextContacts.directoryMode)
-          setContactGroups(nextContacts.groups)
-          userDirectory.seed(nextContacts.initialUsers)
-          setContactUserIds(nextContacts.userIds)
-          void userDirectory.ensureUsers(nextContacts.userIds).catch(() => undefined)
-          if (nextContacts.directoryMode !== "friends") {
-            friendRequestsRefreshEpochRef.current += 1
-            setFriendRequestsError(null)
-            setFriendRequestsLoading(false)
-            setIncomingFriendRequests([])
-            setOutgoingFriendRequests([])
-          }
-          return nextContacts.directoryMode
-        } catch (error) {
-          const requestError = handleError(error, "加载通讯录失败")
-          if (contactsRefreshEpochRef.current === requestEpoch) setContactsError(requestError)
-          throw requestError
-        } finally {
-          if (contactsRefreshEpochRef.current === requestEpoch) {
-            setContactsLoading(false)
-            setContactsRefreshing(false)
-          }
-        }
-      }),
-    [contactApps.length, contactGroups.length, contacts.length, handleError, userDirectory],
-  )
-
   const refreshFriendRequests = useCallback(
     async (directoryMode = contactDirectoryModeRef.current) => {
       const requestEpoch = ++friendRequestsRefreshEpochRef.current
@@ -479,6 +435,60 @@ function ClientDataProviderForTarget({
       }
     },
     [handleError, userDirectory],
+  )
+
+  const refreshContacts = useCallback(
+    async (): Promise<ContactDirectoryMode> =>
+      trackDiagnosticRefresh("contacts", async () => {
+        const requestEpoch = ++contactsRefreshEpochRef.current
+        const isInitialLoad =
+          contacts.length === 0 && contactApps.length === 0 && contactGroups.length === 0
+        setContactsError(null)
+        setContactsLoading(isInitialLoad)
+        setContactsRefreshing(!isInitialLoad)
+
+        try {
+          const nextContacts = await listClientContacts()
+          if (!mountedRef.current || contactsRefreshEpochRef.current !== requestEpoch) {
+            return contactDirectoryModeRef.current
+          }
+          const previousDirectoryMode = contactDirectoryModeRef.current
+          setContactApps(nextContacts.apps)
+          contactDirectoryModeRef.current = nextContacts.directoryMode
+          setContactDirectoryMode(nextContacts.directoryMode)
+          setContactGroups(nextContacts.groups)
+          userDirectory.seed(nextContacts.initialUsers)
+          setContactUserIds(nextContacts.userIds)
+          void userDirectory.ensureUsers(nextContacts.userIds).catch(() => undefined)
+          if (nextContacts.directoryMode !== "friends") {
+            friendRequestsRefreshEpochRef.current += 1
+            setFriendRequestsError(null)
+            setFriendRequestsLoading(false)
+            setIncomingFriendRequests([])
+            setOutgoingFriendRequests([])
+          } else if (previousDirectoryMode !== "friends") {
+            await refreshFriendRequests(nextContacts.directoryMode)
+          }
+          return nextContacts.directoryMode
+        } catch (error) {
+          const requestError = handleError(error, "加载通讯录失败")
+          if (contactsRefreshEpochRef.current === requestEpoch) setContactsError(requestError)
+          throw requestError
+        } finally {
+          if (contactsRefreshEpochRef.current === requestEpoch) {
+            setContactsLoading(false)
+            setContactsRefreshing(false)
+          }
+        }
+      }),
+    [
+      contactApps.length,
+      contactGroups.length,
+      contacts.length,
+      handleError,
+      refreshFriendRequests,
+      userDirectory,
+    ],
   )
 
   const refreshFriendData = useCallback(

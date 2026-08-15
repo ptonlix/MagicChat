@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ComponentProps } from "react"
+import { useState, type ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FriendManagementDialog } from "@/components/contacts/friend-management-dialog"
@@ -26,7 +26,7 @@ describe("FriendManagementDialog", () => {
     expect(screen.queryByText("输入完整信息查找用户")).not.toBeInTheDocument()
   })
 
-  it("按更新时间合并申请历史并显示方向和终态", () => {
+  it("按更新时间合并待处理申请，并过滤终态记录", () => {
     const alice = createUser("user-1", "Alice")
     const bob = createUser("user-2", "Bob")
     const carol = createUser("user-3", "Carol")
@@ -45,26 +45,19 @@ describe("FriendManagementDialog", () => {
         ),
       ],
       outgoingRequests: [
-        createRequest(
-          "request-out-rejected",
-          alice.id,
-          dave.id,
-          "rejected",
-          "2026-08-11T10:00:00Z",
-        ),
+        createRequest("request-out-pending", alice.id, dave.id, "pending", "2026-08-11T10:00:00Z"),
       ],
       usersById: { [alice.id]: alice, [bob.id]: bob, [carol.id]: carol, [dave.id]: dave },
     })
 
-    const history = screen.getByRole("region", { name: "申请记录" })
-    const content = history.textContent ?? ""
+    const pendingRequests = screen.getByRole("region", { name: "待处理申请" })
+    const content = pendingRequests.textContent ?? ""
     expect(content.indexOf("Bob")).toBeLessThan(content.indexOf("Dave"))
-    expect(content.indexOf("Dave")).toBeLessThan(content.indexOf("Carol"))
-    expect(within(history).getAllByText("请求添加你为好友")).toHaveLength(2)
-    expect(within(history).getByText("你发出了好友申请")).toBeInTheDocument()
-    expect(within(history).getByText("待处理")).toBeInTheDocument()
-    expect(within(history).getByText("已拒绝")).toBeInTheDocument()
-    expect(within(history).getByText("已接受")).toBeInTheDocument()
+    expect(within(pendingRequests).getByText("请求添加你为好友")).toBeInTheDocument()
+    expect(within(pendingRequests).getByText("你发出了好友申请")).toBeInTheDocument()
+    expect(within(pendingRequests).queryByText("Carol")).not.toBeInTheDocument()
+    expect(within(pendingRequests).queryByText("已拒绝")).not.toBeInTheDocument()
+    expect(within(pendingRequests).queryByText("已接受")).not.toBeInTheDocument()
   })
 
   it("只对待处理的对应方向申请提供操作", async () => {
@@ -98,7 +91,7 @@ describe("FriendManagementDialog", () => {
     await waitFor(() => expect(rejectRequest).toHaveBeenCalledWith("request-in"))
     await user.click(screen.getByRole("button", { name: "取消申请" }))
     await waitFor(() => expect(cancelRequest).toHaveBeenCalledWith("request-out"))
-    expect(screen.queryByText("Carol")).toBeInTheDocument()
+    expect(screen.queryByText("Carol")).not.toBeInTheDocument()
   })
 
   it("精确搜索隐藏本人，并只将好友和 pending 关系禁用", async () => {
@@ -168,6 +161,49 @@ describe("FriendManagementDialog", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("查找用户失败")
   })
 
+  it("关闭并重新搜索后忽略旧响应", async () => {
+    const user = userEvent.setup()
+    const firstSearch = createDeferred<string[]>()
+    const secondSearch = createDeferred<string[]>()
+    const oldUser = createUser("user-old", "Old")
+    const newUser = createUser("user-new", "New")
+    const ensureUsers = vi.fn().mockResolvedValue(undefined)
+    friendApiMocks.searchContactUsers
+      .mockReturnValueOnce(firstSearch.promise)
+      .mockReturnValueOnce(secondSearch.promise)
+
+    render(
+      <SearchRaceProbe
+        ensureUsers={ensureUsers}
+        usersById={{ [oldUser.id]: oldUser, [newUser.id]: newUser }}
+      />,
+    )
+
+    await user.type(screen.getByRole("searchbox", { name: "精确查找用户" }), "old@example.com")
+    await user.click(screen.getByRole("button", { name: "查找" }))
+    await waitFor(() => expect(friendApiMocks.searchContactUsers).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole("button", { name: "Close" }))
+    await user.click(screen.getByRole("button", { name: "打开好友申请对话框" }))
+    await user.type(screen.getByRole("searchbox", { name: "精确查找用户" }), "new@example.com")
+    await user.click(screen.getByRole("button", { name: "查找" }))
+    await waitFor(() => expect(friendApiMocks.searchContactUsers).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole("button", { name: "查找" })).toBeDisabled()
+
+    await act(async () => {
+      firstSearch.resolve([oldUser.id])
+      await Promise.resolve()
+    })
+    expect(screen.getByRole("button", { name: "查找" })).toBeDisabled()
+
+    await act(async () => {
+      secondSearch.resolve([newUser.id])
+      await Promise.resolve()
+    })
+    expect(await screen.findByText("New")).toBeInTheDocument()
+    expect(screen.queryByText("Old")).not.toBeInTheDocument()
+  })
+
   it("失败后恢复待处理操作，且不保留旧入口", async () => {
     const user = userEvent.setup()
     const alice = createUser("user-1", "Alice")
@@ -214,6 +250,35 @@ function renderDialog(props: Partial<ComponentProps<typeof FriendManagementDialo
   )
 }
 
+function SearchRaceProbe({
+  ensureUsers,
+  usersById,
+}: {
+  ensureUsers: (userIds: readonly string[]) => Promise<void>
+  usersById: Readonly<Record<string, ContactUser>>
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <>
+      <button aria-label="打开好友申请对话框" onClick={() => setOpen(true)} type="button" />
+      <FriendManagementDialog
+        acceptRequest={vi.fn().mockResolvedValue(undefined)}
+        cancelRequest={vi.fn().mockResolvedValue(undefined)}
+        contacts={[]}
+        createRequest={vi.fn().mockResolvedValue(undefined)}
+        currentUserId="user-1"
+        ensureUsers={ensureUsers}
+        incomingRequests={[]}
+        onOpenChange={setOpen}
+        open={open}
+        outgoingRequests={[]}
+        rejectRequest={vi.fn().mockResolvedValue(undefined)}
+        usersById={usersById}
+      />
+    </>
+  )
+}
+
 function createUser(id: string, name: string): ContactUser {
   return {
     avatar: "",
@@ -254,4 +319,14 @@ function createRequestData(
     status,
     updatedAt,
   }
+}
+
+function createDeferred<T>() {
+  let reject!: (reason?: unknown) => void
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
 }

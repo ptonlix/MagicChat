@@ -18,7 +18,7 @@
   Desktop 对应 Renderer 内存目录、ClientData Provider、实时同步、通讯录和项目/任务资料
   hydration；保留旧 `users` contacts 响应的受限升级兼容，且不持久化或跨 Target 复用资料。
 - `7ec004c`：好友入口升级为“新朋友”。Desktop 对应全局通讯录待处理提醒、friends
-  通讯录的新朋友入口及数量、聊天新建菜单的添加好友入口，以及按时间合并申请历史的单页对话框；
+  通讯录的新朋友入口及数量、聊天新建菜单的添加好友入口，以及按时间合并待处理申请的单页对话框；
   资料页保留与当前 Web 一致的添加好友/等待接受状态，不保留好友列表标签或删除好友入口，
   但保留与 Web 相同的 `deleteFriend` 内部数据层契约。
 - `ea2e64b`：friends 模式下 Server 对新建私信、全部消息发送、上传和转发强制好友关系。
@@ -61,7 +61,7 @@
 - 用户实时资料：已安全处理 `user.profile.updated` 和 `user.presence.updated`。资料更新只刷新
   已缓存用户，在线状态只 patch 已缓存资料，畸形事件不会中断实时连接。
 - 新朋友与好友目录：已支持 `organization`/`friends` 模式、精确用户搜索、申请生命周期、
-  全局待处理提醒、通讯录/聊天一致入口及单页合并申请历史。申请、关系和目录模式实时事件在
+  全局待处理提醒、通讯录/聊天一致入口及单页合并待处理申请。申请、关系和目录模式实时事件在
   全部主应用路由有界合并刷新，并在 realtime 重新就绪后补偿同步；联系人详情保留 Web 当前的
   添加好友/等待接受入口，删除好友 UI 已从 Desktop Renderer 移除。`deleteFriend` 的受控 API、
   Context 与 Provider mutation 保持与 Web 一致，但当前没有 Renderer 界面调用它；所有请求仍经

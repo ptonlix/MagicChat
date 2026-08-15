@@ -4,7 +4,6 @@ import { toast } from "sonner"
 
 import { useLocale } from "@/components/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -45,6 +44,7 @@ export function FriendManagementDialog({
   const [searchError, setSearchError] = React.useState("")
   const [searching, setSearching] = React.useState(false)
   const [updatingKey, setUpdatingKey] = React.useState("")
+  const searchEpochRef = React.useRef(0)
   const friendIds = React.useMemo(
     () =>
       new Set(
@@ -64,21 +64,25 @@ export function FriendManagementDialog({
       ]),
     [incomingRequests, outgoingRequests],
   )
-  const requestHistory = React.useMemo(
+  const pendingRequests = React.useMemo(
     () =>
       [
-        ...incomingRequests.map((request) => ({
-          direction: "incoming" as const,
-          request,
-          user:
-            usersById[request.requesterUserId] ?? createPlaceholderUser(request.requesterUserId),
-        })),
-        ...outgoingRequests.map((request) => ({
-          direction: "outgoing" as const,
-          request,
-          user:
-            usersById[request.addresseeUserId] ?? createPlaceholderUser(request.addresseeUserId),
-        })),
+        ...incomingRequests
+          .filter((request) => request.status === "pending")
+          .map((request) => ({
+            direction: "incoming" as const,
+            request,
+            user:
+              usersById[request.requesterUserId] ?? createPlaceholderUser(request.requesterUserId),
+          })),
+        ...outgoingRequests
+          .filter((request) => request.status === "pending")
+          .map((request) => ({
+            direction: "outgoing" as const,
+            request,
+            user:
+              usersById[request.addresseeUserId] ?? createPlaceholderUser(request.addresseeUserId),
+          })),
       ].sort(
         (left, right) => getRequestUpdatedAt(right.request) - getRequestUpdatedAt(left.request),
       ),
@@ -87,6 +91,7 @@ export function FriendManagementDialog({
 
   React.useEffect(() => {
     if (open) return
+    searchEpochRef.current += 1
     setQuery("")
     setResultIds([])
     setSearchError("")
@@ -98,19 +103,27 @@ export function FriendManagementDialog({
     event.preventDefault()
     const value = query.trim()
     if (!value || searching) return
+    const searchEpoch = ++searchEpochRef.current
     setSearching(true)
     setSearchError("")
     try {
       const ids = await searchContactUsers(value)
       await ensureUsers(ids)
+      if (searchEpochRef.current !== searchEpoch) return
       setResultIds(ids)
     } catch (error) {
+      if (searchEpochRef.current !== searchEpoch) return
       const message = getClientDataErrorMessage(error, t("friend.searchFailed"))
       setSearchError(message)
       toast.error(message)
     } finally {
-      setSearching(false)
+      if (searchEpochRef.current === searchEpoch) setSearching(false)
     }
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) searchEpochRef.current += 1
+    onOpenChange(nextOpen)
   }
 
   async function run(key: string, action: () => Promise<void>, success: string) {
@@ -127,7 +140,7 @@ export function FriendManagementDialog({
   }
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="flex max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] flex-col sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("friend.title")}</DialogTitle>
@@ -186,73 +199,71 @@ export function FriendManagementDialog({
             </div>
           </section>
         )}
-        <section aria-label={t("friend.history")} className="flex min-h-0 flex-1 flex-col">
-          <h3 className="shrink-0 pt-1 text-sm font-medium">{t("friend.history")}</h3>
+        <section aria-label={t("friend.pendingRequests")} className="flex min-h-0 flex-1 flex-col">
+          <h3 className="shrink-0 pt-1 text-sm font-medium">{t("friend.pendingRequests")}</h3>
           <div className="mt-2 min-h-0 overflow-y-auto pr-1">
             <div className="grid gap-2 pb-1">
-              {requestHistory.map((item) => (
+              {pendingRequests.map((item) => (
                 <FriendRow
                   action={
-                    item.request.status === "pending" ? (
-                      item.direction === "incoming" ? (
-                        <div className="flex gap-1">
-                          <Button
-                            disabled={Boolean(updatingKey)}
-                            onClick={() =>
-                              void run(
-                                `reject:${item.request.id}`,
-                                () => rejectRequest(item.request.id),
-                                t("friend.rejected"),
-                              )
-                            }
-                            size="sm"
-                            type="button"
-                            variant="outline"
-                          >
-                            {updatingKey === `reject:${item.request.id}` && (
-                              <Loader2Icon aria-hidden="true" className="animate-spin" />
-                            )}
-                            {t("friend.reject")}
-                          </Button>
-                          <Button
-                            disabled={Boolean(updatingKey)}
-                            onClick={() =>
-                              void run(
-                                `accept:${item.request.id}`,
-                                () => acceptRequest(item.request.id),
-                                t("friend.accepted"),
-                              )
-                            }
-                            size="sm"
-                            type="button"
-                          >
-                            {updatingKey === `accept:${item.request.id}` && (
-                              <Loader2Icon aria-hidden="true" className="animate-spin" />
-                            )}
-                            {t("friend.accept")}
-                          </Button>
-                        </div>
-                      ) : (
+                    item.direction === "incoming" ? (
+                      <div className="flex gap-1">
                         <Button
                           disabled={Boolean(updatingKey)}
                           onClick={() =>
                             void run(
-                              `cancel:${item.request.id}`,
-                              () => cancelRequest(item.request.id),
-                              t("friend.requestCanceled"),
+                              `reject:${item.request.id}`,
+                              () => rejectRequest(item.request.id),
+                              t("friend.rejected"),
                             )
                           }
                           size="sm"
                           type="button"
                           variant="outline"
                         >
-                          {updatingKey === `cancel:${item.request.id}` && (
+                          {updatingKey === `reject:${item.request.id}` && (
                             <Loader2Icon aria-hidden="true" className="animate-spin" />
                           )}
-                          {t("friend.cancelRequest")}
+                          {t("friend.reject")}
                         </Button>
-                      )
-                    ) : null
+                        <Button
+                          disabled={Boolean(updatingKey)}
+                          onClick={() =>
+                            void run(
+                              `accept:${item.request.id}`,
+                              () => acceptRequest(item.request.id),
+                              t("friend.accepted"),
+                            )
+                          }
+                          size="sm"
+                          type="button"
+                        >
+                          {updatingKey === `accept:${item.request.id}` && (
+                            <Loader2Icon aria-hidden="true" className="animate-spin" />
+                          )}
+                          {t("friend.accept")}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        disabled={Boolean(updatingKey)}
+                        onClick={() =>
+                          void run(
+                            `cancel:${item.request.id}`,
+                            () => cancelRequest(item.request.id),
+                            t("friend.requestCanceled"),
+                          )
+                        }
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {updatingKey === `cancel:${item.request.id}` && (
+                          <Loader2Icon aria-hidden="true" className="animate-spin" />
+                        )}
+                        {t("friend.cancelRequest")}
+                      </Button>
+                    )
                   }
                   detail={t(
                     item.direction === "incoming"
@@ -260,13 +271,12 @@ export function FriendManagementDialog({
                       : "friend.direction.outgoing",
                   )}
                   key={`${item.direction}:${item.request.id}`}
-                  status={t(getFriendRequestStatusKey(item.request.status))}
                   user={item.user}
                 />
               ))}
-              {requestHistory.length === 0 && (
+              {pendingRequests.length === 0 && (
                 <div className="py-8 text-center text-sm text-muted-foreground">
-                  {t("friend.empty.history")}
+                  {t("friend.empty.pendingRequests")}
                 </div>
               )}
             </div>
@@ -280,12 +290,10 @@ export function FriendManagementDialog({
 function FriendRow({
   action,
   detail,
-  status,
   user,
 }: {
   action: React.ReactNode
   detail?: string
-  status?: string
   user: ContactUser
 }) {
   const displayName = user.nickname || user.name || shortUserId(user.id)
@@ -302,22 +310,9 @@ function FriendRow({
         </div>
         {detail && <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {status && <Badge variant="secondary">{status}</Badge>}
-        {action}
-      </div>
+      <div className="flex shrink-0 items-center gap-1">{action}</div>
     </div>
   )
-}
-
-function getFriendRequestStatusKey(
-  status: FriendRequest["status"],
-):
-  | "friend.status.accepted"
-  | "friend.status.canceled"
-  | "friend.status.pending"
-  | "friend.status.rejected" {
-  return `friend.status.${status}`
 }
 
 function getRequestUpdatedAt(request: FriendRequest) {
