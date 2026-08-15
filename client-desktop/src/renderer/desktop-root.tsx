@@ -179,8 +179,12 @@ function DesktopRootContent({ platform }: { platform?: string }) {
     setSelectedId(id)
   }
 
-  async function added(profile: ServerProfile) {
+  async function added(profile: ServerProfile): Promise<void> {
     const items = await window.desktop.servers.list()
+    if (!profile.lastUserId) {
+      window.history.replaceState({}, "", "/login")
+      window.dispatchEvent(new PopStateEvent("popstate"))
+    }
     setProfiles(items)
     await select(profile.id)
   }
@@ -631,7 +635,7 @@ function updatePromptLabel(state: UpdaterState, t: ReturnType<typeof useLocale>[
   return t("settings.update.prompt.available")
 }
 
-function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
+function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): Promise<void> }) {
   const { t } = useLocale()
   const [url, setUrl] = useState("")
   const [name, setName] = useState("")
@@ -643,7 +647,7 @@ function ServerSetup({ onAdded }: { onAdded(profile: ServerProfile): void }) {
     setBusy(true)
     setError("")
     try {
-      onAdded(await window.desktop.servers.add(url, name || undefined))
+      await onAdded(await window.desktop.servers.add(url, name || undefined))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("setup.addServerError"))
     } finally {

@@ -372,6 +372,38 @@ describe("桌面设置服务器管理", () => {
     expect(screen.getByLabelText("服务器地址")).toHaveValue("")
   })
 
+  it("新增无本地登录态的服务器时跳转登录页", async () => {
+    const originalLocation = `${window.location.pathname}${window.location.search}`
+    const nextProfile: ServerProfile = {
+      ...profile,
+      displayName: "本地服务器",
+      id: "server-local",
+      normalizedUrl: "http://localhost:20080",
+    }
+    const bridge = createDesktopBridge()
+    let items: ServerProfile[] = []
+    vi.mocked(bridge.servers.list).mockImplementation(async () => items)
+    vi.mocked(bridge.servers.add).mockImplementation(async () => {
+      items = [nextProfile]
+      return nextProfile
+    })
+    Object.defineProperty(window, "desktop", { configurable: true, value: bridge })
+    window.history.replaceState({}, "", "/chat/conversation-from-removed-server")
+    const user = userEvent.setup()
+    const view = render(<DesktopRoot />)
+
+    try {
+      await user.type(await screen.findByLabelText("服务器地址"), nextProfile.normalizedUrl)
+      await user.click(screen.getByRole("button", { name: "连接并继续" }))
+
+      await waitFor(() => expect(window.location.pathname).toBe("/login"))
+      expect(bridge.servers.select).toHaveBeenCalledWith(nextProfile.id)
+    } finally {
+      view.unmount()
+      window.history.replaceState({}, "", originalLocation || "/")
+    }
+  })
+
   it("未同步文档取消关闭后保留当前服务器和设置窗口", async () => {
     mocks.remove.mockResolvedValueOnce(false)
     const user = userEvent.setup()
