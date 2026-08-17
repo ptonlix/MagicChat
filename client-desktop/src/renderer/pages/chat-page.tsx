@@ -805,8 +805,10 @@ export function ChatPage() {
       activeConversation?.type === "topic" ? (
         <>
           <TopicSourceBanner
+            appsById={contactAppsByLookup}
             conversationId={activeConversation.id}
             currentUserId={me.id}
+            currentUser={me}
             mentionLabelResolver={activeMentionLabelResolver}
             onForward={forwardTopicSourceMessage}
             onMultiSelect={startTopicSourceSelection}
@@ -834,6 +836,7 @@ export function ChatPage() {
             sourceChoice={activeTopicSourceChoice?.choice}
             sourceChoiceStatus={activeTopicSourceChoice?.status}
             sourceMessage={activeTopicSource ?? undefined}
+            usersById={usersById}
           />
           {activeTopicSource?.body.type === "choice" && activeTopicParentConversationId && (
             <TopicSourceChoiceSync
@@ -865,10 +868,11 @@ export function ChatPage() {
       activeTopicSource,
       activeTopicSourceChoice,
       activeTopicSourceReaction,
+      contactAppsByLookup,
       forwardTopicSourceMessage,
       getConversation,
       handleActiveTopicSourceMessageUpdate,
-      me.id,
+      me,
       recordTopicSourceMessage,
       refreshActiveTopicSourceChoice,
       refreshActiveTopicSourceReaction,
@@ -876,6 +880,7 @@ export function ChatPage() {
       startTopicSourceSelection,
       toggleTopicSourceSelection,
       updateTopicSourceReaction,
+      usersById,
       visibleMessageSelection,
     ],
   )

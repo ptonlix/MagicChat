@@ -142,6 +142,56 @@ describe("ChatPage app direct access", () => {
 })
 
 describe("ChatPage topic source parity", () => {
+  it("uses the directory profile for source senders on the full topic page", async () => {
+    const parentConversation = createConversation("conversation-parent", "产品群")
+    const topicConversation = createTopicConversation(parentConversation.id)
+    const sourceMessage = {
+      ...createTopicSourceMessage(),
+      sender: {
+        avatar: "",
+        id: "user-2",
+        name: "过期名称",
+        type: "user" as const,
+      },
+    }
+    mocks.getConversationTopic.mockReset()
+    mocks.getConversationTopic.mockResolvedValue({
+      canArchive: false,
+      canParticipate: false,
+      conversation: topicConversation,
+      parentConversation: {
+        id: parentConversation.id,
+        name: parentConversation.name,
+        type: "group",
+      },
+      sourceMessage,
+    })
+    mocks.listConversationMessageReactionSnapshots.mockReset()
+    mocks.listConversationMessageReactionSnapshots.mockResolvedValue([])
+
+    renderChatPage(
+      {
+        ...createConversationOverrides([parentConversation, topicConversation]),
+        usersById: {
+          "user-2": {
+            avatar: "/avatars/member.webp",
+            email: "member@example.test",
+            id: "user-2",
+            lastOnlineAt: null,
+            name: "群成员姓名",
+            nickname: "群成员昵称",
+            online: false,
+            phone: "",
+            type: "user",
+          },
+        },
+      },
+      `/chat/${topicConversation.id}`,
+    )
+
+    expect(await screen.findByText("群成员昵称")).toBeVisible()
+  })
+
   it("wires reactions, forwarding, and multi-select on the full topic page", async () => {
     const parentConversation = createConversation("conversation-parent", "产品群")
     const topicConversation = createTopicConversation(parentConversation.id)

@@ -20,8 +20,11 @@ import {
   type MessageChoiceSnapshot,
   type MessageReactionSnapshot,
   type ClientMessage,
+  type ClientUser,
   type ClientTopicDetail,
   type ClientTopicSourceMessage,
+  type ContactApp,
+  type ContactUser,
 } from "@/lib/client-data-api"
 import { getAvatarInitial } from "@/lib/avatar"
 import { applyTopicSourceMessageUpdate, getClientDataErrorMessage } from "@/lib/client-data-state"
@@ -29,7 +32,10 @@ import { createConversationMentionLabelResolver } from "@/lib/conversation-menti
 import { useClientData } from "@/lib/client-data-context"
 import { useRealtime } from "@/lib/realtime-context"
 import { type MentionLabelResolver } from "@/lib/message-mentions"
-import { isTopicSourceMessageSelectable } from "@/lib/topic-source-message"
+import {
+  getTopicSourceSenderProfile,
+  isTopicSourceMessageSelectable,
+} from "@/lib/topic-source-message"
 import { createClientMessageId } from "@/lib/message-id"
 import { useMessageSelection } from "@/hooks/use-message-selection"
 import type {
@@ -87,6 +93,7 @@ import {
 
 const emptyMessages: ClientMessage[] = []
 const emptyMentionLabelResolver: MentionLabelResolver = () => undefined
+const emptyContactAppsById: ReadonlyMap<string, ContactApp> = new Map()
 
 function isMessageSelectable(message: Pick<ClientMessage, "body">) {
   return (
@@ -663,8 +670,10 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
             historyPendingLatestMessageCount={messageState?.pendingLatestMessageCount ?? 0}
             historyHeader={
               <TopicSourceBanner
+                appsById={appsById}
                 reactionConversationId={sourceConversationId}
                 currentUserId={me.id}
+                currentUser={me}
                 mentionLabelResolver={mentionLabelResolver}
                 onForward={forwardTopicSource}
                 onMultiSelect={startTopicSourceSelection}
@@ -688,6 +697,7 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
                 sourceChoiceStatus={sourceChoiceSnapshot?.status}
                 sourceMessage={detail?.sourceMessage}
                 onToggleSelected={(message) => toggleSelectableMessage(message.id)}
+                usersById={usersById}
               />
             }
             mentionLabelResolver={mentionLabelResolver}
@@ -1022,8 +1032,10 @@ function TopicArchiveConfirmDialog({
 }
 
 export function TopicSourceBanner({
+  appsById,
   conversationId,
   currentUserId,
+  currentUser,
   mentionLabelResolver,
   onForward,
   onMultiSelect,
@@ -1039,9 +1051,12 @@ export function TopicSourceBanner({
   sourceMessage,
   sourceChoice,
   sourceChoiceStatus,
+  usersById,
 }: {
+  appsById?: ReadonlyMap<string, ContactApp>
   conversationId?: string
   currentUserId: string
+  currentUser?: Pick<ClientUser, "avatar" | "id" | "name" | "nickname">
   mentionLabelResolver?: MentionLabelResolver
   onForward?: (message: ClientTopicSourceMessage) => void
   onMultiSelect?: (message: ClientTopicSourceMessage) => void
@@ -1057,6 +1072,7 @@ export function TopicSourceBanner({
   sourceMessage?: ClientTopicSourceMessage
   sourceChoice?: ClientChoiceState | null
   sourceChoiceStatus?: "active" | "deleted" | "revoked"
+  usersById?: Readonly<Record<string, ContactUser>>
 }) {
   const { t } = useLocale()
   const [fetchedSource, setFetchedSource] = React.useState<ClientTopicSourceMessage | null>(null)
@@ -1107,14 +1123,16 @@ export function TopicSourceBanner({
 
   const fromCurrentUser =
     loadedSource.sender.type === "user" && loadedSource.sender.id === currentUserId
+  const sender = getTopicSourceSenderProfile(
+    loadedSource.sender,
+    currentUser,
+    usersById ?? {},
+    appsById ?? emptyContactAppsById,
+  )
   const avatar = (
     <Avatar className="size-8 rounded-sm bg-muted after:rounded-sm">
-      {loadedSource.sender.avatar && (
-        <AvatarImage
-          alt={loadedSource.sender.name}
-          className="rounded-sm"
-          src={loadedSource.sender.avatar}
-        />
+      {sender.avatar && (
+        <AvatarImage alt={sender.name} className="rounded-sm" src={sender.avatar} />
       )}
       <AvatarFallback
         className={cn("rounded-sm", fromCurrentUser && "bg-primary text-primary-foreground")}
@@ -1124,7 +1142,7 @@ export function TopicSourceBanner({
         ) : fromCurrentUser ? (
           t("topic.me")
         ) : (
-          getAvatarInitial(loadedSource.sender.name)
+          getAvatarInitial(sender.name)
         )}
       </AvatarFallback>
     </Avatar>
@@ -1197,7 +1215,7 @@ export function TopicSourceBanner({
       {selectionMode && (
         <Checkbox
           aria-label={t(selected ? "topic.deselect" : "topic.select", {
-            name: loadedSource.sender.name,
+            name: sender.name,
           })}
           checked={selected}
           className="absolute top-4 left-3"
@@ -1214,7 +1232,7 @@ export function TopicSourceBanner({
           )}
         >
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{loadedSource.sender.name}</span>
+            <span>{sender.name}</span>
             <span>{formatTopicSourceTime(loadedSource.createdAt)}</span>
           </div>
           <div

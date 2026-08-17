@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MessageImage } from "@/components/message-image"
 import { getImageThumbnailFrame } from "@/lib/image-message"
+import { clampPreviewZoom } from "@/lib/message-image-preview"
 
 const { readTemporaryFileURLsMock } = vi.hoisted(() => ({
   readTemporaryFileURLsMock: vi.fn(),
@@ -70,5 +71,11 @@ describe("MessageImage", () => {
     const wheelNotCanceled = fireEvent.wheel(previewArea, { deltaY: -1 })
 
     expect(wheelNotCanceled).toBe(false)
+  })
+
+  it("matches Web preview zoom bounds", () => {
+    expect(clampPreviewZoom(0)).toBe(0.25)
+    expect(clampPreviewZoom(8)).toBe(4)
+    expect(clampPreviewZoom(1.234)).toBe(1.23)
   })
 })

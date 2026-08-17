@@ -4,6 +4,7 @@ import { Editor } from "@tiptap/core"
 import Collaboration from "@tiptap/extension-collaboration"
 import TaskItem from "@tiptap/extension-task-item"
 import TaskList from "@tiptap/extension-task-list"
+import { TableKit } from "@tiptap/extension-table"
 import StarterKit from "@tiptap/starter-kit"
 import { StrictMode } from "react"
 import type { ReactElement } from "react"
@@ -212,6 +213,60 @@ describe("DocumentEditor", () => {
     expect(cell).toHaveAttribute("aria-pressed", "true")
     fireEvent.mouseEnter(screen.getByRole("gridcell", { name: "4 行 5 列" }))
     expect(screen.getByText("4 × 5")).toBeVisible()
+  })
+
+  it("为表格单元格提供行和列操作菜单", async () => {
+    const user = userEvent.setup()
+    const document = new Y.Doc()
+    renderEditor(
+      <DocumentEditor
+        collaborationDocument={document}
+        onTitleBlur={() => undefined}
+        onTitleChange={() => undefined}
+        title="表格操作"
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "插入表格" }))
+    await user.click(screen.getByRole("gridcell", { name: "2 行 2 列" }))
+
+    const getTableCell = () => {
+      const nextCell = screen.getByLabelText("文档正文").querySelector<HTMLTableCellElement>("td")
+      if (!nextCell) throw new Error("表格单元格尚未渲染")
+      return nextCell
+    }
+    const openTableMenu = async (name: "行操作" | "列操作") => {
+      fireEvent.mouseMove(getTableCell())
+      await user.click(await screen.findByRole("button", { name }))
+    }
+
+    await waitFor(() => expect(getTableCell()).toBeInTheDocument())
+    await openTableMenu("行操作")
+    expect(await screen.findByRole("menuitem", { name: "在上方插入行" })).toBeVisible()
+    expect(screen.getByRole("menuitem", { name: "在下方插入行" })).toBeVisible()
+    expect(screen.getByRole("menuitem", { name: "删除当前行" })).toBeVisible()
+    await user.click(screen.getByRole("menuitem", { name: "在上方插入行" }))
+    await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 2, rows: 3 }))
+
+    await openTableMenu("行操作")
+    await user.click(screen.getByRole("menuitem", { name: "在下方插入行" }))
+    await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 2, rows: 4 }))
+
+    await openTableMenu("行操作")
+    await user.click(screen.getByRole("menuitem", { name: "删除当前行" }))
+    await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 2, rows: 3 }))
+
+    await openTableMenu("列操作")
+    await user.click(await screen.findByRole("menuitem", { name: "在左侧插入列" }))
+    await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 3, rows: 3 }))
+
+    await openTableMenu("列操作")
+    await user.click(await screen.findByRole("menuitem", { name: "在右侧插入列" }))
+    await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 4, rows: 3 }))
+
+    await openTableMenu("列操作")
+    await user.click(await screen.findByRole("menuitem", { name: "删除当前列" }))
+    await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 3, rows: 3 }))
   })
 
   it("编辑器事务只刷新工具栏订阅，不依赖编辑器根组件重渲染", async () => {
@@ -438,6 +493,26 @@ function readHorizontalRuleAttributes(document: Y.Doc): {
   })
   editor.destroy()
   return attributes
+}
+
+function readTableDimensions(document: Y.Doc): { columns: number; rows: number } | null {
+  const editor = new Editor({
+    extensions: [
+      StarterKit.configure({ undoRedo: false }),
+      Collaboration.configure({ fragment: document.getXmlFragment("body") }),
+      TableKit.configure({ table: { resizable: true } }),
+    ],
+  })
+  let dimensions: { columns: number; rows: number } | null = null
+  editor.state.doc.descendants((node) => {
+    if (dimensions || node.type.name !== "table") return
+    dimensions = {
+      columns: node.firstChild?.childCount ?? 0,
+      rows: node.childCount,
+    }
+  })
+  editor.destroy()
+  return dimensions
 }
 
 function createTaskStateEditor(document: Y.Doc): Editor {

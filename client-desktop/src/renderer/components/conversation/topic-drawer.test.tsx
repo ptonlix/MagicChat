@@ -101,6 +101,39 @@ describe("TopicSourceBanner", () => {
     expect(screen.queryByText("不同的摘要")).not.toBeInTheDocument()
   })
 
+  it("uses a resolved non-friend group member profile for the source sender", () => {
+    const sourceMessage = createSourceMessage()
+    sourceMessage.sender = {
+      avatar: "",
+      id: "user-1",
+      name: "user-1",
+      type: "user",
+    }
+
+    render(
+      <TopicSourceBanner
+        currentUserId="user-2"
+        sourceMessage={sourceMessage}
+        usersById={{
+          "user-1": {
+            avatar: "/avatars/member.webp",
+            email: "member@example.test",
+            id: "user-1",
+            lastOnlineAt: null,
+            name: "群成员姓名",
+            nickname: "群成员昵称",
+            online: false,
+            phone: "",
+            type: "user",
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByText("群成员昵称")).toBeInTheDocument()
+    expect(screen.getByText("群")).toBeInTheDocument()
+  })
+
   it("renders and updates reactions on the source message", async () => {
     const onSetReaction = vi.fn().mockResolvedValue(undefined)
     render(

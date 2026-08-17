@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { EditorEvents } from "@tiptap/core"
+import { Extension, type EditorEvents } from "@tiptap/core"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import { DragHandle, type DragHandleProps } from "@tiptap/extension-drag-handle-react"
@@ -9,6 +9,9 @@ import TaskList from "@tiptap/extension-task-list"
 import { TableKit } from "@tiptap/extension-table"
 import TextAlign from "@tiptap/extension-text-align"
 import { Color, TextStyle } from "@tiptap/extension-text-style"
+import { Plugin, PluginKey } from "@tiptap/pm/state"
+import { CellSelection } from "@tiptap/pm/tables"
+import { Decoration, DecorationSet } from "@tiptap/pm/view"
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import { toast } from "sonner"
@@ -18,7 +21,9 @@ import {
   AlignLeft,
   AlignRight,
   ArrowDown,
+  ArrowLeft,
   ArrowLeftRight,
+  ArrowRight,
   ArrowUp,
   Baseline,
   Bold,
@@ -89,6 +94,72 @@ import { useDocumentImageResolutions } from "./use-document-image-resolutions"
 
 import "./document-editor.css"
 
+const activeTableCellPluginKey = new PluginKey("activeTableCell")
+const activeBlockPluginKey = new PluginKey<number | null>("activeBlock")
+
+const DocumentDecorations = Extension.create({
+  name: "documentDecorations",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: activeTableCellPluginKey,
+        props: {
+          decorations(state) {
+            const selection = state.selection
+            if (selection instanceof CellSelection) return DecorationSet.empty
+
+            const $anchor = selection.$anchor
+            for (let depth = $anchor.depth; depth > 0; depth -= 1) {
+              const node = $anchor.node(depth)
+              if (node.type.name !== "tableCell" && node.type.name !== "tableHeader") continue
+
+              const from = $anchor.before(depth)
+              return DecorationSet.create(state.doc, [
+                Decoration.node(from, from + node.nodeSize, {
+                  class: "document-table-active-cell",
+                }),
+              ])
+            }
+            return DecorationSet.empty
+          },
+        },
+      }),
+      new Plugin<number | null>({
+        key: activeBlockPluginKey,
+        state: {
+          init: () => null,
+          apply(transaction, activeBlockPos) {
+            const nextActiveBlockPos = transaction.getMeta(activeBlockPluginKey) as
+              | number
+              | null
+              | undefined
+            if (nextActiveBlockPos !== undefined) return nextActiveBlockPos
+            if (activeBlockPos === null) return null
+
+            const mapped = transaction.mapping.mapResult(activeBlockPos)
+            return mapped.deleted ? null : mapped.pos
+          },
+        },
+        props: {
+          decorations(state) {
+            const position = activeBlockPluginKey.getState(state)
+            if (position === null || position === undefined) return DecorationSet.empty
+
+            const node = state.doc.nodeAt(position)
+            if (!node) return DecorationSet.empty
+
+            return DecorationSet.create(state.doc, [
+              Decoration.node(position, position + node.nodeSize, {
+                class: "document-block-active",
+              }),
+            ])
+          },
+        },
+      }),
+    ]
+  },
+})
+
 export function DocumentEditor({
   collaborationDocument,
   collaborationProvider,
@@ -150,6 +221,7 @@ export function DocumentEditor({
         TaskList,
         DocumentTaskItem,
         TableKit.configure({ table: { resizable: true } }),
+        DocumentDecorations,
         Placeholder.configure({ placeholder: "开始撰写文档..." }),
       ],
       shouldRerenderOnTransaction: false,
@@ -157,6 +229,7 @@ export function DocumentEditor({
     [collaborationDocument, collaborationProvider, collaborationUser?.id, readOnly],
   )
   const imageResolutions = useDocumentImageResolutions(editor)
+  const [editorContainer, setEditorContainer] = React.useState<HTMLDivElement | null>(null)
 
   React.useEffect(() => () => editor?.destroy(), [editor])
   if (!editor) return <div className="p-8 text-sm text-muted-foreground">正在初始化编辑器</div>
@@ -168,7 +241,10 @@ export function DocumentEditor({
         className="document-workspace-canvas min-h-0 flex-1 overflow-y-auto p-4"
         data-testid="document-workspace-canvas"
       >
-        <div className="document-editor mx-auto min-h-full max-w-4xl border bg-background px-8 py-12 shadow-md sm:px-14 sm:py-16">
+        <div
+          className="document-editor mx-auto min-h-full max-w-4xl border bg-background px-8 py-12 shadow-md sm:px-14 sm:py-16"
+          ref={setEditorContainer}
+        >
           <input
             aria-label="文档页面标题"
             className="mb-8 w-full border-b bg-transparent pb-5 text-4xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/60"
@@ -182,6 +258,7 @@ export function DocumentEditor({
             <EditorContent editor={editor} />
           </DocumentImageResolutionContext.Provider>
           {!readOnly && <DocumentBlockHandle editor={editor} />}
+          {!readOnly && <DocumentTableMenu container={editorContainer} editor={editor} />}
         </div>
       </div>
     </div>
@@ -962,9 +1039,8 @@ function LinkMenu({ editor }: { editor: Editor }) {
 }
 
 function DocumentBlockHandle({ editor }: { editor: Editor }) {
+  const [handleHovered, setHandleHovered] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const activeBlockElementRef = React.useRef<Element | null>(null)
-  const handleHoveredRef = React.useRef(false)
   const activeBlockRef = React.useRef<ActiveDocumentBlock | null>(null)
   const [activeBlock, setActiveBlock] = React.useState<ActiveDocumentBlock | null>(null)
   useEditorState({
@@ -989,29 +1065,23 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
 
   const handleNodeChange = React.useCallback<NonNullable<DragHandleProps["onNodeChange"]>>(
     ({ node, pos }) => {
-      activeBlockElementRef.current?.classList.remove("document-block-active")
-      const view = getMountedEditorView(editor)
-      const nodeDOM = node && view ? view.nodeDOM(pos) : null
-      activeBlockElementRef.current =
-        nodeDOM instanceof Element
-          ? nodeDOM
-          : nodeDOM?.parentElement instanceof Element
-            ? nodeDOM.parentElement
-            : null
-      if (handleHoveredRef.current) {
-        activeBlockElementRef.current?.classList.add("document-block-active")
-      }
       const next = node ? { nodeSize: node.nodeSize, pos } : null
       activeBlockRef.current = next
       setActiveBlock(next)
     },
-    [editor],
+    [],
   )
 
-  function setBlockHighlight(highlighted: boolean) {
-    handleHoveredRef.current = highlighted
-    activeBlockElementRef.current?.classList.toggle("document-block-active", highlighted)
-  }
+  React.useLayoutEffect(() => {
+    const view = getMountedEditorView(editor)
+    if (!view) return
+
+    const highlighted = handleHovered || menuOpen
+    const nextActiveBlockPos = highlighted && activeBlock ? activeBlock.pos : null
+    if (activeBlockPluginKey.getState(editor.state) === nextActiveBlockPos) return
+
+    view.dispatch(editor.state.tr.setMeta(activeBlockPluginKey, nextActiveBlockPos))
+  }, [activeBlock, editor, handleHovered, menuOpen])
 
   function handleMenuOpenChange(open: boolean) {
     setMenuOpen(open)
@@ -1092,8 +1162,8 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
           <Button
             aria-label="块操作"
             className="cursor-grab bg-transparent text-muted-foreground/60 shadow-none hover:bg-secondary hover:text-foreground active:cursor-grabbing aria-expanded:bg-secondary aria-expanded:text-foreground"
-            onMouseEnter={() => setBlockHighlight(true)}
-            onMouseLeave={() => setBlockHighlight(false)}
+            onMouseEnter={() => setHandleHovered(true)}
+            onMouseLeave={() => setHandleHovered(false)}
             size="icon-xs"
             title="点击打开菜单，拖动调整位置"
             type="button"
@@ -1199,5 +1269,235 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
         </DropdownMenuContent>
       </DropdownMenu>
     </DragHandle>
+  )
+}
+
+type TableMenuKind = "row" | "column"
+
+type TableMenuHover = {
+  cell: HTMLElement
+  row: HTMLElement
+}
+
+type HandlePlacement = {
+  left: number
+  top: number
+}
+
+const TABLE_HANDLE_LONG_SIDE = 28
+const TABLE_HANDLE_SHORT_SIDE = 20
+
+function useTableMenu(editor: Editor, container: HTMLDivElement | null) {
+  const [hoveredCell, setHoveredCell] = React.useState<TableMenuHover | null>(null)
+  const [openMenu, setOpenMenu] = React.useState<TableMenuKind | null>(null)
+  const [, updatePosition] = React.useReducer((value) => value + 1, 0)
+
+  React.useLayoutEffect(() => {
+    const editorDom = getMountedEditorViewDom(editor)
+    if (!container || !editorDom) return
+
+    const clearHoveredCell = () => {
+      setHoveredCell((current) => (current ? null : current))
+    }
+    const handleMouseMove = (event: MouseEvent) => {
+      if (openMenu || !(event.target instanceof HTMLElement)) return
+      if (event.target.closest(".document-table-handle")) return
+
+      const cell = event.target.closest<HTMLElement>("td, th")
+      if (!cell || !editorDom.contains(cell)) {
+        clearHoveredCell()
+        return
+      }
+
+      const row = cell.closest<HTMLElement>("tr")
+      if (!row) {
+        clearHoveredCell()
+        return
+      }
+
+      setHoveredCell((current) =>
+        current?.cell === cell && current.row === row ? current : { cell, row },
+      )
+    }
+    const handleMouseLeave = () => {
+      if (!openMenu) clearHoveredCell()
+    }
+
+    container.addEventListener("mousemove", handleMouseMove)
+    container.addEventListener("mouseleave", handleMouseLeave)
+    container.addEventListener("scroll", updatePosition, true)
+    window.addEventListener("resize", updatePosition)
+    return () => {
+      container.removeEventListener("mousemove", handleMouseMove)
+      container.removeEventListener("mouseleave", handleMouseLeave)
+      container.removeEventListener("scroll", updatePosition, true)
+      window.removeEventListener("resize", updatePosition)
+    }
+  }, [container, editor, openMenu])
+
+  return { hoveredCell, openMenu, setHoveredCell, setOpenMenu }
+}
+
+function DocumentTableMenu({
+  container,
+  editor,
+}: {
+  container: HTMLDivElement | null
+  editor: Editor
+}) {
+  const { hoveredCell, openMenu, setHoveredCell, setOpenMenu } = useTableMenu(editor, container)
+
+  if (!container || !hoveredCell) return null
+
+  const containerRect = container.getBoundingClientRect()
+  const table = hoveredCell.cell.closest<HTMLElement>("table")
+  if (!table) return null
+
+  const tableRect = table.getBoundingClientRect()
+  const rowRect = hoveredCell.row.getBoundingClientRect()
+  const cellRect = hoveredCell.cell.getBoundingClientRect()
+  const originLeft = containerRect.left + container.clientLeft
+  const originTop = containerRect.top + container.clientTop
+  const rowHandle: HandlePlacement = {
+    left: tableRect.left - originLeft - TABLE_HANDLE_SHORT_SIDE / 2,
+    top: rowRect.top - originTop + (rowRect.height - TABLE_HANDLE_LONG_SIDE) / 2,
+  }
+  const columnHandle: HandlePlacement = {
+    left: cellRect.left - originLeft + (cellRect.width - TABLE_HANDLE_LONG_SIDE) / 2,
+    top: tableRect.top - originTop - TABLE_HANDLE_SHORT_SIDE / 2,
+  }
+
+  function handleMenuOpenChange(kind: TableMenuKind, open: boolean) {
+    setOpenMenu(open ? kind : null)
+    if (!open) setHoveredCell(null)
+  }
+
+  return (
+    <>
+      <TableMenuHandle
+        cell={hoveredCell.cell}
+        editor={editor}
+        isRow
+        onOpenChange={(open) => handleMenuOpenChange("row", open)}
+        open={openMenu === "row"}
+        placement={rowHandle}
+      />
+      <TableMenuHandle
+        cell={hoveredCell.cell}
+        editor={editor}
+        isRow={false}
+        onOpenChange={(open) => handleMenuOpenChange("column", open)}
+        open={openMenu === "column"}
+        placement={columnHandle}
+      />
+    </>
+  )
+}
+
+function getCellPosition(editor: Editor, cell: HTMLElement): number | null {
+  const view = getMountedEditorView(editor)
+  if (!view) return null
+
+  const domPosition = view.posAtDOM(cell, 0)
+  const $position = editor.state.doc.resolve(domPosition)
+  for (let depth = $position.depth; depth > 0; depth -= 1) {
+    const node = $position.node(depth)
+    if (node.type.name === "tableCell" || node.type.name === "tableHeader") {
+      return $position.before(depth)
+    }
+  }
+  return null
+}
+
+function selectTableAxis(editor: Editor, cell: HTMLElement, isRow: boolean) {
+  const view = getMountedEditorView(editor)
+  const position = getCellPosition(editor, cell)
+  if (!view || position === null) return
+
+  const $cell = editor.state.doc.resolve(position)
+  const selection = isRow ? CellSelection.rowSelection($cell) : CellSelection.colSelection($cell)
+  view.dispatch(editor.state.tr.setSelection(selection))
+}
+
+function TableMenuHandle({
+  cell,
+  editor,
+  isRow,
+  onOpenChange,
+  open,
+  placement,
+}: {
+  cell: HTMLElement
+  editor: Editor
+  isRow: boolean
+  onOpenChange: (open: boolean) => void
+  open: boolean
+  placement: HandlePlacement
+}) {
+  const style: React.CSSProperties = isRow
+    ? {
+        height: TABLE_HANDLE_LONG_SIDE,
+        left: placement.left,
+        top: placement.top,
+        width: TABLE_HANDLE_SHORT_SIDE,
+      }
+    : {
+        height: TABLE_HANDLE_SHORT_SIDE,
+        left: placement.left,
+        top: placement.top,
+        width: TABLE_HANDLE_LONG_SIDE,
+      }
+
+  return (
+    <DropdownMenu onOpenChange={onOpenChange} open={open}>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={isRow ? "行操作" : "列操作"}
+          className="document-table-handle"
+          data-open={open}
+          data-orientation={isRow ? "vertical" : "horizontal"}
+          onPointerDown={() => selectTableAxis(editor, cell, isRow)}
+          style={style}
+          type="button"
+        >
+          <GripVertical />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-40">
+        {isRow ? (
+          <>
+            <DropdownMenuItem onSelect={() => editor.chain().focus().addRowBefore().run()}>
+              <ArrowUp />
+              在上方插入行
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => editor.chain().focus().addRowAfter().run()}>
+              <ArrowDown />
+              在下方插入行
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => editor.chain().focus().deleteRow().run()}>
+              <Trash2 />
+              删除当前行
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuItem onSelect={() => editor.chain().focus().addColumnBefore().run()}>
+              <ArrowLeft />
+              在左侧插入列
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => editor.chain().focus().addColumnAfter().run()}>
+              <ArrowRight />
+              在右侧插入列
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => editor.chain().focus().deleteColumn().run()}>
+              <Trash2 />
+              删除当前列
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

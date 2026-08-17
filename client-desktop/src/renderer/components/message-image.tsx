@@ -6,6 +6,7 @@ import { readTemporaryFileURLs, type ClientImageMessageBody } from "@/lib/client
 import { cn } from "@/lib/utils"
 import { resolveHostResourceUrl } from "@/lib/desktop-host"
 import { getImageThumbnailFrame } from "@/lib/image-message"
+import { clampPreviewZoom } from "@/lib/message-image-preview"
 import {
   Dialog,
   DialogContent,
@@ -31,8 +32,6 @@ type PreviewSize = {
   width: number
 }
 
-const minPreviewZoom = 0.5
-const maxPreviewZoom = 2
 const previewZoomStep = 0.1
 
 export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
@@ -452,10 +451,6 @@ function getContainedPreviewSize(
     height: imageSize.height * scale,
     width: imageSize.width * scale,
   }
-}
-
-function clampPreviewZoom(zoom: number) {
-  return Math.min(maxPreviewZoom, Math.max(minPreviewZoom, Number(zoom.toFixed(2))))
 }
 
 function clampPreviewOffset(

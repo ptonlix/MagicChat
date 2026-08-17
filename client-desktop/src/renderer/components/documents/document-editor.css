@@ -20,6 +20,7 @@
   flex: 0 0 auto;
 }
 .document-block-handle {
+  z-index: 30;
   display: flex;
   align-items: center;
   padding-right: 0.5rem;
@@ -29,10 +30,21 @@
   opacity: 0.45;
 }
 .document-editor .tiptap {
+  position: relative;
   min-height: 58vh;
   color: color-mix(in oklab, var(--foreground) 88%, transparent);
   caret-color: var(--foreground);
   outline: none;
+}
+
+.document-editor .tiptap::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -2.5rem;
+  width: 2.5rem;
+  background: transparent;
+  content: "";
 }
 
 .document-editor .tiptap.document-format-painter-active {
@@ -348,6 +360,93 @@
 .document-editor .tiptap .tableWrapper {
   margin: 1.5rem 0;
   overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.document-editor .tiptap td.document-table-active-cell,
+.document-editor .tiptap th.document-table-active-cell {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--color-sky-500);
+}
+
+.document-table-handle {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.document-table-handle::before {
+  position: absolute;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--muted-foreground) 65%, transparent);
+  content: "";
+  transition: opacity 120ms ease;
+}
+
+.document-table-handle[data-orientation="horizontal"]::before {
+  width: 12px;
+  height: 2px;
+}
+
+.document-table-handle[data-orientation="vertical"]::before {
+  width: 2px;
+  height: 12px;
+}
+
+.document-table-handle svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.document-table-handle[data-orientation="vertical"] svg {
+  transform: scale(0.8);
+}
+
+.document-table-handle[data-orientation="horizontal"] svg {
+  transform: rotate(90deg) scale(0.8);
+}
+
+.document-table-handle:hover,
+.document-table-handle[data-open="true"] {
+  border-color: var(--border);
+  background: var(--background);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.08));
+}
+
+.document-table-handle:hover::before,
+.document-table-handle[data-open="true"]::before {
+  opacity: 0;
+}
+
+.document-table-handle:hover svg,
+.document-table-handle[data-open="true"] svg {
+  opacity: 1;
+}
+
+.document-table-handle[data-orientation="vertical"]:hover svg,
+.document-table-handle[data-orientation="vertical"][data-open="true"] svg {
+  transform: scale(1);
+}
+
+.document-table-handle[data-orientation="horizontal"]:hover svg,
+.document-table-handle[data-orientation="horizontal"][data-open="true"] svg {
+  transform: rotate(90deg) scale(1);
 }
 
 .document-editor .tiptap th,
