@@ -227,6 +227,7 @@ describe("DocumentEditor", () => {
       />,
     )
 
+    await user.type(await screen.findByLabelText("文档正文"), "表格前言")
     await user.click(screen.getByRole("button", { name: "插入表格" }))
     await user.click(screen.getByRole("gridcell", { name: "2 行 2 列" }))
 
@@ -300,6 +301,7 @@ describe("DocumentEditor", () => {
       />,
     )
 
+    await user.type(await screen.findByLabelText("文档正文"), "分割线前言")
     await user.click(screen.getByRole("button", { name: "插入分割线" }))
     await waitFor(() =>
       expect(readHorizontalRuleAttributes(document)).toEqual({
@@ -436,10 +438,7 @@ function createTaskDocument(): Y.Doc {
   editor.commands.setContent({
     type: "doc",
     content: [
-      {
-        type: "horizontalRule",
-        attrs: { lineStyle: "dashed", thickness: 2 },
-      },
+      { type: "paragraph" },
       {
         type: "taskList",
         content: [
@@ -461,6 +460,10 @@ function createTaskDocument(): Y.Doc {
             ],
           },
         ],
+      },
+      {
+        type: "horizontalRule",
+        attrs: { lineStyle: "dashed", thickness: 2 },
       },
     ],
   })

@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils"
 type SendCard = (conversationId: string, card: ClientCardSendInput) => Promise<unknown | null>
 type SendCardDialogProps = {
   card: ClientCardSendInput
+  dismissableLayerBranch?: boolean
   onOpenChange: (open: boolean) => void
   open: boolean
 }
@@ -264,6 +265,7 @@ function getMemberRoleOrder(role: ClientConversationMember["role"]) {
 function SendCardDialogContent({
   card,
   conversations,
+  dismissableLayerBranch,
   onOpenChange,
   open,
   sendConversationCard,
@@ -331,6 +333,7 @@ function SendCardDialogContent({
       <DialogContent
         aria-describedby={undefined}
         className="gap-5 sm:max-w-lg"
+        dismissableLayerBranch={dismissableLayerBranch}
         showCloseButton={!submitting}
       >
         <DialogHeader>

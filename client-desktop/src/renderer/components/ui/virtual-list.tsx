@@ -68,7 +68,11 @@ export function VirtualList<T>({
   if (!virtualized) {
     return (
       <div aria-label={ariaLabel} className={className} role={role}>
-        {items.map(renderItem)}
+        {items.map((item, index) => (
+          <React.Fragment key={getKey?.(item, index) ?? index}>
+            {renderItem(item, index)}
+          </React.Fragment>
+        ))}
       </div>
     )
   }

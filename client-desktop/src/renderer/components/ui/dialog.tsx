@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "radix-ui"
+import { DismissableLayer } from "radix-ui/internal"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -40,12 +41,14 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  dismissableLayerBranch = false,
   embedded = false,
   overlayClassName,
   showCloseButton = true,
   staticOverlay = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  dismissableLayerBranch?: boolean
   embedded?: boolean
   overlayClassName?: string
   showCloseButton?: boolean
@@ -77,16 +80,33 @@ function DialogContent({
   if (embedded) return content
   return (
     <DialogPortal>
-      {staticOverlay ? (
-        <div
-          aria-hidden="true"
-          className={cn(dialogOverlayClassName, overlayClassName)}
-          data-slot="dialog-overlay"
-        />
+      {dismissableLayerBranch ? (
+        <DismissableLayer.Branch>
+          {staticOverlay ? (
+            <div
+              aria-hidden="true"
+              className={cn(dialogOverlayClassName, overlayClassName)}
+              data-slot="dialog-overlay"
+            />
+          ) : (
+            <DialogOverlay className={overlayClassName} />
+          )}
+          {content}
+        </DismissableLayer.Branch>
       ) : (
-        <DialogOverlay className={overlayClassName} />
+        <>
+          {staticOverlay ? (
+            <div
+              aria-hidden="true"
+              className={cn(dialogOverlayClassName, overlayClassName)}
+              data-slot="dialog-overlay"
+            />
+          ) : (
+            <DialogOverlay className={overlayClassName} />
+          )}
+          {content}
+        </>
       )}
-      {content}
     </DialogPortal>
   )
 }

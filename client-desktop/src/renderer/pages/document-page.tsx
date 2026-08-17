@@ -381,7 +381,13 @@ function DocumentWorkspace({
       toast.success(
         t(result.status === "focused" ? "documentWindow.focused" : "documentWindow.opened"),
       )
-      if (returnPath) navigate(returnPath, { replace: true, viewTransition: true })
+      if (returnPath) {
+        if (typeof globalThis.document.startViewTransition === "function") {
+          navigate(returnPath, { replace: true, viewTransition: true })
+        } else {
+          navigate(returnPath, { replace: true })
+        }
+      }
     } catch (reason) {
       const code = reason instanceof DocumentWindowOpenError ? reason.code : "bridge_unavailable"
       toast.error(t(documentWindowFeedbackKey(code)))

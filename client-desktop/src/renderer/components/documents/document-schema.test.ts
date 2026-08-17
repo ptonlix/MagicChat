@@ -45,7 +45,12 @@ describe("Desktop 文档 Schema", () => {
     const editor = new Editor({
       content:
         '<h2>标题</h2><p style="text-align:justify"><a href="https://example.com"><span style="color:#123456">链接</span></a></p><ul><li><p>列表</p></li></ul>',
-      extensions: [StarterKit, DocumentHorizontalRule, DocumentImage, TableKit],
+      extensions: [
+        StarterKit.configure({ horizontalRule: false }),
+        DocumentHorizontalRule,
+        DocumentImage,
+        TableKit,
+      ],
     })
     const html = editor.getHTML()
     expect(html).toContain("<h2>标题</h2>")
@@ -61,7 +66,12 @@ describe("Desktop 文档 Schema", () => {
     const editor = new Editor({
       content:
         '<p>普通块</p><figure data-document-image data-file-id="file-1"><span>文档图片</span></figure><table><tbody><tr><td><p>单元格</p></td></tr></tbody></table>',
-      extensions: [StarterKit, DocumentHorizontalRule, DocumentImage, TableKit],
+      extensions: [
+        StarterKit.configure({ horizontalRule: false }),
+        DocumentHorizontalRule,
+        DocumentImage,
+        TableKit,
+      ],
     })
     editor.commands.setTextSelection(1)
     editor.commands.toggleHeading({ level: 2 })
@@ -79,7 +89,12 @@ describe("Desktop 文档 Schema", () => {
     const editor = new Editor({
       content:
         '<p>普通块</p><figure data-document-image data-file-id="file-1"><span>文档图片</span></figure><table><tbody><tr><td><p>单元格</p></td></tr></tbody></table>',
-      extensions: [StarterKit, DocumentHorizontalRule, DocumentImage, TableKit],
+      extensions: [
+        StarterKit.configure({ horizontalRule: false }),
+        DocumentHorizontalRule,
+        DocumentImage,
+        TableKit,
+      ],
     })
     let paragraph: ProseMirrorNode | null = null
     let image: ProseMirrorNode | null = null

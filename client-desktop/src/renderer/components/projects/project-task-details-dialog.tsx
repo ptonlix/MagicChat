@@ -776,8 +776,13 @@ export function ProjectTaskDetailsDialog({
           </div>
         </div>
         <div className="absolute top-0 left-0 size-0" ref={assigneeComboboxPortal} />
+        <SendCardDialog
+          card={card}
+          dismissableLayerBranch
+          onOpenChange={setSendDialogOpen}
+          open={sendDialogOpen}
+        />
       </DialogContent>
-      <SendCardDialog card={card} onOpenChange={setSendDialogOpen} open={sendDialogOpen} />
       <AlertDialog
         onOpenChange={(nextOpen) => {
           if (!deleting) setDeleteDialogOpen(nextOpen)
