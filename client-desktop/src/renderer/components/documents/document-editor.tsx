@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Extension, type EditorEvents } from "@tiptap/core"
+import { type EditorEvents } from "@tiptap/core"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import { DragHandle, type DragHandleProps } from "@tiptap/extension-drag-handle-react"
@@ -9,9 +9,7 @@ import TaskList from "@tiptap/extension-task-list"
 import { TableKit } from "@tiptap/extension-table"
 import TextAlign from "@tiptap/extension-text-align"
 import { Color, TextStyle } from "@tiptap/extension-text-style"
-import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { CellSelection } from "@tiptap/pm/tables"
-import { Decoration, DecorationSet } from "@tiptap/pm/view"
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import { toast } from "sonner"
@@ -77,6 +75,7 @@ import {
   documentBlockBackgroundTypes,
 } from "./document-block-background-extension"
 import { DocumentControlSeparator } from "./document-control-separator"
+import { DocumentDecorations, documentActiveBlockPluginKey } from "./document-decorations-extension"
 import {
   transformDocumentBlock,
   type BlockFormat,
@@ -93,72 +92,6 @@ import { sanitizeDocumentPasteHTML } from "./document-paste-sanitizer"
 import { useDocumentImageResolutions } from "./use-document-image-resolutions"
 
 import "./document-editor.css"
-
-const activeTableCellPluginKey = new PluginKey("activeTableCell")
-const activeBlockPluginKey = new PluginKey<number | null>("activeBlock")
-
-const DocumentDecorations = Extension.create({
-  name: "documentDecorations",
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: activeTableCellPluginKey,
-        props: {
-          decorations(state) {
-            const selection = state.selection
-            if (selection instanceof CellSelection) return DecorationSet.empty
-
-            const $anchor = selection.$anchor
-            for (let depth = $anchor.depth; depth > 0; depth -= 1) {
-              const node = $anchor.node(depth)
-              if (node.type.name !== "tableCell" && node.type.name !== "tableHeader") continue
-
-              const from = $anchor.before(depth)
-              return DecorationSet.create(state.doc, [
-                Decoration.node(from, from + node.nodeSize, {
-                  class: "document-table-active-cell",
-                }),
-              ])
-            }
-            return DecorationSet.empty
-          },
-        },
-      }),
-      new Plugin<number | null>({
-        key: activeBlockPluginKey,
-        state: {
-          init: () => null,
-          apply(transaction, activeBlockPos) {
-            const nextActiveBlockPos = transaction.getMeta(activeBlockPluginKey) as
-              | number
-              | null
-              | undefined
-            if (nextActiveBlockPos !== undefined) return nextActiveBlockPos
-            if (activeBlockPos === null) return null
-
-            const mapped = transaction.mapping.mapResult(activeBlockPos)
-            return mapped.deleted ? null : mapped.pos
-          },
-        },
-        props: {
-          decorations(state) {
-            const position = activeBlockPluginKey.getState(state)
-            if (position === null || position === undefined) return DecorationSet.empty
-
-            const node = state.doc.nodeAt(position)
-            if (!node) return DecorationSet.empty
-
-            return DecorationSet.create(state.doc, [
-              Decoration.node(position, position + node.nodeSize, {
-                class: "document-block-active",
-              }),
-            ])
-          },
-        },
-      }),
-    ]
-  },
-})
 
 export function DocumentEditor({
   collaborationDocument,
@@ -1078,9 +1011,9 @@ function DocumentBlockHandle({ editor }: { editor: Editor }) {
 
     const highlighted = handleHovered || menuOpen
     const nextActiveBlockPos = highlighted && activeBlock ? activeBlock.pos : null
-    if (activeBlockPluginKey.getState(editor.state) === nextActiveBlockPos) return
+    if (documentActiveBlockPluginKey.getState(editor.state)?.pos === nextActiveBlockPos) return
 
-    view.dispatch(editor.state.tr.setMeta(activeBlockPluginKey, nextActiveBlockPos))
+    view.dispatch(editor.state.tr.setMeta(documentActiveBlockPluginKey, nextActiveBlockPos))
   }, [activeBlock, editor, handleHovered, menuOpen])
 
   function handleMenuOpenChange(open: boolean) {
@@ -1288,17 +1221,23 @@ const TABLE_HANDLE_LONG_SIDE = 28
 const TABLE_HANDLE_SHORT_SIDE = 20
 
 function useTableMenu(editor: Editor, container: HTMLDivElement | null) {
-  const [hoveredCell, setHoveredCell] = React.useState<TableMenuHover | null>(null)
+  const [hoveredCell, setHoveredCellState] = React.useState<TableMenuHover | null>(null)
+  const hoveredCellRef = React.useRef<TableMenuHover | null>(null)
   const [openMenu, setOpenMenu] = React.useState<TableMenuKind | null>(null)
   const [, updatePosition] = React.useReducer((value) => value + 1, 0)
+  const setHoveredCell = React.useCallback((next: TableMenuHover | null) => {
+    const current = hoveredCellRef.current
+    if (current?.cell === next?.cell && current?.row === next?.row) return
+
+    hoveredCellRef.current = next
+    setHoveredCellState(next)
+  }, [])
 
   React.useLayoutEffect(() => {
     const editorDom = getMountedEditorViewDom(editor)
     if (!container || !editorDom) return
 
-    const clearHoveredCell = () => {
-      setHoveredCell((current) => (current ? null : current))
-    }
+    const clearHoveredCell = () => setHoveredCell(null)
     const handleMouseMove = (event: MouseEvent) => {
       if (openMenu || !(event.target instanceof HTMLElement)) return
       if (event.target.closest(".document-table-handle")) return
@@ -1315,9 +1254,7 @@ function useTableMenu(editor: Editor, container: HTMLDivElement | null) {
         return
       }
 
-      setHoveredCell((current) =>
-        current?.cell === cell && current.row === row ? current : { cell, row },
-      )
+      setHoveredCell({ cell, row })
     }
     const handleMouseLeave = () => {
       if (!openMenu) clearHoveredCell()
@@ -1333,7 +1270,28 @@ function useTableMenu(editor: Editor, container: HTMLDivElement | null) {
       container.removeEventListener("scroll", updatePosition, true)
       window.removeEventListener("resize", updatePosition)
     }
-  }, [container, editor, openMenu])
+  }, [container, editor, openMenu, setHoveredCell])
+
+  React.useEffect(() => {
+    const onTransaction = ({ transaction }: EditorEvents["transaction"]) => {
+      if (!transaction.docChanged) return
+
+      const current = hoveredCellRef.current
+      if (!current) return
+
+      const editorDom = getMountedEditorViewDom(editor)
+      if (!editorDom?.contains(current.cell) || !editorDom.contains(current.row)) {
+        setHoveredCell(null)
+        return
+      }
+
+      updatePosition()
+    }
+    editor.on("transaction", onTransaction)
+    return () => {
+      editor.off("transaction", onTransaction)
+    }
+  }, [editor, setHoveredCell])
 
   return { hoveredCell, openMenu, setHoveredCell, setOpenMenu }
 }

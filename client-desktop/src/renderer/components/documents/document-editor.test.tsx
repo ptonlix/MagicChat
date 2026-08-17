@@ -14,6 +14,7 @@ import * as Y from "yjs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { DocumentEditor } from "./document-editor"
 import { transformDocumentBlock } from "./document-block-utils"
+import { DocumentDecorations, documentActiveBlockPluginKey } from "./document-decorations-extension"
 import { DocumentHorizontalRule } from "./document-horizontal-rule-extension"
 
 describe("DocumentEditor", () => {
@@ -270,6 +271,65 @@ describe("DocumentEditor", () => {
     await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 3, rows: 3 }))
   })
 
+  it("协作者修改表格前内容后刷新悬停控件坐标", async () => {
+    const user = userEvent.setup()
+    const document = new Y.Doc()
+    renderEditor(
+      <DocumentEditor
+        collaborationDocument={document}
+        onTitleBlur={() => undefined}
+        onTitleChange={() => undefined}
+        title="协作表格"
+      />,
+    )
+
+    const body = await screen.findByLabelText("文档正文")
+    await user.type(body, "表格前言")
+    await user.click(screen.getByRole("button", { name: "插入表格" }))
+    await user.click(screen.getByRole("gridcell", { name: "2 行 2 列" }))
+
+    const cell = body.querySelector<HTMLTableCellElement>("td")
+    const row = cell?.closest<HTMLTableRowElement>("tr")
+    const table = cell?.closest<HTMLTableElement>("table")
+    const container = body.closest<HTMLDivElement>(".document-editor")
+    if (!cell || !row || !table || !container) throw new Error("测试表格尚未渲染")
+
+    let tableTop = 100
+    vi.spyOn(container, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, 0, 800, 600),
+    )
+    vi.spyOn(table, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(100, tableTop, 200, 80),
+    )
+    vi.spyOn(row, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(100, tableTop, 200, 40),
+    )
+    vi.spyOn(cell, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(100, tableTop, 100, 40),
+    )
+
+    fireEvent.mouseMove(cell)
+    const rowHandle = await screen.findByRole("button", { name: "行操作" })
+    expect(rowHandle).toHaveStyle({ top: "106px" })
+
+    const remoteDocument = new Y.Doc()
+    Y.applyUpdate(remoteDocument, Y.encodeStateAsUpdate(document))
+    const collaborator = createTableStateEditor(remoteDocument)
+    try {
+      const remoteState = Y.encodeStateVector(remoteDocument)
+      collaborator.commands.insertContentAt(0, {
+        content: [{ type: "text", text: "协作者前言" }],
+        type: "paragraph",
+      })
+      tableTop = 220
+      Y.applyUpdate(document, Y.encodeStateAsUpdate(remoteDocument, remoteState), "collaborator")
+
+      await waitFor(() => expect(rowHandle).toHaveStyle({ top: "226px" }))
+    } finally {
+      collaborator.destroy()
+    }
+  })
+
   it("编辑器事务只刷新工具栏订阅，不依赖编辑器根组件重渲染", async () => {
     renderEditor(
       <DocumentEditor
@@ -287,6 +347,54 @@ describe("DocumentEditor", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "粗体" })).toHaveAttribute("aria-pressed", "true"),
     )
+  })
+
+  it("协作事务后重映射块高亮，并在活动块删除时清除", async () => {
+    const document = new Y.Doc()
+    const root = window.document.createElement("div")
+    window.document.body.append(root)
+    const editor = new Editor({
+      element: root,
+      extensions: [
+        StarterKit.configure({ undoRedo: false }),
+        Collaboration.configure({ fragment: document.getXmlFragment("body") }),
+        DocumentDecorations,
+      ],
+    })
+    const collaborator = createTableStateEditor(document)
+
+    try {
+      editor.commands.setContent("<p>首个段落</p><p>活动段落</p>")
+      const first = editor.state.doc.firstChild
+      const active = first ? editor.state.doc.nodeAt(first.nodeSize) : null
+      if (!first || !active) throw new Error("测试文档缺少活动块")
+
+      editor.view.dispatch(editor.state.tr.setMeta(documentActiveBlockPluginKey, first.nodeSize))
+      expect(root.querySelector(".document-block-active")).toHaveTextContent("活动段落")
+
+      collaborator.commands.insertContentAt(0, {
+        content: [{ type: "text", text: "协作者前置块" }],
+        type: "paragraph",
+      })
+
+      const mappedPosition = findBlockPosition(editor, "活动段落")
+      await waitFor(() =>
+        expect(documentActiveBlockPluginKey.getState(editor.state)?.pos).toBe(mappedPosition),
+      )
+      expect(root.querySelector(".document-block-active")).toHaveTextContent("活动段落")
+
+      collaborator.commands.deleteRange({
+        from: mappedPosition,
+        to: mappedPosition + active.nodeSize,
+      })
+
+      await waitFor(() => expect(documentActiveBlockPluginKey.getState(editor.state)).toBeNull())
+      expect(root.querySelector(".document-block-active")).toBeNull()
+    } finally {
+      collaborator.destroy()
+      editor.destroy()
+      root.remove()
+    }
   })
 
   it("工具栏直接插入默认分割线，并通过节点浮层调整样式", async () => {
@@ -528,4 +636,25 @@ function createTaskStateEditor(document: Y.Doc): Editor {
       TaskItem.configure({ nested: true }),
     ],
   })
+}
+
+function createTableStateEditor(document: Y.Doc): Editor {
+  return new Editor({
+    extensions: [
+      StarterKit.configure({ undoRedo: false }),
+      Collaboration.configure({ fragment: document.getXmlFragment("body") }),
+      TableKit.configure({ table: { resizable: true } }),
+    ],
+  })
+}
+
+function findBlockPosition(editor: Editor, text: string): number {
+  let position: number | null = null
+  editor.state.doc.descendants((node, nodePosition) => {
+    if (!node.isBlock || node.textContent !== text) return
+    position = nodePosition
+    return false
+  })
+  if (position === null) throw new Error(`测试文档缺少内容为“${text}”的块`)
+  return position
 }

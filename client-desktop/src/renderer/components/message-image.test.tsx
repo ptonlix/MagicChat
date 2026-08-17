@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MessageImage } from "@/components/message-image"
 import { getImageThumbnailFrame } from "@/lib/image-message"
@@ -19,6 +19,10 @@ vi.mock("@/lib/client-data-api", async (importOriginal) => {
 })
 
 describe("MessageImage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     readTemporaryFileURLsMock.mockResolvedValue([
       {
@@ -59,18 +63,45 @@ describe("MessageImage", () => {
     expect(onContextMenu).not.toHaveBeenCalled()
   })
 
-  it("consumes the preview wheel gesture while zooming", async () => {
-    render(<MessageImage image={{ fileId: "file-1", type: "image" }} />)
+  it("预览加载后缩小图片，并将缩放限制在上限", async () => {
+    const { previewArea, previewImage, restorePreviewAreaSize } = await openLoadedPreview()
+    try {
+      expect(previewImage).toHaveStyle({ height: "100px", width: "200px" })
 
-    fireEvent.click(await screen.findByRole("button", { name: "预览图片" }))
-    const previewImage = await screen.findByRole("img", {
-      name: "图片消息预览",
-    })
-    const previewArea = previewImage.parentElement as HTMLDivElement
+      const wheelNotCanceled = fireEvent.wheel(previewArea, { deltaY: 1 })
+      expect(wheelNotCanceled).toBe(false)
+      await waitFor(() => expect(previewImage).toHaveStyle({ height: "90px", width: "180px" }))
 
-    const wheelNotCanceled = fireEvent.wheel(previewArea, { deltaY: -1 })
+      for (let index = 0; index < 40; index += 1) {
+        fireEvent.wheel(previewArea, { deltaY: -1 })
+      }
+      await waitFor(() => expect(previewImage).toHaveStyle({ height: "400px", width: "800px" }))
+    } finally {
+      restorePreviewAreaSize()
+    }
+  })
 
-    expect(wheelNotCanceled).toBe(false)
+  it.each([
+    ["右侧", 999, 0, "translate(-50%, -50%) translate(300px, 0px)"],
+    ["左侧", -999, 0, "translate(-50%, -50%) translate(-300px, 0px)"],
+    ["下侧", 0, 999, "translate(-50%, -50%) translate(0px, 150px)"],
+    ["上侧", 0, -999, "translate(-50%, -50%) translate(0px, -150px)"],
+  ])("拖拽预览到%s边界时钳制偏移", async (_edge, clientX, clientY, transform) => {
+    const { previewArea, previewImage, restorePreviewAreaSize } = await openLoadedPreview()
+    try {
+      for (let index = 0; index < 30; index += 1) {
+        fireEvent.wheel(previewArea, { deltaY: -1 })
+      }
+      await waitFor(() => expect(previewImage).toHaveStyle({ height: "400px", width: "800px" }))
+
+      fireEvent.pointerDown(previewArea, { button: 0, clientX: 0, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(previewArea, { clientX, clientY, pointerId: 1 })
+      fireEvent.pointerUp(previewArea, { clientX, clientY, pointerId: 1 })
+
+      await waitFor(() => expect(previewImage).toHaveStyle({ transform }))
+    } finally {
+      restorePreviewAreaSize()
+    }
   })
 
   it("matches Web preview zoom bounds", () => {
@@ -79,3 +110,30 @@ describe("MessageImage", () => {
     expect(clampPreviewZoom(1.234)).toBe(1.23)
   })
 })
+
+async function openLoadedPreview() {
+  const clientHeight = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(100)
+  const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(200)
+  render(<MessageImage image={{ fileId: "file-1", type: "image" }} />)
+
+  fireEvent.click(await screen.findByRole("button", { name: "预览图片" }))
+  const previewImage = await screen.findByRole<HTMLImageElement>("img", { name: "图片消息预览" })
+  const previewArea = previewImage.parentElement
+  if (!(previewArea instanceof HTMLDivElement)) throw new Error("预览区域尚未渲染")
+
+  Object.defineProperties(previewImage, {
+    naturalHeight: { configurable: true, value: 200 },
+    naturalWidth: { configurable: true, value: 400 },
+  })
+  fireEvent.load(previewImage)
+  await waitFor(() => expect(previewImage).toHaveStyle({ height: "100px", width: "200px" }))
+
+  return {
+    previewArea,
+    previewImage,
+    restorePreviewAreaSize: () => {
+      clientHeight.mockRestore()
+      clientWidth.mockRestore()
+    },
+  }
+}
