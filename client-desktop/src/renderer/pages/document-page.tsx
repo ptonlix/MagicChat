@@ -431,7 +431,9 @@ function DocumentWorkspace({
       getEditVersion={getEditVersion}
       onAllowConfirmedNavigation={allowConfirmedNavigation}
       onBeforeNavigate={confirmLeave}
+      projectAvatar={project.avatar}
       projectId={project.id}
+      projectIsPersonal={project.isPersonal}
       projectName={project.name}
     />
   )

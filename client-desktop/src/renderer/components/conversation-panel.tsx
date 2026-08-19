@@ -62,6 +62,7 @@ type ConversationPanelProps = {
   messageSelection?: ConversationPanelMessageSelection
   onCancelMessageSelection?: () => void
   onDraftBlur?: () => void
+  onDraftFocus?: () => void
   onDraftChange: (draft: string, mentions: ConversationDraftMention[]) => void
   onCreateTopic?: (message: ConversationPanelMessage) => void
   onForwardMessage?: (message: ConversationPanelMessage) => void
@@ -99,6 +100,7 @@ type ConversationPanelProps = {
   readOnlyReason?: string
   readOnlyFooter?: React.ReactNode
   sending: boolean
+  status?: string
 }
 
 export function ConversationPanel({
@@ -121,6 +123,7 @@ export function ConversationPanel({
   messageSelection,
   onCancelMessageSelection,
   onDraftBlur,
+  onDraftFocus,
   onDraftChange,
   onCreateTopic,
   onForwardMessage,
@@ -150,6 +153,7 @@ export function ConversationPanel({
   readOnlyReason,
   readOnlyFooter,
   sending,
+  status,
 }: ConversationPanelProps) {
   const composerRef = React.useRef<ConversationPanelComposerHandle | null>(null)
   const fileDragDepthRef = React.useRef(0)
@@ -295,6 +299,7 @@ export function ConversationPanel({
             currentUserId={currentUserId}
             actions={headerActions}
             online={conversationOnline}
+            status={status}
           />
           {conversation.type === "group" && (
             <ConversationAnnouncement announcement={conversation.announcement ?? ""} />
@@ -314,6 +319,7 @@ export function ConversationPanel({
             messageSelection={messageSelection}
             messages={messages}
             pendingLatestMessageCount={historyPendingLatestMessageCount}
+            status={status}
             onCompactMessages={onCompactMessages}
             onConsumeFocus={onConsumeHistoryFocus}
             onRegisterMessageView={onRegisterMessageView}
@@ -353,6 +359,7 @@ export function ConversationPanel({
               replyTarget={replyTarget}
               onCancelReply={onCancelReply}
               onDraftBlur={onDraftBlur}
+              onDraftFocus={onDraftFocus}
               onDraftChange={onDraftChange}
               onSendFile={onSendFile}
               onSendImage={onSendImage}

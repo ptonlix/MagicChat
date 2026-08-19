@@ -89,6 +89,7 @@ import { DocumentImageResolutionContext } from "./document-image-resolution"
 import { DocumentStarterKit } from "./document-inline-code-extension"
 import { DocumentTaskItem } from "./document-task-item-extension"
 import { sanitizeDocumentPasteHTML } from "./document-paste-sanitizer"
+import { PreserveTableCellTypeOnPaste } from "./document-table-paste-extension"
 import { useDocumentImageResolutions } from "./use-document-image-resolutions"
 
 import "./document-editor.css"
@@ -153,6 +154,7 @@ export function DocumentEditor({
         }),
         TaskList,
         DocumentTaskItem,
+        PreserveTableCellTypeOnPaste,
         TableKit.configure({ table: { resizable: true } }),
         DocumentDecorations,
         Placeholder.configure({ placeholder: "开始撰写文档..." }),

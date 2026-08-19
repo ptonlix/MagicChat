@@ -6,6 +6,7 @@ import { type ClientConversation } from "@/lib/client-data-api"
 import { AddGroupMembersDialog } from "@/components/add-group-members-dialog"
 import { AppProfilePopover } from "@/components/app-profile-popover"
 import { ConversationAvatar } from "@/components/conversation/conversation-avatar"
+import { ConversationStatusIndicator } from "@/components/conversation/conversation-status-indicator"
 import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import { GroupProfilePopover } from "@/components/group-profile-popover"
 import { Button } from "@/components/ui/button"
@@ -16,11 +17,13 @@ export function ConversationPanelHeader({
   conversation,
   currentUserId,
   online,
+  status,
 }: {
   actions?: ReactNode
   conversation: ClientConversation
   currentUserId: string
   online?: boolean
+  status?: string
 }) {
   const { t } = useLocale()
   return (
@@ -43,18 +46,30 @@ export function ConversationPanelHeader({
               {t("chat.header.memberCount", { count: getGroupMemberCount(conversation) })}
             </span>
           )}
-          {conversation.type === "app" && (
-            <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
-              <Bot className="size-3" />
-              {t("chat.header.app")}
-            </span>
-          )}
-          {conversation.type === "direct" && (
-            <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
-              <UserRound className="size-3" />
-              {t("chat.header.privateChat")}
-            </span>
-          )}
+          {conversation.type === "app" &&
+            (status ? (
+              <ConversationStatusIndicator
+                className="text-xs leading-4 text-muted-foreground"
+                status={status}
+              />
+            ) : (
+              <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
+                <Bot className="size-3" />
+                {t("chat.header.app")}
+              </span>
+            ))}
+          {conversation.type === "direct" &&
+            (status ? (
+              <ConversationStatusIndicator
+                className="text-xs leading-4 text-muted-foreground"
+                status={status}
+              />
+            ) : (
+              <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
+                <UserRound className="size-3" />
+                {t("chat.header.privateChat")}
+              </span>
+            ))}
           {conversation.type === "topic" && (
             <span
               className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground"

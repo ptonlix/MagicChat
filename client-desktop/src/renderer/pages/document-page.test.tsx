@@ -93,7 +93,19 @@ vi.mock("@/lib/client-data-context", () => ({
 }))
 vi.mock("@/lib/document-data-context", () => ({
   useDocumentData: () => ({
+    loadMoreProjects: vi.fn(),
     me: mocks.currentMe,
+    personalProject: {
+      avatar: "",
+      description: "",
+      id: "personal",
+      isPersonal: true,
+      name: "个人项目",
+      updatedAt: "2026-08-19T00:00:00Z",
+    },
+    projects: [],
+    projectsLoadingMore: false,
+    projectsNextCursor: null,
     refreshMe: mocks.currentRefreshMe,
     refreshProjects: mocks.currentRefreshProjects,
   }),

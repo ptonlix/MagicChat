@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { ClientDataRequestError } from "@/lib/client-data-api"
@@ -23,8 +24,18 @@ vi.mock("@/lib/client-data-api", async (importOriginal) => ({
 vi.mock("@/lib/project-data-api", () => ({ listClientProjects: mocks.listClientProjects }))
 
 function Probe() {
-  const { me } = useDocumentData()
-  return <span>当前用户：{me.id}</span>
+  const { loadMoreProjects, me, personalProject, projects, projectsNextCursor } = useDocumentData()
+  return (
+    <div>
+      <span>当前用户：{me.id}</span>
+      <span>个人项目：{personalProject.name}</span>
+      <span>项目列表：{projects.map((project) => project.name).join("、")}</span>
+      <span>下一页：{projectsNextCursor ?? "无"}</span>
+      <button onClick={() => void loadMoreProjects()} type="button">
+        加载更多
+      </button>
+    </div>
+  )
 }
 
 describe("DocumentDataProvider", () => {
@@ -32,8 +43,8 @@ describe("DocumentDataProvider", () => {
     mocks.getCurrentClientUser.mockReset().mockResolvedValue({ id: "user-1" })
     mocks.listClientProjects.mockReset().mockResolvedValue({
       nextCursor: null,
-      personalProject: { id: "personal" },
-      projects: [],
+      personalProject: projectFixture("personal", "个人项目", true),
+      projects: [projectFixture("project-1", "项目一")],
     })
 
     render(
@@ -43,6 +54,8 @@ describe("DocumentDataProvider", () => {
     )
 
     expect(await screen.findByText("当前用户：user-1")).toBeInTheDocument()
+    expect(screen.getByText("个人项目：个人项目")).toBeInTheDocument()
+    expect(screen.getByText("项目列表：项目一")).toBeInTheDocument()
     expect(mocks.getCurrentClientUser).toHaveBeenCalledOnce()
     expect(mocks.listClientProjects).toHaveBeenCalledWith({ limit: 100 })
     expect(mocks.setAuthenticated).toHaveBeenCalledWith(true)
@@ -56,7 +69,7 @@ describe("DocumentDataProvider", () => {
       )
     mocks.listClientProjects.mockReset().mockResolvedValue({
       nextCursor: null,
-      personalProject: { id: "personal" },
+      personalProject: projectFixture("personal", "个人项目", true),
       projects: [],
     })
 
@@ -78,8 +91,14 @@ describe("DocumentDataProvider", () => {
     mocks.listClientProjects.mockReset()
     const refreshMe = vi.fn()
     const refreshProjects = vi.fn()
+    const loadMoreProjects = vi.fn()
     const clientData = {
+      loadMoreProjects,
       me: { id: "user-1" },
+      personalProject: projectFixture("personal", "个人项目", true),
+      projects: [projectFixture("project-1", "项目一")],
+      projectsLoadingMore: false,
+      projectsNextCursor: "cursor-2",
       refreshMe,
       refreshProjects,
     } as unknown as ClientDataContextValue
@@ -93,7 +112,55 @@ describe("DocumentDataProvider", () => {
     )
 
     expect(screen.getByText("当前用户：user-1")).toBeInTheDocument()
+    expect(screen.getByText("项目列表：项目一")).toBeInTheDocument()
+    expect(screen.getByText("下一页：cursor-2")).toBeInTheDocument()
     expect(mocks.getCurrentClientUser).not.toHaveBeenCalled()
     expect(mocks.listClientProjects).not.toHaveBeenCalled()
   })
+
+  it("独立文档窗口按游标加载并去重合并更多项目", async () => {
+    const user = userEvent.setup()
+    mocks.getCurrentClientUser.mockReset().mockResolvedValue({ id: "user-1" })
+    mocks.listClientProjects
+      .mockReset()
+      .mockResolvedValueOnce({
+        nextCursor: "cursor-2",
+        personalProject: projectFixture("personal", "个人项目", true),
+        projects: [projectFixture("project-1", "项目一")],
+      })
+      .mockResolvedValueOnce({
+        nextCursor: null,
+        personalProject: projectFixture("personal", "个人项目", true),
+        projects: [
+          projectFixture("project-1", "项目一（更新）"),
+          projectFixture("project-2", "项目二"),
+        ],
+      })
+
+    render(
+      <DocumentDataProvider>
+        <Probe />
+      </DocumentDataProvider>,
+    )
+
+    await user.click(await screen.findByRole("button", { name: "加载更多" }))
+
+    expect(await screen.findByText("项目列表：项目一（更新）、项目二")).toBeInTheDocument()
+    expect(screen.getByText("下一页：无")).toBeInTheDocument()
+    expect(mocks.listClientProjects).toHaveBeenLastCalledWith({
+      cursor: "cursor-2",
+      limit: 100,
+    })
+  })
 })
+
+function projectFixture(id: string, name: string, isPersonal = false) {
+  return {
+    avatar: "",
+    description: "",
+    id,
+    isPersonal,
+    name,
+    updatedAt: "2026-08-19T00:00:00Z",
+  }
+}

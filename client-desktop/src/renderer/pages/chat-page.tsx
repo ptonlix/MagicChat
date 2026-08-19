@@ -7,6 +7,7 @@ import { createConversationMentionLabelResolver } from "@/lib/conversation-menti
 import { useClientData } from "@/lib/client-data-context"
 import { useLocale } from "@/components/locale-provider"
 import { useConversationDrafts } from "@/hooks/use-conversation-drafts"
+import { useConversationStatus } from "@/hooks/use-conversation-status"
 import { useMessageSelection } from "@/hooks/use-message-selection"
 import {
   createConversationTopic,
@@ -235,6 +236,10 @@ export function ChatPage() {
 
   const activeConversationId = activeConversation?.id ?? ""
   const activeConversationType = activeConversation?.type
+  const conversationStatus = useConversationStatus({
+    conversationId: activeConversationId,
+    supported: activeConversationType === "app" || activeConversationType === "direct",
+  })
   const compactActiveConversationMessages = React.useCallback(() => {
     compactConversationMessages?.(activeConversationId)
   }, [activeConversationId, compactConversationMessages])
@@ -1159,8 +1164,12 @@ export function ChatPage() {
           activeConversationId && consumeConversationMessageFocus(activeConversationId, focus)
         }
         onRegisterMessageView={registerConversationMessageView}
-        onDraftBlur={flushDrafts}
+        onDraftBlur={() => {
+          conversationStatus.onBlur()
+          flushDrafts()
+        }}
         onDraftChange={setDraft}
+        onDraftFocus={conversationStatus.onFocus}
         onCreateTopic={
           activeConversation?.type === "topic" || activeConversation?.canSend === false
             ? undefined
@@ -1188,6 +1197,7 @@ export function ChatPage() {
         readOnly={activeConversation?.topic?.archived || activeConversation?.canSend === false}
         readOnlyReason={activeConversationReadOnlyReason}
         sending={Boolean(activeMessageState?.sending)}
+        status={conversationStatus.status}
       />
       <CreateGroupConversationDialog
         apps={contactApps}

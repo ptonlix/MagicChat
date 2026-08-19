@@ -293,6 +293,49 @@ describe("ConversationPanel", () => {
     expect(onSendMessage).not.toHaveBeenCalled()
   })
 
+  it("在标题和历史区展示实时状态并转发输入框焦点事件", async () => {
+    const onDraftBlur = vi.fn()
+    const onDraftFocus = vi.fn()
+    render(
+      <MemoryRouter>
+        <ClientDataContext.Provider value={createClientDataValue()}>
+          <ConversationPanel
+            conversation={createConversation("conversation-1")}
+            currentUserId="user-1"
+            draft=""
+            historyError={null}
+            historyLoading={false}
+            historyLoadingBefore={false}
+            messages={[createAppPanelMessage({ appId: "app-1", author: "助手", avatar: "" })]}
+            onCancelReply={vi.fn()}
+            onDraftBlur={onDraftBlur}
+            onDraftChange={vi.fn()}
+            onDraftFocus={onDraftFocus}
+            onLoadBeforeMessages={vi.fn()}
+            onReplyToMessage={vi.fn()}
+            onRevokeMessage={vi.fn()}
+            onRichTextModeChange={vi.fn()}
+            onSendFile={async () => null}
+            onSendImage={async () => null}
+            onSendVoice={async () => null}
+            onSendMessage={vi.fn()}
+            replyTarget={null}
+            richTextMode={false}
+            sending={false}
+            status="正在思考"
+          />
+        </ClientDataContext.Provider>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getAllByText("正在思考")).toHaveLength(2)
+    expect(screen.getByTestId("conversation-status-bubble")).toBeVisible()
+    const composer = screen.getByPlaceholderText("输入消息")
+    await waitFor(() => expect(onDraftFocus).toHaveBeenCalled())
+    fireEvent.blur(composer)
+    expect(onDraftBlur).toHaveBeenCalledOnce()
+  })
+
   it("opens the app profile popover from an app message avatar", async () => {
     const user = userEvent.setup()
     const openAppConversation = vi.fn()
