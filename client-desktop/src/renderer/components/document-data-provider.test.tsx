@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -193,14 +194,89 @@ describe("DocumentDataProvider", () => {
     expect(screen.queryByText(/过期分页项目/)).not.toBeInTheDocument()
     expect(screen.getByText("下一页：fresh-cursor")).toBeInTheDocument()
   })
+
+  it("StrictMode 双重加载中迟到的旧成功结果不会覆盖新工作区", async () => {
+    const oldUser = deferred<{ id: string }>()
+    const newUser = deferred<{ id: string }>()
+    const oldProjects = deferred<ReturnType<typeof projectPageFixture>>()
+    const newProjects = deferred<ReturnType<typeof projectPageFixture>>()
+    mocks.getCurrentClientUser
+      .mockReset()
+      .mockReturnValueOnce(oldUser.promise)
+      .mockReturnValueOnce(newUser.promise)
+    mocks.listClientProjects
+      .mockReset()
+      .mockReturnValueOnce(oldProjects.promise)
+      .mockReturnValueOnce(newProjects.promise)
+
+    render(
+      <StrictMode>
+        <DocumentDataProvider>
+          <Probe />
+        </DocumentDataProvider>
+      </StrictMode>,
+    )
+    await waitFor(() => expect(mocks.getCurrentClientUser).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      newUser.resolve({ id: "user-new" })
+      newProjects.resolve(projectPageFixture(null, [projectFixture("project-new", "最新项目")]))
+    })
+    expect(await screen.findByText("当前用户：user-new")).toBeInTheDocument()
+    expect(screen.getByText("项目列表：最新项目")).toBeInTheDocument()
+
+    await act(async () => {
+      oldUser.resolve({ id: "user-old" })
+      oldProjects.resolve(projectPageFixture(null, [projectFixture("project-old", "过期项目")]))
+    })
+    expect(screen.getByText("当前用户：user-new")).toBeInTheDocument()
+    expect(screen.getByText("项目列表：最新项目")).toBeInTheDocument()
+    expect(screen.queryByText(/user-old|过期项目/)).not.toBeInTheDocument()
+  })
+
+  it("StrictMode 双重加载中迟到的旧错误不会覆盖新成功状态", async () => {
+    mocks.setAuthenticated.mockClear()
+    const oldUser = deferred<{ id: string }>()
+    const oldProjects = deferred<ReturnType<typeof projectPageFixture>>()
+    mocks.getCurrentClientUser
+      .mockReset()
+      .mockReturnValueOnce(oldUser.promise)
+      .mockResolvedValueOnce({ id: "user-new" })
+    mocks.listClientProjects
+      .mockReset()
+      .mockReturnValueOnce(oldProjects.promise)
+      .mockResolvedValueOnce(projectPageFixture(null, [projectFixture("project-new", "最新项目")]))
+
+    render(
+      <StrictMode>
+        <DocumentDataProvider>
+          <Probe />
+        </DocumentDataProvider>
+      </StrictMode>,
+    )
+    expect(await screen.findByText("当前用户：user-new")).toBeInTheDocument()
+
+    await act(async () => {
+      oldUser.reject(
+        new ClientDataRequestError("旧登录已失效", { code: "unauthorized", status: 401 }),
+      )
+      oldProjects.resolve(projectPageFixture(null, []))
+    })
+
+    expect(screen.getByText("当前用户：user-new")).toBeInTheDocument()
+    expect(screen.queryByText("当前登录状态已失效，请重新登录后再打开文档。")).toBeNull()
+    expect(mocks.setAuthenticated).not.toHaveBeenCalledWith(false)
+  })
 })
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
 
 function projectPageFixture(

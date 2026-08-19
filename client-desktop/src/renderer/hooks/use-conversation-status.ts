@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { normalizeMessageCreatedEventPayload } from "@/lib/client-data-api"
+import { recordRealtimeParseFailure } from "@/lib/desktop-diagnostics"
 import { useRealtime } from "@/lib/realtime-context"
 
 const STATUS_TTL_MS = 5_000
@@ -104,7 +105,10 @@ export function useConversationStatus({
   React.useEffect(() => {
     const unsubscribeStatus = subscribeRealtimeEvent("conversation.status", (payload) => {
       const event = readStatus(payload)
-      if (!event) return
+      if (!event) {
+        recordRealtimeParseFailure()
+        return
+      }
       const expiryTimers = expiryTimersRef.current
       const oldTimer = expiryTimers.get(event.conversationId)
       const nextStatuses = { ...statusStore.getSnapshot() }
@@ -143,7 +147,8 @@ export function useConversationStatus({
           clearStatus(message.conversationId)
         }
       } catch {
-        // 忽略格式不合法的实时事件，避免污染当前会话状态。
+        recordRealtimeParseFailure()
+        // 记录并忽略格式不合法的实时事件，避免污染当前会话状态。
       }
     })
 

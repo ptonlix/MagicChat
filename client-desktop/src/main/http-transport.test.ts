@@ -292,6 +292,40 @@ describe("HttpTransport 认证目标隔离", () => {
       }),
     ).rejects.toMatchObject({ code: "invalid_request" })
   })
+
+  it("认证持久化开始后取消请求，持久化成功仍触发账号资源清理", async () => {
+    const persistence = deferred<void>()
+    const profile = {
+      id: target.id,
+      lastUserId: target.userId,
+      normalizedUrl: target.normalizedUrl,
+    }
+    const recordUser = vi.fn(async (_serverId: string, userId: string) => {
+      await persistence.promise
+      profile.lastUserId = userId
+    })
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ success: true, data: { user: { id: "user-2" } } }))
+    const onUserChanged = vi.fn()
+    const transport = new HttpTransport(
+      { recordUser, require: vi.fn(() => profile) } as never,
+      { for: vi.fn(() => ({ fetch })) } as never,
+      { onUserChanged },
+    )
+    const pending = transport.request(7, target, {
+      ...request,
+      requestId: "cancel-during-record-user",
+    })
+    await vi.waitFor(() => expect(recordUser).toHaveBeenCalledOnce())
+
+    transport.cancel("cancel-during-record-user", 7)
+    await expect(pending).rejects.toMatchObject({ code: "aborted" })
+    expect(onUserChanged).not.toHaveBeenCalled()
+
+    persistence.resolve(undefined)
+    await vi.waitFor(() => expect(onUserChanged).toHaveBeenCalledWith(target.id))
+  })
 })
 
 function deferred<T>() {

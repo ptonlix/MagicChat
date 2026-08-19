@@ -5,13 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useConversationStatus } from "@/hooks/use-conversation-status"
 import { RealtimeContext, type RealtimeContextValue } from "@/lib/realtime-context"
 
+const mocks = vi.hoisted(() => ({
+  normalizeMessageCreatedEventPayload: vi.fn((payload: unknown) => payload),
+  recordRealtimeParseFailure: vi.fn(),
+}))
+
 vi.mock("@/lib/client-data-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/client-data-api")>()
   return {
     ...actual,
-    normalizeMessageCreatedEventPayload: (payload: unknown) => payload,
+    normalizeMessageCreatedEventPayload: mocks.normalizeMessageCreatedEventPayload,
   }
 })
+vi.mock("@/lib/desktop-diagnostics", () => ({
+  recordRealtimeParseFailure: mocks.recordRealtimeParseFailure,
+}))
 
 type Handler = (payload: unknown) => void
 
@@ -63,6 +71,8 @@ function setVisibility(value: DocumentVisibilityState) {
 
 describe("useConversationStatus", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.normalizeMessageCreatedEventPayload.mockImplementation((payload: unknown) => payload)
     vi.useFakeTimers()
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -118,6 +128,20 @@ describe("useConversationStatus", () => {
       }),
     )
     expect(result.current.status).toBeUndefined()
+    expect(mocks.recordRealtimeParseFailure).toHaveBeenCalledOnce()
+  })
+
+  it("消息创建事件无法解析时记录诊断并保持状态", () => {
+    const { result, handlers } = setup()
+    emitStatus(handlers)
+    mocks.normalizeMessageCreatedEventPayload.mockImplementationOnce(() => {
+      throw new Error("invalid payload")
+    })
+
+    act(() => handlers.get("message.created")?.({ invalid: true }))
+
+    expect(mocks.recordRealtimeParseFailure).toHaveBeenCalledOnce()
+    expect(result.current.status).toBe("正在输入")
   })
 
   it("忽略非 UUID 会话标识的状态事件", () => {

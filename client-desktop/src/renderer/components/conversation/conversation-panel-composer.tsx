@@ -56,7 +56,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { SendFileMessageDialog } from "@/components/send-file-message-dialog"
 import { SendImageMessageDialog } from "@/components/send-image-message-dialog"
-import { Textarea } from "@/components/ui/textarea"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group"
 import { Toggle } from "@/components/ui/toggle"
 import type {
   ConversationPanelComposerHandle,
@@ -688,24 +693,119 @@ export const ConversationPanelComposer = React.forwardRef<
           </div>
         )}
         <div className="relative" data-testid="conversation-panel-editor-row">
-          <Textarea
-            ref={textareaRef}
-            value={draft}
-            aria-disabled={sending}
-            onBlur={onDraftBlur}
-            onChange={handleDraftChange}
-            onFocus={onDraftFocus}
-            onKeyDown={handleComposerKeyDown}
-            onSelect={(event) =>
-              updateMentionTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
-            }
-            onPaste={handleComposerPaste}
-            placeholder={
-              richTextMode ? t("composer.placeholderMarkdown") : t("composer.placeholder")
-            }
-            readOnly={sending}
-            className="max-h-48 min-h-24 resize-none"
-          />
+          <InputGroup>
+            <InputGroupTextarea
+              ref={textareaRef}
+              value={draft}
+              aria-disabled={sending}
+              onBlur={onDraftBlur}
+              onChange={handleDraftChange}
+              onFocus={onDraftFocus}
+              onKeyDown={handleComposerKeyDown}
+              onSelect={(event) =>
+                updateMentionTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
+              }
+              onPaste={handleComposerPaste}
+              placeholder={
+                richTextMode ? t("composer.placeholderMarkdown") : t("composer.placeholder")
+              }
+              readOnly={sending}
+              className="max-h-48 min-h-24"
+            />
+            <InputGroupAddon
+              align="block-end"
+              className="justify-between gap-2"
+              data-testid="conversation-panel-toolbar-row"
+            >
+              <div className="flex items-center gap-1">
+                <ExpressionPickerPopover
+                  align="start"
+                  onSelect={handleExpressionSelect}
+                  open={expressionPickerOpen}
+                  onOpenChange={setExpressionPickerOpen}
+                >
+                  <InputGroupButton
+                    aria-label={t("composer.emoji")}
+                    disabled={sending}
+                    size="icon-sm"
+                    title={t("composer.emoji")}
+                  >
+                    <Smile className="size-4" />
+                  </InputGroupButton>
+                </ExpressionPickerPopover>
+                <InputGroupButton
+                  aria-label={t("composer.upload")}
+                  disabled={sending}
+                  onClick={handleFileButtonClick}
+                  size="icon-sm"
+                  title={t("composer.upload")}
+                >
+                  <Paperclip className="size-4" />
+                </InputGroupButton>
+                <InputGroupButton
+                  aria-label={t("composer.image")}
+                  disabled={sending || imagePreparing}
+                  onClick={handleImageButtonClick}
+                  size="icon-sm"
+                  title={t("composer.image")}
+                >
+                  {imagePreparing ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="size-4" />
+                  )}
+                </InputGroupButton>
+                <InputGroupButton
+                  aria-label={t("composer.screenshot")}
+                  disabled={sending || imagePreparing}
+                  onClick={() => void handleScreenshotButtonClick()}
+                  size="icon-sm"
+                  title={t("composer.screenshot")}
+                >
+                  <ScanLine className="size-4" />
+                </InputGroupButton>
+                <Toggle
+                  aria-label={t("composer.markdown")}
+                  className="size-8 p-0"
+                  disabled={sending}
+                  onPressedChange={onRichTextModeChange}
+                  pressed={richTextMode}
+                  size="sm"
+                  title={t("composer.markdown")}
+                  type="button"
+                >
+                  <MarkdownIcon className="size-4" />
+                </Toggle>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <InputGroupButton
+                  aria-label={t("composer.voice")}
+                  disabled={sending}
+                  onClick={() => setVoiceDialogOpen(true)}
+                  size="icon-sm"
+                  title={t("composer.voice")}
+                  variant="outline"
+                >
+                  <Mic className="size-4" />
+                </InputGroupButton>
+                <InputGroupButton
+                  aria-label={t("composer.send")}
+                  className="h-8 px-3"
+                  disabled={sending}
+                  onClick={handleSendMessage}
+                  size="sm"
+                  variant="default"
+                >
+                  {sending ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                  <span aria-hidden="true">{t("composer.sendLabel")}</span>
+                </InputGroupButton>
+              </div>
+            </InputGroupAddon>
+          </InputGroup>
           {mentionTrigger && filteredMentionCandidates.length > 0 && (
             <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
               {filteredMentionCandidates.map((candidate, index) => (
@@ -762,105 +862,6 @@ export const ConversationPanelComposer = React.forwardRef<
               ))}
             </div>
           )}
-        </div>
-        <div
-          className="flex items-center justify-between gap-2"
-          data-testid="conversation-panel-toolbar-row"
-        >
-          <div className="flex items-center gap-1">
-            <ExpressionPickerPopover
-              align="start"
-              onSelect={handleExpressionSelect}
-              open={expressionPickerOpen}
-              onOpenChange={setExpressionPickerOpen}
-            >
-              <Button
-                aria-label={t("composer.emoji")}
-                disabled={sending}
-                size="icon-sm"
-                title={t("composer.emoji")}
-                type="button"
-                variant="ghost"
-              >
-                <Smile className="size-4" />
-              </Button>
-            </ExpressionPickerPopover>
-            <Button
-              aria-label={t("composer.upload")}
-              disabled={sending}
-              onClick={handleFileButtonClick}
-              size="icon-sm"
-              title={t("composer.upload")}
-              type="button"
-              variant="ghost"
-            >
-              <Paperclip className="size-4" />
-            </Button>
-            <Button
-              aria-label={t("composer.image")}
-              disabled={sending || imagePreparing}
-              onClick={handleImageButtonClick}
-              size="icon-sm"
-              title={t("composer.image")}
-              type="button"
-              variant="ghost"
-            >
-              {imagePreparing ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <ImageIcon className="size-4" />
-              )}
-            </Button>
-            <Button
-              aria-label={t("composer.screenshot")}
-              disabled={sending || imagePreparing}
-              onClick={() => void handleScreenshotButtonClick()}
-              size="icon-sm"
-              title={t("composer.screenshot")}
-              type="button"
-              variant="ghost"
-            >
-              <ScanLine className="size-4" />
-            </Button>
-            <Toggle
-              aria-label={t("composer.markdown")}
-              className="size-8 p-0"
-              disabled={sending}
-              onPressedChange={onRichTextModeChange}
-              pressed={richTextMode}
-              size="sm"
-              title={t("composer.markdown")}
-              type="button"
-            >
-              <MarkdownIcon className="size-4" />
-            </Toggle>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              aria-label={t("composer.voice")}
-              disabled={sending}
-              onClick={() => setVoiceDialogOpen(true)}
-              size="icon"
-              title={t("composer.voice")}
-              type="button"
-              variant="outline"
-            >
-              <Mic className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              aria-label={t("composer.send")}
-              disabled={sending}
-              onClick={handleSendMessage}
-            >
-              {sending ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <Send className="size-4" />
-              )}
-              <span aria-hidden="true">{t("composer.sendLabel")}</span>
-            </Button>
-          </div>
         </div>
       </div>
       <SendFileMessageDialog

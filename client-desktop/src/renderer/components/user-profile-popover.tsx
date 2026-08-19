@@ -3,7 +3,9 @@ import { useNavigate } from "react-router"
 import { Loader2Icon, Mail, Phone, UserPen, UserRound } from "lucide-react"
 import { toast } from "sonner"
 
+import { useLocale } from "@/components/locale-provider"
 import type { ContactDirectoryMode, FriendRequest } from "@/lib/client-data-api"
+import { getClientDataErrorMessage } from "@/lib/client-data-state"
 import { formatContactPhone } from "@/lib/contact-format"
 import { useClientData, useClientUser } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
@@ -36,12 +38,13 @@ export function UserProfilePopoverLink({
   profile: UserProfile
   triggerClassName?: string
 }) {
-  const displayName = getUserDisplayName(profile)
+  const { t } = useLocale()
+  const displayName = getUserDisplayName(profile, t("userProfile.unnamed"))
 
   return (
     <UserProfilePopover
       fallbackProfile={profile}
-      triggerAriaLabel={`${displayName}资料`}
+      triggerAriaLabel={t("userProfile.trigger", { name: displayName })}
       triggerClassName={cn(
         "max-w-full truncate transition-colors hover:text-sky-500 focus-visible:text-sky-500 data-[state=open]:text-sky-500",
         triggerClassName,
@@ -70,6 +73,7 @@ export function UserProfilePopover({
     openDirectConversation,
     outgoingFriendRequests = [],
   } = useClientData()
+  const { t } = useLocale()
   const cachedUser = useClientUser(userId ?? "")
   const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
@@ -100,7 +104,7 @@ export function UserProfilePopover({
   }
 
   const profile = user
-  const displayName = getUserDisplayName(profile)
+  const displayName = getUserDisplayName(profile, t("userProfile.unnamed"))
   const canStartConversation = profile.id !== me.id && relationship.isFriend
 
   async function handleStartConversation() {
@@ -115,7 +119,7 @@ export function UserProfilePopover({
       setOpen(false)
       navigate(`/chat/${encodeURIComponent(conversation.id)}`)
     } catch {
-      toast.error("无法发起私聊")
+      toast.error(t("userProfile.startConversationFailed"))
     } finally {
       setOpeningConversation(false)
     }
@@ -126,9 +130,9 @@ export function UserProfilePopover({
     setFriendRequestPending(true)
     try {
       await createFriendRequest(profile.id)
-      toast.success("好友申请已发送")
+      toast.success(t("friend.requestSent"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "发送好友申请失败")
+      toast.error(getClientDataErrorMessage(error, t("friend.requestFailed")))
     } finally {
       setFriendRequestPending(false)
     }
@@ -139,9 +143,9 @@ export function UserProfilePopover({
     setFriendRequestPending(true)
     try {
       await acceptFriendRequest(relationship.incomingRequest.id)
-      toast.success("已添加好友")
+      toast.success(t("friend.accepted"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "接受好友申请失败")
+      toast.error(getClientDataErrorMessage(error, t("friend.actionFailed")))
     } finally {
       setFriendRequestPending(false)
     }
@@ -158,12 +162,12 @@ export function UserProfilePopover({
   }
 
   const profileActionLabel = relationship.incomingRequest
-    ? "接受好友申请"
+    ? t("userProfile.action.acceptFriend")
     : relationship.outgoingRequest
-      ? "已发送好友申请"
+      ? t("userProfile.action.requestSent")
       : relationship.isFriend
-        ? "发消息"
-        : "加好友"
+        ? t("userProfile.action.message")
+        : t("userProfile.action.addFriend")
   const profileActionDisabled =
     Boolean(relationship.outgoingRequest) ||
     openingConversation ||
@@ -200,7 +204,7 @@ export function UserProfilePopover({
             <div className="flex items-center gap-3">
               <button
                 aria-haspopup="dialog"
-                aria-label={`预览${displayName}头像`}
+                aria-label={t("userProfile.avatarPreview", { name: displayName })}
                 className="shrink-0 cursor-pointer rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 onClick={handleAvatarPreview}
                 type="button"
@@ -218,29 +222,35 @@ export function UserProfilePopover({
                 <div className="truncate text-sm font-medium" title={displayName}>
                   {displayName}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">用户资料</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {t("userProfile.title")}
+                </div>
               </div>
             </div>
 
             <div className="grid gap-1 text-sm">
               <UserProfileRow
                 icon={<UserRound className="size-4 text-muted-foreground" />}
-                label="姓名"
+                emptyLabel={t("userProfile.unset")}
+                label={t("userProfile.name")}
                 value={profile.name}
               />
               <UserProfileRow
                 icon={<UserPen className="size-4 text-muted-foreground" />}
-                label="昵称"
+                emptyLabel={t("userProfile.unset")}
+                label={t("userProfile.nickname")}
                 value={profile.nickname}
               />
               <UserProfileRow
                 icon={<Mail className="size-4 text-muted-foreground" />}
-                label="邮箱"
+                emptyLabel={t("userProfile.unset")}
+                label={t("userProfile.email")}
                 value={profile.email}
               />
               <UserProfileRow
                 icon={<Phone className="size-4 text-muted-foreground" />}
-                label="手机"
+                emptyLabel={t("userProfile.unset")}
+                label={t("userProfile.phone")}
                 value={profile.phone ? formatContactPhone(profile.phone) : ""}
               />
             </div>
@@ -262,7 +272,7 @@ export function UserProfilePopover({
         </PopoverContent>
       </Popover>
       <AvatarPreviewDialog
-        label={`${displayName}头像预览`}
+        label={t("userProfile.avatarLabel", { name: displayName })}
         onOpenChange={setAvatarPreviewOpen}
         open={avatarPreviewOpen}
       >
@@ -340,16 +350,18 @@ function resolveUserProfile(
 }
 
 function UserProfileRow({
+  emptyLabel,
   icon,
   label,
   value,
 }: {
+  emptyLabel: string
   icon: React.ReactNode
   label: string
   value: string
 }) {
   const hasValue = Boolean(value.trim())
-  const displayValue = hasValue ? value : "未设置"
+  const displayValue = hasValue ? value : emptyLabel
 
   return (
     <div className="flex items-center gap-3 border-b py-2 last:border-b-0">
@@ -368,11 +380,11 @@ function UserProfileRow({
   )
 }
 
-function getUserDisplayName(user: Pick<UserProfile, "name" | "nickname">) {
+function getUserDisplayName(user: Pick<UserProfile, "name" | "nickname">, unnamedLabel: string) {
   const name = user.name.trim()
   const nickname = user.nickname.trim()
 
-  return nickname || name || "未命名用户"
+  return nickname || name || unnamedLabel
 }
 
 function getUserInitial(displayName: string) {

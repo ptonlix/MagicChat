@@ -453,7 +453,7 @@ function DocumentSidebarItem({
         disabled={active || opening}
         onClick={() => onOpenDocument(documentId)}
         role="treeitem"
-        style={{ paddingLeft: depth * 16 + 24 }}
+        style={{ paddingLeft: depth * 16 + 8 }}
         type="button"
       >
         {content}
@@ -465,7 +465,7 @@ function DocumentSidebarItem({
       aria-current={active ? "page" : undefined}
       className={className}
       role="treeitem"
-      style={{ paddingLeft: depth * 16 + 24 }}
+      style={{ paddingLeft: depth * 16 + 8 }}
       to={documentNavigationPath(documentId, serverId)}
     >
       {content}

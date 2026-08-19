@@ -58,6 +58,7 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
   const [projectsLoadingMore, setProjectsLoadingMore] = useState(false)
   const [projectsNextCursor, setProjectsNextCursor] = useState<string | null>(null)
   const projectsLoadingMoreRef = useRef(false)
+  const loadRequestEpochRef = useRef(0)
   const projectsRequestEpochRef = useRef(0)
   const mountedRef = useRef(true)
 
@@ -65,6 +66,8 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      loadRequestEpochRef.current += 1
+      projectsRequestEpochRef.current += 1
     }
   }, [])
 
@@ -134,6 +137,7 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
   }, [handleRequestError, projectsNextCursor])
 
   const load = useCallback(async () => {
+    const loadRequestEpoch = ++loadRequestEpochRef.current
     const projectsRequestEpoch = ++projectsRequestEpochRef.current
     setLoading(true)
     setError(null)
@@ -142,7 +146,7 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
         getCurrentClientUser(),
         listClientProjects({ limit: 100 }),
       ])
-      if (!mountedRef.current) return
+      if (!mountedRef.current || loadRequestEpochRef.current !== loadRequestEpoch) return
       setMe(nextMe)
       if (projectsRequestEpochRef.current === projectsRequestEpoch) {
         setPersonalProject(projectPage.personalProject)
@@ -151,9 +155,10 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
       }
       setAuthenticated(true)
     } catch (reason) {
+      if (!mountedRef.current || loadRequestEpochRef.current !== loadRequestEpoch) return
       handleRequestError(reason, "加载文档工作区失败", true)
     } finally {
-      if (mountedRef.current) setLoading(false)
+      if (mountedRef.current && loadRequestEpochRef.current === loadRequestEpoch) setLoading(false)
     }
   }, [handleRequestError, setAuthenticated])
 

@@ -18,6 +18,9 @@ describe("i18n 翻译", () => {
     )
     expect(translate("zh-CN", "documentWindow.error.windowLimit")).toContain("8 个文档窗口")
     expect(translate("en", "documentWindow.error.windowLimit")).toContain("8 document windows")
+    expect(translate("zh-CN", "userProfile.action.acceptFriend")).toBe("接受好友申请")
+    expect(translate("en", "userProfile.action.acceptFriend")).toBe("Accept friend request")
+    expect(translate("en", "userProfile.action.requestSent")).toBe("Friend request sent")
   })
 
   it("未知键回退为键本身", () => {

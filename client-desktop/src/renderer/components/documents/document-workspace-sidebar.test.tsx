@@ -42,7 +42,11 @@ describe("DocumentWorkspaceSidebar", () => {
     )
     renderSidebar()
 
-    await user.click(await screen.findByRole("treeitem", { name: "在新窗口打开：其他文档" }))
+    const otherDocumentItem = await screen.findByRole("treeitem", {
+      name: "在新窗口打开：其他文档",
+    })
+    expect(otherDocumentItem).toHaveStyle({ paddingLeft: "8px" })
+    await user.click(otherDocumentItem)
 
     await waitFor(() =>
       expect(openDocumentWindow).toHaveBeenCalledWith(otherDocument.id, "server-1"),
@@ -50,6 +54,16 @@ describe("DocumentWorkspaceSidebar", () => {
     expect(window.location.pathname).toBe(`/documents/document/${activeDocument.id}`)
     expect(screen.getByRole("treeitem", { name: "当前文档" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "切换文档项目" })).toHaveTextContent("项目")
+  })
+
+  it("主窗口文档叶节点与同层文件夹使用一致的起始缩进", async () => {
+    mocks.listClientDocuments.mockResolvedValue([activeDocument, otherDocument])
+    window.history.replaceState({}, "", `/documents/document/${activeDocument.id}`)
+    renderSidebar()
+
+    const otherDocumentItem = await screen.findByRole("treeitem", { name: "其他文档" })
+
+    expect(otherDocumentItem).toHaveStyle({ paddingLeft: "8px" })
   })
 
   it("子窗口新建文档后为新文档创建独立窗口", async () => {

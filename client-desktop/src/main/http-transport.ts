@@ -111,9 +111,12 @@ export class HttpTransport {
           : bytes
       if (response.ok && isAuthenticationResponse(request, body)) {
         const previousUserId = profile.lastUserId
-        await Promise.race([this.profiles.recordUser(profile.id, body.data.user.id), termination])
-        if (previousUserId && previousUserId !== body.data.user.id)
-          this.lifecycle.onUserChanged?.(profile.id)
+        const nextUserId = body.data.user.id
+        const persistUser = this.profiles.recordUser(profile.id, nextUserId).then(() => {
+          if (previousUserId && previousUserId !== nextUserId)
+            this.lifecycle.onUserChanged?.(profile.id)
+        })
+        await Promise.race([persistUser, termination])
       }
       return {
         body: body as T,

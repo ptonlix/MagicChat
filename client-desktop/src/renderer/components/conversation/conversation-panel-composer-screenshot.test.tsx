@@ -201,6 +201,19 @@ describe("ConversationPanelComposer 截图", () => {
     })
   })
 
+  it("把编辑区和全部操作按钮组合在同一个输入组内", () => {
+    renderComposer()
+
+    const textarea = screen.getByPlaceholderText("输入消息")
+    const inputGroup = textarea.closest('[data-slot="input-group"]')
+    const toolbar = screen.getByTestId("conversation-panel-toolbar-row")
+
+    expect(inputGroup).not.toBeNull()
+    expect(inputGroup).toContainElement(toolbar)
+    expect(toolbar).toHaveAttribute("data-align", "block-end")
+    expect(screen.getByRole("button", { name: "发送消息" })).toHaveAttribute("data-size", "sm")
+  })
+
   it("切换对话时取消未完成的截图读取并忽略旧结果", async () => {
     let fetchSignal: AbortSignal | undefined
     let resolveFetch!: (response: Response) => void
