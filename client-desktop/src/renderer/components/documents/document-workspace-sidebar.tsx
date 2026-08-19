@@ -73,13 +73,15 @@ export function DocumentWorkspaceSidebar({
     }),
     [projectAvatar, projectId, projectIsPersonal, projectName],
   )
-  const projectOptions = React.useMemo(
-    () => mergeProjectOptions(personalProject, projects, currentProject),
-    [currentProject, personalProject, projects],
-  )
   const [selectedProjectId, setSelectedProjectId] = React.useState(projectId)
+  const [selectedProjectSnapshot, setSelectedProjectSnapshot] =
+    React.useState<ClientProjectSummary>(currentProject)
+  const projectOptions = React.useMemo(
+    () => mergeProjectOptions(personalProject, projects, currentProject, selectedProjectSnapshot),
+    [currentProject, personalProject, projects, selectedProjectSnapshot],
+  )
   const selectedProject =
-    projectOptions.find((project) => project.id === selectedProjectId) ?? currentProject
+    projectOptions.find((project) => project.id === selectedProjectId) ?? selectedProjectSnapshot
   const [creating, setCreating] = React.useState(false)
   const [documents, setDocuments] = React.useState<ReadonlyArray<DocumentTreeNode>>([])
   const [error, setError] = React.useState("")
@@ -87,10 +89,33 @@ export function DocumentWorkspaceSidebar({
   const [loading, setLoading] = React.useState(true)
   const [openingDocumentId, setOpeningDocumentId] = React.useState<string>()
   const loadRequestIdRef = React.useRef(0)
+  const previousProjectIdRef = React.useRef(projectId)
+  const loadedSelectedProject = React.useMemo(
+    () =>
+      mergeProjectOptions(personalProject, projects, currentProject).find(
+        (project) => project.id === selectedProjectId,
+      ),
+    [currentProject, personalProject, projects, selectedProjectId],
+  )
 
   React.useEffect(() => {
+    if (previousProjectIdRef.current === projectId) return
+    previousProjectIdRef.current = projectId
     setSelectedProjectId(projectId)
-  }, [projectId])
+    setSelectedProjectSnapshot(currentProject)
+    setDocuments([])
+    setExpanded(new Set())
+    setError("")
+    setLoading(true)
+    setOpeningDocumentId(undefined)
+  }, [currentProject, projectId])
+
+  React.useEffect(() => {
+    if (!loadedSelectedProject) return
+    setSelectedProjectSnapshot((current) =>
+      current === loadedSelectedProject ? current : loadedSelectedProject,
+    )
+  }, [loadedSelectedProject])
 
   async function openDocumentInWindow(documentId: string): Promise<boolean> {
     if (openingDocumentId) return false
@@ -159,7 +184,10 @@ export function DocumentWorkspaceSidebar({
 
   function selectProject(nextProjectId: string) {
     if (nextProjectId === selectedProjectId) return
+    const nextProject = projectOptions.find((project) => project.id === nextProjectId)
+    if (!nextProject) return
     setSelectedProjectId(nextProjectId)
+    setSelectedProjectSnapshot(nextProject)
     setDocuments([])
     setExpanded(new Set())
     setError("")
@@ -294,10 +322,14 @@ function mergeProjectOptions(
   personalProject: ClientProjectSummary,
   projects: readonly ClientProjectSummary[],
   currentProject: ClientProjectSummary,
+  selectedProject?: ClientProjectSummary,
 ) {
   const projectsById = new Map<string, ClientProjectSummary>()
   projectsById.set(personalProject.id, personalProject)
   for (const project of projects) projectsById.set(project.id, project)
+  if (selectedProject && !projectsById.has(selectedProject.id)) {
+    projectsById.set(selectedProject.id, selectedProject)
+  }
   projectsById.set(currentProject.id, currentProject)
   return Array.from(projectsById.values())
 }

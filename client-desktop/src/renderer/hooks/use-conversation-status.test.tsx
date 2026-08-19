@@ -1,5 +1,5 @@
 import * as React from "react"
-import { act, renderHook } from "@testing-library/react"
+import { act, render, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useConversationStatus } from "@/hooks/use-conversation-status"
@@ -14,6 +14,9 @@ vi.mock("@/lib/client-data-api", async (importOriginal) => {
 })
 
 type Handler = (payload: unknown) => void
+
+const conversationOneId = "550e8400-e29b-41d4-a716-446655440000"
+const conversationTwoId = "650e8400-e29b-41d4-a716-446655440000"
 
 function setup(supported = true) {
   const handlers = new Map<string, Handler>()
@@ -33,7 +36,7 @@ function setup(supported = true) {
   const hook = renderHook(
     ({ enabled, conversationId }) => useConversationStatus({ conversationId, supported: enabled }),
     {
-      initialProps: { enabled: supported, conversationId: "conversation-1" },
+      initialProps: { enabled: supported, conversationId: conversationOneId },
       wrapper,
     },
   )
@@ -43,7 +46,7 @@ function setup(supported = true) {
 function emitStatus(handlers: Map<string, Handler>, status = "正在输入") {
   act(() =>
     handlers.get("conversation.status")?.({
-      conversation_id: "conversation-1",
+      conversation_id: conversationOneId,
       status,
       sender: { id: "user-2", type: "user" },
     }),
@@ -98,7 +101,7 @@ describe("useConversationStatus", () => {
     emitStatus(handlers)
     act(() =>
       handlers.get("message.created")?.({
-        conversationId: "conversation-1",
+        conversationId: conversationOneId,
         sender: { id: "user-2", type: "user" },
       }),
     )
@@ -109,11 +112,40 @@ describe("useConversationStatus", () => {
     const { result, handlers } = setup()
     act(() =>
       handlers.get("conversation.status")?.({
-        conversation_id: "conversation-1",
+        conversation_id: conversationOneId,
         status: "过".repeat(33),
         sender: { id: "user-2", type: "system" },
       }),
     )
+    expect(result.current.status).toBeUndefined()
+  })
+
+  it("忽略非 UUID 会话标识的状态事件", () => {
+    const { result, handlers } = setup()
+    act(() =>
+      handlers.get("conversation.status")?.({
+        conversation_id: "conversation-1",
+        status: "正在输入",
+        sender: { id: "user-2", type: "user" },
+      }),
+    )
+    expect(result.current.status).toBeUndefined()
+  })
+
+  it("状态缓存达到上限时淘汰最早的会话", () => {
+    const { result, handlers } = setup()
+    emitStatus(handlers)
+
+    act(() => {
+      for (let index = 1; index <= 100; index += 1) {
+        handlers.get("conversation.status")?.({
+          conversation_id: `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+          status: "正在输入",
+          sender: { id: `user-${index}`, type: "user" },
+        })
+      }
+    })
+
     expect(result.current.status).toBeUndefined()
   })
 
@@ -123,11 +155,11 @@ describe("useConversationStatus", () => {
     expect(result.current.status).toBe("正在输入")
 
     realtime.ready = false
-    rerender({ enabled: true, conversationId: "conversation-1" })
+    rerender({ enabled: true, conversationId: conversationOneId })
     expect(result.current.status).toBeUndefined()
 
     realtime.ready = true
-    rerender({ enabled: true, conversationId: "conversation-1" })
+    rerender({ enabled: true, conversationId: conversationOneId })
     expect(result.current.status).toBeUndefined()
   })
 
@@ -136,7 +168,7 @@ describe("useConversationStatus", () => {
     act(() => result.current.onFocus())
     expect(sendRealtimeRequest).toHaveBeenCalledTimes(1)
     expect(sendRealtimeRequest).toHaveBeenLastCalledWith("conversation.status", {
-      conversation_id: "conversation-1",
+      conversation_id: conversationOneId,
       status: "正在输入",
     })
     act(() => vi.advanceTimersByTime(3_000))
@@ -146,7 +178,7 @@ describe("useConversationStatus", () => {
   it("切换会话后必须重新聚焦才开始发送", () => {
     const { result, rerender, sendRealtimeRequest } = setup()
     act(() => result.current.onFocus())
-    rerender({ enabled: true, conversationId: "conversation-2" })
+    rerender({ enabled: true, conversationId: conversationTwoId })
     const callsAfterSwitch = sendRealtimeRequest.mock.calls.length
     act(() => vi.advanceTimersByTime(6_000))
     expect(sendRealtimeRequest).toHaveBeenCalledTimes(callsAfterSwitch)
@@ -154,8 +186,46 @@ describe("useConversationStatus", () => {
     act(() => result.current.onFocus())
     expect(sendRealtimeRequest).toHaveBeenLastCalledWith(
       "conversation.status",
-      expect.objectContaining({ conversation_id: "conversation-2" }),
+      expect.objectContaining({ conversation_id: conversationTwoId }),
     )
+  })
+
+  it("切换会话后的自动聚焦只为新会话发送并继续续期", () => {
+    const handlers = new Map<string, Handler>()
+    const sendRealtimeRequest = vi.fn().mockResolvedValue(undefined)
+    const realtime: RealtimeContextValue = {
+      ready: true,
+      status: "connected",
+      sendRealtimeRequest,
+      subscribeRealtimeEvent: vi.fn((name, handler) => {
+        handlers.set(name, handler)
+        return () => handlers.delete(name)
+      }),
+    }
+    const view = render(
+      <RealtimeContext.Provider value={realtime}>
+        <AutoFocusHarness conversationId={conversationOneId} />
+      </RealtimeContext.Provider>,
+    )
+    sendRealtimeRequest.mockClear()
+
+    view.rerender(
+      <RealtimeContext.Provider value={realtime}>
+        <AutoFocusHarness conversationId={conversationTwoId} />
+      </RealtimeContext.Provider>,
+    )
+
+    expect(sendRealtimeRequest).toHaveBeenCalledTimes(1)
+    expect(sendRealtimeRequest).toHaveBeenLastCalledWith("conversation.status", {
+      conversation_id: conversationTwoId,
+      status: "正在输入",
+    })
+    act(() => vi.advanceTimersByTime(3_000))
+    expect(sendRealtimeRequest).toHaveBeenCalledTimes(2)
+    expect(sendRealtimeRequest).toHaveBeenLastCalledWith("conversation.status", {
+      conversation_id: conversationTwoId,
+      status: "正在输入",
+    })
   })
 
   it("失焦或窗口隐藏时停止续期", () => {
@@ -179,3 +249,15 @@ describe("useConversationStatus", () => {
     expect(sendRealtimeRequest).not.toHaveBeenCalled()
   })
 })
+
+function AutoFocusHarness({ conversationId }: { conversationId: string }) {
+  const { onFocus } = useConversationStatus({ conversationId, supported: true })
+  return <FocusOnMount key={conversationId} onFocus={onFocus} />
+}
+
+function FocusOnMount({ onFocus }: { onFocus(): void }) {
+  React.useEffect(() => {
+    onFocus()
+  }, [onFocus])
+  return null
+}

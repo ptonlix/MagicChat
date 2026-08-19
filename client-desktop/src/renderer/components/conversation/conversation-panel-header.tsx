@@ -49,6 +49,7 @@ export function ConversationPanelHeader({
           {conversation.type === "app" &&
             (status ? (
               <ConversationStatusIndicator
+                announce
                 className="text-xs leading-4 text-muted-foreground"
                 status={status}
               />
@@ -61,6 +62,7 @@ export function ConversationPanelHeader({
           {conversation.type === "direct" &&
             (status ? (
               <ConversationStatusIndicator
+                announce
                 className="text-xs leading-4 text-muted-foreground"
                 status={status}
               />

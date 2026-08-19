@@ -116,10 +116,53 @@ describe("DocumentWorkspaceSidebar", () => {
     })
     expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1")
   })
+
+  it("后台刷新丢失已选项目时仍保持显示和创建目标一致", async () => {
+    const user = userEvent.setup()
+    const created = documentFixture(
+      "a50e8400-e29b-41d4-a716-446655440000",
+      "项目二新文档",
+      "project-2",
+    )
+    const openDocumentWindow = vi.fn().mockResolvedValue({
+      ok: true,
+      result: { status: "created" },
+    })
+    vi.stubGlobal("desktop", { navigation: { openDocumentWindow } })
+    mocks.listClientDocuments.mockResolvedValue([])
+    mocks.createClientDocument.mockResolvedValue(created)
+    window.history.replaceState(
+      {},
+      "",
+      `/documents/document/${activeDocument.id}?serverId=server-1&window=document`,
+    )
+    const view = renderSidebar()
+
+    await user.click(screen.getByRole("button", { name: "切换文档项目" }))
+    await user.click(screen.getByRole("menuitemradio", { name: "项目二" }))
+    await waitFor(() => expect(mocks.listClientDocuments).toHaveBeenLastCalledWith("project-2"))
+
+    view.rerender(sidebarElement([projectFixture("project-1", "项目")]))
+
+    expect(screen.getByRole("button", { name: "切换文档项目" })).toHaveTextContent("项目二")
+    await user.click(screen.getByRole("button", { name: "新建文档" }))
+    await waitFor(() =>
+      expect(mocks.createClientDocument).toHaveBeenCalledWith("project-2", {
+        kind: "document",
+        title: "无标题文档",
+      }),
+    )
+  })
 })
 
-function renderSidebar() {
-  render(
+function renderSidebar(
+  projects = [projectFixture("project-1", "项目"), projectFixture("project-2", "项目二")],
+) {
+  return render(sidebarElement(projects))
+}
+
+function sidebarElement(projects: ReturnType<typeof projectFixture>[]) {
+  return (
     <DesktopTargetContext.Provider
       value={{ id: "server-1", normalizedUrl: "https://chat.example.com", userId: "user-1" }}
     >
@@ -138,7 +181,7 @@ function renderSidebar() {
             status: "active",
           },
           personalProject: projectFixture("personal", "个人项目", true),
-          projects: [projectFixture("project-1", "项目"), projectFixture("project-2", "项目二")],
+          projects,
           projectsLoadingMore: false,
           projectsNextCursor: null,
           refreshMe: vi.fn(),
@@ -159,7 +202,7 @@ function renderSidebar() {
           />
         </MemoryRouter>
       </DocumentDataContext.Provider>
-    </DesktopTargetContext.Provider>,
+    </DesktopTargetContext.Provider>
   )
 }
 

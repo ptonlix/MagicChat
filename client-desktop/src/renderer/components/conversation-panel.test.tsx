@@ -306,7 +306,7 @@ describe("ConversationPanel", () => {
             historyError={null}
             historyLoading={false}
             historyLoadingBefore={false}
-            messages={[createAppPanelMessage({ appId: "app-1", author: "助手", avatar: "" })]}
+            messages={[]}
             onCancelReply={vi.fn()}
             onDraftBlur={onDraftBlur}
             onDraftChange={vi.fn()}
@@ -329,6 +329,7 @@ describe("ConversationPanel", () => {
     )
 
     expect(screen.getAllByText("正在思考")).toHaveLength(2)
+    expect(screen.getAllByRole("status")).toHaveLength(1)
     expect(screen.getByTestId("conversation-status-bubble")).toBeVisible()
     const composer = screen.getByPlaceholderText("输入消息")
     await waitFor(() => expect(onDraftFocus).toHaveBeenCalled())

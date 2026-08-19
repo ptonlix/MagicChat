@@ -5,9 +5,10 @@ import { useRealtime } from "@/lib/realtime-context"
 
 const STATUS_TTL_MS = 5_000
 const STATUS_HEARTBEAT_MS = 3_000
-const MAX_CONVERSATION_ID_LENGTH = 200
+const MAX_ACTIVE_STATUSES = 100
 const MAX_SENDER_ID_LENGTH = 200
 const MAX_STATUS_LENGTH = 32
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 type StatusSender = Readonly<{ id: string; type: "app" | "user" }>
 type ConversationStatus = Readonly<{ status: string; sender: StatusSender }>
@@ -46,12 +47,18 @@ function readStatus(payload: unknown): Readonly<{
   const senderValue = value.sender
   if (!senderValue || typeof senderValue !== "object") return null
   const sender = senderValue as Record<string, unknown>
-  const conversationId = readBoundedText(value.conversation_id, MAX_CONVERSATION_ID_LENGTH)
+  const conversationId = readBoundedText(value.conversation_id, 36)
   const status = readBoundedText(value.status, MAX_STATUS_LENGTH)
   const senderId = readBoundedText(sender.id, MAX_SENDER_ID_LENGTH)
   const senderType = sender.type
 
-  if (!conversationId || !status || !senderId || (senderType !== "app" && senderType !== "user")) {
+  if (
+    !conversationId ||
+    !UUID_PATTERN.test(conversationId) ||
+    !status ||
+    !senderId ||
+    (senderType !== "app" && senderType !== "user")
+  ) {
     return null
   }
 
@@ -98,16 +105,28 @@ export function useConversationStatus({
     const unsubscribeStatus = subscribeRealtimeEvent("conversation.status", (payload) => {
       const event = readStatus(payload)
       if (!event) return
-      const oldTimer = expiryTimersRef.current.get(event.conversationId)
+      const expiryTimers = expiryTimersRef.current
+      const oldTimer = expiryTimers.get(event.conversationId)
+      const nextStatuses = { ...statusStore.getSnapshot() }
       if (oldTimer !== undefined) window.clearTimeout(oldTimer)
-      statusStore.replace({
-        ...statusStore.getSnapshot(),
-        [event.conversationId]: {
-          status: event.status,
-          sender: event.sender,
-        },
-      })
-      expiryTimersRef.current.set(
+      expiryTimers.delete(event.conversationId)
+
+      if (oldTimer === undefined && expiryTimers.size >= MAX_ACTIVE_STATUSES) {
+        const oldestConversationId = expiryTimers.keys().next().value
+        if (oldestConversationId !== undefined) {
+          const oldestTimer = expiryTimers.get(oldestConversationId)
+          if (oldestTimer !== undefined) window.clearTimeout(oldestTimer)
+          expiryTimers.delete(oldestConversationId)
+          delete nextStatuses[oldestConversationId]
+        }
+      }
+
+      nextStatuses[event.conversationId] = {
+        status: event.status,
+        sender: event.sender,
+      }
+      statusStore.replace(nextStatuses)
+      expiryTimers.set(
         event.conversationId,
         window.setTimeout(() => clearStatus(event.conversationId), STATUS_TTL_MS),
       )
@@ -147,18 +166,20 @@ export function useConversationStatus({
     }).catch(() => undefined)
   }, [conversationId, ready, sendRealtimeRequest, supported])
   const sendStatusRef = React.useRef(sendStatus)
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     sendStatusRef.current = sendStatus
   }, [sendStatus])
 
   const startHeartbeat = React.useCallback(() => {
     stopHeartbeat()
-    if (!focusedRef.current || !supported || document.visibilityState !== "visible") return
+    if (!focusedRef.current || !ready || !supported || document.visibilityState !== "visible") {
+      return
+    }
     sendStatusRef.current()
     heartbeatRef.current = window.setInterval(() => sendStatusRef.current(), STATUS_HEARTBEAT_MS)
-  }, [stopHeartbeat, supported])
+  }, [ready, stopHeartbeat, supported])
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     focusedRef.current = false
     stopHeartbeat()
   }, [conversationId, stopHeartbeat, supported])

@@ -55,21 +55,24 @@ describe("PreserveTableCellTypeOnPaste", () => {
     expect(editor.getText()).toContain("outside")
   })
 
-  it("多单元格粘贴继续使用表格扩展的默认类型映射", () => {
+  it("单单元格切片粘贴到多单元格目标时继续使用表格扩展的默认映射", () => {
     editor = createEditor()
     const header = findCell(editor, "header")
     const body = findCell(editor, "body")
     editor.view.dispatch(
-      editor.state.tr.setSelection(
-        new CellSelection(editor.state.doc.resolve(header.pos), editor.state.doc.resolve(body.pos)),
-      ),
+      editor.state.tr.setSelection(new CellSelection(editor.state.doc.resolve(header.pos))),
     )
     const slice = editor.state.selection.content()
+    editor.view.dispatch(
+      editor.state.tr.setSelection(
+        new CellSelection(editor.state.doc.resolve(body.pos), editor.state.doc.resolve(header.pos)),
+      ),
+    )
 
     const handled = paste(editor, slice)
 
     expect(handled).toBe(true)
-    expect(tableCells(editor).map((cell) => cell.type)).toEqual(["tableHeader", "tableCell"])
+    expect(tableCells(editor).map((cell) => cell.type)).toEqual(["tableHeader", "tableHeader"])
   })
 })
 
