@@ -24,7 +24,8 @@ vi.mock("@/lib/client-data-api", async (importOriginal) => ({
 vi.mock("@/lib/project-data-api", () => ({ listClientProjects: mocks.listClientProjects }))
 
 function Probe() {
-  const { loadMoreProjects, me, personalProject, projects, projectsNextCursor } = useDocumentData()
+  const { loadMoreProjects, me, personalProject, projects, projectsNextCursor, refreshProjects } =
+    useDocumentData()
   return (
     <div>
       <span>当前用户：{me.id}</span>
@@ -33,6 +34,9 @@ function Probe() {
       <span>下一页：{projectsNextCursor ?? "无"}</span>
       <button onClick={() => void loadMoreProjects()} type="button">
         加载更多
+      </button>
+      <button onClick={() => void refreshProjects()} type="button">
+        刷新项目
       </button>
     </div>
   )
@@ -152,7 +156,63 @@ describe("DocumentDataProvider", () => {
       limit: 100,
     })
   })
+
+  it("刷新与加载更多乱序完成时忽略旧分页结果", async () => {
+    const user = userEvent.setup()
+    const pagination = deferred<ReturnType<typeof projectPageFixture>>()
+    const refresh = deferred<ReturnType<typeof projectPageFixture>>()
+    mocks.getCurrentClientUser.mockReset().mockResolvedValue({ id: "user-1" })
+    mocks.listClientProjects
+      .mockReset()
+      .mockResolvedValueOnce(
+        projectPageFixture("cursor-2", [projectFixture("project-1", "旧项目")]),
+      )
+      .mockReturnValueOnce(pagination.promise)
+      .mockReturnValueOnce(refresh.promise)
+
+    render(
+      <DocumentDataProvider>
+        <Probe />
+      </DocumentDataProvider>,
+    )
+    await screen.findByText("项目列表：旧项目")
+
+    await user.click(screen.getByRole("button", { name: "加载更多" }))
+    await waitFor(() => expect(mocks.listClientProjects).toHaveBeenCalledTimes(2))
+    await user.click(screen.getByRole("button", { name: "刷新项目" }))
+    await waitFor(() => expect(mocks.listClientProjects).toHaveBeenCalledTimes(3))
+
+    refresh.resolve(projectPageFixture("fresh-cursor", [projectFixture("project-3", "刷新项目")]))
+    expect(await screen.findByText("项目列表：刷新项目")).toBeInTheDocument()
+    expect(screen.getByText("下一页：fresh-cursor")).toBeInTheDocument()
+
+    pagination.resolve(
+      projectPageFixture("stale-cursor", [projectFixture("project-2", "过期分页项目")]),
+    )
+    await waitFor(() => expect(screen.getByText("项目列表：刷新项目")).toBeInTheDocument())
+    expect(screen.queryByText(/过期分页项目/)).not.toBeInTheDocument()
+    expect(screen.getByText("下一页：fresh-cursor")).toBeInTheDocument()
+  })
 })
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
+function projectPageFixture(
+  nextCursor: string | null,
+  projects: ReturnType<typeof projectFixture>[],
+) {
+  return {
+    nextCursor,
+    personalProject: projectFixture("personal", "个人项目", true),
+    projects,
+  }
+}
 
 function projectFixture(id: string, name: string, isPersonal = false) {
   return {

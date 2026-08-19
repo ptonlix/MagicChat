@@ -68,12 +68,18 @@ export class HttpTransport {
     const key = pendingKey(ownerId, request.requestId)
     if (this.pending.has(key)) throw new ClientTransportError("invalid_request", "请求标识重复")
     const controller = new AbortController()
+    let rejectTermination!: (error: ClientTransportError) => void
+    const termination = new Promise<never>((_resolve, reject) => {
+      rejectTermination = reject
+    })
     const pending: PendingHttpRequest = {
       controller,
       ownerId,
       requestId: request.requestId,
       serverId: target.id,
       targetKey: targetKey(target),
+      termination,
+      rejectTermination,
     }
     this.pending.set(key, pending)
     const timeout = setTimeout(
@@ -84,16 +90,19 @@ export class HttpTransport {
       const requestUrl = `${profile.normalizedUrl}${assertClientPath(request.path)}`
       const headers = filterHeaders(request.headers)
       headers.Origin = new URL(profile.normalizedUrl).origin
-      const response = await this.sessions.for(profile).fetch(requestUrl, {
-        body: encodeBody(request),
-        credentials: "same-origin",
-        headers,
-        method: request.method,
-        redirect: "follow",
-        signal: controller.signal,
-      })
+      const response = await Promise.race([
+        this.sessions.for(profile).fetch(requestUrl, {
+          body: encodeBody(request),
+          credentials: "same-origin",
+          headers,
+          method: request.method,
+          redirect: "follow",
+          signal: controller.signal,
+        }),
+        termination,
+      ])
       assertAllowedResponseUrl(response.url, requestUrl, profile.normalizedUrl)
-      const bytes = await readLimited(response, MAX_RESPONSE_BYTES)
+      const bytes = await readLimited(response, MAX_RESPONSE_BYTES, termination)
       const contentType = response.headers.get("content-type") ?? ""
       const body = contentType.includes("application/json")
         ? JSON.parse(new TextDecoder().decode(bytes) || "null")
@@ -102,7 +111,7 @@ export class HttpTransport {
           : bytes
       if (response.ok && isAuthenticationResponse(request, body)) {
         const previousUserId = profile.lastUserId
-        await this.profiles.recordUser(profile.id, body.data.user.id)
+        await Promise.race([this.profiles.recordUser(profile.id, body.data.user.id), termination])
         if (previousUserId && previousUserId !== body.data.user.id)
           this.lifecycle.onUserChanged?.(profile.id)
       }
@@ -142,6 +151,7 @@ export class HttpTransport {
     if (!pending || pending.controller.signal.aborted) return
     pending.terminationReason = reason
     pending.controller.abort()
+    pending.rejectTermination(terminationError(reason))
   }
 }
 
@@ -163,7 +173,17 @@ type PendingHttpRequest = {
   requestId: string
   serverId: string
   targetKey: string
+  termination: Promise<never>
+  rejectTermination: (error: ClientTransportError) => void
   terminationReason?: "aborted" | "timeout"
+}
+
+function terminationError(reason: NonNullable<PendingHttpRequest["terminationReason"]>) {
+  const timeout = reason === "timeout"
+  return new ClientTransportError(
+    timeout ? "timeout" : "aborted",
+    timeout ? "请求超时" : "请求已取消",
+  )
 }
 
 function pendingKey(ownerId: number, requestId: string): string {
@@ -218,7 +238,11 @@ function encodeBody(request: ClientRequest): BodyInit | undefined {
   return new Blob([Uint8Array.from(request.body.value)])
 }
 
-async function readLimited(response: Response, limit: number): Promise<Uint8Array> {
+async function readLimited(
+  response: Response,
+  limit: number,
+  termination: Promise<never>,
+): Promise<Uint8Array> {
   const declared = Number(response.headers.get("content-length") ?? 0)
   if (declared > limit) throw new ClientTransportError("response_too_large", "响应内容过大")
   if (!response.body) return new Uint8Array()
@@ -226,14 +250,19 @@ async function readLimited(response: Response, limit: number): Promise<Uint8Arra
   const chunks: Uint8Array[] = []
   let size = 0
   for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > limit) {
-      await reader.cancel()
-      throw new ClientTransportError("response_too_large", "响应内容过大")
+    try {
+      const { done, value } = await Promise.race([reader.read(), termination])
+      if (done) break
+      size += value.byteLength
+      if (size > limit) {
+        void reader.cancel().catch(() => undefined)
+        throw new ClientTransportError("response_too_large", "响应内容过大")
+      }
+      chunks.push(value)
+    } catch (error) {
+      void reader.cancel().catch(() => undefined)
+      throw error
     }
-    chunks.push(value)
   }
   const result = new Uint8Array(size)
   let offset = 0

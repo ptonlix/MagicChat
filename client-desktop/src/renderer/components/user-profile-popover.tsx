@@ -3,6 +3,7 @@ import { useNavigate } from "react-router"
 import { Loader2Icon, Mail, Phone, UserPen, UserRound } from "lucide-react"
 import { toast } from "sonner"
 
+import type { ContactDirectoryMode, FriendRequest } from "@/lib/client-data-api"
 import { formatContactPhone } from "@/lib/contact-format"
 import { useClientData, useClientUser } from "@/lib/client-data-context"
 import { cn } from "@/lib/utils"
@@ -59,15 +60,39 @@ export function UserProfilePopover({
   triggerClassName,
   userId,
 }: UserProfilePopoverProps) {
-  const { contactDirectoryMode, contacts, me, openDirectConversation } = useClientData()
+  const {
+    acceptFriendRequest,
+    contactDirectoryMode,
+    contacts,
+    createFriendRequest,
+    incomingFriendRequests = [],
+    me,
+    openDirectConversation,
+    outgoingFriendRequests = [],
+  } = useClientData()
   const cachedUser = useClientUser(userId ?? "")
   const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [avatarPreviewOpen, setAvatarPreviewOpen] = React.useState(false)
+  const [friendRequestPending, setFriendRequestPending] = React.useState(false)
   const [openingConversation, setOpeningConversation] = React.useState(false)
   const user = React.useMemo(
     () => resolveUserProfile(userId, me, contacts, cachedUser ?? fallbackProfile),
     [cachedUser, contacts, fallbackProfile, me, userId],
+  )
+  const relationship = React.useMemo(
+    () =>
+      resolveUserRelationship(
+        {
+          contactDirectoryMode,
+          contacts,
+          incomingFriendRequests,
+          outgoingFriendRequests,
+        },
+        userId ?? "",
+        me.id,
+      ),
+    [contactDirectoryMode, contacts, incomingFriendRequests, me.id, outgoingFriendRequests, userId],
   )
 
   if (!user) {
@@ -76,9 +101,7 @@ export function UserProfilePopover({
 
   const profile = user
   const displayName = getUserDisplayName(profile)
-  const canStartConversation =
-    profile.id !== me.id &&
-    (contactDirectoryMode !== "friends" || contacts.some((contact) => contact.id === profile.id))
+  const canStartConversation = profile.id !== me.id && relationship.isFriend
 
   async function handleStartConversation() {
     if (!canStartConversation || openingConversation) {
@@ -97,6 +120,57 @@ export function UserProfilePopover({
       setOpeningConversation(false)
     }
   }
+
+  async function handleAddFriend() {
+    if (!createFriendRequest || friendRequestPending) return
+    setFriendRequestPending(true)
+    try {
+      await createFriendRequest(profile.id)
+      toast.success("好友申请已发送")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "发送好友申请失败")
+    } finally {
+      setFriendRequestPending(false)
+    }
+  }
+
+  async function handleAcceptFriend() {
+    if (!acceptFriendRequest || !relationship.incomingRequest || friendRequestPending) return
+    setFriendRequestPending(true)
+    try {
+      await acceptFriendRequest(relationship.incomingRequest.id)
+      toast.success("已添加好友")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "接受好友申请失败")
+    } finally {
+      setFriendRequestPending(false)
+    }
+  }
+
+  function handleProfileAction() {
+    if (relationship.incomingRequest) {
+      void handleAcceptFriend()
+    } else if (!relationship.isFriend) {
+      void handleAddFriend()
+    } else {
+      void handleStartConversation()
+    }
+  }
+
+  const profileActionLabel = relationship.incomingRequest
+    ? "接受好友申请"
+    : relationship.outgoingRequest
+      ? "已发送好友申请"
+      : relationship.isFriend
+        ? "发消息"
+        : "加好友"
+  const profileActionDisabled =
+    Boolean(relationship.outgoingRequest) ||
+    openingConversation ||
+    friendRequestPending ||
+    (relationship.incomingRequest
+      ? !acceptFriendRequest
+      : !relationship.isFriend && !createFriendRequest)
 
   function handleAvatarPreview() {
     setOpen(false)
@@ -171,15 +245,17 @@ export function UserProfilePopover({
               />
             </div>
 
-            {canStartConversation ? (
+            {profile.id !== me.id ? (
               <Button
                 className="w-full"
-                disabled={openingConversation}
-                onClick={() => void handleStartConversation()}
+                disabled={profileActionDisabled}
+                onClick={handleProfileAction}
                 type="button"
               >
-                {openingConversation && <Loader2Icon aria-hidden="true" className="animate-spin" />}
-                发消息
+                {(openingConversation || friendRequestPending) && (
+                  <Loader2Icon aria-hidden="true" className="animate-spin" />
+                )}
+                {profileActionLabel}
               </Button>
             ) : null}
           </div>
@@ -201,6 +277,46 @@ export function UserProfilePopover({
       </AvatarPreviewDialog>
     </>
   )
+}
+
+type UserRelationshipSource = {
+  contactDirectoryMode?: ContactDirectoryMode
+  contacts: readonly Pick<UserProfile, "id">[]
+  incomingFriendRequests: readonly FriendRequest[]
+  outgoingFriendRequests: readonly FriendRequest[]
+}
+
+function resolveUserRelationship(
+  source: UserRelationshipSource,
+  userId: string,
+  currentUserId: string,
+) {
+  const normalizedUserId = normalizeProfileId(userId)
+  const normalizedCurrentUserId = normalizeProfileId(currentUserId)
+  const incomingRequest =
+    source.incomingFriendRequests.find(
+      (request) =>
+        request.status === "pending" &&
+        normalizeProfileId(request.requesterUserId) === normalizedUserId &&
+        normalizeProfileId(request.addresseeUserId) === normalizedCurrentUserId,
+    ) ?? null
+  const outgoingRequest =
+    source.outgoingFriendRequests.find(
+      (request) =>
+        request.status === "pending" &&
+        normalizeProfileId(request.addresseeUserId) === normalizedUserId &&
+        normalizeProfileId(request.requesterUserId) === normalizedCurrentUserId,
+    ) ?? null
+  const isFriend =
+    normalizedUserId === normalizedCurrentUserId ||
+    source.contactDirectoryMode !== "friends" ||
+    source.contacts.some((contact) => normalizeProfileId(contact.id) === normalizedUserId)
+
+  return { incomingRequest, isFriend, outgoingRequest }
+}
+
+function normalizeProfileId(profileId: string) {
+  return profileId.trim().toLowerCase()
 }
 
 function resolveUserProfile(

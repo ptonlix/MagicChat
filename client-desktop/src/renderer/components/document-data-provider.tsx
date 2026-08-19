@@ -58,6 +58,7 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
   const [projectsLoadingMore, setProjectsLoadingMore] = useState(false)
   const [projectsNextCursor, setProjectsNextCursor] = useState<string | null>(null)
   const projectsLoadingMoreRef = useRef(false)
+  const projectsRequestEpochRef = useRef(0)
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -96,14 +97,16 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
   }, [handleRequestError, setAuthenticated])
 
   const refreshProjects = useCallback(async () => {
+    const requestEpoch = ++projectsRequestEpochRef.current
     try {
       const page = await listClientProjects({ limit: 100 })
-      if (!mountedRef.current) return
+      if (!mountedRef.current || projectsRequestEpochRef.current !== requestEpoch) return
       setPersonalProject(page.personalProject)
       setProjects(page.projects)
       setProjectsNextCursor(page.nextCursor)
       setError(null)
     } catch (reason) {
+      if (!mountedRef.current || projectsRequestEpochRef.current !== requestEpoch) return
       throw handleRequestError(reason, "加载项目列表失败")
     }
   }, [handleRequestError])
@@ -113,14 +116,16 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
     if (!cursor || projectsLoadingMoreRef.current) return
     projectsLoadingMoreRef.current = true
     setProjectsLoadingMore(true)
+    const requestEpoch = ++projectsRequestEpochRef.current
     try {
       const page = await listClientProjects({ cursor, limit: 100 })
-      if (!mountedRef.current) return
+      if (!mountedRef.current || projectsRequestEpochRef.current !== requestEpoch) return
       setPersonalProject(page.personalProject)
       setProjects((current) => mergeProjects(current, page.projects))
       setProjectsNextCursor(page.nextCursor)
       setError(null)
     } catch (reason) {
+      if (!mountedRef.current || projectsRequestEpochRef.current !== requestEpoch) return
       throw handleRequestError(reason, "加载更多项目失败")
     } finally {
       projectsLoadingMoreRef.current = false
@@ -129,6 +134,7 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
   }, [handleRequestError, projectsNextCursor])
 
   const load = useCallback(async () => {
+    const projectsRequestEpoch = ++projectsRequestEpochRef.current
     setLoading(true)
     setError(null)
     try {
@@ -138,9 +144,11 @@ function StandaloneDocumentDataProvider({ children }: { children: ReactNode }) {
       ])
       if (!mountedRef.current) return
       setMe(nextMe)
-      setPersonalProject(projectPage.personalProject)
-      setProjects(projectPage.projects)
-      setProjectsNextCursor(projectPage.nextCursor)
+      if (projectsRequestEpochRef.current === projectsRequestEpoch) {
+        setPersonalProject(projectPage.personalProject)
+        setProjects(projectPage.projects)
+        setProjectsNextCursor(projectPage.nextCursor)
+      }
       setAuthenticated(true)
     } catch (reason) {
       handleRequestError(reason, "加载文档工作区失败", true)

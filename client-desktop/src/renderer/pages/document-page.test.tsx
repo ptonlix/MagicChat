@@ -196,6 +196,31 @@ describe("DocumentPage", () => {
     expect(mocks.passedCollaborationProvider).toBeDefined()
   })
 
+  it("同项目切换文档时保持侧栏实例，只替换内容区", async () => {
+    const nextDocument = {
+      ...document,
+      id: "5457c4af-2185-4e8e-b267-38f25ac3dd2f",
+      title: "第二篇文档",
+    }
+    const nextDocumentRequest = deferred<typeof nextDocument>()
+    mocks.getClientDocument.mockImplementation((documentId: string) =>
+      documentId === nextDocument.id ? nextDocumentRequest.promise : Promise.resolve(document),
+    )
+    const router = renderPage()
+    await screen.findByRole("textbox", { name: "顶部文档标题" })
+    const sidebarTrigger = screen.getByRole("button", { name: "切换文档项目" })
+
+    await router.navigate(`/documents/document/${nextDocument.id}`)
+
+    expect(await screen.findByText("正在加载文档")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "切换文档项目" })).toBe(sidebarTrigger)
+
+    await act(async () => nextDocumentRequest.resolve(nextDocument))
+
+    expect(await screen.findByRole("textbox", { name: "顶部文档标题" })).toHaveValue("第二篇文档")
+    expect(screen.getByRole("button", { name: "切换文档项目" })).toBe(sidebarTrigger)
+  })
+
   it("统一拦截应用内路由导航，取消时保留编辑状态，确认后才离开", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true)
     const router = renderPage()
@@ -493,4 +518,12 @@ function renderPage(strictMode = false) {
   )
   render(strictMode ? <StrictMode>{page}</StrictMode> : page)
   return router
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }

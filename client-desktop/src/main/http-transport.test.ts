@@ -87,6 +87,64 @@ describe("HttpTransport 取消隔离", () => {
   })
 })
 
+describe("HttpTransport 强制结算", () => {
+  it("fetch 忽略 abort 时仍按超时拒绝", async () => {
+    vi.useFakeTimers()
+    try {
+      const transport = createTransport(vi.fn(() => new Promise<Response>(() => undefined)))
+      const outcome = observePromise(
+        transport.request(1, target, { ...request, requestId: "timeout-fetch", timeoutMs: 1_000 }),
+      )
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      await flushPromises()
+
+      expect(outcome).toMatchObject({ error: { code: "timeout" }, status: "rejected" })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("fetch 忽略 abort 时显式取消仍会拒绝", async () => {
+    const transport = createTransport(vi.fn(() => new Promise<Response>(() => undefined)))
+    const outcome = observePromise(
+      transport.request(1, target, { ...request, requestId: "cancel-fetch" }),
+    )
+
+    transport.cancel("cancel-fetch", 1)
+    await flushPromises()
+
+    expect(outcome).toMatchObject({ error: { code: "aborted" }, status: "rejected" })
+  })
+
+  it("响应体读取忽略 abort 时仍按超时拒绝", async () => {
+    vi.useFakeTimers()
+    try {
+      const body = new ReadableStream<Uint8Array>({
+        pull: () => new Promise<void>(() => undefined),
+      })
+      const transport = createTransport(
+        vi.fn().mockResolvedValue(
+          new Response(body, {
+            headers: { "content-type": "application/octet-stream" },
+            status: 200,
+          }),
+        ),
+      )
+      const outcome = observePromise(
+        transport.request(1, target, { ...request, requestId: "timeout-body", timeoutMs: 1_000 }),
+      )
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      await flushPromises()
+
+      expect(outcome).toMatchObject({ error: { code: "timeout" }, status: "rejected" })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("HttpTransport 重定向边界", () => {
   it("允许同源 client API 重定向并由 Main 注入可信 Origin", async () => {
     const fetch = vi
@@ -266,4 +324,24 @@ function createTransport(fetch: ReturnType<typeof vi.fn>) {
   }
   const sessions = { for: vi.fn(() => ({ fetch })) }
   return new HttpTransport(profiles as never, sessions as never)
+}
+
+function observePromise(promise: Promise<unknown>) {
+  const outcome: { error?: unknown; status: "fulfilled" | "pending" | "rejected" } = {
+    status: "pending",
+  }
+  void promise.then(
+    () => {
+      outcome.status = "fulfilled"
+    },
+    (error: unknown) => {
+      outcome.error = error
+      outcome.status = "rejected"
+    },
+  )
+  return outcome
+}
+
+async function flushPromises() {
+  for (let index = 0; index < 5; index += 1) await Promise.resolve()
 }

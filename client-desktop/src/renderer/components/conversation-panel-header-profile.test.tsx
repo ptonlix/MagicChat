@@ -135,8 +135,9 @@ describe("ConversationPanel header profile", () => {
     expect(await screen.findByRole("dialog", { name: "项目群头像预览" })).toBeInTheDocument()
   })
 
-  it("does not expose a direct-message action for a non-friend profile", async () => {
+  it("非好友资料提供加好友操作", async () => {
     const user = userEvent.setup()
+    const createFriendRequest = vi.fn().mockResolvedValue(undefined)
     const otherMember = createMember({
       email: "wangwu@example.com",
       id: "user-2",
@@ -148,12 +149,62 @@ describe("ConversationPanel header profile", () => {
       type: "direct",
     })
 
-    renderConversationHeader(conversation, { contactDirectoryMode: "friends" })
+    renderConversationHeader(conversation, {
+      contactDirectoryMode: "friends",
+      createFriendRequest,
+    })
+
+    await user.click(screen.getByRole("button", { name: "王五资料" }))
+    await user.click(await screen.findByRole("button", { name: "加好友" }))
+
+    expect(createFriendRequest).toHaveBeenCalledWith("user-2")
+    expect(screen.queryByRole("button", { name: "发消息" })).not.toBeInTheDocument()
+  })
+
+  it("收到好友申请时可以从资料弹窗接受", async () => {
+    const user = userEvent.setup()
+    const acceptFriendRequest = vi.fn().mockResolvedValue(undefined)
+    const otherMember = createMember({ id: "user-2", name: "王五" })
+    renderConversationHeader(
+      createConversation({
+        members: [createMember(), otherMember],
+        name: otherMember.name,
+        type: "direct",
+      }),
+      {
+        acceptFriendRequest,
+        contactDirectoryMode: "friends",
+        incomingFriendRequests: [friendRequestFixture("incoming", "user-2", "user-1")],
+      },
+    )
+
+    await user.click(screen.getByRole("button", { name: "王五资料" }))
+    await user.click(await screen.findByRole("button", { name: "接受好友申请" }))
+
+    expect(acceptFriendRequest).toHaveBeenCalledWith("incoming")
+  })
+
+  it("已发送好友申请时展示禁用等待态", async () => {
+    const user = userEvent.setup()
+    const createFriendRequest = vi.fn().mockResolvedValue(undefined)
+    const otherMember = createMember({ id: "user-2", name: "王五" })
+    renderConversationHeader(
+      createConversation({
+        members: [createMember(), otherMember],
+        name: otherMember.name,
+        type: "direct",
+      }),
+      {
+        contactDirectoryMode: "friends",
+        createFriendRequest,
+        outgoingFriendRequests: [friendRequestFixture("outgoing", "user-1", "user-2")],
+      },
+    )
 
     await user.click(screen.getByRole("button", { name: "王五资料" }))
 
-    expect(await screen.findByText("用户资料")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "发消息" })).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "已发送好友申请" })).toBeDisabled()
+    expect(createFriendRequest).not.toHaveBeenCalled()
   })
 
   it("在窄窗口中保留超长 ASCII 和 Unicode 资料值并允许换行滚动", async () => {
@@ -255,6 +306,18 @@ function createMember(overrides: Partial<ClientConversationMember> = {}): Client
     role: "member",
     type: "user",
     ...overrides,
+  }
+}
+
+function friendRequestFixture(id: string, requesterUserId: string, addresseeUserId: string) {
+  return {
+    addresseeUserId,
+    createdAt: "2026-08-19T00:00:00Z",
+    handledAt: null,
+    id,
+    requesterUserId,
+    status: "pending" as const,
+    updatedAt: "2026-08-19T00:00:00Z",
   }
 }
 
