@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { getMainWindowTitleBarOptions, setTrustedWindowTheme } from "@main/window-controller"
+import {
+  getMainWindowTitleBarOptions,
+  isMainApplicationUrl,
+  setTrustedWindowTheme,
+} from "@main/window-controller"
 import { DESKTOP_TITLEBAR_HEIGHT } from "@shared/bridge"
 
 describe("主窗口标题栏", () => {
@@ -33,5 +37,17 @@ describe("主窗口标题栏", () => {
       height: DESKTOP_TITLEBAR_HEIGHT,
       symbolColor: "#fafafa",
     })
+  })
+})
+
+describe("主窗口健康启动地址", () => {
+  it.each([
+    ["magicchat-app://app/index.html", true, true],
+    ["magicchat-app://app/recovery.html", true, false],
+    ["http://localhost:20050/", false, true],
+    ["http://localhost:20050/recovery.html", false, false],
+    ["https://example.com/index.html", false, false],
+  ] as const)("判断 %s 是否为主应用文档", (url, packaged, expected) => {
+    expect(isMainApplicationUrl(url, packaged)).toBe(expected)
   })
 })

@@ -201,6 +201,9 @@ describe("UpdaterService", () => {
       prepareInstall: async () => {
         order.push("prepare")
       },
+      recordInstallIntent: async (targetVersion) => {
+        order.push(`record:${targetVersion}`)
+      },
     })
     const check = service.check()
     adapter.emit("update-available", { version: "1.1.0" })
@@ -214,7 +217,7 @@ describe("UpdaterService", () => {
     })
     active = false
     await expect(service.install()).resolves.toEqual({ status: "started" })
-    expect(order).toEqual(["prepare", "quit"])
+    expect(order).toEqual(["prepare", "record:1.1.0", "quit"])
     expect(service.isInstallIntent()).toBe(true)
     await expect(service.install()).resolves.toEqual({
       reason: "not_downloaded",
@@ -244,12 +247,41 @@ describe("UpdaterService", () => {
     expect(service.isInstallIntent()).toBe(false)
   })
 
+  it("安装意图无法持久化时回滚退出准备且不调用安装器", async () => {
+    const rollback = vi.fn()
+    const recordInstallIntent = vi.fn(() => Promise.reject(new Error("permission denied")))
+    const service = createService(adapter, clock, {
+      prepareInstall: async () => rollback,
+      recordInstallIntent,
+    })
+    const check = service.check()
+    adapter.emit("update-available", { version: "1.1.0" })
+    await check
+    const download = service.download()
+    adapter.emit("update-downloaded", { version: "1.1.0" })
+    await download
+
+    await expect(service.install()).resolves.toEqual({
+      reason: "prepare_failed",
+      status: "failed",
+    })
+    expect(recordInstallIntent).toHaveBeenCalledWith("1.1.0")
+    expect(rollback).toHaveBeenCalledOnce()
+    expect(service.current()).toMatchObject({
+      errorCode: "permission_denied",
+      retryable: true,
+      status: "error",
+    })
+  })
+
   it("安装器同步报告失败时回滚退出准备并返回失败", async () => {
     const rollback = vi.fn()
+    const discardInstallIntent = vi.fn().mockResolvedValue(true)
     adapter.quitAndInstall = () => {
       adapter.emit("error", new Error("permission denied"))
     }
     const service = createService(adapter, clock, {
+      discardInstallIntent,
       prepareInstall: async () => rollback,
     })
     const check = service.check()
@@ -270,6 +302,7 @@ describe("UpdaterService", () => {
       status: "error",
     })
     expect(service.isInstallIntent()).toBe(false)
+    await vi.waitFor(() => expect(discardInstallIntent).toHaveBeenCalledOnce())
   })
 
   it("安装器异步报告失败时回滚退出准备并保留当前应用", async () => {

@@ -150,6 +150,20 @@ export function installTrustedWindowSecurity(
   })
 }
 
+export function isMainApplicationUrl(rawUrl: string, packaged: boolean): boolean {
+  try {
+    const url = new URL(rawUrl)
+    if (url.search || url.hash) return false
+    if (url.protocol === "magicchat-app:" && url.hostname === "app")
+      return url.pathname === "/" || url.pathname === "/index.html"
+    if (!packaged && url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname))
+      return url.pathname === "/" || url.pathname === "/index.html"
+  } catch {
+    return false
+  }
+  return false
+}
+
 export function getMainWindowTitleBarOptions(
   platform: NodeJS.Platform,
 ): Pick<

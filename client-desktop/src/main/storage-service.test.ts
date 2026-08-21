@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { tmpdir } from "node:os"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { SessionController } from "@main/session-controller"
 import { StorageService, parseStorageCacheKinds } from "@main/storage-service"
+import type { UpdateCacheLifecycle } from "@main/update-cache-lifecycle"
 import type { UpdaterService } from "@main/updater-service"
 
 const temporaryDirectories: string[] = []
@@ -77,13 +78,35 @@ describe("StorageService", () => {
         canDiscardDownloadedUpdate: vi.fn(() => true),
         discardDownloadedUpdate: vi.fn(),
       }
-    const service = createService(paths, { updater })
+    const updateCache: Pick<UpdateCacheLifecycle, "discardInstallIntent"> = {
+      discardInstallIntent: vi.fn().mockResolvedValue(true),
+    }
+    const service = createService(paths, { updateCache, updater })
 
     const result = await service.clearCache(["updates"])
 
     expect(result.expectedBytes).toBe(1024)
     expect(result.reclaimedBytes).toBe(1024)
     expect(result.stats.cacheItems.find((item) => item.kind === "updates")?.bytes).toBe(0)
+    expect(updateCache.discardInstallIntent).toHaveBeenCalledOnce()
+    expect(updater.discardDownloadedUpdate).toHaveBeenCalledOnce()
+  })
+
+  it("安装意图删除失败时保留待重试状态", async () => {
+    const paths = await createPaths()
+    await writeBytes(path.join(paths.updaterCache, "update.zip"), 1024)
+    const updater: Pick<UpdaterService, "canDiscardDownloadedUpdate" | "discardDownloadedUpdate"> =
+      {
+        canDiscardDownloadedUpdate: vi.fn(() => true),
+        discardDownloadedUpdate: vi.fn(),
+      }
+    const updateCache: Pick<UpdateCacheLifecycle, "discardInstallIntent"> = {
+      discardInstallIntent: vi.fn().mockResolvedValue(false),
+    }
+    const service = createService(paths, { updateCache, updater })
+
+    await expect(service.clearCache(["updates"])).rejects.toThrow("无法清除更新安装意图")
+    await expect(readFile(path.join(paths.updaterCache, "update.zip"))).rejects.toThrow()
     expect(updater.discardDownloadedUpdate).toHaveBeenCalledOnce()
   })
 
@@ -126,6 +149,7 @@ function createService(
   paths: { installation: string; updaterCache: string; userData: string },
   overrides: Partial<{
     sessions: Pick<SessionController, "clearNetworkCaches" | "clearRuntimeCaches">
+    updateCache: Pick<UpdateCacheLifecycle, "discardInstallIntent">
     updater: Pick<UpdaterService, "canDiscardDownloadedUpdate" | "discardDownloadedUpdate">
   }> = {},
 ): StorageService {
@@ -134,6 +158,9 @@ function createService(
     sessions: overrides.sessions ?? {
       clearNetworkCaches: vi.fn().mockResolvedValue(undefined),
       clearRuntimeCaches: vi.fn().mockResolvedValue(undefined),
+    },
+    updateCache: overrides.updateCache ?? {
+      discardInstallIntent: vi.fn().mockResolvedValue(true),
     },
     updater: overrides.updater ?? {
       canDiscardDownloadedUpdate: vi.fn(() => true),

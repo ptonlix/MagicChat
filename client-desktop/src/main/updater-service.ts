@@ -53,9 +53,11 @@ type UpdaterServiceOptions = Readonly<{
   adapter?: UpdaterAdapter
   clock?: UpdaterClock
   context?: UpdaterContext
+  discardInstallIntent?: () => Promise<boolean>
   hasActiveTransfers?: () => boolean
   openExternal?: (url: string) => Promise<void>
   prepareInstall?: () => Promise<InstallRollback | void>
+  recordInstallIntent?: (targetVersion: string) => Promise<void>
 }>
 
 const TRANSITIONS: Readonly<Record<UpdaterStatus, ReadonlySet<UpdaterStatus>>> = {
@@ -74,11 +76,13 @@ export class UpdaterService {
   private readonly adapter: UpdaterAdapter
   private readonly clock: UpdaterClock
   private readonly context: UpdaterContext
+  private readonly discardInstallIntent: () => Promise<boolean>
   private readonly eligibility: ReturnType<typeof determineUpdateEligibility>
   private readonly hasActiveTransfers: () => boolean
   private readonly listeners = new Set<(state: UpdaterState) => void>()
   private readonly openExternal: (url: string) => Promise<void>
   private readonly prepareInstall: () => Promise<InstallRollback | void>
+  private readonly recordInstallIntent: (targetVersion: string) => Promise<void>
   private readonly updaterListeners: ReadonlyArray<
     readonly [UpdaterEvent, (payload?: unknown) => void]
   >
@@ -95,10 +99,12 @@ export class UpdaterService {
     this.adapter = options.adapter ?? electronUpdaterAdapter()
     this.clock = options.clock ?? systemClock()
     this.context = options.context ?? systemContext()
+    this.discardInstallIntent = options.discardInstallIntent ?? (async () => true)
     this.eligibility = determineUpdateEligibility(this.context)
     this.hasActiveTransfers = options.hasActiveTransfers ?? (() => false)
     this.openExternal = options.openExternal ?? ((url) => shell.openExternal(url))
     this.prepareInstall = options.prepareInstall ?? (async () => undefined)
+    this.recordInstallIntent = options.recordInstallIntent ?? (async () => undefined)
     this.state = this.initialState()
     this.adapter.autoDownload = false
     this.adapter.autoInstallOnAppQuit = false
@@ -159,11 +165,17 @@ export class UpdaterService {
       return { reason: "active_transfers", status: "blocked" }
     }
     if (this.installIntent) return { reason: "install_in_progress", status: "blocked" }
+    const targetVersion = this.state.targetVersion
+    if (!targetVersion || !isStableVersion(targetVersion)) {
+      this.handleError(new Error("metadata invalid"))
+      return { reason: "install_failed", status: "failed" }
+    }
     this.installIntent = true
     this.transition({ ...this.state, retryable: false, status: "installing" })
     try {
       const rollback = await this.prepareInstall()
       this.installRollback = typeof rollback === "function" ? rollback : undefined
+      await this.recordInstallIntent(targetVersion)
     } catch (error) {
       this.handleError(error)
       return { reason: "prepare_failed", status: "failed" }
@@ -353,6 +365,7 @@ export class UpdaterService {
     const rollback = this.installRollback
     this.installRollback = undefined
     rollback?.()
+    void this.discardInstallIntent().catch(() => undefined)
   }
 
   private transition(next: UpdaterState): boolean {

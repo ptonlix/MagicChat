@@ -2,6 +2,7 @@ import { lstat, readdir, rm, statfs } from "node:fs/promises"
 import path from "node:path"
 
 import type { SessionController } from "@main/session-controller"
+import type { UpdateCacheLifecycle } from "@main/update-cache-lifecycle"
 import type { UpdaterService } from "@main/updater-service"
 import {
   storageCacheKinds,
@@ -23,6 +24,7 @@ const runtimeCacheDirectoryNames = new Set([
 type StorageServiceOptions = Readonly<{
   installationPath: string | undefined
   sessions: Pick<SessionController, "clearNetworkCaches" | "clearRuntimeCaches">
+  updateCache: Pick<UpdateCacheLifecycle, "discardInstallIntent">
   updater: Pick<UpdaterService, "canDiscardDownloadedUpdate" | "discardDownloadedUpdate">
   updaterCachePath: string
   userDataPath: string
@@ -31,6 +33,7 @@ type StorageServiceOptions = Readonly<{
 export class StorageService {
   private readonly installationPath: StorageServiceOptions["installationPath"]
   private readonly sessions: StorageServiceOptions["sessions"]
+  private readonly updateCache: StorageServiceOptions["updateCache"]
   private readonly updater: StorageServiceOptions["updater"]
   private readonly updaterCachePath: string
   private readonly userDataPath: string
@@ -38,6 +41,7 @@ export class StorageService {
   constructor(options: StorageServiceOptions) {
     this.installationPath = options.installationPath
     this.sessions = options.sessions
+    this.updateCache = options.updateCache
     this.updater = options.updater
     this.updaterCachePath = options.updaterCachePath
     this.userDataPath = options.userDataPath
@@ -91,6 +95,9 @@ export class StorageService {
       }
       await rm(this.updaterCachePath, { force: true, recursive: true })
       this.updater.discardDownloadedUpdate()
+      if (!(await this.updateCache.discardInstallIntent())) {
+        throw new Error("无法清除更新安装意图")
+      }
     }
 
     const stats = await this.getStats()
