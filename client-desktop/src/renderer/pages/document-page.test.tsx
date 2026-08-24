@@ -206,13 +206,21 @@ describe("DocumentPage", () => {
 
   it("Markdown 文档进入独立工作区并使用 markdown 共享文本根", async () => {
     mocks.getClientDocument.mockResolvedValue({ ...document, documentType: "markdown" })
-    renderPage()
+    renderPage(false, "markdown")
 
     await screen.findByRole("region", { name: "Markdown 文档编辑器" })
     const collaborationDocument = mocks.markdownCollaborationDocument
     expect(collaborationDocument).toBeDefined()
     expect(collaborationDocument?.getText("markdown")).toBeDefined()
     expect(collaborationDocument?.getXmlFragment("body").length).toBe(0)
+  })
+
+  it("路由类型与文档类型不一致时不渲染编辑器", async () => {
+    renderPage(false, "markdown")
+
+    expect(await screen.findByText("文档类型与访问路径不一致")).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "顶部文档标题" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Markdown 文档编辑器" })).not.toBeInTheDocument()
   })
 
   it("同项目切换文档时保持侧栏实例，只替换内容区", async () => {
@@ -520,17 +528,21 @@ describe("DocumentPage", () => {
   })
 })
 
-function renderPage(strictMode = false) {
+function renderPage(strictMode = false, routeDocumentType: "document" | "markdown" = "document") {
   const router = createMemoryRouter(
     [
       {
         path: "/documents/document/:documentId",
         element: <DocumentPage />,
       },
+      {
+        path: "/documents/markdown/:documentId",
+        element: <DocumentPage />,
+      },
       { path: "/projects/:projectId/documents", element: <div>项目页面</div> },
       { path: "/projects/:projectId", element: <div>项目页面</div> },
     ],
-    { initialEntries: [`/documents/document/${document.id}`] },
+    { initialEntries: [`/documents/${routeDocumentType}/${document.id}`] },
   )
   const page = (
     <DesktopTargetContext.Provider

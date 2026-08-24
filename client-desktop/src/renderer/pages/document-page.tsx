@@ -11,7 +11,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react"
-import { Link, useBlocker, useNavigate, useParams } from "react-router"
+import { Link, useBlocker, useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 import * as Y from "yjs"
 
@@ -113,6 +113,10 @@ function isEditableClientDocument(document: ClientDocument): document is Editabl
 
 export function DocumentPage() {
   const { documentId = "" } = useParams<{ documentId: string }>()
+  const { pathname } = useLocation()
+  const routeDocumentType = pathname.split("/")[2] ?? ""
+  const requestedDocumentType: ClientDocumentType | null =
+    routeDocumentType === "document" || routeDocumentType === "markdown" ? routeDocumentType : null
   const [loaded, setLoaded] = React.useState<Loaded>()
   const [error, setError] = React.useState<DocumentLoadError>()
   const [loading, setLoading] = React.useState(true)
@@ -127,11 +131,23 @@ export function DocumentPage() {
       setLoading(false)
       return () => controller.abort()
     }
+    if (!requestedDocumentType) {
+      setError({ documentId, message: { key: "document.invalidType" } })
+      setLoading(false)
+      return () => controller.abort()
+    }
     void getClientDocument(documentId, fetch, controller.signal)
       .then(async (document) => {
         if (!isEditableClientDocument(document)) {
           if (!controller.signal.aborted) {
             setError({ documentId, message: { key: "document.notEditable" } })
+            setLoading(false)
+          }
+          return
+        }
+        if (document.documentType !== requestedDocumentType) {
+          if (!controller.signal.aborted) {
+            setError({ documentId, message: { key: "document.typeMismatch" } })
             setLoading(false)
           }
           return
@@ -155,10 +171,12 @@ export function DocumentPage() {
         }
       })
     return () => controller.abort()
-  }, [documentId, retry])
+  }, [documentId, requestedDocumentType, retry])
 
   const currentError = error?.documentId === documentId ? error.message : undefined
-  if (!loaded && currentError)
+  const loadedMatchesRoute =
+    loaded?.document.id === documentId && loaded.document.documentType === requestedDocumentType
+  if ((!loadedMatchesRoute || !loaded) && currentError)
     return (
       <DocumentUnavailable message={currentError} onRetry={() => setRetry((value) => value + 1)} />
     )

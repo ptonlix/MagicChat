@@ -128,6 +128,7 @@ describe("DocumentWorkspaceSidebar", () => {
     await user.click(screen.getByRole("button", { name: "新建文档" }))
     expect(mocks.createClientDocument).toHaveBeenCalledWith("project-2", {
       kind: "document",
+      documentType: "document",
       title: "无标题文档",
     })
     expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1", "document")
@@ -165,6 +166,7 @@ describe("DocumentWorkspaceSidebar", () => {
     await waitFor(() =>
       expect(mocks.createClientDocument).toHaveBeenCalledWith("project-2", {
         kind: "document",
+        documentType: "document",
         title: "无标题文档",
       }),
     )
