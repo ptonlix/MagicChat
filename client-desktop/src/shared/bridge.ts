@@ -11,7 +11,10 @@ import type { ASRBridge } from "@shared/asr-contract"
 import type { ScreenshotBridge } from "@shared/screenshot-contract"
 import type { ShortcutBridge } from "@shared/shortcut-contract"
 import type { DocumentCollaborationBridge } from "@shared/document-collaboration-contract"
-import type { DocumentWindowOpenResponse } from "@shared/document-window-contract"
+import type {
+  DocumentWindowDocumentType,
+  DocumentWindowOpenResponse,
+} from "@shared/document-window-contract"
 import type {
   DesktopStorageStats,
   StorageCacheKind,
@@ -289,7 +292,11 @@ export interface DesktopBridge {
   messageCache: MessageCacheBridge
   notifications: { show(input: NotificationInput): Promise<void> }
   navigation: {
-    openDocumentWindow(documentId: string, serverId: string): Promise<DocumentWindowOpenResponse>
+    openDocumentWindow(
+      documentId: string,
+      serverId: string,
+      documentType: DocumentWindowDocumentType,
+    ): Promise<DocumentWindowOpenResponse>
     subscribe(listener: (route: string) => void): () => void
     subscribeUnknownServer(listener: (input: { serverId: string }) => void): () => void
   }

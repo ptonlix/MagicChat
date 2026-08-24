@@ -70,10 +70,15 @@ describe("文档窗口 Bridge 安全边界", () => {
     electronMocks.invoke.mockResolvedValueOnce(response)
 
     await expect(
-      desktop?.navigation.openDocumentWindow("550e8400-e29b-41d4-a716-446655440000", "server-a"),
+      desktop?.navigation.openDocumentWindow(
+        "550e8400-e29b-41d4-a716-446655440000",
+        "server-a",
+        "markdown",
+      ),
     ).resolves.toEqual(response)
     expect(electronMocks.invoke).toHaveBeenCalledWith(IPC.documentWindowOpen, {
       documentId: "550e8400-e29b-41d4-a716-446655440000",
+      documentType: "markdown",
       serverId: "server-a",
     })
   })
@@ -99,7 +104,11 @@ describe("文档窗口 Bridge 安全边界", () => {
       await expect(
         handler(
           { sender: { id: 12 }, senderFrame: { url: "https://attacker.example" } },
-          { documentId: "550e8400-e29b-41d4-a716-446655440000", serverId: "server-a" },
+          {
+            documentId: "550e8400-e29b-41d4-a716-446655440000",
+            documentType: "document",
+            serverId: "server-a",
+          },
         ),
       ).rejects.toThrow("IPC 调用来源不受信任")
 
@@ -108,11 +117,16 @@ describe("文档窗口 Bridge 安全边界", () => {
           sender: { id: 12 },
           senderFrame: { url: "magicchat-app://app/documents/document/test" },
         },
-        { documentId: "550e8400-e29b-41d4-a716-446655440000", serverId: "server-a" },
+        {
+          documentId: "550e8400-e29b-41d4-a716-446655440000",
+          documentType: "document",
+          serverId: "server-a",
+        },
       )
       expect(result).toEqual({ ok: true, result: { status: "created" } })
       expect(manager.open).toHaveBeenCalledWith(12, {
         documentId: "550e8400-e29b-41d4-a716-446655440000",
+        documentType: "document",
         serverId: "server-a",
       })
     } finally {
@@ -124,7 +138,11 @@ describe("文档窗口 Bridge 安全边界", () => {
     const desktop = electronMocks.exposed.get("desktop") as DesktopBridge | undefined
     electronMocks.invoke.mockResolvedValueOnce({ ok: true, result: { status: "unknown" } })
     await expect(
-      desktop?.navigation.openDocumentWindow("550e8400-e29b-41d4-a716-446655440000", "server-a"),
+      desktop?.navigation.openDocumentWindow(
+        "550e8400-e29b-41d4-a716-446655440000",
+        "server-a",
+        "document",
+      ),
     ).rejects.toThrow("文档窗口结果无效")
 
     electronMocks.invoke.mockResolvedValueOnce({
@@ -132,7 +150,11 @@ describe("文档窗口 Bridge 安全边界", () => {
       error: { code: "unknown", message: "bad" },
     })
     await expect(
-      desktop?.navigation.openDocumentWindow("550e8400-e29b-41d4-a716-446655440000", "server-a"),
+      desktop?.navigation.openDocumentWindow(
+        "550e8400-e29b-41d4-a716-446655440000",
+        "server-a",
+        "document",
+      ),
     ).rejects.toThrow("文档窗口错误无效")
   })
 

@@ -1,4 +1,5 @@
 import { ClientDataRequestError } from "@/lib/client-api/core"
+import type { DocumentWindowDocumentType } from "@shared/document-window-contract"
 
 type DocumentDataFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type SuccessEnvelope<T> = { data?: T; success?: boolean }
@@ -29,7 +30,7 @@ type DocumentResponse = {
 }
 
 export type ClientDocumentKind = "document" | "folder"
-export type ClientDocumentType = "document" | "markdown"
+export type ClientDocumentType = DocumentWindowDocumentType
 export type ClientDocumentUser = Readonly<{
   avatar: string
   id: string

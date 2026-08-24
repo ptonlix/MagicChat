@@ -31,6 +31,7 @@ describe("文档窗口渲染路由", () => {
     ).toEqual({
       context: {
         documentId: "550e8400-e29b-41d4-a716-446655440000",
+        documentType: "document",
         mode: "document",
         serverId: "server-a",
       },
@@ -67,11 +68,12 @@ describe("文档窗口渲染路由", () => {
     vi.stubGlobal("window", { desktop: { navigation: { openDocumentWindow } } })
 
     await expect(
-      requestDocumentWindow("550e8400-e29b-41d4-a716-446655440000", "server-a"),
+      requestDocumentWindow("550e8400-e29b-41d4-a716-446655440000", "server-a", "document"),
     ).resolves.toEqual({ status: "focused" })
     expect(openDocumentWindow).toHaveBeenCalledWith(
       "550e8400-e29b-41d4-a716-446655440000",
       "server-a",
+      "document",
     )
     expect(documentWindowFeedbackKey("window_limit")).toBe("documentWindow.error.windowLimit")
     expect(documentWindowFeedbackKey("bridge_unavailable")).toBe("documentWindow.error.unavailable")
@@ -89,6 +91,34 @@ describe("文档窗口渲染路由", () => {
     )
     expect(documentNavigationPath("650e8400-e29b-41d4-a716-446655440000", "server-b")).toBe(
       "/documents/document/650e8400-e29b-41d4-a716-446655440000",
+    )
+  })
+
+  it("识别 Markdown 子窗口并保留 Markdown 路由类型", () => {
+    vi.stubGlobal("window", {
+      location: {
+        pathname: "/documents/markdown/550e8400-e29b-41d4-a716-446655440000",
+        search: "?serverId=server-a&window=document",
+      },
+    })
+    expect(
+      parseDocumentWindowLocation({
+        pathname: "/documents/markdown/550e8400-e29b-41d4-a716-446655440000",
+        search: "?serverId=server-a&window=document",
+      }),
+    ).toEqual({
+      context: {
+        documentId: "550e8400-e29b-41d4-a716-446655440000",
+        documentType: "markdown",
+        mode: "document",
+        serverId: "server-a",
+      },
+      kind: "document",
+    })
+    expect(
+      documentNavigationPath("650e8400-e29b-41d4-a716-446655440000", "server-a", "markdown"),
+    ).toBe(
+      "/documents/markdown/650e8400-e29b-41d4-a716-446655440000?serverId=server-a&window=document",
     )
   })
 

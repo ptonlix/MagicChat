@@ -12,7 +12,7 @@ describe("桌面端文档链接解析", () => {
         `https://chat.example.com/documents/document/${documentId.toUpperCase()}`,
         target,
       ),
-    ).toBe(documentId)
+    ).toEqual({ documentId, documentType: "document" })
   })
 
   it("支持规范化 Server 的路径前缀和端口", () => {
@@ -21,7 +21,13 @@ describe("桌面端文档链接解析", () => {
         `https://chat.example.com:8443/magicchat/documents/document/${documentId}`,
         { normalizedUrl: "https://chat.example.com:8443/magicchat" },
       ),
-    ).toBe(documentId)
+    ).toEqual({ documentId, documentType: "document" })
+  })
+
+  it("识别 Markdown 文档链接并返回文档类型", () => {
+    expect(
+      parseDesktopDocumentLink(`https://chat.example.com/documents/markdown/${documentId}`, target),
+    ).toEqual({ documentId, documentType: "markdown" })
   })
 
   it.each([

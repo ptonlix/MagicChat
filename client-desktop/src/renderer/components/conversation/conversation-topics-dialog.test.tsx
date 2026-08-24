@@ -49,10 +49,10 @@ describe("ConversationTopicsDialog", () => {
 
     expect(await screen.findByRole("button", { name: /打开话题：已归档讨论/ })).toBeVisible()
     expect(screen.getAllByRole("button", { name: /打开话题：发布讨论/ })).toHaveLength(1)
-    expect(mocks.listConversationTopics).toHaveBeenLastCalledWith(parentConversation.id, {
-      cursor: "cursor-2",
-      limit: 50,
-    })
+    expect(mocks.listConversationTopics).toHaveBeenLastCalledWith(
+      parentConversation.id,
+      expect.objectContaining({ cursor: "cursor-2", limit: 50, signal: expect.any(AbortSignal) }),
+    )
   })
 
   it("关闭后丢弃迟到响应，重新打开可重新加载", async () => {
@@ -66,6 +66,10 @@ describe("ConversationTopicsDialog", () => {
     await user.click(screen.getByRole("button", { name: "话题" }))
     await screen.findByText("正在加载话题")
     await user.keyboard("{Escape}")
+    expect(mocks.listConversationTopics).toHaveBeenLastCalledWith(
+      parentConversation.id,
+      expect.objectContaining({ signal: expect.objectContaining({ aborted: true }) }),
+    )
     await act(async () => request.resolve({ nextCursor: null, topics: [topic] }))
 
     expect(screen.queryByRole("dialog", { name: "会话话题" })).not.toBeInTheDocument()

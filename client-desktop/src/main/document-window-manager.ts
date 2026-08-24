@@ -545,7 +545,11 @@ export function isDocumentWindowNavigationAllowed(
 }
 
 function isCanonicalDocumentWindowUrl(url: URL, request: DocumentWindowRequest): boolean {
-  if (url.pathname !== `/documents/document/${encodeURIComponent(request.documentId)}` || url.hash)
+  if (
+    url.pathname !==
+      `/documents/${request.documentType}/${encodeURIComponent(request.documentId)}` ||
+    url.hash
+  )
     return false
 
   const keys = [...url.searchParams.keys()].sort()
@@ -575,7 +579,7 @@ export function buildDocumentWindowLoadUrl(
         url.password
       )
         return buildDocumentWindowRoute(request)
-      url.pathname = `/documents/document/${encodeURIComponent(request.documentId)}`
+      url.pathname = `/documents/${request.documentType}/${encodeURIComponent(request.documentId)}`
       url.search = new URLSearchParams({
         serverId: request.serverId,
         window: "document",

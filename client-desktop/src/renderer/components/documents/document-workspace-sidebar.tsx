@@ -15,7 +15,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { createClientDocument, listClientDocuments } from "@/lib/document-data-api"
+import {
+  createClientDocument,
+  listClientDocuments,
+  type ClientDocumentType,
+} from "@/lib/document-data-api"
 import { useDocumentData } from "@/lib/document-data-context"
 import { buildDocumentTree, collectFolderIds, type DocumentTreeNode } from "@/lib/document-tree"
 import type { ClientProjectSummary } from "@/lib/project-data-api"
@@ -117,11 +121,14 @@ export function DocumentWorkspaceSidebar({
     )
   }, [loadedSelectedProject])
 
-  async function openDocumentInWindow(documentId: string): Promise<boolean> {
+  async function openDocumentInWindow(
+    documentId: string,
+    documentType: ClientDocumentType,
+  ): Promise<boolean> {
     if (openingDocumentId) return false
     setOpeningDocumentId(documentId)
     try {
-      const result = await requestDocumentWindow(documentId, target.id)
+      const result = await requestDocumentWindow(documentId, target.id, documentType)
       toast.success(
         t(result.status === "focused" ? "documentWindow.focused" : "documentWindow.opened"),
       )
@@ -159,21 +166,24 @@ export function DocumentWorkspaceSidebar({
     }
   }, [load])
 
-  async function createDocument() {
+  async function createDocument(documentType: ClientDocumentType = "document") {
     if (creating || (!isDocumentWindow && !onBeforeNavigate())) return
     const confirmedVersion = isDocumentWindow ? undefined : getEditVersion()
     setCreating(true)
     try {
       const created = await createClientDocument(selectedProjectId, {
         kind: "document",
+        documentType,
         title: t("document.untitled"),
       })
+      if (created.kind !== "document" || !created.documentType)
+        throw new Error("创建文档响应缺少文档类型")
       if (isDocumentWindow) {
-        await openDocumentInWindow(created.id)
+        await openDocumentInWindow(created.id, created.documentType)
       } else {
         if (!onBeforeNavigate(confirmedVersion)) return
         onAllowConfirmedNavigation()
-        navigate(documentNavigationPath(created.id, target.id))
+        navigate(documentNavigationPath(created.id, target.id, created.documentType))
       }
     } catch (createError) {
       toast.error(createError instanceof Error ? createError.message : t("document.createFailed"))
@@ -265,7 +275,7 @@ export function DocumentWorkspaceSidebar({
         <Button
           className="w-full"
           disabled={creating}
-          onClick={() => void createDocument()}
+          onClick={() => void createDocument("document")}
           variant="outline"
         >
           {creating ? <Loader2 className="animate-spin" /> : <Plus />}
@@ -299,7 +309,9 @@ export function DocumentWorkspaceSidebar({
             depth={0}
             expanded={expanded}
             nodes={documents}
-            onOpenDocument={(documentId) => void openDocumentInWindow(documentId)}
+            onOpenDocument={(documentId, documentType) =>
+              void openDocumentInWindow(documentId, documentType)
+            }
             onToggle={(id) =>
               setExpanded((current) => {
                 const next = new Set(current)
@@ -351,7 +363,7 @@ function SidebarTree({
   depth: number
   expanded: ReadonlySet<string>
   nodes: ReadonlyArray<DocumentTreeNode>
-  onOpenDocument(documentId: string): void
+  onOpenDocument(documentId: string, documentType: ClientDocumentType): void
   onToggle(id: string): void
   openingDocumentId?: string
   serverId: string
@@ -397,6 +409,7 @@ function SidebarTree({
             active={activeDocumentId === node.id}
             depth={depth}
             documentId={node.id}
+            documentType={requireDocumentTreeDocumentType(node)}
             key={node.id}
             onOpenDocument={onOpenDocument}
             opening={openingDocumentId === node.id}
@@ -410,10 +423,16 @@ function SidebarTree({
   )
 }
 
+function requireDocumentTreeDocumentType(node: DocumentTreeNode): ClientDocumentType {
+  if (node.kind !== "document" || !node.documentType) throw new Error("文档节点缺少文档类型")
+  return node.documentType
+}
+
 function DocumentSidebarItem({
   active,
   depth,
   documentId,
+  documentType,
   onOpenDocument,
   opening,
   serverId,
@@ -423,7 +442,8 @@ function DocumentSidebarItem({
   active: boolean
   depth: number
   documentId: string
-  onOpenDocument(documentId: string): void
+  documentType: ClientDocumentType
+  onOpenDocument(documentId: string, documentType: ClientDocumentType): void
   opening: boolean
   serverId: string
   standaloneWindow: boolean
@@ -451,7 +471,7 @@ function DocumentSidebarItem({
         aria-label={active ? title : `在新窗口打开：${title}`}
         className={className}
         disabled={active || opening}
-        onClick={() => onOpenDocument(documentId)}
+        onClick={() => onOpenDocument(documentId, documentType)}
         role="treeitem"
         style={{ paddingLeft: depth * 16 + 8 }}
         type="button"
@@ -466,7 +486,7 @@ function DocumentSidebarItem({
       className={className}
       role="treeitem"
       style={{ paddingLeft: depth * 16 + 8 }}
-      to={documentNavigationPath(documentId, serverId)}
+      to={documentNavigationPath(documentId, serverId, documentType)}
     >
       {content}
     </Link>

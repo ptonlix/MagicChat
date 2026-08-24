@@ -1,5 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const callbacks = new Map<string, (payload: unknown) => void>()
@@ -36,6 +36,10 @@ vi.mock("@/lib/client-data-context", () => ({
 }))
 
 import { ClientConversationRealtimeSync } from "@/components/client-conversation-realtime-sync"
+
+function LocationProbe() {
+  return <output data-testid="location">{useLocation().pathname}</output>
+}
 
 describe("ClientConversationRealtimeSync", () => {
   beforeEach(() => {
@@ -162,10 +166,11 @@ describe("ClientConversationRealtimeSync", () => {
     expect(updateConversationMuted).toHaveBeenCalledWith("conversation-1", true)
   })
 
-  it("处理好友建立系统消息并刷新会话摘要", async () => {
+  it("处理好友建立系统消息、刷新会话摘要并打开好友会话", async () => {
     render(
-      <MemoryRouter initialEntries={["/chat/conversation-1"]}>
+      <MemoryRouter initialEntries={["/chat/other-conversation"]}>
         <ClientConversationRealtimeSync />
+        <LocationProbe />
       </MemoryRouter>,
     )
 
@@ -184,9 +189,12 @@ describe("ClientConversationRealtimeSync", () => {
 
     expect(handleIncomingConversationMessage).toHaveBeenCalledWith(
       expect.objectContaining({ body: { event: "friendship_created", type: "system_event" } }),
-      expect.objectContaining({ activeConversationId: "conversation-1" }),
+      expect.objectContaining({ activeConversationId: "other-conversation" }),
     )
     await waitFor(() => expect(refreshConversations).toHaveBeenCalledOnce())
+    expect(document.querySelector("[data-testid=location]")?.textContent).toBe(
+      "/chat/conversation-1",
+    )
   })
 
   it("refreshes conversations for a valid restored event and ignores malformed payloads", async () => {

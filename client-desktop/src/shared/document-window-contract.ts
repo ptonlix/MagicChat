@@ -1,5 +1,7 @@
 export const DOCUMENT_WINDOW_MODE = "document" as const
 
+export type DocumentWindowDocumentType = "document" | "markdown"
+
 export const DOCUMENT_WINDOW_LIMITS = Object.freeze({
   maxPerTarget: 8,
   minHeight: 560,
@@ -10,6 +12,7 @@ export const DOCUMENT_WINDOW_LIMITS = Object.freeze({
 
 export type DocumentWindowRequest = Readonly<{
   documentId: string
+  documentType: DocumentWindowDocumentType
   serverId: string
 }>
 
@@ -41,14 +44,25 @@ export function parseDocumentWindowRequest(value: unknown): DocumentWindowReques
   if (!value || typeof value !== "object") throw new Error("文档窗口请求无效")
   const input = value as Record<string, unknown>
   const keys = Object.keys(input).sort()
-  if (keys.length !== 2 || keys[0] !== "documentId" || keys[1] !== "serverId")
+  if (
+    keys.length !== 3 ||
+    keys[0] !== "documentId" ||
+    keys[1] !== "documentType" ||
+    keys[2] !== "serverId"
+  )
     throw new Error("文档窗口请求字段无效")
   if (!isDocumentUuid(input.documentId)) throw new Error("文档标识无效")
+  if (!isDocumentWindowDocumentType(input.documentType)) throw new Error("文档类型无效")
   if (!isServerId(input.serverId)) throw new Error("服务器标识无效")
   return Object.freeze({
     documentId: input.documentId.toLowerCase(),
+    documentType: input.documentType,
     serverId: input.serverId,
   })
+}
+
+export function isDocumentWindowDocumentType(value: unknown): value is DocumentWindowDocumentType {
+  return value === "document" || value === "markdown"
 }
 
 export function isDocumentUuid(value: unknown): value is string {
@@ -63,7 +77,7 @@ export function isServerId(value: unknown): value is string {
 }
 
 export function buildDocumentWindowRoute(request: DocumentWindowRequest): string {
-  return `magicchat-app://app/documents/document/${encodeURIComponent(request.documentId)}?serverId=${encodeURIComponent(request.serverId)}&window=${DOCUMENT_WINDOW_MODE}`
+  return `magicchat-app://app/documents/${request.documentType}/${encodeURIComponent(request.documentId)}?serverId=${encodeURIComponent(request.serverId)}&window=${DOCUMENT_WINDOW_MODE}`
 }
 
 export function documentWindowKey(request: DocumentWindowRequest, userId: string): string {

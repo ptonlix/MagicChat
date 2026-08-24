@@ -126,6 +126,14 @@ function NormalRoutes({ updatePrompt }: { updatePrompt?: ReactNode }) {
               </Suspense>
             }
           />
+          <Route
+            path="/documents/markdown/:documentId"
+            element={
+              <Suspense fallback={<DocumentRouteLoading />}>
+                <DocumentRoute />
+              </Suspense>
+            }
+          />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
@@ -145,10 +153,23 @@ function DocumentRoutes({ context }: { context: DocumentWindowRouteContext }) {
             </Suspense>
           }
         />
+        <Route
+          path="/documents/markdown/:documentId"
+          element={
+            <Suspense fallback={<DocumentRouteLoading />}>
+              <DocumentRoute />
+            </Suspense>
+          }
+        />
       </Route>
       <Route
         path="*"
-        element={<Navigate to={documentWindowPath(context.documentId, context.serverId)} replace />}
+        element={
+          <Navigate
+            to={documentWindowPath(context.documentId, context.serverId, context.documentType)}
+            replace
+          />
+        }
       />
     </Routes>
   )

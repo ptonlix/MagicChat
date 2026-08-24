@@ -1428,6 +1428,7 @@ const zhCN = {
   "toast.close": "关闭提示",
 
   "docTree.newDoc": "新建文档",
+  "docTree.newMarkdownDoc": "新建 Markdown 文档",
   "docTree.newFolder": "新建目录",
   "docTree.newChildDoc": "新建子文档",
   "docTree.newChildFolder": "新建子目录",
@@ -2956,6 +2957,7 @@ const en: Record<TranslationKey, string> = {
   "toast.close": "Close notification",
 
   "docTree.newDoc": "New document",
+  "docTree.newMarkdownDoc": "New Markdown document",
   "docTree.newFolder": "New folder",
   "docTree.newChildDoc": "New child document",
   "docTree.newChildFolder": "New child folder",

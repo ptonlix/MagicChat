@@ -144,7 +144,9 @@ describe("DocumentWindowManager", () => {
     const mainWindow = createMainWindow()
     const manager = createManager(mainWindow)
 
-    await expect(manager.open(1, { documentId, serverId: target.id })).resolves.toMatchObject({
+    await expect(
+      manager.open(1, { documentId, documentType: "document", serverId: target.id }),
+    ).resolves.toMatchObject({
       ok: true,
       result: { status: "created" },
     })
@@ -153,7 +155,9 @@ describe("DocumentWindowManager", () => {
       `magicchat-app://app/documents/document/${documentId}?serverId=server-1&window=document`,
     )
 
-    await expect(manager.open(1, { documentId, serverId: target.id })).resolves.toMatchObject({
+    await expect(
+      manager.open(1, { documentId, documentType: "document", serverId: target.id }),
+    ).resolves.toMatchObject({
       ok: true,
       result: { status: "focused" },
     })
@@ -171,7 +175,9 @@ describe("DocumentWindowManager", () => {
       "http://localhost:20050/",
     )
 
-    await expect(manager.open(1, { documentId, serverId: target.id })).resolves.toMatchObject({
+    await expect(
+      manager.open(1, { documentId, documentType: "document", serverId: target.id }),
+    ).resolves.toMatchObject({
       ok: true,
       result: { status: "created" },
     })
@@ -180,20 +186,36 @@ describe("DocumentWindowManager", () => {
     )
   })
 
+  it("按请求文档类型加载 Markdown 窗口路由", async () => {
+    const mainWindow = createMainWindow()
+    const manager = createManager(mainWindow)
+
+    await expect(
+      manager.open(1, { documentId, documentType: "markdown", serverId: target.id }),
+    ).resolves.toMatchObject({ ok: true, result: { status: "created" } })
+    expect(mocks.windows[0]?.loadURL).toHaveBeenCalledWith(
+      `magicchat-app://app/documents/markdown/${documentId}?serverId=server-1&window=document`,
+    )
+  })
+
   it("生产环境保持受控本地协议，异常开发地址不会泄漏为任意导航", () => {
     expect(
       buildDocumentWindowLoadUrl(
-        { documentId, serverId: target.id },
+        { documentId, documentType: "document", serverId: target.id },
         true,
         "http://localhost:20050/",
       ),
     ).toBe(`magicchat-app://app/documents/document/${documentId}?serverId=server-1&window=document`)
     expect(
-      buildDocumentWindowLoadUrl({ documentId, serverId: target.id }, false, "not a url"),
+      buildDocumentWindowLoadUrl(
+        { documentId, documentType: "document", serverId: target.id },
+        false,
+        "not a url",
+      ),
     ).toBe(`magicchat-app://app/documents/document/${documentId}?serverId=server-1&window=document`)
     expect(
       buildDocumentWindowLoadUrl(
-        { documentId, serverId: target.id },
+        { documentId, documentType: "document", serverId: target.id },
         false,
         "https://attacker.example/",
       ),
@@ -201,7 +223,7 @@ describe("DocumentWindowManager", () => {
   })
 
   it("文档窗口只允许规范文档路由和受控恢复页导航", () => {
-    const request = { documentId, serverId: target.id }
+    const request = { documentId, documentType: "document", serverId: target.id } as const
 
     expect(
       isDocumentWindowNavigationAllowed(
@@ -240,7 +262,11 @@ describe("DocumentWindowManager", () => {
     const manager = createManager(mainWindow)
 
     await expect(
-      manager.open(mainWindow.webContents.id, { documentId, serverId: target.id }),
+      manager.open(mainWindow.webContents.id, {
+        documentId,
+        documentType: "document",
+        serverId: target.id,
+      }),
     ).resolves.toMatchObject({
       ok: true,
       result: { status: "created" },
@@ -259,7 +285,7 @@ describe("DocumentWindowManager", () => {
         }),
     )
     const manager = createManager(createMainWindow())
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
 
     let settled = false
     const closing = manager.requestCloseAll().then(() => {
@@ -283,7 +309,7 @@ describe("DocumentWindowManager", () => {
       true,
     )
 
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const child = mocks.windows[0]!
     expect(mocks.setTrustedWindowTheme).toHaveBeenCalledWith(child, true, process.platform)
 
@@ -297,11 +323,19 @@ describe("DocumentWindowManager", () => {
     const manager = createManager(mainWindow, collaboration)
     for (let index = 0; index < 8; index += 1) {
       await expect(
-        manager.open(1, { documentId: indexedDocumentId(index), serverId: target.id }),
+        manager.open(1, {
+          documentId: indexedDocumentId(index),
+          documentType: "document",
+          serverId: target.id,
+        }),
       ).resolves.toMatchObject({ ok: true, result: { status: "created" } })
     }
     await expect(
-      manager.open(1, { documentId: indexedDocumentId(8), serverId: target.id }),
+      manager.open(1, {
+        documentId: indexedDocumentId(8),
+        documentType: "document",
+        serverId: target.id,
+      }),
     ).resolves.toMatchObject({
       error: { code: "window_limit" },
       ok: false,
@@ -311,7 +345,11 @@ describe("DocumentWindowManager", () => {
     first.listeners.get("closed")?.()
     expect(collaboration.closeOwner).toHaveBeenCalledWith(first.webContents.id)
     await expect(
-      manager.open(1, { documentId: indexedDocumentId(8), serverId: target.id }),
+      manager.open(1, {
+        documentId: indexedDocumentId(8),
+        documentType: "document",
+        serverId: target.id,
+      }),
     ).resolves.toMatchObject({ ok: true, result: { status: "created" } })
   })
 
@@ -324,16 +362,20 @@ describe("DocumentWindowManager", () => {
     }
     const manager = createManager(createMainWindow(), undefined, serverProfiles)
     await expect(
-      manager.open(1, { documentId: "invalid", serverId: target.id }),
+      manager.open(1, { documentId: "invalid", documentType: "document", serverId: target.id }),
     ).resolves.toMatchObject({
       error: { code: "invalid_request" },
       ok: false,
     })
-    await expect(manager.open(1, { documentId, serverId: "missing" })).resolves.toMatchObject({
+    await expect(
+      manager.open(1, { documentId, documentType: "document", serverId: "missing" }),
+    ).resolves.toMatchObject({
       error: { code: "server_not_found" },
       ok: false,
     })
-    await expect(manager.open(1, { documentId, serverId: "server-2" })).resolves.toMatchObject({
+    await expect(
+      manager.open(1, { documentId, documentType: "document", serverId: "server-2" }),
+    ).resolves.toMatchObject({
       error: { code: "target_mismatch" },
       ok: false,
     })
@@ -344,6 +386,7 @@ describe("DocumentWindowManager", () => {
     await expect(
       createManager(createMainWindow(), undefined, profiles).open(1, {
         documentId,
+        documentType: "document",
         serverId: target.id,
       }),
     ).resolves.toMatchObject({ error: { code: "not_authenticated" }, ok: false })
@@ -353,7 +396,7 @@ describe("DocumentWindowManager", () => {
     const mainWindow = createMainWindow()
     const collaboration = { closeOwner: vi.fn(), closeServer: vi.fn(), closeTarget: vi.fn() }
     const manager = createManager(mainWindow, collaboration)
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const child = mocks.windows[0]!
     child.webContentsListeners.get("render-process-gone")?.({}, { reason: "crashed" })
     expect(manager.size()).toBe(0)
@@ -368,7 +411,7 @@ describe("DocumentWindowManager", () => {
   it("关闭未同步文档时取消保留窗口，确认放弃后允许关闭", async () => {
     const mainWindow = createMainWindow()
     const manager = createManager(mainWindow)
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const child = mocks.windows[0]!
     const listener = child.webContentsListeners.get("will-prevent-unload")
     mocks.showMessageBox
@@ -392,7 +435,7 @@ describe("DocumentWindowManager", () => {
 
   it("应用退出请求等待未同步确认，取消时保留窗口，确认后再关闭", async () => {
     const manager = createManager(createMainWindow())
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const child = mocks.windows[0]!
     const listener = child.webContentsListeners.get("will-prevent-unload")
     child.close.mockImplementation(() => listener?.({ preventDefault: vi.fn() }))
@@ -411,7 +454,7 @@ describe("DocumentWindowManager", () => {
 
   it("移除服务器请求复用未同步确认，取消时保留该服务器窗口", async () => {
     const manager = createManager(createMainWindow())
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const child = mocks.windows[0]!
     const listener = child.webContentsListeners.get("will-prevent-unload")
     child.close.mockImplementation(() => listener?.({ preventDefault: vi.fn() }))
@@ -427,7 +470,7 @@ describe("DocumentWindowManager", () => {
     vi.useFakeTimers()
     try {
       const manager = createManager(createMainWindow())
-      await manager.open(1, { documentId, serverId: target.id })
+      await manager.open(1, { documentId, documentType: "document", serverId: target.id })
       const child = mocks.windows[0]!
 
       for (let index = 0; index < 100; index += 1) {
@@ -447,7 +490,7 @@ describe("DocumentWindowManager", () => {
     vi.useFakeTimers()
     try {
       const manager = createManager(createMainWindow())
-      await manager.open(1, { documentId, serverId: target.id })
+      await manager.open(1, { documentId, documentType: "document", serverId: target.id })
       const child = mocks.windows[0]!
 
       child.listeners.get("move")?.()
@@ -475,13 +518,13 @@ describe("DocumentWindowManager", () => {
     })
 
     const manager = createManager(createMainWindow())
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     expect(mocks.windows[0]?.options).toMatchObject({ x: 1600, y: 80 })
 
     manager.dispose()
     mocks.displays.splice(1)
     const fallback = createManager(createMainWindow())
-    await fallback.open(1, { documentId, serverId: target.id })
+    await fallback.open(1, { documentId, documentType: "document", serverId: target.id })
     expect(mocks.windows[1]?.options).toMatchObject({ x: 160, y: 0 })
   })
 
@@ -491,13 +534,18 @@ describe("DocumentWindowManager", () => {
     }
     const profile = { ...target }
     const manager = createManager(mainWindow, undefined, { require: vi.fn(() => profile) })
-    await manager.open(mainWindow.webContents.id, { documentId, serverId: target.id })
+    await manager.open(mainWindow.webContents.id, {
+      documentId,
+      documentType: "document",
+      serverId: target.id,
+    })
     const child = mocks.windows[0]!
     profile.lastUserId = "user-2"
 
     await expect(
       manager.open(child.webContents.id, {
         documentId: indexedDocumentId(99),
+        documentType: "document",
         serverId: target.id,
       }),
     ).resolves.toMatchObject({ error: { code: "target_mismatch" }, ok: false })
@@ -505,7 +553,7 @@ describe("DocumentWindowManager", () => {
 
   it("注销或移除服务器时只关闭匹配认证目标的窗口", async () => {
     const manager = createManager(createMainWindow())
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const other = {
       id: "server-2",
       lastUserId: "user-2",
@@ -513,7 +561,7 @@ describe("DocumentWindowManager", () => {
     }
     const profiles = { require: vi.fn(() => other) }
     const otherManager = createManager(createMainWindow(), undefined, profiles, other.id)
-    await otherManager.open(1, { documentId, serverId: other.id })
+    await otherManager.open(1, { documentId, documentType: "document", serverId: other.id })
 
     manager.closeTarget({ id: target.id, normalizedUrl: target.normalizedUrl, userId: "user-1" })
     expect(manager.size()).toBe(0)
@@ -524,7 +572,7 @@ describe("DocumentWindowManager", () => {
 
   it("主文档路由加载失败时移除索引并进入恢复页", async () => {
     const manager = createManager(createMainWindow())
-    await manager.open(1, { documentId, serverId: target.id })
+    await manager.open(1, { documentId, documentType: "document", serverId: target.id })
     const child = mocks.windows[0]!
     child.webContentsListeners.get("did-fail-load")?.({}, -2, "failed", "", true)
 
@@ -536,7 +584,9 @@ describe("DocumentWindowManager", () => {
     const manager = createManager(createMainWindow())
     mocks.rejectNextLoad()
 
-    await expect(manager.open(1, { documentId, serverId: target.id })).resolves.toMatchObject({
+    await expect(
+      manager.open(1, { documentId, documentType: "document", serverId: target.id }),
+    ).resolves.toMatchObject({
       error: { code: "load_failed" },
       ok: false,
     })
@@ -548,9 +598,9 @@ describe("DocumentWindowManager", () => {
     const manager = createManager(createMainWindow())
     const loading = mocks.deferNextLoad()
 
-    const first = manager.open(1, { documentId, serverId: target.id })
+    const first = manager.open(1, { documentId, documentType: "document", serverId: target.id })
     await vi.waitFor(() => expect(mocks.windows).toHaveLength(1))
-    const second = manager.open(1, { documentId, serverId: target.id })
+    const second = manager.open(1, { documentId, documentType: "document", serverId: target.id })
     loading.reject(new Error("模拟文档窗口加载失败"))
 
     await expect(first).resolves.toMatchObject({ error: { code: "load_failed" }, ok: false })

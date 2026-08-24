@@ -98,7 +98,9 @@ describe("ProjectDocumentsTab", () => {
     ).toBeInTheDocument()
     await user.click(screen.getByRole("menuitem", { name: "新窗口打开" }))
 
-    await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(base.id, "server-1"))
+    await waitFor(() =>
+      expect(openDocumentWindow).toHaveBeenCalledWith(base.id, "server-1", "document"),
+    )
     expect(screen.getByRole("link", { name: /产品需求文档/ })).toHaveAttribute(
       "href",
       `/documents/document/${base.id}`,
@@ -117,36 +119,6 @@ describe("ProjectDocumentsTab", () => {
     await user.click(screen.getByRole("button", { name: "重试" }))
     expect(await screen.findByText("还没有文档")).toBeVisible()
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
-  })
-
-  it("创建 Markdown 文档时发送明确类型并刷新权威列表", async () => {
-    const user = userEvent.setup()
-    const markdown = { ...base, document_type: "markdown", title: "协作说明" }
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(response([]))
-      .mockResolvedValueOnce(dataResponse(markdown))
-      .mockResolvedValueOnce(response([markdown]))
-    vi.stubGlobal("fetch", fetcher)
-    renderTab()
-    await screen.findByText("还没有文档")
-
-    await user.click(screen.getByRole("button", { name: "创建" }))
-    await user.click(screen.getByRole("menuitem", { name: "新建 Markdown 文档" }))
-    await user.type(screen.getByRole("textbox", { name: "文档标题" }), "协作说明")
-    await user.click(screen.getByRole("button", { name: "保存" }))
-
-    expect(await screen.findByRole("link", { name: /协作说明/ })).toBeVisible()
-    expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toMatchObject({
-      document_type: "markdown",
-      kind: "document",
-      title: "协作说明",
-    })
-    expect(fetcher.mock.calls.map((call) => (call[1] as RequestInit).method)).toEqual([
-      "GET",
-      "POST",
-      "GET",
-    ])
   })
 
   it("拖动提交成功后重新加载权威列表校准位置", async () => {

@@ -49,7 +49,7 @@ describe("DocumentWorkspaceSidebar", () => {
     await user.click(otherDocumentItem)
 
     await waitFor(() =>
-      expect(openDocumentWindow).toHaveBeenCalledWith(otherDocument.id, "server-1"),
+      expect(openDocumentWindow).toHaveBeenCalledWith(otherDocument.id, "server-1", "document"),
     )
     expect(window.location.pathname).toBe(`/documents/document/${activeDocument.id}`)
     expect(screen.getByRole("treeitem", { name: "当前文档" })).toBeDisabled()
@@ -85,7 +85,9 @@ describe("DocumentWorkspaceSidebar", () => {
 
     await user.click(await screen.findByRole("button", { name: "新建文档" }))
 
-    await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1"))
+    await waitFor(() =>
+      expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1", "document"),
+    )
     expect(window.location.pathname).toBe(`/documents/document/${activeDocument.id}`)
   })
 
@@ -121,14 +123,14 @@ describe("DocumentWorkspaceSidebar", () => {
     await user.click(screen.getByRole("menuitemradio", { name: "项目二" }))
 
     await user.click(await screen.findByRole("treeitem", { name: "在新窗口打开：项目二文档" }))
-    expect(openDocumentWindow).toHaveBeenCalledWith(projectTwoDocument.id, "server-1")
+    expect(openDocumentWindow).toHaveBeenCalledWith(projectTwoDocument.id, "server-1", "document")
 
     await user.click(screen.getByRole("button", { name: "新建文档" }))
     expect(mocks.createClientDocument).toHaveBeenCalledWith("project-2", {
       kind: "document",
       title: "无标题文档",
     })
-    expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1")
+    expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1", "document")
   })
 
   it("后台刷新丢失已选项目时仍保持显示和创建目标一致", async () => {

@@ -328,6 +328,7 @@ export async function listConversationTopics(
   options: {
     cursor?: string
     limit?: number
+    signal?: AbortSignal
     status?: ClientConversationTopicListStatus
   } = {},
   fetcher: ClientDataFetch = fetch,
@@ -342,7 +343,7 @@ export async function listConversationTopics(
   if (options.status && options.status !== "all") query.set("status", options.status)
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/topics?${query.toString()}`,
-    { credentials: "include", method: "GET" },
+    { credentials: "include", method: "GET", signal: options.signal },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListConversationTopicsResponse>

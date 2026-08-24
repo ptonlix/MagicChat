@@ -1622,7 +1622,11 @@ describe("桌面设置服务器管理", () => {
 
     await act(() => mocks.hostOpenExternal?.(documentUrl))
 
-    expect(bridge.navigation.openDocumentWindow).toHaveBeenCalledWith(documentId, profile.id)
+    expect(bridge.navigation.openDocumentWindow).toHaveBeenCalledWith(
+      documentId,
+      profile.id,
+      "document",
+    )
     expect(mocks.shellOpenExternal).not.toHaveBeenCalled()
   })
 
@@ -1635,7 +1639,11 @@ describe("桌面设置服务器管理", () => {
     act(() => mocks.externalLinkHandler?.(documentUrl))
 
     await waitFor(() =>
-      expect(bridge.navigation.openDocumentWindow).toHaveBeenCalledWith(documentId, profile.id),
+      expect(bridge.navigation.openDocumentWindow).toHaveBeenCalledWith(
+        documentId,
+        profile.id,
+        "document",
+      ),
     )
     expect(mocks.shellOpenExternal).not.toHaveBeenCalled()
   })
@@ -1653,8 +1661,18 @@ describe("桌面设置服务器管理", () => {
     await act(() => mocks.hostOpenExternal?.(documentUrl))
 
     expect(bridge.navigation.openDocumentWindow).toHaveBeenCalledTimes(2)
-    expect(bridge.navigation.openDocumentWindow).toHaveBeenNthCalledWith(1, documentId, profile.id)
-    expect(bridge.navigation.openDocumentWindow).toHaveBeenNthCalledWith(2, documentId, profile.id)
+    expect(bridge.navigation.openDocumentWindow).toHaveBeenNthCalledWith(
+      1,
+      documentId,
+      profile.id,
+      "document",
+    )
+    expect(bridge.navigation.openDocumentWindow).toHaveBeenNthCalledWith(
+      2,
+      documentId,
+      profile.id,
+      "document",
+    )
     expect(mocks.shellOpenExternal).not.toHaveBeenCalled()
   })
 

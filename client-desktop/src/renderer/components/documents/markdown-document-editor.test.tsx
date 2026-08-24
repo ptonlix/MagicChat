@@ -32,17 +32,18 @@ vi.mock("@codemirror/view", () => ({
 }))
 vi.mock("@uiw/react-codemirror", async () => {
   const React = await import("react")
+  function CodeMirrorMock({
+    onCreateEditor,
+    value,
+  }: {
+    onCreateEditor(editor: unknown): void
+    value: string
+  }) {
+    React.useEffect(() => onCreateEditor(mocks.editor), [onCreateEditor])
+    return <div aria-label="Markdown 源码">{value}</div>
+  }
   return {
-    default: ({
-      onCreateEditor,
-      value,
-    }: {
-      onCreateEditor(editor: unknown): void
-      value: string
-    }) => {
-      React.useEffect(() => onCreateEditor(mocks.editor), [onCreateEditor])
-      return <div aria-label="Markdown 源码">{value}</div>
-    },
+    default: CodeMirrorMock,
   }
 })
 vi.mock("y-codemirror.next", () => ({

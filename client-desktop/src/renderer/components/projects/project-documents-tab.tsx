@@ -264,14 +264,14 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
   }
 
   async function openDocumentInWindow(node: DocumentTreeNode) {
-    if (node.kind !== "document" || openingWindowId) return
+    if (node.kind !== "document" || !node.documentType || openingWindowId) return
     if (!target) {
       toast.error(t("documentWindow.error.missingTarget"))
       return
     }
     setOpeningWindowId(node.id)
     try {
-      const result = await requestDocumentWindow(node.id, target.id)
+      const result = await requestDocumentWindow(node.id, target.id, node.documentType)
       toast.success(
         t(result.status === "focused" ? "documentWindow.focused" : "documentWindow.opened"),
       )
@@ -448,10 +448,6 @@ function DocumentToolbar({
             <FileText />
             {t("docTree.newDoc")}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onCreate("document", "markdown")}>
-            <FileText />
-            新建 Markdown 文档
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onCreate("folder")}>
             <FolderPlus />
             {t("docTree.newFolder")}
@@ -619,7 +615,7 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
         ) : (
           <Link
             className="flex min-w-0 items-center gap-2 rounded-sm focus-visible:ring-2"
-            to={`/documents/document/${encodeURIComponent(props.node.id)}`}
+            to={`/documents/${props.node.documentType}/${encodeURIComponent(props.node.id)}`}
           >
             {name}
           </Link>
@@ -664,12 +660,6 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
                 <DropdownMenuItem onSelect={() => props.onCreate("document", props.node.id)}>
                   <FileText />
                   {t("docTree.newChildDoc")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => props.onCreate("document", props.node.id, "markdown")}
-                >
-                  <FileText />
-                  新建 Markdown 文档
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => props.onCreate("folder", props.node.id)}>
                   <FolderPlus />

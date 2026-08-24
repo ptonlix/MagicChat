@@ -69,12 +69,19 @@ describe("桌面更新入口路由边界", () => {
     expect(screen.getByTestId("chat-data-provider")).toBeInTheDocument()
   })
 
+  it("主窗口 Markdown 文档路由复用文档工作区", async () => {
+    renderApp("/documents/markdown/550e8400-e29b-41d4-a716-446655440000")
+
+    expect(await screen.findByText("文档工作区")).toBeInTheDocument()
+  })
+
   it("子窗口离开文档路由时回到当前文档，不挂载聊天页面", async () => {
     render(
       <MemoryRouter initialEntries={["/projects/project-1"]}>
         <App
           documentWindow={{
             documentId: "550e8400-e29b-41d4-a716-446655440000",
+            documentType: "document",
             mode: "document",
             serverId: "server-1",
           }}

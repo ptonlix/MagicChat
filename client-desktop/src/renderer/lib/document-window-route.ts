@@ -1,6 +1,8 @@
 import {
   isDocumentUuid,
   isServerId,
+  isDocumentWindowDocumentType,
+  type DocumentWindowDocumentType,
   type DocumentWindowErrorCode,
   type DocumentWindowOpenResponse,
   type DocumentWindowOpenStatus,
@@ -9,6 +11,7 @@ import type { TranslationKey } from "@/lib/i18n"
 
 export type DocumentWindowRouteContext = Readonly<{
   documentId: string
+  documentType: DocumentWindowDocumentType
   mode: "document"
   serverId: string
 }>
@@ -23,7 +26,11 @@ export type DocumentWindowRouteState =
   | Readonly<{ kind: "invalid"; messageKey: TranslationKey }>
 
 export function isDocumentRoutePath(pathname: string): boolean {
-  return pathname === "/documents/document" || pathname.startsWith("/documents/document/")
+  return ["document", "markdown"].some(
+    (documentType) =>
+      pathname === `/documents/${documentType}` ||
+      pathname.startsWith(`/documents/${documentType}/`),
+  )
 }
 
 export function rememberLastNonDocumentRoute(location: DocumentNavigationLocation): void {
@@ -56,8 +63,8 @@ export class DocumentWindowOpenError extends Error {
 export function parseDocumentWindowLocation(
   location: Pick<Location, "pathname" | "search"> = window.location,
 ): DocumentWindowRouteState {
-  const prefix = "/documents/document/"
-  if (!location.pathname.startsWith(prefix)) return { kind: "none" }
+  const match = /^\/documents\/(document|markdown)\/(.+)$/.exec(location.pathname)
+  if (!match) return { kind: "none" }
 
   const windowMode = new URLSearchParams(location.search).get("window")
   if (windowMode !== "document") {
@@ -66,7 +73,7 @@ export function parseDocumentWindowLocation(
       : { kind: "invalid", messageKey: "documentWindow.startup.invalidMode" }
   }
 
-  const encodedDocumentId = location.pathname.slice(prefix.length)
+  const [, documentType, encodedDocumentId] = match
   if (!encodedDocumentId || encodedDocumentId.includes("/"))
     return { kind: "invalid", messageKey: "documentWindow.startup.invalidParams" }
 
@@ -78,11 +85,15 @@ export function parseDocumentWindowLocation(
   }
 
   const serverId = new URLSearchParams(location.search).get("serverId") ?? ""
-  if (!isDocumentUuid(documentId) || !isServerId(serverId))
+  if (
+    !isDocumentWindowDocumentType(documentType) ||
+    !isDocumentUuid(documentId) ||
+    !isServerId(serverId)
+  )
     return { kind: "invalid", messageKey: "documentWindow.startup.invalidTarget" }
 
   return Object.freeze({
-    context: Object.freeze({ documentId, mode: "document" as const, serverId }),
+    context: Object.freeze({ documentId, documentType, mode: "document" as const, serverId }),
     kind: "document" as const,
   })
 }
@@ -90,10 +101,15 @@ export function parseDocumentWindowLocation(
 export async function requestDocumentWindow(
   documentId: string,
   serverId: string,
+  documentType: DocumentWindowDocumentType,
 ): Promise<{ status: DocumentWindowOpenStatus }> {
   let response: DocumentWindowOpenResponse
   try {
-    response = await window.desktop.navigation.openDocumentWindow(documentId, serverId)
+    response = await window.desktop.navigation.openDocumentWindow(
+      documentId,
+      serverId,
+      documentType,
+    )
   } catch (error) {
     if (error instanceof DocumentWindowOpenError) throw error
     throw new DocumentWindowOpenError(
@@ -106,15 +122,28 @@ export async function requestDocumentWindow(
   return response.result
 }
 
-export function documentNavigationPath(documentId: string, serverId: string): string {
-  const path = `/documents/document/${encodeURIComponent(documentId)}`
+export function documentNavigationPath(
+  documentId: string,
+  serverId: string,
+  documentType: DocumentWindowDocumentType = "document",
+): string {
+  const path = `/documents/${documentType}/${encodeURIComponent(documentId)}`
   const current = parseDocumentWindowLocation()
-  if (current.kind !== "document" || current.context.serverId !== serverId) return path
-  return documentWindowPath(documentId, serverId)
+  if (
+    current.kind !== "document" ||
+    current.context.serverId !== serverId ||
+    current.context.documentType !== documentType
+  )
+    return path
+  return documentWindowPath(documentId, serverId, documentType)
 }
 
-export function documentWindowPath(documentId: string, serverId: string): string {
-  return `/documents/document/${encodeURIComponent(documentId)}?serverId=${encodeURIComponent(serverId)}&window=document`
+export function documentWindowPath(
+  documentId: string,
+  serverId: string,
+  documentType: DocumentWindowDocumentType = "document",
+): string {
+  return `/documents/${documentType}/${encodeURIComponent(documentId)}?serverId=${encodeURIComponent(serverId)}&window=document`
 }
 
 function isInternalRoute(route: string): boolean {

@@ -282,7 +282,7 @@ export async function listConversationMessageReactionUsers(
 
 export async function listConversationAttachments(
   conversationId: string,
-  options: { cursor?: string; limit?: number } = {},
+  options: { cursor?: string; limit?: number; signal?: AbortSignal } = {},
   fetcher: ClientDataFetch = fetch,
 ): Promise<ClientConversationAttachmentsPage> {
   const query = new URLSearchParams()
@@ -295,7 +295,7 @@ export async function listConversationAttachments(
   query.set("limit", String(limit))
   const response = await fetcher(
     `/api/client/conversations/${encodeURIComponent(conversationId)}/attachments?${query.toString()}`,
-    { credentials: "include", method: "GET" },
+    { credentials: "include", method: "GET", signal: options.signal },
   )
   const payload = await readJson<
     ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListConversationAttachmentsResponse>

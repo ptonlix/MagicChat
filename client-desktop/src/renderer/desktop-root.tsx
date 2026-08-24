@@ -490,10 +490,10 @@ function DesktopHostedApp({
       ? () => undefined
       : configureMessageCacheTarget(target)
     const requestExternalLink = async (url: string) => {
-      const documentId = parseDesktopDocumentLink(url, target)
-      if (documentId) {
+      const documentLink = parseDesktopDocumentLink(url, target)
+      if (documentLink) {
         try {
-          await requestDocumentWindow(documentId, target.id)
+          await requestDocumentWindow(documentLink.documentId, target.id, documentLink.documentType)
         } catch (error) {
           const code = error instanceof DocumentWindowOpenError ? error.code : "bridge_unavailable"
           throw new DocumentWindowOpenError(

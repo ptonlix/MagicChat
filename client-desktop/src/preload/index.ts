@@ -96,9 +96,9 @@ const bridge: DesktopBridge = {
   },
   notifications: { show: (input) => ipcRenderer.invoke(IPC.notificationShow, input) },
   navigation: {
-    openDocumentWindow: async (documentId, serverId) =>
+    openDocumentWindow: async (documentId, serverId, documentType) =>
       normalizeDocumentWindowOpenResponse(
-        await ipcRenderer.invoke(IPC.documentWindowOpen, { documentId, serverId }),
+        await ipcRenderer.invoke(IPC.documentWindowOpen, { documentId, documentType, serverId }),
       ),
     subscribe: (listener) => subscribe<string>(IPC.navigate, listener),
     subscribeUnknownServer: (listener) =>

@@ -376,7 +376,9 @@ describe("DocumentPage", () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "打开当前文档并返回" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "打开新窗口并返回" }))
-    await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1"))
+    await waitFor(() =>
+      expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1", "document"),
+    )
     await waitFor(() =>
       expect(router.state.location.pathname).toBe("/projects/project-1/documents"),
     )
@@ -399,7 +401,9 @@ describe("DocumentPage", () => {
       await screen.findByRole("textbox", { name: "顶部文档标题" })
 
       fireEvent.click(screen.getByRole("button", { name: "在新窗口打开文档" }))
-      await waitFor(() => expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1"))
+      await waitFor(() =>
+        expect(openDocumentWindow).toHaveBeenCalledWith(document.id, "server-1", "document"),
+      )
       expect(router.state.location.pathname).toBe(`/documents/document/${document.id}`)
     } finally {
       window.history.pushState({}, "", initialUrl)

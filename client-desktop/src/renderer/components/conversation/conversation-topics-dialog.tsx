@@ -29,34 +29,67 @@ export function ConversationTopicsDialog({
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState("")
   const requestVersion = React.useRef(0)
+  const requestController = React.useRef<AbortController | null>(null)
+  const previousConversationId = React.useRef(conversation.id)
+
+  const cancelRequest = React.useCallback(() => {
+    requestVersion.current += 1
+    requestController.current?.abort()
+    requestController.current = null
+  }, [])
 
   const load = React.useCallback(
     async (cursor?: string, append = false) => {
+      requestController.current?.abort()
+      const controller = new AbortController()
+      requestController.current = controller
       const version = ++requestVersion.current
       if (append) setLoadingMore(true)
       else setLoading(true)
       setError("")
       try {
-        const page = await listConversationTopics(conversation.id, { cursor, limit: pageLimit })
-        if (requestVersion.current !== version) return
+        const page = await listConversationTopics(conversation.id, {
+          cursor,
+          limit: pageLimit,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted || requestVersion.current !== version) return
         setTopics((current) => (append ? mergeTopics(current, page.topics) : page.topics))
         setNextCursor(page.nextCursor)
       } catch (reason) {
-        if (requestVersion.current === version) {
+        if (!controller.signal.aborted && requestVersion.current === version) {
           setError(getClientDataErrorMessage(reason, "加载话题列表失败"))
         }
       } finally {
-        if (requestVersion.current === version) {
+        if (requestController.current === controller && requestVersion.current === version) {
           setLoading(false)
           setLoadingMore(false)
+          requestController.current = null
         }
       }
     },
     [conversation.id],
   )
 
+  React.useEffect(
+    () => () => {
+      cancelRequest()
+    },
+    [cancelRequest, conversation.id],
+  )
+
+  React.useEffect(() => {
+    if (previousConversationId.current === conversation.id) return
+    previousConversationId.current = conversation.id
+    cancelRequest()
+    if (!open) return
+    setTopics([])
+    setNextCursor(null)
+    void load()
+  }, [cancelRequest, conversation.id, load, open])
+
   function changeOpen(nextOpen: boolean) {
-    requestVersion.current += 1
+    cancelRequest()
     setOpen(nextOpen)
     setLoadingMore(false)
     if (nextOpen) {
@@ -108,7 +141,7 @@ export function ConversationTopicsDialog({
                   key={topic.id}
                   onClick={() => {
                     setOpen(false)
-                    requestVersion.current += 1
+                    cancelRequest()
                     onOpenTopic(topic.id)
                   }}
                   type="button"

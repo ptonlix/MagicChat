@@ -45,6 +45,7 @@ describe("upstream 聊天协议兼容", () => {
   })
 
   it("校验话题和历史附件分页响应", async () => {
+    const controller = new AbortController()
     const conversation = {
       created_at: "2026-07-31T00:00:00Z",
       id: "topic-1",
@@ -57,11 +58,19 @@ describe("upstream 聊天协议兼容", () => {
         jsonResponse({ success: true, data: { next_cursor: "next", topics: [conversation] } }),
       )
     await expect(
-      listConversationTopics("conversation-1", { limit: 50 }, topicFetcher),
+      listConversationTopics(
+        "conversation-1",
+        { limit: 50, signal: controller.signal },
+        topicFetcher,
+      ),
     ).resolves.toEqual({
       nextCursor: "next",
       topics: [expect.objectContaining({ id: "topic-1", type: "topic" })],
     })
+    expect(topicFetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-1/topics?limit=50",
+      expect.objectContaining({ signal: controller.signal }),
+    )
     const attachmentFetcher = vi.fn().mockResolvedValue(
       jsonResponse({
         success: true,
@@ -81,11 +90,19 @@ describe("upstream 聊天协议兼容", () => {
       }),
     )
     await expect(
-      listConversationAttachments("conversation-1", { limit: 50 }, attachmentFetcher),
+      listConversationAttachments(
+        "conversation-1",
+        { limit: 50, signal: controller.signal },
+        attachmentFetcher,
+      ),
     ).resolves.toMatchObject({
       attachments: [{ file: { fileId: "file-1", sizeBytes: 10 } }],
       nextCursor: null,
     })
+    expect(attachmentFetcher).toHaveBeenCalledWith(
+      "/api/client/conversations/conversation-1/attachments?limit=50",
+      expect.objectContaining({ signal: controller.signal }),
+    )
     attachmentFetcher.mockResolvedValueOnce(
       jsonResponse({ success: true, data: { attachments: [{ seq: -1 }] } }),
     )

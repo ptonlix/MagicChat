@@ -95,6 +95,9 @@ export function ClientConversationRealtimeSync() {
         ) {
           void refreshConversations().catch(() => undefined)
         }
+        if (message.body.type === "system_event" && message.body.event === "friendship_created") {
+          navigate(`/chat/${encodeURIComponent(message.conversationId)}`)
+        }
       } catch {
         recordRealtimeParseFailure()
         // Ignore malformed realtime events. The websocket remains usable.
@@ -102,6 +105,7 @@ export function ClientConversationRealtimeSync() {
     })
   }, [
     handleIncomingConversationMessage,
+    navigate,
     refreshConversations,
     subscribeRealtimeEvent,
     visibleConversationId,

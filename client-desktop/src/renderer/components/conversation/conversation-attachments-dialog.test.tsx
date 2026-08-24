@@ -36,10 +36,14 @@ describe("ConversationAttachmentsDialog", () => {
     await user.click(screen.getByRole("button", { name: "重试" }))
 
     expect(await screen.findByText("设计稿.pdf")).toBeVisible()
-    expect(mocks.listConversationAttachments).toHaveBeenLastCalledWith(conversation.id, {
-      cursor: undefined,
-      limit: 50,
-    })
+    expect(mocks.listConversationAttachments).toHaveBeenLastCalledWith(
+      conversation.id,
+      expect.objectContaining({
+        cursor: undefined,
+        limit: 50,
+        signal: expect.any(AbortSignal),
+      }),
+    )
   })
 
   it("追加失败不清空已有附件，关闭后丢弃迟到响应", async () => {
@@ -62,6 +66,10 @@ describe("ConversationAttachmentsDialog", () => {
     await user.click(screen.getByRole("button", { name: "历史附件" }))
     await screen.findByText("正在加载历史附件")
     await user.keyboard("{Escape}")
+    expect(mocks.listConversationAttachments).toHaveBeenLastCalledWith(
+      conversation.id,
+      expect.objectContaining({ signal: expect.objectContaining({ aborted: true }) }),
+    )
     await act(async () => request.resolve({ nextCursor: null, attachments: [attachment] }))
 
     expect(screen.queryByRole("dialog", { name: "历史附件" })).not.toBeInTheDocument()

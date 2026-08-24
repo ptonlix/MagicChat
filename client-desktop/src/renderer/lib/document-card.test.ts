@@ -12,6 +12,12 @@ describe("document card", () => {
     })
   })
 
+  it("uses the Markdown route for Markdown documents", () => {
+    expect(createDocumentCard("document-1", "协作说明", "客户端", "markdown")).toMatchObject({
+      url: "/documents/markdown/document-1",
+    })
+  })
+
   it("uses a stable untitled fallback and truncates by Unicode character", () => {
     expect(createDocumentCardTitle(" ")).toBe("文档 - 无标题文档")
     const title = createDocumentCardTitle("😀".repeat(300))

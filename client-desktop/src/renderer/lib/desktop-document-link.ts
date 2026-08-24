@@ -1,13 +1,22 @@
-import { isDocumentUuid } from "@shared/document-window-contract"
+import {
+  isDocumentUuid,
+  isDocumentWindowDocumentType,
+  type DocumentWindowDocumentType,
+} from "@shared/document-window-contract"
 import type { AuthenticatedTarget } from "@shared/client-contract"
 
-const DOCUMENT_ROUTE_PREFIX = "/documents/document/"
+const DOCUMENT_ROUTE_PREFIX = "/documents/"
+
+export type DesktopDocumentLink = Readonly<{
+  documentId: string
+  documentType: DocumentWindowDocumentType
+}>
 
 /** 只识别当前认证 Server 下无歧义的 HTTPS 文档分享链接。 */
 export function parseDesktopDocumentLink(
   rawUrl: string,
   target: Pick<AuthenticatedTarget, "normalizedUrl">,
-): string | undefined {
+): DesktopDocumentLink | undefined {
   if (!rawUrl || rawUrl.length > 4096 || rawUrl.includes("?") || rawUrl.includes("#"))
     return undefined
 
@@ -35,7 +44,10 @@ export function parseDesktopDocumentLink(
   const routePrefix = `${serverPath === "/" ? "" : serverPath}${DOCUMENT_ROUTE_PREFIX}`
   if (!documentUrl.pathname.startsWith(routePrefix)) return undefined
 
-  const encodedDocumentId = documentUrl.pathname.slice(routePrefix.length)
+  const route = documentUrl.pathname.slice(routePrefix.length).split("/")
+  if (route.length !== 2) return undefined
+  const [documentType, encodedDocumentId] = route
+  if (!isDocumentWindowDocumentType(documentType)) return undefined
   if (!encodedDocumentId || encodedDocumentId.includes("/")) return undefined
 
   let documentId: string
@@ -47,7 +59,7 @@ export function parseDesktopDocumentLink(
 
   if (documentId.includes("/") || documentId.includes("\\") || !isDocumentUuid(documentId))
     return undefined
-  return documentId
+  return Object.freeze({ documentId, documentType })
 }
 
 function normalizePath(pathname: string): string {

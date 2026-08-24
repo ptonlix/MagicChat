@@ -49,6 +49,7 @@ import {
   getClientDocument,
   updateCollaborativeDocumentTitle,
   type ClientDocument,
+  type ClientDocumentType,
 } from "@/lib/document-data-api"
 import {
   createDocumentWebSocketPolyfill,
@@ -83,9 +84,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { TranslationKey } from "@/lib/i18n"
 
 type Loaded = Readonly<{
-  document: ClientDocument
+  document: EditableClientDocument
   project: ClientProjectDetail
 }>
+type EditableClientDocument = Readonly<
+  Omit<ClientDocument, "documentType" | "kind"> & {
+    documentType: ClientDocumentType
+    kind: "document"
+  }
+>
 type DocumentUnavailableMessage = Readonly<{ key: TranslationKey }> | Readonly<{ value: string }>
 type DocumentLoadError = Readonly<{
   documentId: string
@@ -96,6 +103,13 @@ type DocumentNavigationHandlers = Readonly<{
   beforeNavigate(confirmedVersion?: number): boolean
   getEditVersion(): number
 }>
+
+function isEditableClientDocument(document: ClientDocument): document is EditableClientDocument {
+  return (
+    document.kind === "document" &&
+    (document.documentType === "document" || document.documentType === "markdown")
+  )
+}
 
 export function DocumentPage() {
   const { documentId = "" } = useParams<{ documentId: string }>()
@@ -115,10 +129,7 @@ export function DocumentPage() {
     }
     void getClientDocument(documentId, fetch, controller.signal)
       .then(async (document) => {
-        if (
-          document.kind !== "document" ||
-          (document.documentType !== "document" && document.documentType !== "markdown")
-        ) {
+        if (!isEditableClientDocument(document)) {
           if (!controller.signal.aborted) {
             setError({ documentId, message: { key: "document.notEditable" } })
             setLoading(false)
@@ -172,7 +183,7 @@ function DocumentWorkspace({
   project,
 }: {
   contentError?: DocumentUnavailableMessage
-  document: ClientDocument
+  document: EditableClientDocument
   loading: boolean
   onRetry(): void
   project: ClientProjectDetail
@@ -267,7 +278,7 @@ function DocumentSession({
   onSidebarTitleChange,
   project,
 }: {
-  document: ClientDocument
+  document: EditableClientDocument
   onNavigationHandlersChange(documentId: string, handlers: DocumentNavigationHandlers | null): void
   onOpenSidebar(): void
   onSidebarTitleChange(documentId: string, title: string): void
@@ -329,8 +340,8 @@ function DocumentSession({
   const [title, setTitle] = React.useState<DocumentTitleSnapshot>(titleController.value)
   const titleText = normalizeDocumentTitle(title.input)
   const documentCard = React.useMemo(
-    () => createDocumentCard(document.id, titleText, project.name),
-    [document.id, project.name, titleText],
+    () => createDocumentCard(document.id, titleText, project.name, document.documentType),
+    [document.documentType, document.id, project.name, titleText],
   )
   const dirty = titleController.dirty || body.unsyncedChanges > 0
   const allowNextNavigation = React.useRef(false)
@@ -533,7 +544,7 @@ function DocumentSession({
       : getDocumentReturnPath(`/projects/${encodeURIComponent(project.id)}/documents`)
     setOpeningWindow(true)
     try {
-      const result = await requestDocumentWindow(document.id, target.id)
+      const result = await requestDocumentWindow(document.id, target.id, document.documentType)
       toast.success(
         t(result.status === "focused" ? "documentWindow.focused" : "documentWindow.opened"),
       )
