@@ -131,7 +131,7 @@ describe("document data API", () => {
 
   it.each([
     ["未知 kind", { ...documentResponse, kind: "board" }],
-    ["错误 type", { ...documentResponse, document_type: "markdown" }],
+    ["未知 type", { ...documentResponse, document_type: "spreadsheet" }],
     ["负排序", { ...documentResponse, sort_order: -1 }],
     ["错误 schema", { ...documentResponse, schema_version: 0 }],
     ["缺失字段", { ...documentResponse, creator: undefined }],
@@ -200,6 +200,21 @@ describe("document data API", () => {
     expect(JSON.parse(String(fetcher.mock.calls[2]?.[1]?.body))).toEqual({
       index: 1,
       parent_id: "folder-1",
+    })
+  })
+
+  it("创建并归一化 Markdown 文档", async () => {
+    const markdown = { ...documentResponse, document_type: "markdown" }
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: markdown }))
+    await expect(
+      createClientDocument(
+        "project-1",
+        { kind: "document", documentType: "markdown", title: "说明" },
+        fetcher,
+      ),
+    ).resolves.toMatchObject({ documentType: "markdown" })
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toMatchObject({
+      document_type: "markdown",
     })
   })
 

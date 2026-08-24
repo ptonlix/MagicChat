@@ -103,6 +103,45 @@ describe("GroupConversationInfo", () => {
     expect(screen.queryByRole("button", { name: "修改群公告" })).not.toBeInTheDocument()
   })
 
+  it("allows an active regular member to edit the group name", async () => {
+    const user = userEvent.setup()
+    const conversation = createGroupConversation()
+    const updateGroupConversationName = vi.fn().mockResolvedValue(conversation)
+    renderGroupInfo(conversation, { updateGroupConversationName })
+    await user.click(screen.getByRole("button", { name: "修改群聊名称" }))
+    const input = screen.getByRole("textbox", { name: "群聊名称" })
+    await user.clear(input)
+    await user.type(input, "成员修改后的群名")
+    await user.click(screen.getByRole("button", { name: "保存群聊名称" }))
+    await waitFor(() =>
+      expect(updateGroupConversationName).toHaveBeenCalledWith(
+        "conversation-group-1",
+        "成员修改后的群名",
+      ),
+    )
+  })
+
+  it("普通成员改名被拒绝后保留草稿并允许重试", async () => {
+    const user = userEvent.setup()
+    const conversation = createGroupConversation()
+    const updateGroupConversationName = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("没有修改群名的权限"))
+      .mockResolvedValueOnce(conversation)
+    renderGroupInfo(conversation, { updateGroupConversationName })
+
+    await user.click(screen.getByRole("button", { name: "修改群聊名称" }))
+    const input = screen.getByRole("textbox", { name: "群聊名称" })
+    await user.clear(input)
+    await user.type(input, "等待重试的群名")
+    await user.click(screen.getByRole("button", { name: "保存群聊名称" }))
+
+    await waitFor(() => expect(updateGroupConversationName).toHaveBeenCalledTimes(1))
+    expect(input).toHaveValue("等待重试的群名")
+    await user.click(screen.getByRole("button", { name: "保存群聊名称" }))
+    await waitFor(() => expect(updateGroupConversationName).toHaveBeenCalledTimes(2))
+  })
+
   it("lets an owner save a trimmed announcement and counts Unicode characters", async () => {
     const user = userEvent.setup()
     const conversation = createOwnedGroupConversation()

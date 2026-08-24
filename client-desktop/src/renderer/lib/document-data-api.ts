@@ -29,6 +29,7 @@ type DocumentResponse = {
 }
 
 export type ClientDocumentKind = "document" | "folder"
+export type ClientDocumentType = "document" | "markdown"
 export type ClientDocumentUser = Readonly<{
   avatar: string
   id: string
@@ -40,7 +41,7 @@ export type ClientDocument = Readonly<{
   contributors: ReadonlyArray<ClientDocumentUser>
   createdAt: string
   creator: ClientDocumentUser
-  documentType: "document" | null
+  documentType: ClientDocumentType | null
   id: string
   kind: ClientDocumentKind
   parentId: string | null
@@ -56,6 +57,7 @@ export type CreateClientDocumentInput = Readonly<{
   kind: ClientDocumentKind
   parentId?: string | null
   title: string
+  documentType?: ClientDocumentType
 }>
 export type UpdateClientDocumentInput = Readonly<{
   parentId?: string | null
@@ -98,7 +100,12 @@ export async function createClientDocument(
       `/api/client/projects/${encodeURIComponent(requireIdentifier(projectId, "项目"))}/documents`,
       jsonRequest(
         "POST",
-        { kind: input.kind, parent_id: input.parentId ?? null, title: input.title },
+        {
+          document_type: input.kind === "document" ? (input.documentType ?? "document") : undefined,
+          kind: input.kind,
+          parent_id: input.parentId ?? null,
+          title: input.title,
+        },
         signal,
       ),
       "创建文档失败",
@@ -120,6 +127,13 @@ export async function getClientDocument(
       fetcher,
     ),
   )
+}
+
+export function getClientDocumentPath(documentId: string, documentType: ClientDocumentType | null) {
+  if (!documentType || !isIdentifier(documentId)) {
+    throw new ClientDataRequestError("文档类型或标识无效")
+  }
+  return `/documents/${documentType}/${encodeURIComponent(documentId)}`
 }
 
 export async function updateClientDocument(
@@ -257,8 +271,12 @@ function normalizeDocument(input: unknown): ClientDocument {
   ) {
     throw new ClientDataRequestError("文档响应格式不正确")
   }
+  const documentType =
+    value.document_type === "document" || value.document_type === "markdown"
+      ? value.document_type
+      : null
   if (
-    (value.kind === "document" && value.document_type !== "document") ||
+    (value.kind === "document" && documentType === null) ||
     (value.kind === "folder" && value.document_type != null)
   ) {
     throw new ClientDataRequestError("文档类型响应格式不正确")
@@ -276,7 +294,7 @@ function normalizeDocument(input: unknown): ClientDocument {
     contributors: Object.freeze(contributors),
     createdAt: value.created_at as string,
     creator,
-    documentType: value.kind === "document" ? "document" : null,
+    documentType,
     id: value.id as string,
     kind: value.kind,
     parentId: (value.parent_id as string | null | undefined) ?? null,

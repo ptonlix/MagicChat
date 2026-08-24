@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Bot, FolderClosed, MessagesSquare, Settings, UserRound, UsersRound } from "lucide-react"
+import { Bot, MessagesSquare, Settings, UserRound, UsersRound } from "lucide-react"
 
 import { useLocale } from "@/components/locale-provider"
 import { type ClientConversation } from "@/lib/client-data-api"
@@ -11,18 +11,22 @@ import { ConversationInfoDrawer } from "@/components/conversation-info-drawer"
 import { GroupProfilePopover } from "@/components/group-profile-popover"
 import { Button } from "@/components/ui/button"
 import { UserProfilePopover } from "@/components/user-profile-popover"
+import { ConversationAttachmentsDialog } from "@/components/conversation/conversation-attachments-dialog"
+import { ConversationTopicsDialog } from "@/components/conversation/conversation-topics-dialog"
 
 export function ConversationPanelHeader({
   actions,
   conversation,
   currentUserId,
   online,
+  onOpenTopic,
   status,
 }: {
   actions?: ReactNode
   conversation: ClientConversation
   currentUserId: string
   online?: boolean
+  onOpenTopic?: (conversationId: string) => void
   status?: string
 }) {
   const { t } = useLocale()
@@ -85,19 +89,13 @@ export function ConversationPanelHeader({
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {actions}
-        {conversation.type === "group" && <AddGroupMembersDialog conversation={conversation} />}
-        {conversation.type !== "topic" && (
-          <Button
-            aria-label={t("chat.header.attachments")}
-            disabled
-            size="icon-sm"
-            title={t("chat.header.attachments")}
-            type="button"
-            variant="ghost"
-          >
-            <FolderClosed className="size-4" />
-          </Button>
+        {conversation.type !== "topic" && onOpenTopic && (
+          <ConversationTopicsDialog conversation={conversation} onOpenTopic={onOpenTopic} />
         )}
+        {conversation.type !== "topic" && (
+          <ConversationAttachmentsDialog conversation={conversation} />
+        )}
+        {conversation.type === "group" && <AddGroupMembersDialog conversation={conversation} />}
         {conversation.type !== "topic" && (
           <ConversationInfoDrawer conversationId={conversation.id}>
             <Button

@@ -298,6 +298,7 @@ export function ConversationPanel({
             conversation={conversation}
             currentUserId={currentUserId}
             actions={headerActions}
+            onOpenTopic={onOpenTopic}
             online={conversationOnline}
             status={status}
           />

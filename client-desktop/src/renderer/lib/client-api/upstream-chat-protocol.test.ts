@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest"
-import { listClientConversations, updateGroupConversationAnnouncement } from "./conversations"
+import {
+  listClientConversations,
+  listConversationTopics,
+  updateGroupConversationAnnouncement,
+} from "./conversations"
 import { normalizeClientMessageBody, normalizeMessage } from "./message-normalizers"
 import {
   formatClientMessageBodySummary,
   normalizeMessageCreatedEventPayload,
   normalizeMessageUpdatedEventPayload,
   sendConversationVoiceMessage,
+  listConversationAttachments,
 } from "./messages"
 
 const baseMessage = {
@@ -17,6 +22,78 @@ const baseMessage = {
 }
 
 describe("upstream 聊天协议兼容", () => {
+  it("归一化好友建立系统消息并保持系统摘要语义", () => {
+    const body = normalizeClientMessageBody({
+      event: "friendship_created",
+      type: "system_event",
+    })
+    expect(body).toEqual({ event: "friendship_created", type: "system_event" })
+    expect(formatClientMessageBodySummary(body)).toBe("你们已成为好友，现在可以开始聊天了")
+  })
+
+  it("拒绝错误的好友系统消息字段并保留未知事件降级", () => {
+    expect(
+      normalizeClientMessageBody({ event: "friendship_created", type: "text" } as never),
+    ).toEqual({
+      type: "unsupported",
+    })
+    expect(
+      normalizeClientMessageBody({ event: "future_event", type: "system_event" } as never),
+    ).toEqual({
+      type: "unsupported",
+    })
+  })
+
+  it("校验话题和历史附件分页响应", async () => {
+    const conversation = {
+      created_at: "2026-07-31T00:00:00Z",
+      id: "topic-1",
+      name: "话题一",
+      type: "topic",
+    }
+    const topicFetcher = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ success: true, data: { next_cursor: "next", topics: [conversation] } }),
+      )
+    await expect(
+      listConversationTopics("conversation-1", { limit: 50 }, topicFetcher),
+    ).resolves.toEqual({
+      nextCursor: "next",
+      topics: [expect.objectContaining({ id: "topic-1", type: "topic" })],
+    })
+    const attachmentFetcher = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        data: {
+          attachments: [
+            {
+              created_at: "2026-07-31T00:00:00Z",
+              file_id: "file-1",
+              message_id: "message-1",
+              name: "a.txt",
+              seq: 1,
+              size_bytes: 10,
+            },
+          ],
+          next_cursor: null,
+        },
+      }),
+    )
+    await expect(
+      listConversationAttachments("conversation-1", { limit: 50 }, attachmentFetcher),
+    ).resolves.toMatchObject({
+      attachments: [{ file: { fileId: "file-1", sizeBytes: 10 } }],
+      nextCursor: null,
+    })
+    attachmentFetcher.mockResolvedValueOnce(
+      jsonResponse({ success: true, data: { attachments: [{ seq: -1 }] } }),
+    )
+    await expect(
+      listConversationAttachments("conversation-1", {}, attachmentFetcher),
+    ).rejects.toThrow("历史附件响应格式不正确")
+  })
+
   it("旧 Server 缺少公告时归一化为空字符串", async () => {
     const fetcher = vi.fn().mockImplementation(() =>
       Promise.resolve(

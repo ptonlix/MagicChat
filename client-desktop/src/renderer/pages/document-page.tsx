@@ -18,6 +18,11 @@ import * as Y from "yjs"
 import { ClientDocumentTitle } from "@/components/client-document-title"
 import { SendCardDialog, StandaloneCardDialog } from "@/components/conversation/send-card-dialog"
 import { DocumentEditor } from "@/components/documents/document-editor"
+const MarkdownDocumentEditor = React.lazy(() =>
+  import("@/components/documents/markdown-document-editor").then((module) => ({
+    default: module.MarkdownDocumentEditor,
+  })),
+)
 import { DocumentWorkspaceSidebar } from "@/components/documents/document-workspace-sidebar"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -110,7 +115,10 @@ export function DocumentPage() {
     }
     void getClientDocument(documentId, fetch, controller.signal)
       .then(async (document) => {
-        if (document.kind !== "document" || document.documentType !== "document") {
+        if (
+          document.kind !== "document" ||
+          (document.documentType !== "document" && document.documentType !== "markdown")
+        ) {
           if (!controller.signal.aborted) {
             setError({ documentId, message: { key: "document.notEditable" } })
             setLoading(false)
@@ -721,17 +729,38 @@ function DocumentSession({
           <DocumentOnlineUsers users={onlineUsers} />
         </header>
         {collaborationProvider ? (
-          <DocumentEditor
-            collaborationDocument={ydoc}
-            collaborationProvider={collaborationProvider}
-            collaborationUser={collaborationUser}
-            onTitleBlur={saveTitle}
-            onTitleChange={(value) => {
-              editVersion.current += 1
-              titleController.change(value)
-            }}
-            title={title.input}
-          />
+          <React.Suspense
+            fallback={
+              <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+                正在加载文档编辑器
+              </div>
+            }
+          >
+            {document.documentType === "markdown" ? (
+              <MarkdownDocumentEditor
+                collaborationDocument={ydoc}
+                collaborationProvider={collaborationProvider}
+                onTitleBlur={saveTitle}
+                onTitleChange={(value) => {
+                  editVersion.current += 1
+                  titleController.change(value)
+                }}
+                title={title.input}
+              />
+            ) : (
+              <DocumentEditor
+                collaborationDocument={ydoc}
+                collaborationProvider={collaborationProvider}
+                collaborationUser={collaborationUser}
+                onTitleBlur={saveTitle}
+                onTitleChange={(value) => {
+                  editVersion.current += 1
+                  titleController.change(value)
+                }}
+                title={title.input}
+              />
+            )}
+          </React.Suspense>
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />

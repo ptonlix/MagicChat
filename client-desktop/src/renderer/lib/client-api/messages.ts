@@ -13,6 +13,10 @@ import type {
   MessageReactionsUpdatedEventPayloadResponse,
   MessageChoiceUpdatedEventPayloadResponse,
   ListMessageReactionUsersResponse,
+  ListConversationAttachmentsResponse,
+  ClientConversationAttachmentsPage,
+  ClientConversationAttachment,
+  ConversationAttachmentResponse,
   ListMessageReactionSnapshotsResponse,
   SetMessageReactionResponse,
   SetChoiceResponse,
@@ -274,6 +278,77 @@ export async function listConversationMessageReactionUsers(
     throw new ClientDataRequestError("消息表情参与者响应格式不正确")
   }
   return normalizeMessageReactionUsers(data.users)
+}
+
+export async function listConversationAttachments(
+  conversationId: string,
+  options: { cursor?: string; limit?: number } = {},
+  fetcher: ClientDataFetch = fetch,
+): Promise<ClientConversationAttachmentsPage> {
+  const query = new URLSearchParams()
+  const cursor = options.cursor?.trim()
+  if (cursor) query.set("cursor", cursor)
+  const limit = options.limit ?? 50
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new ClientDataRequestError("历史附件分页大小无效")
+  }
+  query.set("limit", String(limit))
+  const response = await fetcher(
+    `/api/client/conversations/${encodeURIComponent(conversationId)}/attachments?${query.toString()}`,
+    { credentials: "include", method: "GET" },
+  )
+  const payload = await readJson<
+    ClientDataErrorEnvelope | ClientDataSuccessEnvelope<ListConversationAttachmentsResponse>
+  >(response)
+  if (!response.ok || payload?.success === false) {
+    throw createRequestError(payload, response, "加载历史附件失败")
+  }
+  const data = (payload as ClientDataSuccessEnvelope<ListConversationAttachmentsResponse>)?.data
+  if (
+    !Array.isArray(data?.attachments) ||
+    (data.next_cursor !== undefined &&
+      data.next_cursor !== null &&
+      typeof data.next_cursor !== "string")
+  ) {
+    throw new ClientDataRequestError("历史附件响应格式不正确")
+  }
+  const attachments = data.attachments.map(normalizeConversationAttachment)
+  return {
+    attachments,
+    nextCursor: data.next_cursor?.trim() || null,
+  }
+}
+
+function normalizeConversationAttachment(
+  attachment: ConversationAttachmentResponse,
+): ClientConversationAttachment {
+  const seq = attachment.seq
+  const sizeBytes = attachment.size_bytes
+  if (
+    !attachment.created_at ||
+    !attachment.file_id ||
+    !attachment.message_id ||
+    !attachment.name ||
+    typeof seq !== "number" ||
+    !Number.isSafeInteger(seq) ||
+    seq < 1 ||
+    typeof sizeBytes !== "number" ||
+    !Number.isSafeInteger(sizeBytes) ||
+    sizeBytes < 0
+  ) {
+    throw new ClientDataRequestError("历史附件响应格式不正确")
+  }
+  return {
+    createdAt: attachment.created_at,
+    file: {
+      fileId: attachment.file_id,
+      name: attachment.name,
+      sizeBytes,
+      type: "file",
+    },
+    messageId: attachment.message_id,
+    seq,
+  }
 }
 
 export async function listConversationMessages(
@@ -1122,6 +1197,10 @@ export function formatClientMessageBodySummary(body: ClientMessageBody) {
     return `${body.actor.displayName} 撤回了一条消息`
   }
 
+  if (body.event === "friendship_created") {
+    return "你们已成为好友，现在可以开始聊天了"
+  }
+
   if (body.event === "topic_closed") {
     return `${body.actor.displayName} 已将话题关闭`
   }
@@ -1207,6 +1286,10 @@ export function isClientMessageInitiatedByUser(message: ClientMessage, userId: s
 
   if (message.body.event === "group_avatar_updated") {
     return message.body.actor.id === userId
+  }
+
+  if (message.body.event === "friendship_created") {
+    return false
   }
 
   if (

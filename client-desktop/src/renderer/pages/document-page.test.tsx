@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getClientDocument: vi.fn(),
   getClientProject: vi.fn(),
   listClientDocuments: vi.fn(),
+  markdownCollaborationDocument: undefined as Y.Doc | undefined,
   passedCollaborationProvider: undefined as unknown,
   providerOptions: undefined as
     | {
@@ -82,6 +83,12 @@ vi.mock("@/components/documents/document-editor", () => ({
         value={title}
       />
     )
+  },
+}))
+vi.mock("@/components/documents/markdown-document-editor", () => ({
+  MarkdownDocumentEditor: ({ collaborationDocument }: { collaborationDocument: Y.Doc }) => {
+    mocks.markdownCollaborationDocument = collaborationDocument
+    return <div aria-label="Markdown 文档编辑器" role="region" />
   },
 }))
 vi.mock("@/lib/client-data-context", () => ({
@@ -164,6 +171,7 @@ describe("DocumentPage", () => {
     })
     mocks.getClientProject.mockReset().mockResolvedValue(project)
     mocks.listClientDocuments.mockReset().mockResolvedValue([document])
+    mocks.markdownCollaborationDocument = undefined
     mocks.passedCollaborationProvider = undefined
     mocks.providerOptions = undefined
     mocks.currentMe = { avatar: "", id: "user-1", name: "陈富东", nickname: "" }
@@ -194,6 +202,17 @@ describe("DocumentPage", () => {
     await waitFor(() => expect(screen.getByText(/标题已自动保存.*正文已同步/)).toBeInTheDocument())
     expect(mocks.attachProvider).toHaveBeenCalledOnce()
     expect(mocks.passedCollaborationProvider).toBeDefined()
+  })
+
+  it("Markdown 文档进入独立工作区并使用 markdown 共享文本根", async () => {
+    mocks.getClientDocument.mockResolvedValue({ ...document, documentType: "markdown" })
+    renderPage()
+
+    await screen.findByRole("region", { name: "Markdown 文档编辑器" })
+    const collaborationDocument = mocks.markdownCollaborationDocument
+    expect(collaborationDocument).toBeDefined()
+    expect(collaborationDocument?.getText("markdown")).toBeDefined()
+    expect(collaborationDocument?.getXmlFragment("body").length).toBe(0)
   })
 
   it("同项目切换文档时保持侧栏实例，只替换内容区", async () => {

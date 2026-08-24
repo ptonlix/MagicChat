@@ -26,6 +26,15 @@ const documentChunkNames = rendererAssetNames.filter((name) =>
 assert(documentChunkNames.length === 1, "文档路由 chunk 缺失或重复")
 const documentChunkName = documentChunkNames[0]
 const documentChunk = await readFile(path.join(rendererAssets, documentChunkName), "utf8")
+const markdownDocumentChunkNames = rendererAssetNames.filter((name) =>
+  /^markdown-document-editor-.+\.js$/.test(name),
+)
+assert(markdownDocumentChunkNames.length === 1, "Markdown 编辑器 chunk 缺失或重复")
+const markdownDocumentChunkName = markdownDocumentChunkNames[0]
+const markdownDocumentChunk = await readFile(
+  path.join(rendererAssets, markdownDocumentChunkName),
+  "utf8",
+)
 const indexScriptName = html.match(/src="\.\/assets\/([^"]+\.js)"/)?.[1]
 assert(indexScriptName, "Renderer 主入口脚本缺失")
 const indexScript = await readFile(path.join(rendererAssets, indexScriptName), "utf8")
@@ -55,8 +64,17 @@ assert(
 assert(!html.includes(documentChunkName), "Renderer HTML 静态加载了文档路由 chunk")
 assert(indexScript.includes(documentChunkName), "Renderer 主入口未按路由引用文档 chunk")
 assert(documentChunk.includes("desktop://document-collaboration"), "文档 chunk 缺少协作适配器")
+assert(
+  documentChunk.includes(markdownDocumentChunkName),
+  "文档路由未按需引用 Markdown 编辑器 chunk",
+)
+assert(markdownDocumentChunk.includes("Markdown 正文"), "Markdown 编辑器 chunk 内容缺失")
 for (const forbidden of ["client-web/src", "client-web/public", 'require("electron")']) {
   assert(!documentChunk.includes(forbidden), `文档 chunk 包含禁止内容 ${forbidden}`)
+  assert(
+    !markdownDocumentChunk.includes(forbidden),
+    `Markdown 编辑器 chunk 包含禁止内容 ${forbidden}`,
+  )
 }
 assert(captureHtml.includes("Content-Security-Policy"), "截图 Renderer 缺少 CSP")
 assert(captureHtml.includes("magicchat-capture:"), "截图 Renderer CSP 未允许截图资源协议")

@@ -948,7 +948,7 @@ function canManageGroupAvatar(role: ClientConversationMember["role"] | undefined
 }
 
 function canManageGroupName(role: ClientConversationMember["role"] | undefined) {
-  return role === "owner" || role === "admin"
+  return role === "owner" || role === "admin" || role === "member"
 }
 
 function canManageGroupAnnouncement(role: ClientConversationMember["role"] | undefined) {

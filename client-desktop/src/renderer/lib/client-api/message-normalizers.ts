@@ -15,6 +15,7 @@ import type {
   GroupAnnouncementUpdatedSystemEventBodyResponse,
   MessageRevokedSystemEventBodyResponse,
   TopicClosedSystemEventBodyResponse,
+  FriendshipCreatedSystemEventBodyResponse,
   MessageBodyResponse,
   ChoiceStateResponse,
   MessageReactionUserResponse,
@@ -39,6 +40,7 @@ import type {
   ClientGroupAnnouncementUpdatedSystemEventBody,
   ClientMessageRevokedSystemEventBody,
   ClientTopicClosedSystemEventBody,
+  ClientFriendshipCreatedSystemEventBody,
   ClientMessageBody,
   ClientChoiceState,
   ClientMessage,
@@ -536,7 +538,8 @@ function normalizeSystemEventMessageBody(
     | GroupNameUpdatedSystemEventBodyResponse
     | GroupAnnouncementUpdatedSystemEventBodyResponse
     | MessageRevokedSystemEventBodyResponse
-    | TopicClosedSystemEventBodyResponse,
+    | TopicClosedSystemEventBodyResponse
+    | FriendshipCreatedSystemEventBodyResponse,
 ):
   | ClientGroupMembersInvitedSystemEventBody
   | ClientGroupAvatarUpdatedSystemEventBody
@@ -547,7 +550,15 @@ function normalizeSystemEventMessageBody(
   | ClientGroupNameUpdatedSystemEventBody
   | ClientGroupAnnouncementUpdatedSystemEventBody
   | ClientMessageRevokedSystemEventBody
-  | ClientTopicClosedSystemEventBody {
+  | ClientTopicClosedSystemEventBody
+  | ClientFriendshipCreatedSystemEventBody {
+  if (body.event === "friendship_created") {
+    return {
+      event: "friendship_created",
+      type: "system_event",
+    }
+  }
+
   if (body.event === "topic_closed") {
     if (!("actor" in body) || !isSystemEventUserRefResponse(body.actor)) {
       throw new ClientDataRequestError("消息响应格式不正确")

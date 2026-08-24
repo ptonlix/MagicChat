@@ -69,6 +69,7 @@ import {
   updateCollaborativeDocumentTitle,
   formatDocumentModifiedTime,
   type ClientDocumentKind,
+  type ClientDocumentType,
 } from "@/lib/document-data-api"
 import {
   buildDocumentTree,
@@ -98,7 +99,12 @@ import {
 } from "@/lib/document-window-route"
 
 type EditDialogState =
-  | Readonly<{ kind: ClientDocumentKind; mode: "create"; parentId: string | null }>
+  | Readonly<{
+      documentType?: ClientDocumentType
+      kind: ClientDocumentKind
+      mode: "create"
+      parentId: string | null
+    }>
   | Readonly<{ mode: "rename"; node: DocumentTreeNode }>
   | null
 
@@ -186,6 +192,7 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
           kind: editDialog.kind,
           parentId: editDialog.parentId,
           title,
+          documentType: editDialog.documentType,
         })
         if (editDialog.parentId) {
           setExpandedFolderIds((current) => new Set(current).add(editDialog.parentId as string))
@@ -282,7 +289,9 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
         <DocumentToolbar
           disabled={mutating}
           keyword={keyword}
-          onCreate={(kind) => setEditDialog({ kind, mode: "create", parentId: null })}
+          onCreate={(kind, documentType) =>
+            setEditDialog({ documentType, kind, mode: "create", parentId: null })
+          }
           onKeywordChange={setKeyword}
         />
         <DndContext
@@ -333,7 +342,9 @@ export function ProjectDocumentsTab({ projectId }: { projectId: string }) {
                   disabled={mutating || searching}
                   expandedFolderIds={expandedFolderIds}
                   nodes={visibleTree}
-                  onCreate={(kind, parentId) => setEditDialog({ kind, mode: "create", parentId })}
+                  onCreate={(kind, parentId, documentType) =>
+                    setEditDialog({ documentType, kind, mode: "create", parentId })
+                  }
                   onDelete={setDeleteNode}
                   onFolderOpenChange={(id, open) =>
                     setExpandedFolderIds((current) => {
@@ -408,7 +419,7 @@ function DocumentToolbar({
 }: {
   disabled: boolean
   keyword: string
-  onCreate: (kind: ClientDocumentKind) => void
+  onCreate: (kind: ClientDocumentKind, documentType?: ClientDocumentType) => void
   onKeywordChange: (keyword: string) => void
 }) {
   const { t } = useLocale()
@@ -437,6 +448,10 @@ function DocumentToolbar({
             <FileText />
             {t("docTree.newDoc")}
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onCreate("document", "markdown")}>
+            <FileText />
+            新建 Markdown 文档
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onCreate("folder")}>
             <FolderPlus />
             {t("docTree.newFolder")}
@@ -454,7 +469,7 @@ function DocumentTree(props: {
   disabled: boolean
   expandedFolderIds: ReadonlySet<string>
   nodes: ReadonlyArray<DocumentTreeNode>
-  onCreate: (kind: ClientDocumentKind, parentId: string) => void
+  onCreate: (kind: ClientDocumentKind, parentId: string, documentType?: ClientDocumentType) => void
   onDelete: (node: DocumentTreeNode) => void
   onFolderOpenChange: (folderId: string, open: boolean) => void
   onOpenWindow: (node: DocumentTreeNode) => void
@@ -650,6 +665,12 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
                   <FileText />
                   {t("docTree.newChildDoc")}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => props.onCreate("document", props.node.id, "markdown")}
+                >
+                  <FileText />
+                  新建 Markdown 文档
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => props.onCreate("folder", props.node.id)}>
                   <FolderPlus />
                   {t("docTree.newChildFolder")}
@@ -775,7 +796,9 @@ function DocumentEditDialog({
               ? t("docTree.rename")
               : kind === "folder"
                 ? t("docTree.newFolder")
-                : t("docTree.newDoc")}
+                : state.mode === "create" && state.documentType === "markdown"
+                  ? "新建 Markdown 文档"
+                  : t("docTree.newDoc")}
           </DialogTitle>
         </DialogHeader>
         <form
