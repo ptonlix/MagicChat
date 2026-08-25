@@ -44,6 +44,7 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
     x: number
     y: number
   } | null>(null)
+  const previewImageRef = React.useRef<HTMLImageElement | null>(null)
   const [open, setOpen] = React.useState(false)
   const [source, setSource] = React.useState<{
     error: boolean
@@ -284,11 +285,27 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
   }
 
   function handlePreviewAreaClick(event: React.MouseEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || previewZoom > 1) {
+    if (previewZoom > 1) {
       return
     }
 
-    setOpen(false)
+    const previewImage = previewImageRef.current
+    const isImageClicked =
+      previewImage &&
+      isPointInsidePreviewImage(
+        event.clientX,
+        event.clientY,
+        event.currentTarget.getBoundingClientRect(),
+        {
+          height: previewImage.naturalHeight,
+          width: previewImage.naturalWidth,
+        },
+        previewZoom,
+      )
+
+    if (!isImageClicked) {
+      setOpen(false)
+    }
   }
 
   if (currentSource?.error) {
@@ -377,6 +394,7 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
                   : "h-full w-full object-contain",
               )}
               draggable={false}
+              ref={previewImageRef}
               onError={handleImageError}
               onLoad={handlePreviewImageLoad}
               src={resolveHostResourceUrl(currentSource.url)}
@@ -473,6 +491,29 @@ function getContainedPreviewSize(
     height: imageSize.height * scale,
     width: imageSize.width * scale,
   }
+}
+
+function isPointInsidePreviewImage(
+  clientX: number,
+  clientY: number,
+  areaBounds: DOMRect,
+  imageSize: PreviewSize,
+  zoom: number,
+): boolean {
+  const previewSize = getContainedPreviewSize(imageSize, {
+    height: areaBounds.height,
+    width: areaBounds.width,
+  })
+  if (!previewSize) {
+    return false
+  }
+
+  const width = previewSize.width * zoom
+  const height = previewSize.height * zoom
+  const left = areaBounds.left + (areaBounds.width - width) / 2
+  const top = areaBounds.top + (areaBounds.height - height) / 2
+
+  return clientX >= left && clientX <= left + width && clientY >= top && clientY <= top + height
 }
 
 function clampPreviewOffset(

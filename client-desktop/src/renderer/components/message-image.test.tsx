@@ -63,7 +63,7 @@ describe("MessageImage", () => {
     expect(onContextMenu).not.toHaveBeenCalled()
   })
 
-  it("点击未缩放预览的图片外留白或关闭按钮会关闭预览", async () => {
+  it("点击未缩放预览的视觉留白或关闭按钮会关闭预览", async () => {
     render(<MessageImage image={{ fileId: "file-1", type: "image" }} />)
 
     const previewTrigger = await screen.findByRole("button", { name: "预览图片" })
@@ -71,8 +71,16 @@ describe("MessageImage", () => {
     const previewImage = await screen.findByRole("img", { name: "图片消息预览" })
     const previewArea = previewImage.parentElement
     if (!(previewArea instanceof HTMLDivElement)) throw new Error("预览区域尚未渲染")
+    Object.defineProperties(previewImage, {
+      naturalHeight: { configurable: true, value: 400 },
+      naturalWidth: { configurable: true, value: 100 },
+    })
+    vi.spyOn(previewArea, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 200, 100))
 
-    fireEvent.click(previewArea)
+    fireEvent.click(previewImage, { clientX: 100, clientY: 50 })
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+    fireEvent.click(previewImage, { clientX: 20, clientY: 50 })
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
 
     fireEvent.click(previewTrigger)
