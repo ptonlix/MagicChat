@@ -63,6 +63,24 @@ describe("MessageImage", () => {
     expect(onContextMenu).not.toHaveBeenCalled()
   })
 
+  it("点击未缩放预览的图片外留白或关闭按钮会关闭预览", async () => {
+    render(<MessageImage image={{ fileId: "file-1", type: "image" }} />)
+
+    const previewTrigger = await screen.findByRole("button", { name: "预览图片" })
+    fireEvent.click(previewTrigger)
+    const previewImage = await screen.findByRole("img", { name: "图片消息预览" })
+    const previewArea = previewImage.parentElement
+    if (!(previewArea instanceof HTMLDivElement)) throw new Error("预览区域尚未渲染")
+
+    fireEvent.click(previewArea)
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+
+    fireEvent.click(previewTrigger)
+    await screen.findByRole("dialog", { name: "图片预览" })
+    fireEvent.click(screen.getByRole("button", { name: "关闭图片预览" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
   it("预览加载后缩小图片，并将缩放限制在上限", async () => {
     const { previewArea, previewImage, restorePreviewAreaSize } = await openLoadedPreview()
     try {

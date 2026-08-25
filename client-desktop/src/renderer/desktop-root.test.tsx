@@ -233,6 +233,9 @@ describe("桌面设置服务器管理", () => {
       /\.app-layout-shell\s+\[data-desktop-drag-region\]\s*\{\s*-webkit-app-region: drag/,
     )
     expect(source).toContain(".desktop-workspace-drag-region")
+    expect(source).toMatch(
+      /\[data-slot="dialog-overlay"\],\s*\[data-slot="dialog-content"\]\s*\{[^}]*-webkit-app-region:\s*no-drag/,
+    )
   })
 
   it("文档子窗口优先使用 URL 中的 serverId，不受全局服务器选择影响", async () => {

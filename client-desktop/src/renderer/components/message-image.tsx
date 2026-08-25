@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { ImageOff } from "lucide-react"
+import { ImageOff, XIcon } from "lucide-react"
 
 import { readTemporaryFileURLs, type ClientImageMessageBody } from "@/lib/client-data-api"
 import { cn } from "@/lib/utils"
@@ -9,11 +9,13 @@ import { getImageThumbnailFrame } from "@/lib/image-message"
 import { clampPreviewZoom } from "@/lib/message-image-preview"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 
@@ -281,6 +283,14 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
     setPreviewDragging(false)
   }
 
+  function handlePreviewAreaClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || previewZoom > 1) {
+      return
+    }
+
+    setOpen(false)
+  }
+
   if (currentSource?.error) {
     return (
       <MessageImageStatus
@@ -335,12 +345,24 @@ export function MessageImage({ hasCaption = false, image }: MessageImageProps) {
             <DialogTitle>{t("imageMsg.previewTitle")}</DialogTitle>
             <DialogDescription>{t("imageMsg.previewDesc")}</DialogDescription>
           </DialogHeader>
+          <DialogClose asChild>
+            <Button
+              aria-label={t("imageMsg.closePreview")}
+              className="no-drag absolute top-3 right-3 z-10"
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <XIcon />
+            </Button>
+          </DialogClose>
           <div
             ref={setPreviewAreaElement}
             className={cn(
               "relative h-full w-full touch-none overflow-hidden bg-background select-none",
               previewZoom > 1 && (previewDragging ? "cursor-grabbing" : "cursor-grab"),
             )}
+            onClick={handlePreviewAreaClick}
             onPointerCancel={handlePreviewPointerEnd}
             onPointerDown={handlePreviewPointerDown}
             onPointerMove={handlePreviewPointerMove}

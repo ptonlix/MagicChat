@@ -33,6 +33,10 @@ body,
   -webkit-app-region: no-drag;
   z-index: 60;
 }
+[data-slot="dialog-overlay"],
+[data-slot="dialog-content"] {
+  -webkit-app-region: no-drag;
+}
 /* 抽屉中打开的浮层必须保持在抽屉表面之上。 */
 [data-slot="dialog-overlay"],
 [data-slot="dialog-content"],
