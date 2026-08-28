@@ -35,6 +35,17 @@ describe("消息领域状态合并", () => {
       ).body,
     ).toEqual(revoked.body)
   })
+
+  it("以 clientMessageId 合并乐观消息与服务端回包", () => {
+    const optimistic = createMessage("optimistic:client-1", 2, {
+      clientMessageId: "client-1",
+      deliveryStatus: "sending",
+    })
+    const persisted = createMessage("message-2", 18, { clientMessageId: "client-1" })
+    const lateFailure = { ...optimistic, deliveryStatus: "failed" as const }
+
+    expect(mergeManagedMessages([optimistic], [persisted, lateFailure])).toEqual([persisted])
+  })
 })
 
 function createMessage(id: string, seq: number, patch: Partial<ClientMessage> = {}): ClientMessage {

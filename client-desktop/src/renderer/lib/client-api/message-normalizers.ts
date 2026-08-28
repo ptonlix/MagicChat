@@ -251,7 +251,7 @@ function normalizeMessageDelegatedBy(
   }
 }
 
-function normalizeMessageReplyTo(
+export function normalizeMessageReplyTo(
   replyTo: MessageReplyToResponse | null | undefined,
 ): ClientMessageReplyTo | undefined {
   if (!replyTo) {

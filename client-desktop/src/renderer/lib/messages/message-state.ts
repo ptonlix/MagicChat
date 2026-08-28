@@ -45,9 +45,21 @@ export function mergeManagedMessages(
   isDeleted: (message: ClientMessage) => boolean = () => false,
 ): ClientMessage[] {
   const byId = new Map(currentMessages.map((message) => [message.id, message]))
+  const idByClientMessageId = new Map(
+    currentMessages
+      .filter((message) => Boolean(message.clientMessageId))
+      .map((message) => [message.clientMessageId, message.id]),
+  )
   for (const incoming of incomingMessages) {
     if (isDeleted(incoming)) continue
-    byId.set(incoming.id, preserveNewerMessageState(byId.get(incoming.id), incoming))
+    const existingId = incoming.clientMessageId
+      ? idByClientMessageId.get(incoming.clientMessageId)
+      : undefined
+    const current = byId.get(existingId ?? incoming.id)
+    if (current && !current.deliveryStatus && incoming.deliveryStatus) continue
+    if (existingId && existingId !== incoming.id) byId.delete(existingId)
+    byId.set(incoming.id, preserveNewerMessageState(current, incoming))
+    if (incoming.clientMessageId) idByClientMessageId.set(incoming.clientMessageId, incoming.id)
   }
   return [...byId.values()].sort((left, right) =>
     left.seq === right.seq

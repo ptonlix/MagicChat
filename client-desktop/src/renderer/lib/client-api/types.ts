@@ -174,6 +174,7 @@ export type TopicSourceMessageResponse = {
   body?: MessageBodyResponse
   created_at?: string
   id?: string
+  reply_to?: MessageReplyToResponse | null
   revoked_at?: string | null
   sender?: TopicSourceSenderResponse
   seq?: number
@@ -857,6 +858,7 @@ export type ClientTopicSourceMessage = {
   body: ClientMessageBody
   createdAt: string
   id: string
+  replyTo?: ClientMessageReplyTo
   revokedAt: string | null
   sender: {
     avatar: string
@@ -1225,12 +1227,14 @@ export type ClientMessage = {
   clientMessageId: string
   conversationId: string
   createdAt: string
+  deliveryStatus?: "sending" | "failed"
   delegatedBy?: ClientMessageDelegatedBy
   id: string
   replyTo?: ClientMessageReplyTo
   replyToMessageId?: string
   reactionVersion: number
   reactions: ClientMessageReaction[]
+  retry?: () => void
   revokedAt?: string
   revokedByUserId?: string
   sender: ClientMessageSender

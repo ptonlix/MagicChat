@@ -110,6 +110,21 @@ describe("mergeConversationMessages", () => {
     expect(mergeConversationMessages([], [first, latest])).toEqual([latest])
   })
 
+  it("replaces an optimistic message with a realtime or HTTP response sharing its client ID", () => {
+    const optimistic = {
+      ...createMessage("optimistic:client-1", 2),
+      clientMessageId: "client-1",
+      deliveryStatus: "sending" as const,
+    }
+    const persisted = {
+      ...createMessage("message-2", 18),
+      clientMessageId: "client-1",
+    }
+    const lateFailure = { ...optimistic, deliveryStatus: "failed" as const }
+
+    expect(mergeConversationMessages([optimistic], [persisted, lateFailure])).toEqual([persisted])
+  })
+
   it("falls back to a full merge for overlapping sequence ranges", () => {
     const current = [createMessage("message-1", 1), createMessage("message-3", 3)]
     const next = [createMessage("message-4", 4), createMessage("message-2", 2)]

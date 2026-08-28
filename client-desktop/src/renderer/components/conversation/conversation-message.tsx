@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { Bot, MessagesSquare } from "lucide-react"
+import { Bot, LoaderCircle, MessagesSquare } from "lucide-react"
 import { toast } from "sonner"
 import { getAvatarInitial } from "@/lib/avatar"
 import { writeHostClipboardText } from "@/lib/desktop-host"
@@ -23,6 +23,7 @@ import { MessageRenderErrorBoundary } from "@/components/message-render-error-bo
 import { MessageVoice } from "@/components/message-voice"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -335,6 +336,34 @@ export const MessageBubble = React.memo(function MessageBubble({
             data-slot="message-bubble-line"
           >
             {renderedMessageBody}
+            {message.deliveryStatus === "sending" && (
+              <LoaderCircle
+                aria-label={t("message.sending")}
+                className="size-4 animate-spin text-muted-foreground"
+              />
+            )}
+            {message.deliveryStatus === "failed" && (
+              <Button
+                aria-label={t("message.retrySend")}
+                className="size-6 text-destructive hover:text-destructive"
+                onClick={message.retry}
+                size="icon"
+                title={t("message.retrySendTitle")}
+                type="button"
+                variant="ghost"
+              >
+                <svg aria-hidden="true" className="size-4" fill="currentColor" viewBox="0 0 16 16">
+                  <circle cx="8" cy="8" r="7" />
+                  <path
+                    d="M8 4.25v4.5M8 11.5h.01"
+                    fill="none"
+                    stroke="white"
+                    strokeLinecap="round"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </Button>
+            )}
             {!selectionMode && !unavailable && (
               <div
                 className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/message-row:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
@@ -426,7 +455,9 @@ function arePanelMessagesEqual(previous: ConversationPanelMessage, next: Convers
     previous.canRevoke === next.canRevoke &&
     previous.choice === next.choice &&
     previous.delegatedByName === next.delegatedByName &&
+    previous.deliveryStatus === next.deliveryStatus &&
     previous.reactionVersion === next.reactionVersion &&
+    previous.retry === next.retry &&
     previous.role === next.role &&
     previous.senderAppId === next.senderAppId &&
     previous.senderUserId === next.senderUserId &&

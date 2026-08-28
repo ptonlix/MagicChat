@@ -399,25 +399,22 @@ function TopicDrawerContent({ conversationId, onOpenChange, open }: TopicDrawerP
     })
   }
 
-  function sendMessage(contentOverride?: string) {
-    if (!conversation || messageState?.sending) return
+  async function sendMessage(contentOverride?: string) {
+    if (!conversation || messageState?.sending) return false
     const content = (contentOverride ?? draft).trim()
-    if (!content) return
-    const link = normalizeSingleLinkMessageURL(draft.trim())
+    if (!content) return false
+    const link = normalizeSingleLinkMessageURL(content)
     const send = link
       ? sendConversationLink
       : richTextMode
         ? sendConversationMarkdown
         : sendConversationText
-    void send(conversation.id, link ?? content, {
+    const message = await send(conversation.id, link ?? content, {
       replyToMessageId: replyTarget?.id,
-    }).then((message) => {
-      if (message) {
-        setDraft("")
-        setDraftMentions([])
-        setReplyTarget(null)
-      }
     })
+    if (!message) return false
+    setReplyTarget(null)
+    return true
   }
 
   async function sendFile(file: File) {
@@ -1161,6 +1158,7 @@ export function TopicSourceBanner({
       }
       data-testid="topic-source-message-bubble"
     >
+      {loadedSource.replyTo && <TopicSourceMessageReplyReference replyTo={loadedSource.replyTo} />}
       {choiceUnavailable ? (
         <span className="text-muted-foreground">
           {sourceChoiceStatus === "revoked" ? t("topic.revoked") : t("topic.deleted")}
@@ -1266,6 +1264,19 @@ export function TopicSourceBanner({
         </div>
         {fromCurrentUser && avatar}
       </div>
+    </div>
+  )
+}
+
+function TopicSourceMessageReplyReference({
+  replyTo,
+}: {
+  replyTo: NonNullable<ClientTopicSourceMessage["replyTo"]>
+}) {
+  return (
+    <div className="mb-2 border-l-2 border-foreground/20 pl-2 text-xs">
+      <div className="truncate font-medium text-foreground/80">{replyTo.sender.name}</div>
+      <div className="line-clamp-2 text-muted-foreground">{replyTo.summary}</div>
     </div>
   )
 }

@@ -67,6 +67,12 @@ describe("topic client API", () => {
               body: { type: "text", content: "讨论发布计划" },
               created_at: "2026-07-20T04:00:00Z",
               id: "message-1",
+              reply_to: {
+                id: "message-0",
+                sender: { id: "user-2", name: "Bob", type: "user" },
+                seq: 7,
+                summary: "原始引用消息",
+              },
               revoked_at: null,
               sender: {
                 avatar: "/avatars/alice.webp",
@@ -91,6 +97,11 @@ describe("topic client API", () => {
       sourceMessage: {
         body: { type: "text", content: "讨论发布计划" },
         id: "message-1",
+        replyTo: {
+          id: "message-0",
+          sender: { id: "user-2", name: "Bob", type: "user" },
+          summary: "原始引用消息",
+        },
         sender: { avatar: "/avatars/alice.webp" },
         summary: "讨论发布计划",
       },
@@ -100,6 +111,34 @@ describe("topic client API", () => {
       "/api/client/conversations/parent-1/messages/message-1/topic",
       { credentials: "include", method: "POST" },
     )
+  })
+
+  it("allows a missing source-message reply when the referenced message was removed", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({
+        success: true,
+        data: {
+          can_archive: true,
+          can_participate: true,
+          conversation: topicConversationResponse(),
+          parent_conversation: { id: "parent-1", name: "产品群", type: "group" },
+          source_message: {
+            body: { type: "revoked" },
+            created_at: "2026-07-20T04:00:00Z",
+            id: "message-1",
+            reply_to: null,
+            revoked_at: "2026-07-20T04:10:00Z",
+            sender: { id: "user-1", type: "user" },
+            seq: 8,
+            summary: "该消息已被撤回",
+          },
+        },
+      }),
+    )
+
+    await expect(getConversationTopic("topic-1", fetcher)).resolves.toMatchObject({
+      sourceMessage: { body: { type: "revoked" }, replyTo: undefined },
+    })
   })
 
   it("keeps source-message topic metadata from realtime payloads", () => {

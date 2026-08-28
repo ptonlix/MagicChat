@@ -38,10 +38,12 @@ export function toConversationPanelMessage(
     choice: message.choice,
     createdAt: message.createdAt,
     delegatedByName: message.delegatedBy?.name ?? "",
+    deliveryStatus: message.deliveryStatus,
     id: message.id,
     mentionTarget: getMessageMentionTarget(message, mentionLabelResolver),
     reactionVersion: message.reactionVersion ?? 0,
     reactions: message.reactions ?? [],
+    retry: message.retry,
     replyTo: getMessageReplyTarget(
       message,
       conversation,

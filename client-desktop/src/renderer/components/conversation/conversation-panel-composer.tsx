@@ -94,7 +94,7 @@ export const ConversationPanelComposer = React.forwardRef<
     ) => Promise<ClientMessage | null>
     onSendVoice: (voice: VoiceMessageRecording) => Promise<ClientMessage | null>
     onRichTextModeChange: (richTextMode: boolean) => void
-    onSendMessage: (content?: string) => void
+    onSendMessage: (content?: string) => Promise<boolean>
     richTextMode: boolean
     sending: boolean
   }
@@ -124,6 +124,9 @@ export const ConversationPanelComposer = React.forwardRef<
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
   const previousSendingRef = React.useRef(sending)
   const shouldFocusAfterSendingRef = React.useRef(false)
+  const sendInFlightRef = React.useRef(false)
+  const draftRef = React.useRef({ mentions: draftMentions, text: draft })
+  draftRef.current = { mentions: draftMentions, text: draft }
   const [expressionPickerOpen, setExpressionPickerOpen] = React.useState(false)
   const [fileDialogOpen, setFileDialogOpen] = React.useState(false)
   const [imageDialogOpen, setImageDialogOpen] = React.useState(false)
@@ -318,15 +321,27 @@ export const ConversationPanelComposer = React.forwardRef<
     setSelectedMentionIndex(0)
   }
 
-  function handleSendMessage() {
-    if (sending || !draft.trim()) {
-      return
-    }
-
+  async function handleSendMessage() {
+    const submitted = draftRef.current
+    if (!submitted.text.trim() || sendInFlightRef.current) return
     shouldFocusAfterSendingRef.current = true
-    onSendMessage(createDraftMentionTemplate(draft, draftMentions))
+    sendInFlightRef.current = true
     setMentionTrigger(null)
     setSelectedMentionIndex(0)
+    try {
+      const accepted = await onSendMessage(
+        createDraftMentionTemplate(submitted.text, submitted.mentions),
+      )
+      if (
+        accepted &&
+        draftRef.current.text === submitted.text &&
+        draftRef.current.mentions === submitted.mentions
+      ) {
+        onDraftChange("", [])
+      }
+    } finally {
+      sendInFlightRef.current = false
+    }
   }
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {

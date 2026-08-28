@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react"
+import { renderHook, waitFor } from "@testing-library/react"
 import type { RefObject } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -82,6 +82,7 @@ describe("useConversationSenders", () => {
     )
     const { result } = renderHook(() =>
       useConversationSenders({
+        currentUserId: "user-1",
         conversationMessageStatesRef,
         mergeIncomingConversationMessage,
         updateConversationMessageState,
@@ -136,9 +137,68 @@ describe("useConversationSenders", () => {
     }
 
     expect(outcomes).toEqual([null, null, null, null, null, null, null])
-    expect(mergeIncomingConversationMessage).not.toHaveBeenCalled()
+    expect(mergeIncomingConversationMessage).toHaveBeenCalledTimes(6)
+    expect(mergeIncomingConversationMessage.mock.calls[0]?.[0]).toMatchObject({
+      deliveryStatus: "sending",
+      sender: { id: "user-1", type: "user" },
+    })
+    expect(mergeIncomingConversationMessage.mock.calls[1]?.[0]).toMatchObject({
+      deliveryStatus: "failed",
+    })
     expect(conversationMessageStatesRef.current[conversationId].sending).toBe(false)
     expect(mocks.toastError).toHaveBeenCalledTimes(7)
     expect(mocks.toastError).toHaveBeenCalledWith("仅支持向好友发送私信")
+  })
+
+  it("keeps the client message ID when retrying a failed optimistic text message", async () => {
+    const conversationId = "conversation-1"
+    const conversationMessageStatesRef = {
+      current: { [conversationId]: createConversationMessageState() },
+    } as RefObject<Record<string, ClientConversationMessageState>>
+    const mergeIncomingConversationMessage = vi.fn()
+    const updateConversationMessageState = vi.fn()
+    const submittedIds: string[] = []
+    mocks.sendConversationTextMessage.mockImplementation(
+      async (_conversationId: string, input: { clientMessageId: string }) => {
+        submittedIds.push(input.clientMessageId)
+        if (submittedIds.length === 1) throw new Error("network timeout")
+        return {
+          body: { content: "文本", type: "text" },
+          clientMessageId: input.clientMessageId,
+          conversationId,
+          createdAt: "2026-08-01T00:00:00Z",
+          id: "message-1",
+          reactionVersion: 0,
+          reactions: [],
+          sender: { id: "user-1", type: "user" },
+          seq: 1,
+        }
+      },
+    )
+    const { result } = renderHook(() =>
+      useConversationSenders({
+        currentUserId: "user-1",
+        conversationMessageStatesRef,
+        mergeIncomingConversationMessage,
+        updateConversationMessageState,
+      }),
+    )
+
+    await expect(result.current.sendConversationText(conversationId, "文本")).resolves.toBeNull()
+    const failedMessage = mergeIncomingConversationMessage.mock.calls.at(-1)?.[0]
+    expect(failedMessage).toMatchObject({ deliveryStatus: "failed" })
+
+    failedMessage.retry()
+    await waitFor(() => expect(submittedIds).toHaveLength(2))
+
+    expect(submittedIds[1]).toBe(submittedIds[0])
+    expect(mergeIncomingConversationMessage.mock.calls.at(-2)?.[0]).toMatchObject({
+      clientMessageId: submittedIds[0],
+      deliveryStatus: "sending",
+    })
+    expect(mergeIncomingConversationMessage.mock.calls.at(-1)?.[0]).toMatchObject({
+      clientMessageId: submittedIds[0],
+      id: "message-1",
+    })
   })
 })

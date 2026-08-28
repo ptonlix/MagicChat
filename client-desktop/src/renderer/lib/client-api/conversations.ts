@@ -1,5 +1,9 @@
 import { ClientDataRequestError, createRequestError, normalizeVisibility, readJson } from "./core"
-import { normalizeClientMessageBody, normalizeMessage } from "./message-normalizers"
+import {
+  normalizeClientMessageBody,
+  normalizeMessage,
+  normalizeMessageReplyTo,
+} from "./message-normalizers"
 import type {
   ClientDataFetch,
   ClientDataSuccessEnvelope,
@@ -926,6 +930,7 @@ function normalizeTopicDetail(detail: TopicDetailResponse | undefined): ClientTo
       body: source.revoked_at ? { type: "revoked" } : normalizeClientMessageBody(source.body),
       createdAt: source.created_at,
       id: source.id,
+      replyTo: normalizeMessageReplyTo(source.reply_to),
       revokedAt: source.revoked_at ?? null,
       sender: {
         avatar: source.sender.avatar ?? "",

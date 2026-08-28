@@ -927,11 +927,11 @@ export function ChatPage() {
     flushDrafts()
   }
 
-  function sendMessage(contentOverride?: string) {
-    const visibleContent = draft.trim()
-    const content = (contentOverride ?? draft).trim()
+  async function sendMessage(contentOverride?: string) {
+    const visibleContent = (contentOverride ?? draft).trim()
+    const content = visibleContent
     if (!content || !activeConversationId || activeMessageState?.sending) {
-      return
+      return false
     }
 
     const sendingConversationId = activeConversationId
@@ -944,14 +944,12 @@ export function ChatPage() {
         : sendConversationText
     const sendContent = linkURL ?? content
 
-    void sendConversation(sendingConversationId, sendContent, {
+    const message = await sendConversation(sendingConversationId, sendContent, {
       replyToMessageId: sendingReplyToMessageId,
-    }).then((message) => {
-      if (message) {
-        clearConversationDraft(sendingConversationId)
-        flushDrafts()
-      }
     })
+    if (!message) return false
+    clearSentReplyTarget(sendingConversationId, sendingReplyToMessageId)
+    return true
   }
 
   async function sendFileMessage(file: File) {

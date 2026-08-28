@@ -1,4 +1,4 @@
-import { useCallback, type RefObject } from "react"
+import { useCallback, useRef, type RefObject } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { toast } from "sonner"
 
@@ -13,6 +13,7 @@ import {
   sendConversationTextMessage,
 } from "@/lib/client-data-api"
 import type { ClientCardSendInput } from "@/lib/client-data-api"
+import type { ClientMessage } from "@/lib/client-data-api"
 import type {
   ClientConversationMessageState,
   ClientDataContextValue,
@@ -24,10 +25,12 @@ import { createClientMessageId } from "@/lib/message-id"
 import type { VoiceMessageRecording } from "@/lib/voice-message"
 
 export function useConversationSenders({
+  currentUserId,
   conversationMessageStatesRef,
   mergeIncomingConversationMessage,
   updateConversationMessageState,
 }: {
+  currentUserId: string
   conversationMessageStatesRef: RefObject<Record<string, ClientConversationMessageState>>
   mergeIncomingConversationMessage: ClientDataContextValue["mergeIncomingConversationMessage"]
   updateConversationMessageState: (
@@ -36,6 +39,69 @@ export function useConversationSenders({
   ) => void
 }) {
   const { t } = useLocale()
+  const attemptsRef = useRef(new Set<string>())
+  const sendOptimistic = useCallback(
+    async function runOptimistic(
+      conversationId: string,
+      clientMessageId: string,
+      body: ClientMessage["body"],
+      replyToMessageId: string | undefined,
+      request: () => Promise<ClientMessage>,
+      failureText: string,
+    ) {
+      if (attemptsRef.current.has(clientMessageId)) return null
+
+      const retry = () => {
+        void runOptimistic(
+          conversationId,
+          clientMessageId,
+          body,
+          replyToMessageId,
+          request,
+          failureText,
+        )
+      }
+      attemptsRef.current.add(clientMessageId)
+
+      const state = conversationMessageStatesRef.current[conversationId]
+      const temporary: ClientMessage = {
+        body,
+        clientMessageId,
+        conversationId,
+        createdAt: new Date().toISOString(),
+        deliveryStatus: "sending",
+        id: `optimistic:${clientMessageId}`,
+        reactionVersion: 0,
+        reactions: [],
+        replyToMessageId,
+        retry,
+        sender: { id: currentUserId, type: "user" },
+        seq:
+          Math.max(
+            state?.latestKnownSeq ?? 0,
+            ...(state?.messages.map((item) => item.seq) ?? [0]),
+          ) + 1,
+      }
+      mergeIncomingConversationMessage(temporary, { markLoaded: true })
+
+      try {
+        const message = await request()
+        mergeIncomingConversationMessage(message, { markLoaded: true })
+        return message
+      } catch (error: unknown) {
+        mergeIncomingConversationMessage(
+          { ...temporary, deliveryStatus: "failed" },
+          { markLoaded: true },
+        )
+        toast.error(getClientDataErrorMessage(error, failureText))
+        return null
+      } finally {
+        attemptsRef.current.delete(clientMessageId)
+      }
+    },
+    [conversationMessageStatesRef, currentUserId, mergeIncomingConversationMessage],
+  )
+
   const sendConversationText = useCallback(
     async (
       conversationId: string,
@@ -43,41 +109,23 @@ export function useConversationSenders({
       options: SendConversationMessageOptions = {},
     ) => {
       const trimmedContent = content.trim()
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || !trimmedContent || state?.sending) {
-        return null
-      }
-
+      if (!conversationId || !trimmedContent) return null
       const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationTextMessage(conversationId, {
-          clientMessageId,
-          content: trimmedContent,
-          replyToMessageId: options.replyToMessageId,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, t("data.sendMessageFailed")))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
+      return sendOptimistic(
+        conversationId,
+        clientMessageId,
+        { content: trimmedContent, type: "text" },
+        options.replyToMessageId,
+        () =>
+          sendConversationTextMessage(conversationId, {
+            clientMessageId,
+            content: trimmedContent,
+            replyToMessageId: options.replyToMessageId,
+          }),
+        t("data.sendMessageFailed"),
+      )
     },
-    [
-      conversationMessageStatesRef,
-      mergeIncomingConversationMessage,
-      updateConversationMessageState,
-      t,
-    ],
+    [sendOptimistic, t],
   )
 
   const sendConversationMarkdown = useCallback(
@@ -87,81 +135,45 @@ export function useConversationSenders({
       options: SendConversationMessageOptions = {},
     ) => {
       const trimmedContent = content.trim()
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || !trimmedContent || state?.sending) {
-        return null
-      }
-
+      if (!conversationId || !trimmedContent) return null
       const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationMarkdownMessage(conversationId, {
-          clientMessageId,
-          content: trimmedContent,
-          replyToMessageId: options.replyToMessageId,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, t("data.sendRichTextFailed")))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
+      return sendOptimistic(
+        conversationId,
+        clientMessageId,
+        { content: trimmedContent, type: "markdown" },
+        options.replyToMessageId,
+        () =>
+          sendConversationMarkdownMessage(conversationId, {
+            clientMessageId,
+            content: trimmedContent,
+            replyToMessageId: options.replyToMessageId,
+          }),
+        t("data.sendRichTextFailed"),
+      )
     },
-    [
-      conversationMessageStatesRef,
-      mergeIncomingConversationMessage,
-      updateConversationMessageState,
-      t,
-    ],
+    [sendOptimistic, t],
   )
 
   const sendConversationLink = useCallback(
     async (conversationId: string, url: string, options: SendConversationMessageOptions = {}) => {
       const trimmedURL = url.trim()
-      const state = conversationMessageStatesRef.current[conversationId]
-      if (!conversationId || !trimmedURL || state?.sending) {
-        return null
-      }
-
+      if (!conversationId || !trimmedURL) return null
       const clientMessageId = createClientMessageId()
-      updateConversationMessageState(conversationId, (currentState) => ({
-        ...currentState,
-        sending: true,
-      }))
-
-      try {
-        const message = await sendConversationLinkMessage(conversationId, {
-          clientMessageId,
-          replyToMessageId: options.replyToMessageId,
-          url: trimmedURL,
-        })
-        mergeIncomingConversationMessage(message, { markLoaded: true })
-        return message
-      } catch (error: unknown) {
-        toast.error(getClientDataErrorMessage(error, t("data.sendLinkFailed")))
-        return null
-      } finally {
-        updateConversationMessageState(conversationId, (currentState) => ({
-          ...currentState,
-          sending: false,
-        }))
-      }
+      return sendOptimistic(
+        conversationId,
+        clientMessageId,
+        { title: trimmedURL, type: "link", url: trimmedURL },
+        options.replyToMessageId,
+        () =>
+          sendConversationLinkMessage(conversationId, {
+            clientMessageId,
+            replyToMessageId: options.replyToMessageId,
+            url: trimmedURL,
+          }),
+        t("data.sendLinkFailed"),
+      )
     },
-    [
-      conversationMessageStatesRef,
-      mergeIncomingConversationMessage,
-      updateConversationMessageState,
-      t,
-    ],
+    [sendOptimistic, t],
   )
 
   const sendConversationCard = useCallback(

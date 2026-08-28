@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router"
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TaskWorkspacePage } from "@/pages/task-workspace-page"
@@ -144,6 +144,28 @@ describe("TaskWorkspacePage", () => {
     expect(screen.getByRole("button", { name: "触发任务更新" })).toBeInTheDocument()
   })
 
+  it("refetches a deep-linked task after visiting a task already in the list", async () => {
+    const user = userEvent.setup()
+    mocks.listClientProjectTasks.mockResolvedValue({
+      nextCursor: null,
+      tasks: [createTask("listed-task", "列表任务")],
+    })
+    mocks.getClientProjectTask
+      .mockResolvedValueOnce(createTask("deep-task", "旧的深链任务"))
+      .mockResolvedValueOnce(createTask("deep-task", "刷新的深链任务"))
+
+    renderTaskWorkspaceWithNavigation("/tasks/project-1/deep-task")
+
+    await waitFor(() => expect(mocks.getClientProjectTask).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole("button", { name: "打开列表任务" }))
+    expect(await screen.findByText("列表任务")).toBeInTheDocument()
+    expect(mocks.getClientProjectTask).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole("button", { name: "返回深链任务" }))
+    await waitFor(() => expect(mocks.getClientProjectTask).toHaveBeenCalledTimes(2))
+  })
+
   it("returns to chat from the task workspace", async () => {
     const user = userEvent.setup()
     mocks.listClientProjectTasks.mockResolvedValue({
@@ -173,6 +195,31 @@ function renderTaskWorkspace(initialEntry = "/tasks/project-1") {
         <Route element={<CurrentPath />} path="/chat" />
       </Routes>
     </MemoryRouter>,
+  )
+}
+
+function renderTaskWorkspaceWithNavigation(initialEntry: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <TaskNavigation />
+      <Routes>
+        <Route element={<TaskWorkspacePage />} path="/tasks/:projectId/:taskId?" />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+function TaskNavigation() {
+  const navigate = useNavigate()
+  return (
+    <div>
+      <button onClick={() => navigate("/tasks/project-1/listed-task")} type="button">
+        打开列表任务
+      </button>
+      <button onClick={() => navigate("/tasks/project-1/deep-task")} type="button">
+        返回深链任务
+      </button>
+    </div>
   )
 }
 

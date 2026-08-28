@@ -101,6 +101,30 @@ describe("TopicSourceBanner", () => {
     expect(screen.queryByText("不同的摘要")).not.toBeInTheDocument()
   })
 
+  it("renders source-message reply context and omits it when the reference is unavailable", () => {
+    const sourceMessage = createSourceMessage()
+    sourceMessage.replyTo = {
+      id: "message-0",
+      sender: { id: "user-2", name: "Bob", type: "user" },
+      seq: 7,
+      summary: "被引用的原消息",
+    }
+    const view = render(<TopicSourceBanner currentUserId="user-2" sourceMessage={sourceMessage} />)
+
+    expect(screen.getByText("Bob")).toBeInTheDocument()
+    expect(screen.getByText("被引用的原消息")).toBeInTheDocument()
+
+    view.rerender(
+      <TopicSourceBanner
+        currentUserId="user-2"
+        sourceMessage={{ ...sourceMessage, body: { type: "revoked" }, replyTo: undefined }}
+      />,
+    )
+
+    expect(screen.queryByText("被引用的原消息")).not.toBeInTheDocument()
+    expect(screen.getByText("该消息已被撤回")).toBeInTheDocument()
+  })
+
   it("uses a resolved non-friend group member profile for the source sender", () => {
     const sourceMessage = createSourceMessage()
     sourceMessage.sender = {

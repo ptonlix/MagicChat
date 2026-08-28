@@ -217,6 +217,7 @@ export function mergeConversationMessages(
   }
 
   const currentMessageIds = new Set<string>()
+  const currentClientMessageIds = new Set<string>()
   let currentMessagesAreSortedAndUnique = true
 
   for (let index = 0; index < currentMessages.length; index += 1) {
@@ -226,6 +227,7 @@ export function mergeConversationMessages(
       break
     }
     currentMessageIds.add(message.id)
+    if (message.clientMessageId) currentClientMessageIds.add(message.clientMessageId)
 
     const previousMessage = currentMessages[index - 1]
     if (previousMessage && compareMessages(previousMessage, message) > 0) {
@@ -234,8 +236,10 @@ export function mergeConversationMessages(
     }
   }
 
-  const overlapsCurrentMessages = normalizedNextMessages.some((message) =>
-    currentMessageIds.has(message.id),
+  const overlapsCurrentMessages = normalizedNextMessages.some(
+    (message) =>
+      currentMessageIds.has(message.id) ||
+      (Boolean(message.clientMessageId) && currentClientMessageIds.has(message.clientMessageId)),
   )
 
   if (currentMessagesAreSortedAndUnique && !overlapsCurrentMessages) {
@@ -258,13 +262,28 @@ export function mergeConversationMessages(
 
 function deduplicateAndSortMessages(messages: ClientMessage[]) {
   const messagesById = new Map<string, ClientMessage>()
+  const idByClientMessageId = new Map<string, string>()
 
   for (const message of messages) {
-    const existing = messagesById.get(message.id)
+    const existingId = message.clientMessageId
+      ? idByClientMessageId.get(message.clientMessageId)
+      : undefined
+    const existing = messagesById.get(existingId ?? message.id)
+    // A persisted realtime or HTTP response is authoritative. A late failed
+    // optimistic request must not replace it with its temporary representation.
+    if (existing && !existing.deliveryStatus && message.deliveryStatus) {
+      continue
+    }
+    if (existingId && existingId !== message.id) {
+      messagesById.delete(existingId)
+    }
     messagesById.set(
       message.id,
       existing?.topic && !message.topic ? { ...message, topic: existing.topic } : message,
     )
+    if (message.clientMessageId) {
+      idByClientMessageId.set(message.clientMessageId, message.id)
+    }
   }
 
   return Array.from(messagesById.values()).sort(compareMessages)

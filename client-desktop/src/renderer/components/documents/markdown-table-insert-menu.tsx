@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Sheet } from "lucide-react"
 
+import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -15,6 +16,7 @@ export function MarkdownTableInsertMenu({
   disabled?: boolean
   onInsert: (rows: number, columns: number) => void
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = React.useState(false)
   const [selection, setSelection] = React.useState({ columns: 3, rows: 3 })
   const cellRefs = React.useRef(new Map<string, HTMLButtonElement>())
@@ -44,10 +46,10 @@ export function MarkdownTableInsertMenu({
     <Popover onOpenChange={handleOpenChange} open={open}>
       <PopoverTrigger asChild>
         <Button
-          aria-label="插入表格"
+          aria-label={t("document.table.insert")}
           disabled={disabled}
           size="icon-sm"
-          title="插入表格"
+          title={t("document.table.insert")}
           type="button"
           variant="ghost"
         >
@@ -56,12 +58,16 @@ export function MarkdownTableInsertMenu({
       </PopoverTrigger>
       <PopoverContent align="center" className="w-auto p-3">
         <div className="mb-2 flex items-center justify-between gap-6 text-xs">
-          <span className="font-medium">插入表格</span>
+          <span className="font-medium">{t("document.table.insert")}</span>
           <span className="text-muted-foreground">
             {selection.rows} × {selection.columns}
           </span>
         </div>
-        <div aria-label="选择表格行列数量" className="grid grid-cols-10 gap-1" role="grid">
+        <div
+          aria-label={t("document.table.selectDimensions")}
+          className="grid grid-cols-10 gap-1"
+          role="grid"
+        >
           {Array.from({ length: maximumTableRows }, (_, rowIndex) =>
             Array.from({ length: maximumTableColumns }, (_, columnIndex) => {
               const rows = rowIndex + 1
@@ -71,7 +77,7 @@ export function MarkdownTableInsertMenu({
               const key = tableCellKey(rows, columns)
               return (
                 <button
-                  aria-label={`${rows} 行 ${columns} 列`}
+                  aria-label={t("document.table.dimension", { columns, rows })}
                   aria-pressed={active}
                   className={cn(
                     "size-5 rounded-sm border transition-colors",

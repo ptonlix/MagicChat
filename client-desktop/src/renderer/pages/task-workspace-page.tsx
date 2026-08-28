@@ -228,6 +228,9 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
     void refreshActiveTask({ navigateOnError: true })
     return () => {
       activeTaskRequestIdRef.current += 1
+      if (fetchedActiveTaskIdRef.current === taskId) {
+        fetchedActiveTaskIdRef.current = ""
+      }
     }
   }, [refreshActiveTask, taskId])
 

@@ -91,7 +91,7 @@ type ConversationPanelProps = {
   onOpenTopic?: (conversationId: string) => void
   onReturnToLatestMessages?: () => void
   onRichTextModeChange: (richTextMode: boolean) => void
-  onSendMessage: (content?: string) => void
+  onSendMessage: (content?: string) => Promise<boolean>
   onStartMessageSelection?: (message: ConversationPanelMessage) => void
   onToggleMessageSelection?: (message: ConversationPanelMessage) => void
   replyTarget: ConversationPanelReplyTarget | null

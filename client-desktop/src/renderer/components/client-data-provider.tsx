@@ -2428,6 +2428,7 @@ function ClientDataProviderForTarget({
     sendConversationText,
     sendConversationVoice,
   } = useConversationSenders({
+    currentUserId,
     conversationMessageStatesRef,
     mergeIncomingConversationMessage,
     updateConversationMessageState,

@@ -300,7 +300,11 @@ export class MessageManager {
       try {
         const generation = await this.operationGeneration(token)
         this.assertOperationCurrent(token)
+        // Optimistic messages carry a non-serializable retry callback and only
+        // exist for the current renderer session. Persist the server-confirmed
+        // replacement instead.
         const mergedRecords = acceptedMessages
+          .filter((message) => !message.deliveryStatus)
           .map((message) => next.find((candidate) => candidate.id === message.id))
           .filter((message): message is ClientMessage => message !== undefined)
         if (mergedRecords.length > 0)
