@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 
 type GroupConversationProjectsProps = {
   availableProjects: ClientProjectSummary[]
@@ -68,13 +69,13 @@ export function GroupConversationProjects({
     [linkedProjects],
   )
   const candidates = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLocaleLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
 
     return availableProjects.filter(
       (project) =>
         !project.isPersonal &&
         !linkedProjectIds.has(project.id) &&
-        (!normalizedKeyword || project.name.toLocaleLowerCase().includes(normalizedKeyword)),
+        (!normalizedKeyword || createPinyinSearchText([project.name]).includes(normalizedKeyword)),
     )
   }, [availableProjects, keyword, linkedProjectIds])
 

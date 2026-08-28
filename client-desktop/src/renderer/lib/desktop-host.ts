@@ -8,6 +8,7 @@ export type DesktopRendererHost = {
   }) => RealtimeClient
   cancelThirdPartyLogin?: (transactionId: string) => Promise<void>
   downloadTemporaryFile?: (fileId: string, fileName: string) => Promise<void>
+  messageNotificationsEnabled?: () => boolean
   messageNotificationSoundEnabled?: () => boolean
   openSettings?: () => void
   openThirdPartyLogin?: (providerKey: string) => Promise<{ transactionId: string }>
@@ -46,10 +47,10 @@ export function requestHostMicrophonePermission() {
   return desktopRendererHost.requestMicrophonePermission?.()
 }
 export function setHostBadge(count: number) {
-  desktopRendererHost.setBadge?.(count)
+  desktopRendererHost.setBadge?.(isHostMessageNotificationsEnabled() ? count : 0)
 }
 export function setHostTrayMessages(messages: ReadonlyArray<TrayMessageInput>) {
-  desktopRendererHost.setTrayMessages?.(messages)
+  desktopRendererHost.setTrayMessages?.(isHostMessageNotificationsEnabled() ? messages : [])
 }
 export function resolveHostResourceUrl(url: string) {
   return desktopRendererHost.resolveResourceUrl?.(url) ?? url
@@ -75,8 +76,13 @@ export function showHostMessageNotification(input: {
 }) {
   return desktopRendererHost.showMessageNotification?.(input) ?? false
 }
+export function isHostMessageNotificationsEnabled() {
+  return desktopRendererHost.messageNotificationsEnabled?.() ?? true
+}
 export function isHostMessageNotificationSoundEnabled() {
-  return desktopRendererHost.messageNotificationSoundEnabled?.() ?? true
+  return isHostMessageNotificationsEnabled()
+    ? (desktopRendererHost.messageNotificationSoundEnabled?.() ?? true)
+    : false
 }
 export function openHostExternal(url: string) {
   if (!desktopRendererHost.openExternal) throw new Error("外部链接能力不可用")

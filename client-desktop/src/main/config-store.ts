@@ -29,6 +29,7 @@ const defaultSettings: DesktopSettings = {
   closeBehavior: "background",
   fontScale: "normal",
   language: "zh-CN",
+  messageNotificationsEnabled: true,
   messageSoundEnabled: true,
   notificationPrivacy: "metadata",
   screenshotShortcut: DEFAULT_SCREENSHOT_SHORTCUT,
@@ -83,6 +84,8 @@ export class ConfigStore {
       const next = { ...this.config.settings, ...patch }
       if (!(["background", "quit"] as const).includes(next.closeBehavior))
         throw new Error("关闭行为无效")
+      if (typeof next.messageNotificationsEnabled !== "boolean")
+        throw new Error("新消息通知设置无效")
       if (typeof next.messageSoundEnabled !== "boolean") throw new Error("新消息提示音设置无效")
       if (next.language !== "zh-CN" && next.language !== "en") throw new Error("语言设置无效")
       if (!(["normal", "medium", "large"] as const).includes(next.fontScale))
@@ -230,6 +233,10 @@ function normalizeSettings(value: unknown, servers: ServerProfile[]): DesktopSet
       input.language === "zh-CN" || input.language === "en"
         ? input.language
         : defaultSettings.language,
+    messageNotificationsEnabled:
+      typeof input.messageNotificationsEnabled === "boolean"
+        ? input.messageNotificationsEnabled
+        : defaultSettings.messageNotificationsEnabled,
     messageSoundEnabled:
       typeof input.messageSoundEnabled === "boolean"
         ? input.messageSoundEnabled

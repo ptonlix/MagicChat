@@ -80,7 +80,7 @@ describe("MarkdownDocumentEditor", () => {
     await user.click(screen.getByRole("button", { name: "粗体" }))
     await waitFor(() =>
       expect(mocks.dispatch).toHaveBeenCalledWith(
-        expect.objectContaining({ changes: expect.objectContaining({ insert: "**文本**" }) }),
+        expect.objectContaining({ changes: expect.objectContaining({ insert: "**粗体文本**" }) }),
       ),
     )
   })

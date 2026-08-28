@@ -30,6 +30,7 @@ import {
 import { useRealtime } from "@/lib/realtime-context"
 import {
   isHostMessageNotificationSoundEnabled,
+  isHostMessageNotificationsEnabled,
   showHostMessageNotification,
 } from "@/lib/desktop-host"
 
@@ -74,6 +75,7 @@ export function ClientMessageNotificationSync() {
     return subscribeRealtimeEvent("message.created", (payload) => {
       try {
         const message = normalizeMessageCreatedEventPayload(payload)
+        if (!isHostMessageNotificationsEnabled()) return
         const conversation = conversations.find(
           (currentConversation) => currentConversation.id === message.conversationId,
         )

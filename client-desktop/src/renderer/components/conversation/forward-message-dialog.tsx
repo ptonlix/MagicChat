@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import type { ClientConversation, ForwardConversationMessagesResult } from "@/lib/client-data-api"
 import { getClientDataErrorMessage } from "@/lib/client-data-state"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { cn } from "@/lib/utils"
 import { ConversationSelectionAvatar } from "@/components/conversation/conversation-selection-avatar"
 import { Badge } from "@/components/ui/badge"
@@ -62,13 +63,13 @@ export function ForwardMessageDialog({
     const sendableConversations = conversations.filter(
       (conversation) => !conversation.topic?.archived,
     )
-    const normalizedKeyword = keyword.trim().toLocaleLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
     if (!normalizedKeyword) {
       return sendableConversations
     }
 
     return sendableConversations.filter((conversation) =>
-      conversation.name.toLocaleLowerCase().includes(normalizedKeyword),
+      createPinyinSearchText([conversation.name]).includes(normalizedKeyword),
     )
   }, [conversations, keyword])
 

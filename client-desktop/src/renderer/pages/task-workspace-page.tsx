@@ -14,8 +14,17 @@ import { useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { CreateProjectTaskDialog } from "@/components/projects/create-project-task-dialog"
+import {
+  AssigneeFilter,
+  PriorityFilter,
+  StatusFilter,
+} from "@/components/projects/project-tasks-tab"
 import { ProjectTaskDetailsDialog } from "@/components/projects/project-task-details-dialog"
-import type { ProjectTask } from "@/components/projects/project-types"
+import type {
+  ProjectTask,
+  ProjectTaskPriority,
+  ProjectTaskStatus,
+} from "@/components/projects/project-types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -42,6 +51,7 @@ import {
   hydrateProjectTask,
   hydrateProjectTasks,
 } from "@/lib/project-user-hydration"
+import { listAllClientProjectMembers } from "@/lib/project-members"
 import { cn } from "@/lib/utils"
 
 const statusLabelKeys = {
@@ -75,6 +85,14 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
   const [error, setError] = React.useState("")
   const [keyword, setKeyword] = React.useState("")
   const deferredKeyword = React.useDeferredValue(keyword.trim())
+  const [priorities, setPriorities] = React.useState<ProjectTaskPriority[]>([])
+  const [statuses, setStatuses] = React.useState<ProjectTaskStatus[]>([])
+  const [assigneeUserIds, setAssigneeUserIds] = React.useState<string[]>([])
+  const [members, setMembers] = React.useState<
+    Awaited<ReturnType<typeof listAllClientProjectMembers>>
+  >([])
+  const [membersLoading, setMembersLoading] = React.useState(true)
+  const [membersError, setMembersError] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
@@ -98,10 +116,14 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
   const loadTasks = React.useCallback(async () => {
     const requestId = ++requestIdRef.current
     setLoading(true)
+    setLoadingMore(false)
     try {
       const page = await listClientProjectTasks(projectId, {
+        assigneeUserIds,
         keyword: deferredKeyword || undefined,
         limit: 50,
+        priorities,
+        statuses,
       })
       if (requestId === requestIdRef.current) {
         setTasks(page.tasks)
@@ -115,10 +137,16 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }
-  }, [deferredKeyword, projectId, t])
+  }, [assigneeUserIds, deferredKeyword, priorities, projectId, statuses, t])
 
   React.useEffect(() => {
     let active = true
+    setMembersLoading(true)
+    setMembersError(false)
+    void listAllClientProjectMembers(projectId)
+      .then((values) => active && setMembers(values))
+      .catch(() => active && setMembersError(true))
+      .finally(() => active && setMembersLoading(false))
     void listClientProjects({ limit: 100 })
       .then((page) => {
         if (!active) return
@@ -165,23 +193,43 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
     }
   }, [loadTasks])
 
-  React.useEffect(() => {
-    if (!taskId || tasks.some((task) => task.id === taskId)) return
-    let active = true
-    void getClientProjectTask(projectId, taskId)
-      .then((task) => {
-        if (active) setActiveTask(task)
-      })
-      .catch((loadError: unknown) => {
-        if (active) {
+  const activeTaskRequestIdRef = React.useRef(0)
+  const refreshActiveTask = React.useCallback(
+    async (options: { navigateOnError: boolean }) => {
+      if (!taskId) return
+      const requestId = ++activeTaskRequestIdRef.current
+      try {
+        const task = await getClientProjectTask(projectId, taskId)
+        if (requestId === activeTaskRequestIdRef.current) {
+          setActiveTask(task)
+        }
+      } catch (loadError) {
+        if (requestId !== activeTaskRequestIdRef.current) return
+        fetchedActiveTaskIdRef.current = ""
+        if (options.navigateOnError) {
           toast.error(loadError instanceof Error ? loadError.message : t("project.loadTaskFailed"))
           navigate(`/tasks/${encodeURIComponent(projectId)}`, { replace: true })
+        } else {
+          toast.error(t("taskWorkspace.taskRefreshFailed"))
         }
-      })
+      }
+    },
+    [navigate, projectId, t, taskId],
+  )
+
+  const tasksSnapshotRef = React.useRef(tasks)
+  tasksSnapshotRef.current = tasks
+  const fetchedActiveTaskIdRef = React.useRef("")
+  React.useEffect(() => {
+    if (!taskId) return
+    if (tasksSnapshotRef.current.some((task) => task.id === taskId)) return
+    if (fetchedActiveTaskIdRef.current === taskId) return
+    fetchedActiveTaskIdRef.current = taskId
+    void refreshActiveTask({ navigateOnError: true })
     return () => {
-      active = false
+      activeTaskRequestIdRef.current += 1
     }
-  }, [navigate, projectId, t, taskId, tasks])
+  }, [refreshActiveTask, taskId])
 
   const displayedTask =
     tasks.find((task) => task.id === taskId) ?? (activeTask?.id === taskId ? activeTask : null)
@@ -208,12 +256,18 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
     setLoadingMore(true)
     try {
       const page = await listClientProjectTasks(projectId, {
+        assigneeUserIds,
         cursor: nextCursor,
         keyword: deferredKeyword || undefined,
         limit: 50,
+        priorities,
+        statuses,
       })
       if (requestId === requestIdRef.current) {
-        setTasks((current) => [...current, ...page.tasks])
+        setTasks((current) => {
+          const seen = new Set(current.map((task) => task.id))
+          return [...current, ...page.tasks.filter((task) => !seen.has(task.id))]
+        })
         setNextCursor(page.nextCursor)
       }
     } catch (loadError) {
@@ -223,7 +277,7 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
         )
       }
     } finally {
-      setLoadingMore(false)
+      if (requestId === requestIdRef.current) setLoadingMore(false)
     }
   }
 
@@ -233,10 +287,16 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
   }
 
   function handleTaskDeleted(deletedTaskId: string) {
+    activeTaskRequestIdRef.current += 1
     setTasks((current) => current.filter((task) => task.id !== deletedTaskId))
     setActiveTask(null)
     navigate(`/tasks/${encodeURIComponent(projectId)}`, { replace: true })
     void loadTasks()
+  }
+
+  async function handleTaskUpdated() {
+    await loadTasks()
+    await refreshActiveTask({ navigateOnError: false })
   }
 
   return (
@@ -322,6 +382,26 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
               <Plus />
             </Button>
           </div>
+          <div aria-label={t("taskWorkspace.filters")} className="flex flex-wrap gap-2">
+            <StatusFilter
+              emptyLabel={t("taskWorkspace.allStatuses")}
+              onValueChange={setStatuses}
+              value={statuses}
+            />
+            <PriorityFilter
+              emptyLabel={t("taskWorkspace.allPriorities")}
+              onValueChange={setPriorities}
+              value={priorities}
+            />
+            <AssigneeFilter
+              loading={membersLoading}
+              members={members}
+              membersError={membersError}
+              onValueChange={setAssigneeUserIds}
+              selectedAssignees={members.filter((member) => assigneeUserIds.includes(member.id))}
+              value={assigneeUserIds}
+            />
+          </div>
         </div>
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
           {loading ? (
@@ -335,7 +415,12 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
           ) : tasks.length === 0 ? (
             <WorkspaceState
               message={t(
-                deferredKeyword ? taskWorkspaceStatus.noMatch : taskWorkspaceStatus.noTasks,
+                deferredKeyword ||
+                  statuses.length > 0 ||
+                  priorities.length > 0 ||
+                  assigneeUserIds.length > 0
+                  ? taskWorkspaceStatus.noMatch
+                  : taskWorkspaceStatus.noTasks,
               )}
             />
           ) : (
@@ -380,7 +465,7 @@ function LoadedTaskWorkspace({ projectId, taskId }: { projectId: string; taskId:
             onOpenChange={(open) => {
               if (!open) navigate(`/tasks/${encodeURIComponent(projectId)}`)
             }}
-            onUpdated={loadTasks}
+            onUpdated={handleTaskUpdated}
             open
             task={hydratedDisplayedTask}
           />

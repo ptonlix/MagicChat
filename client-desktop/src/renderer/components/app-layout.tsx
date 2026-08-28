@@ -52,6 +52,7 @@ import type { ClientUser } from "@/lib/client-data-api"
 import { useClientData } from "@/lib/client-data-context"
 import { useAppInfo } from "@/lib/app-info-context"
 import { cn } from "@/lib/utils"
+import { useDesktopSettings } from "@/hooks/use-desktop-settings"
 
 const navItems = [
   { label: "nav.chat", to: "/chat", icon: MessageCircleMore },
@@ -88,14 +89,20 @@ export function AppLayout({ footerAction }: { footerAction?: ReactNode }) {
     (request) => request.status === "pending",
   ).length
   const trayMessages = useMemo(() => selectUnreadTrayMessages(conversations), [conversations])
+  const messageNotificationsEnabled = useDesktopSettings()?.messageNotificationsEnabled ?? true
   useEffect(() => {
-    setHostBadge(notifiableUnreadCount)
-    setHostTrayMessages(trayMessages)
+    if (messageNotificationsEnabled) {
+      setHostBadge(notifiableUnreadCount)
+      setHostTrayMessages(trayMessages)
+    } else {
+      setHostBadge(0)
+      setHostTrayMessages([])
+    }
     return () => {
       setHostBadge(0)
       setHostTrayMessages([])
     }
-  }, [notifiableUnreadCount, trayMessages])
+  }, [messageNotificationsEnabled, notifiableUnreadCount, trayMessages])
   const [notificationAnimation, setNotificationAnimation] = useState({
     active: false,
     unreadCount: totalUnreadCount,

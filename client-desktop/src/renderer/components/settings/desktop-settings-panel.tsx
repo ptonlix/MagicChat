@@ -58,11 +58,13 @@ const appearanceOptions = [
 
 function SettingsSelect({
   ariaLabel,
+  disabled = false,
   onValueChange,
   options,
   value,
 }: {
   ariaLabel: string
+  disabled?: boolean
   onValueChange(value: string): void
   options: ReadonlyArray<Readonly<{ label: TranslationKey; value: string }>>
   value: string
@@ -70,7 +72,7 @@ function SettingsSelect({
   const { t } = useLocale()
 
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select disabled={disabled} value={value} onValueChange={onValueChange}>
       <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger">
         <SelectValue />
       </SelectTrigger>
@@ -91,6 +93,7 @@ export function DesktopSettingsPanel({
   target,
   updater,
   onMessageSoundEnabledChange,
+  onMessageNotificationsEnabledChange,
   onOpenChange,
   onRemoved,
   onUpdaterChange,
@@ -100,6 +103,7 @@ export function DesktopSettingsPanel({
   target: AuthenticatedTarget
   updater: UpdaterState
   onMessageSoundEnabledChange(enabled: boolean): void
+  onMessageNotificationsEnabledChange(enabled: boolean): void
   onOpenChange(open: boolean): void
   onRemoved(serverId: string): void
   onUpdaterChange(state: UpdaterState): void
@@ -270,6 +274,9 @@ export function DesktopSettingsPanel({
       if (patch.messageSoundEnabled !== undefined) {
         onMessageSoundEnabledChange(nextSettings.messageSoundEnabled)
       }
+      if (patch.messageNotificationsEnabled !== undefined) {
+        onMessageNotificationsEnabledChange(nextSettings.messageNotificationsEnabled)
+      }
       window.dispatchEvent(new Event(DESKTOP_SETTINGS_CHANGED_EVENT))
       return nextSettings
     } catch {
@@ -412,12 +419,29 @@ export function DesktopSettingsPanel({
             <section aria-label={t("settings.notifications.title")} className="settings-group">
               <label className="settings-row">
                 <span>
+                  <strong>{t("settings.notifications.enabled")}</strong>
+                  <small>{t("settings.notifications.enabled.desc")}</small>
+                </span>
+                <input
+                  aria-label={t("settings.notifications.enabled")}
+                  checked={settings.messageNotificationsEnabled}
+                  type="checkbox"
+                  onChange={(event) =>
+                    void updateSettings({
+                      messageNotificationsEnabled: event.target.checked,
+                    })
+                  }
+                />
+              </label>
+              <label className="settings-row">
+                <span>
                   <strong>{t("settings.notifications.sound")}</strong>
                   <small>{t("settings.notifications.sound.desc")}</small>
                 </span>
                 <input
                   aria-label={t("settings.notifications.sound")}
                   checked={settings.messageSoundEnabled}
+                  disabled={!settings.messageNotificationsEnabled}
                   type="checkbox"
                   onChange={(event) =>
                     void updateSettings({ messageSoundEnabled: event.target.checked })
@@ -431,6 +455,7 @@ export function DesktopSettingsPanel({
                 </span>
                 <SettingsSelect
                   ariaLabel={t("settings.notifications.privacy")}
+                  disabled={!settings.messageNotificationsEnabled}
                   options={[
                     { label: "settings.notifications.privacy.hidden", value: "hidden" },
                     {

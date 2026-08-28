@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import type { ContactApp, ContactUser } from "@/lib/client-data-api"
 import { sortContactsByDisplayName } from "@/lib/contact-sort"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { cn } from "@/lib/utils"
 import { SelectionListAvatar } from "@/components/selection-list-avatar"
 import { Button } from "@/components/ui/button"
@@ -89,7 +90,7 @@ function CreateGroupConversationForm({
   const trimmedName = name.trim()
   const canCreate = Boolean(trimmedName) && !creating
   const filteredContacts = React.useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
 
     return sortContactsByDisplayName(
       contacts.filter((contact) => {
@@ -100,21 +101,24 @@ function CreateGroupConversationForm({
           return true
         }
 
-        return [contact.email, contact.name, contact.nickname, contact.phone].some((value) =>
-          value.toLowerCase().includes(normalizedKeyword),
-        )
+        return createPinyinSearchText([
+          contact.email,
+          contact.name,
+          contact.nickname,
+          contact.phone,
+        ]).includes(normalizedKeyword)
       }),
     )
   }, [contacts, currentUserId, keyword])
   const filteredApps = React.useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
 
     if (!normalizedKeyword) {
       return apps
     }
 
     return apps.filter((app) =>
-      [app.name, app.description].some((value) => value.toLowerCase().includes(normalizedKeyword)),
+      createPinyinSearchText([app.name, app.description]).includes(normalizedKeyword),
     )
   }, [apps, keyword])
   const visibleCandidates: CreateGroupCandidate[] = tab === "apps" ? filteredApps : filteredContacts

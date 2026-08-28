@@ -9,6 +9,18 @@ describe("桌面设置 IPC 校验", () => {
     })
   })
 
+  it("接受新消息通知总开关布尔设置", () => {
+    expect(parseDesktopSettingsPatch({ messageNotificationsEnabled: false })).toEqual({
+      messageNotificationsEnabled: false,
+    })
+  })
+
+  it("拒绝非布尔的新消息通知总开关设置", () => {
+    expect(() => parseDesktopSettingsPatch({ messageNotificationsEnabled: "false" })).toThrow(
+      "新消息通知设置无效",
+    )
+  })
+
   it("拒绝未知设置字段", () => {
     expect(() => parseDesktopSettingsPatch({ unknown: true })).toThrow("设置字段无效")
   })

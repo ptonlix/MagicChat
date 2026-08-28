@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -141,6 +142,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
   const [profiles, setProfiles] = useState<ReadonlyArray<ServerProfile>>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [messageSoundEnabled, setMessageSoundEnabled] = useState(true)
+  const [messageNotificationsEnabled, setMessageNotificationsEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
   const { setUpdater, updater } = useDesktopUpdaterState()
 
@@ -154,6 +156,7 @@ function DesktopRootContent({ platform }: { platform?: string }) {
         if (!active) return
         setProfiles(items)
         setMessageSoundEnabled(settings.messageSoundEnabled)
+        setMessageNotificationsEnabled(settings.messageNotificationsEnabled)
         setSelectedId(
           documentWindowRoute.kind === "document"
             ? documentWindowRoute.context.serverId
@@ -210,10 +213,12 @@ function DesktopRootContent({ platform }: { platform?: string }) {
             documentWindowRoute.kind === "document" ? documentWindowRoute.context : undefined
           }
           messageSoundEnabled={messageSoundEnabled}
+          messageNotificationsEnabled={messageNotificationsEnabled}
           platform={platform}
           profile={selected}
           updater={updater}
           onMessageSoundEnabledChange={setMessageSoundEnabled}
+          onMessageNotificationsEnabledChange={setMessageNotificationsEnabled}
           onRemoved={removed}
           onUpdaterChange={setUpdater}
         />
@@ -230,20 +235,24 @@ function DesktopWorkspace({
   documentMode,
   documentWindow,
   messageSoundEnabled,
+  messageNotificationsEnabled,
   platform,
   profile,
   updater,
   onMessageSoundEnabledChange,
+  onMessageNotificationsEnabledChange,
   onRemoved,
   onUpdaterChange,
 }: {
   documentMode: boolean
   documentWindow?: DocumentWindowRouteContext
   messageSoundEnabled: boolean
+  messageNotificationsEnabled: boolean
   platform?: string
   profile: ServerProfile
   updater: UpdaterState
   onMessageSoundEnabledChange(enabled: boolean): void
+  onMessageNotificationsEnabledChange(enabled: boolean): void
   onRemoved(serverId: string): void
   onUpdaterChange(state: UpdaterState): void
 }) {
@@ -261,6 +270,7 @@ function DesktopWorkspace({
   const routerContext = useMemo<DesktopRoutedWorkspaceContextValue>(
     () => ({
       messageSoundEnabled,
+      messageNotificationsEnabled,
       documentMode,
       documentWindow,
       onAuthenticated: setUserId,
@@ -274,6 +284,7 @@ function DesktopWorkspace({
       documentMode,
       documentWindow,
       messageSoundEnabled,
+      messageNotificationsEnabled,
       onUpdaterChange,
       openSettings,
       profile,
@@ -294,6 +305,7 @@ function DesktopWorkspace({
           target={target}
           updater={updater}
           onMessageSoundEnabledChange={onMessageSoundEnabledChange}
+          onMessageNotificationsEnabledChange={onMessageNotificationsEnabledChange}
           onOpenChange={setSettingsOpen}
           onRemoved={onRemoved}
           onUpdaterChange={onUpdaterChange}
@@ -307,6 +319,7 @@ type DesktopRoutedWorkspaceContextValue = {
   documentMode: boolean
   documentWindow?: DocumentWindowRouteContext
   messageSoundEnabled: boolean
+  messageNotificationsEnabled: boolean
   profile: ServerProfile
   target: AuthenticatedTarget
   updater: UpdaterState
@@ -453,6 +466,7 @@ function DesktopHostedApp({
   documentMode,
   documentWindow,
   messageSoundEnabled,
+  messageNotificationsEnabled,
   profile,
   target,
   updater,
@@ -463,6 +477,7 @@ function DesktopHostedApp({
   documentMode: boolean
   documentWindow?: DocumentWindowRouteContext
   messageSoundEnabled: boolean
+  messageNotificationsEnabled: boolean
   profile: ServerProfile
   target: AuthenticatedTarget
   updater: UpdaterState
@@ -478,10 +493,12 @@ function DesktopHostedApp({
   const [ready, setReady] = useState(false)
   const [pendingExternalUrl, setPendingExternalUrl] = useState<string>()
   const messageSoundEnabledRef = useRef(messageSoundEnabled)
-
-  useEffect(() => {
+  const messageNotificationsEnabledRef = useRef(messageNotificationsEnabled)
+  // commit 阶段同步最新值，保证后续宏任务（实时事件回调）读到新开关
+  useLayoutEffect(() => {
     messageSoundEnabledRef.current = messageSoundEnabled
-  }, [messageSoundEnabled])
+    messageNotificationsEnabledRef.current = messageNotificationsEnabled
+  }, [messageSoundEnabled, messageNotificationsEnabled])
 
   useEffect(() => {
     // 语言/字号变化不应重建宿主（fetch/缓存目标/实时连接/订阅）
@@ -529,6 +546,7 @@ function DesktopHostedApp({
         )
       },
       messageNotificationSoundEnabled: () => messageSoundEnabledRef.current,
+      messageNotificationsEnabled: () => messageNotificationsEnabledRef.current,
       openSettings: onOpenSettings,
       openThirdPartyLogin: (providerKey) => window.desktop.auth.start(profile.id, providerKey),
       notificationPermission: () => "granted",

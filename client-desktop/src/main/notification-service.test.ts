@@ -42,6 +42,32 @@ describe("NotificationService", () => {
     electronMocks.options.length = 0
   })
 
+  it("总开关关闭时不创建系统通知且不占用去重记录", async () => {
+    const service = new NotificationService(
+      () => ({ ...createSettings(true), messageNotificationsEnabled: false }),
+      vi.fn(),
+    )
+
+    await service.show(input)
+
+    expect(electronMocks.options).toHaveLength(0)
+  })
+
+  it("重新开启总开关后可以正常显示新通知", async () => {
+    let enabled = false
+    const service = new NotificationService(
+      () => ({ ...createSettings(true), messageNotificationsEnabled: enabled }),
+      vi.fn(),
+    )
+
+    await service.show(input)
+    expect(electronMocks.options).toHaveLength(0)
+
+    enabled = true
+    await service.show(input)
+    expect(electronMocks.options).toHaveLength(1)
+  })
+
   it("关闭新消息提示音时创建静音系统通知", async () => {
     const service = new NotificationService(() => createSettings(false), vi.fn())
 
@@ -117,6 +143,7 @@ function createSettings(
     closeBehavior: "background",
     fontScale: "normal",
     language: "zh-CN",
+    messageNotificationsEnabled: true,
     messageSoundEnabled,
     notificationPrivacy,
     screenshotShortcut: "CommandOrControl+Shift+A",

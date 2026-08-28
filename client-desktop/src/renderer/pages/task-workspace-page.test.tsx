@@ -36,7 +36,11 @@ vi.mock("@/components/projects/create-project-task-dialog", () => ({
 }))
 
 vi.mock("@/components/projects/project-task-details-dialog", () => ({
-  ProjectTaskDetailsDialog: () => null,
+  ProjectTaskDetailsDialog: ({ onUpdated }: { onUpdated?: () => Promise<void> | void }) => (
+    <button onClick={() => void onUpdated?.()} type="button">
+      触发任务更新
+    </button>
+  ),
 }))
 
 describe("TaskWorkspacePage", () => {
@@ -85,6 +89,61 @@ describe("TaskWorkspacePage", () => {
     await waitFor(() => expect(screen.queryByText("旧分页结果")).not.toBeInTheDocument())
   })
 
+  it("sends selected status and priority filters to the task list request", async () => {
+    const user = userEvent.setup()
+    mocks.listClientProjectTasks.mockResolvedValue({ nextCursor: null, tasks: [] })
+
+    renderTaskWorkspace()
+
+    await waitFor(() =>
+      expect(mocks.listClientProjectTasks).toHaveBeenCalledWith(
+        "project-1",
+        expect.objectContaining({ priorities: [], statuses: [] }),
+      ),
+    )
+
+    await user.click(await screen.findByRole("button", { name: "全部状态" }))
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /进行中/ }))
+    await user.keyboard("{Escape}")
+
+    await waitFor(() =>
+      expect(mocks.listClientProjectTasks).toHaveBeenCalledWith(
+        "project-1",
+        expect.objectContaining({ priorities: [], statuses: ["in_progress"] }),
+      ),
+    )
+
+    await user.click(screen.getByRole("button", { name: "全部优先级" }))
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /高/ }))
+
+    await waitFor(() =>
+      expect(mocks.listClientProjectTasks).toHaveBeenCalledWith(
+        "project-1",
+        expect.objectContaining({ priorities: [3], statuses: ["in_progress"] }),
+      ),
+    )
+  })
+
+  it("refreshes the active task detail after a task update and keeps the dialog open on refresh failure", async () => {
+    const user = userEvent.setup()
+    mocks.listClientProjectTasks.mockResolvedValue({
+      nextCursor: null,
+      tasks: [createTask("other-task", "其他任务")],
+    })
+    mocks.getClientProjectTask.mockResolvedValue(createTask("deep-task", "深链任务"))
+
+    renderTaskWorkspace("/tasks/project-1/deep-task")
+
+    expect(await screen.findByRole("button", { name: "触发任务更新" })).toBeInTheDocument()
+    expect(mocks.getClientProjectTask).toHaveBeenCalledWith("project-1", "deep-task")
+
+    mocks.getClientProjectTask.mockRejectedValue(new Error("refresh failed"))
+    await user.click(screen.getByRole("button", { name: "触发任务更新" }))
+
+    await waitFor(() => expect(mocks.getClientProjectTask).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole("button", { name: "触发任务更新" })).toBeInTheDocument()
+  })
+
   it("returns to chat from the task workspace", async () => {
     const user = userEvent.setup()
     mocks.listClientProjectTasks.mockResolvedValue({
@@ -106,9 +165,9 @@ type TaskPage = {
   tasks: ProjectTask[]
 }
 
-function renderTaskWorkspace() {
+function renderTaskWorkspace(initialEntry = "/tasks/project-1") {
   return render(
-    <MemoryRouter initialEntries={["/tasks/project-1"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route element={<TaskWorkspacePage />} path="/tasks/:projectId/:taskId?" />
         <Route element={<CurrentPath />} path="/chat" />

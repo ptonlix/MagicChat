@@ -84,6 +84,7 @@ describe("DocumentWorkspaceSidebar", () => {
     renderSidebar()
 
     await user.click(await screen.findByRole("button", { name: "新建文档" }))
+    await user.click(await screen.findByRole("menuitem", { name: "富文本文档" }))
 
     await waitFor(() =>
       expect(openDocumentWindow).toHaveBeenCalledWith(created.id, "server-1", "document"),
@@ -126,6 +127,7 @@ describe("DocumentWorkspaceSidebar", () => {
     expect(openDocumentWindow).toHaveBeenCalledWith(projectTwoDocument.id, "server-1", "document")
 
     await user.click(screen.getByRole("button", { name: "新建文档" }))
+    await user.click(await screen.findByRole("menuitem", { name: "富文本文档" }))
     expect(mocks.createClientDocument).toHaveBeenCalledWith("project-2", {
       kind: "document",
       documentType: "document",
@@ -163,6 +165,7 @@ describe("DocumentWorkspaceSidebar", () => {
 
     expect(screen.getByRole("button", { name: "切换文档项目" })).toHaveTextContent("项目二")
     await user.click(screen.getByRole("button", { name: "新建文档" }))
+    await user.click(await screen.findByRole("menuitem", { name: "富文本文档" }))
     await waitFor(() =>
       expect(mocks.createClientDocument).toHaveBeenCalledWith("project-2", {
         kind: "document",

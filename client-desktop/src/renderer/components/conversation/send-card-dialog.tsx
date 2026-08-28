@@ -30,6 +30,7 @@ import { listClientContacts, resolveClientUsers } from "@/lib/client-api/account
 import { listClientConversations } from "@/lib/client-api/conversations"
 import { sendConversationCardMessage } from "@/lib/client-api/messages"
 import { createClientMessageId } from "@/lib/message-id"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { cn } from "@/lib/utils"
 
 type SendCard = (conversationId: string, card: ClientCardSendInput) => Promise<unknown | null>
@@ -281,13 +282,13 @@ function SendCardDialogContent({
     const sendableConversations = conversations.filter(
       (conversation) => !conversation.topic?.archived,
     )
-    const normalizedKeyword = keyword.trim().toLocaleLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
     if (!normalizedKeyword) {
       return sendableConversations
     }
 
     return sendableConversations.filter((conversation) =>
-      conversation.name.toLocaleLowerCase().includes(normalizedKeyword),
+      createPinyinSearchText([conversation.name]).includes(normalizedKeyword),
     )
   }, [conversations, keyword])
 

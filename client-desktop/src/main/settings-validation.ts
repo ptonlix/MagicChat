@@ -5,6 +5,7 @@ const allowedDesktopSettings = new Set([
   "closeBehavior",
   "fontScale",
   "language",
+  "messageNotificationsEnabled",
   "messageSoundEnabled",
   "notificationPrivacy",
 ])
@@ -17,6 +18,12 @@ export function parseDesktopSettingsPatch(value: unknown): DesktopSettingsPatch 
   }
   if (input.autoLaunch !== undefined && typeof input.autoLaunch !== "boolean") {
     throw new Error("开机自动启动设置无效")
+  }
+  if (
+    input.messageNotificationsEnabled !== undefined &&
+    typeof input.messageNotificationsEnabled !== "boolean"
+  ) {
+    throw new Error("新消息通知设置无效")
   }
   if (input.messageSoundEnabled !== undefined && typeof input.messageSoundEnabled !== "boolean") {
     throw new Error("新消息提示音设置无效")
@@ -53,6 +60,9 @@ export function parseDesktopSettingsPatch(value: unknown): DesktopSettingsPatch 
     ...(input.closeBehavior === undefined ? {} : { closeBehavior: input.closeBehavior }),
     ...(input.fontScale === undefined ? {} : { fontScale: input.fontScale }),
     ...(input.language === undefined ? {} : { language: input.language }),
+    ...(input.messageNotificationsEnabled === undefined
+      ? {}
+      : { messageNotificationsEnabled: input.messageNotificationsEnabled }),
     ...(input.messageSoundEnabled === undefined
       ? {}
       : { messageSoundEnabled: input.messageSoundEnabled }),

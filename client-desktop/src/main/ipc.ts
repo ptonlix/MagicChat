@@ -138,10 +138,16 @@ export function registerIpc(deps: IpcDependencies): () => void {
   register(IPC.appearanceThemeSet, (_event, source) =>
     deps.system.setThemeSource(themeSource(source)),
   )
-  register(IPC.badgeSet, (_event, count) => deps.system.setBadge(asCount(count)))
-  register(IPC.trayMessagesSet, (_event, messages) =>
-    deps.system.setTrayMessages(parseTrayMessages(messages)),
-  )
+  register(IPC.badgeSet, (_event, count) => {
+    const validated = asCount(count)
+    const enabled = deps.store.getSettings().messageNotificationsEnabled
+    deps.system.setBadge(enabled ? validated : 0)
+  })
+  register(IPC.trayMessagesSet, (_event, messages) => {
+    const validated = parseTrayMessages(messages)
+    const enabled = deps.store.getSettings().messageNotificationsEnabled
+    deps.system.setTrayMessages(enabled ? validated : [])
+  })
   register(IPC.clipboardWriteText, (_event, value) =>
     clipboard.writeText(asString(value, 1024 * 1024)),
   )
@@ -174,6 +180,11 @@ export function registerIpc(deps: IpcDependencies): () => void {
     if (autoLaunch !== undefined) await deps.system.setAutoLaunch(autoLaunch)
     const settings = await deps.store.setSettings(remaining)
     if (remaining.notificationPrivacy !== undefined) deps.system.refreshTray()
+    if (remaining.messageNotificationsEnabled === false) {
+      deps.system.setBadge(0)
+      deps.system.setTrayMessages([])
+      deps.system.refreshTray()
+    }
     return settings
   })
   register(IPC.storageGetStats, () => deps.storage.getStats())

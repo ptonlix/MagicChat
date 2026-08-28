@@ -1,3 +1,4 @@
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { listClientProjectMembers, type ClientProjectMember } from "@/lib/project-data-api"
 
 export async function listAllClientProjectMembers(projectId: string) {
@@ -22,8 +23,8 @@ export async function listAllClientProjectMembers(projectId: string) {
 }
 
 export function projectMemberMatchesQuery(member: ClientProjectMember, query: string) {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  return [member.displayName, member.name, member.email].some((value) =>
-    value.toLocaleLowerCase().includes(normalizedQuery),
+  const normalizedQuery = normalizePinyinSearchQuery(query)
+  return createPinyinSearchText([member.displayName, member.name, member.email]).includes(
+    normalizedQuery,
   )
 }

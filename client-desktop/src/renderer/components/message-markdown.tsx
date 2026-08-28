@@ -79,10 +79,12 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
   content,
   currentUserId,
   mentionLabelResolver = fallbackMentionLabelResolver,
+  variant = "message",
 }: {
   content: string
   currentUserId?: string
   mentionLabelResolver?: MentionLabelResolver
+  variant?: "document" | "message"
 }) {
   const { t } = useLocale()
   const remarkPlugins = React.useMemo<ReactMarkdownProps["remarkPlugins"]>(
@@ -101,7 +103,9 @@ export const MessageMarkdown = React.memo(function MessageMarkdown({
   )
 
   return (
-    <div className="max-w-full space-y-4 break-all">
+    <div
+      className={cn("max-w-full space-y-4", variant === "message" ? "break-all" : "break-words")}
+    >
       <ReactMarkdown
         allowedElements={allowedMarkdownElements}
         components={components}

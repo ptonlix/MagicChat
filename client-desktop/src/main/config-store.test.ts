@@ -93,6 +93,31 @@ describe("桌面配置存储", () => {
     expect(reopened.getSettings().fontScale).toBe("large")
   })
 
+  it("新消息通知总开关默认开启且可持久化关闭", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+    expect(store.getSettings().messageNotificationsEnabled).toBe(true)
+
+    await store.setSettings({ messageNotificationsEnabled: false })
+
+    const reopened = new ConfigStore(directory)
+    await reopened.load()
+    expect(reopened.getSettings().messageNotificationsEnabled).toBe(false)
+  })
+
+  it("拒绝非布尔的新消息通知总开关设置", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
+    directories.push(directory)
+    const store = new ConfigStore(directory)
+    await store.load()
+
+    await expect(
+      store.setSettings({ messageNotificationsEnabled: "false" as never }),
+    ).rejects.toThrow("新消息通知设置无效")
+  })
+
   it("拒绝无效的语言与字体大小设置", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-config-"))
     directories.push(directory)

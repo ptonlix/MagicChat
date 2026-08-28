@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { DesktopWorkspaceDragRegion } from "@/components/desktop-workspace-drag-region"
 import { ProjectAvatar } from "@/components/projects/project-avatar"
 import { ProjectDocumentsTab } from "@/components/projects/project-documents-tab"
@@ -94,17 +95,15 @@ export function ProjectsPage() {
     () => conversations.filter((conversation) => conversation.type === "group"),
     [conversations],
   )
-  const normalizedKeyword = keyword.trim().toLowerCase()
+  const normalizedKeyword = normalizePinyinSearchQuery(keyword)
   const visiblePersonalWorkspace = normalizedKeyword
-    ? [personalProject.name, personalProject.description].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword),
+    ? createPinyinSearchText([personalProject.name, personalProject.description]).includes(
+        normalizedKeyword,
       )
     : true
   const visibleProjects = normalizedKeyword
     ? projects.filter((project) =>
-        [project.name, project.description].some((value) =>
-          value.toLowerCase().includes(normalizedKeyword),
-        ),
+        createPinyinSearchText([project.name, project.description]).includes(normalizedKeyword),
       )
     : projects
   const activeSection: ProjectSection = isProjectSection(section) ? section : "tasks"
@@ -556,13 +555,13 @@ function CreateProjectDialog({
   }
 
   const filteredGroups = React.useMemo(() => {
-    const keyword = groupKeyword.trim().toLowerCase()
+    const keyword = normalizePinyinSearchQuery(groupKeyword)
 
     if (!keyword) {
       return groups
     }
 
-    return groups.filter((group) => group.name.toLowerCase().includes(keyword))
+    return groups.filter((group) => createPinyinSearchText([group.name]).includes(keyword))
   }, [groupKeyword, groups])
   const trimmedName = name.trim()
   const canCreate = trimmedName.length > 0 && !creating

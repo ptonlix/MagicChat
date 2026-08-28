@@ -1,6 +1,15 @@
 import * as React from "react"
 import { useLocale } from "@/components/locale-provider"
-import { ArrowLeft, ChevronDown, FileText, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
+import {
+  ArrowLeft,
+  ChevronDown,
+  FileCode2,
+  FileText,
+  Folder,
+  FolderOpen,
+  Loader2,
+  Plus,
+} from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { toast } from "sonner"
 
@@ -272,15 +281,24 @@ export function DocumentWorkspaceSidebar({
         </DropdownMenu>
       </div>
       <div className="grid gap-2 px-3 py-2">
-        <Button
-          className="w-full"
-          disabled={creating}
-          onClick={() => void createDocument("document")}
-          variant="outline"
-        >
-          {creating ? <Loader2 className="animate-spin" /> : <Plus />}
-          {t("document.newDoc")}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="w-full" disabled={creating} variant="outline">
+              {creating ? <Loader2 className="animate-spin" /> : <Plus />}
+              {t("document.newDoc")}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onSelect={() => void createDocument("document")}>
+              <FileText />
+              {t("document.newDocRichText")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void createDocument("markdown")}>
+              <FileCode2 />
+              {t("document.newDocMarkdown")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <nav
         aria-label={t("document.projectDocs")}

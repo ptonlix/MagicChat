@@ -14,6 +14,7 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox"
 import type { ContactUser } from "@/lib/client-data-api"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 
 export function AppAccessUserCombobox({
   disabled = false,
@@ -79,14 +80,14 @@ export function AppAccessUserCombobox({
 }
 
 function contactMatchesQuery(user: ContactUser, query: string) {
-  const normalizedQuery = query.trim().toLowerCase()
+  const normalizedQuery = normalizePinyinSearchQuery(query)
 
   if (!normalizedQuery) {
     return true
   }
 
-  return [user.email, user.name, user.nickname, user.phone].some((value) =>
-    value.toLowerCase().includes(normalizedQuery),
+  return createPinyinSearchText([user.email, user.name, user.nickname, user.phone]).includes(
+    normalizedQuery,
   )
 }
 

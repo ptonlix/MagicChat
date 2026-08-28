@@ -16,6 +16,7 @@ import {
 import {
   AppWindow,
   Ellipsis,
+  FileCode2,
   FileText,
   Folder,
   FolderOpen,
@@ -443,10 +444,17 @@ function DocumentToolbar({
             {t("docTab.create")}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => onCreate("document")}>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onSelect={() => onCreate("document", "document")}>
             <FileText />
             {t("docTree.newDoc")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="whitespace-nowrap"
+            onSelect={() => onCreate("document", "markdown")}
+          >
+            <FileCode2 />
+            新建 Markdown 文档
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onCreate("folder")}>
             <FolderPlus />
@@ -657,9 +665,17 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
           <DropdownMenuContent align="end">
             {props.node.kind === "folder" && (
               <>
-                <DropdownMenuItem onSelect={() => props.onCreate("document", props.node.id)}>
+                <DropdownMenuItem
+                  onSelect={() => props.onCreate("document", props.node.id, "document")}
+                >
                   <FileText />
                   {t("docTree.newChildDoc")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => props.onCreate("document", props.node.id, "markdown")}
+                >
+                  <FileCode2 />
+                  新建子 Markdown 文档
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => props.onCreate("folder", props.node.id)}>
                   <FolderPlus />

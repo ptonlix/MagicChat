@@ -23,12 +23,13 @@ export class NotificationService {
   ) {}
 
   async show(input: NotificationInput): Promise<void> {
+    const settings = this.settings()
+    if (!settings.messageNotificationsEnabled) return
     if (input.muted || !Notification.isSupported()) return
     this.cleanup()
     const key = `${targetKey(input.target)}:${input.messageId}`
     if (this.shown.has(key)) return
     this.shown.set(key, Date.now())
-    const settings = this.settings()
     const privacy = resolveNotificationPrivacy(
       settings.notificationPrivacy,
       this.options.enterpriseMaximum ?? "preview",

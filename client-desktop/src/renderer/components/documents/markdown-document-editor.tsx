@@ -11,8 +11,8 @@ import {
   Italic,
   Link as LinkIcon,
   List,
-  ListChecks,
   ListOrdered,
+  ListTodo,
   Minus,
   Pencil,
   Redo2,
@@ -24,6 +24,14 @@ import { yCollab, yUndoManagerKeymap } from "y-codemirror.next"
 
 import { MessageMarkdown } from "@/components/message-markdown"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { DocumentControlSeparator } from "@/components/documents/document-control-separator"
+import {
+  transformMarkdownList,
+  type MarkdownListType,
+} from "@/components/documents/markdown-document-list-command"
+import { MarkdownTableInsertMenu } from "@/components/documents/markdown-table-insert-menu"
 import { cn } from "@/lib/utils"
 
 import "./markdown-document-editor.css"
@@ -51,58 +59,27 @@ export function MarkdownDocumentEditor({
   const [lineNumbers, setLineNumbers] = React.useState(true)
   const [view, setView] = React.useState<EditorView | null>(null)
   const undoManager = React.useMemo(() => new Y.UndoManager(markdownText), [markdownText])
-  const [source, setSource] = React.useState(() => markdownText.toString())
+  const previewSource = useMarkdownPreviewSource(markdownText)
   const [history, setHistory] = React.useState({ canRedo: false, canUndo: false })
 
   React.useEffect(() => {
     const update = () => {
-      setSource(markdownText.toString())
       setHistory({
         canRedo: undoManager.redoStack.length > 0,
         canUndo: undoManager.undoStack.length > 0,
       })
     }
-    markdownText.observe(update)
     undoManager.on("stack-item-added", update)
     undoManager.on("stack-item-popped", update)
+    undoManager.on("stack-item-updated", update)
     return () => {
-      markdownText.unobserve(update)
       undoManager.off("stack-item-added", update)
       undoManager.off("stack-item-popped", update)
+      undoManager.off("stack-item-updated", update)
     }
-  }, [markdownText, undoManager])
+  }, [undoManager])
 
   const editDisabled = !view || mode === "preview"
-  const insert = (text: string) => {
-    if (!view) return
-    const selection = view.state.selection.main
-    view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert: text },
-      selection: { anchor: selection.from + text.length },
-    })
-    view.focus()
-  }
-  const wrap = (marker: string) => {
-    if (!view) return
-    const selection = view.state.selection.main
-    const text = view.state.doc.sliceString(selection.from, selection.to) || "文本"
-    const value = `${marker}${text}${marker}`
-    view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert: value },
-      selection: {
-        anchor: selection.from + marker.length,
-        head: selection.from + marker.length + text.length,
-      },
-    })
-    view.focus()
-  }
-  const list = (prefix: string) => {
-    if (!view) return
-    const selection = view.state.selection.main
-    const line = view.state.doc.lineAt(selection.from)
-    view.dispatch({ changes: { from: line.from, to: line.to, insert: `${prefix}${line.text}` } })
-    view.focus()
-  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -125,51 +102,58 @@ export function MarkdownDocumentEditor({
             view?.focus()
           }}
         />
-        <Tool disabled={editDisabled} icon={Bold} label="粗体" onClick={() => wrap("**")} />
-        <Tool disabled={editDisabled} icon={Italic} label="斜体" onClick={() => wrap("_")} />
+        <DocumentControlSeparator />
+        <Tool
+          disabled={editDisabled}
+          icon={Bold}
+          label="粗体"
+          onClick={() => view && toggleMarkdownWrap(view, "**", "粗体文本")}
+        />
+        <Tool
+          disabled={editDisabled}
+          icon={Italic}
+          label="斜体"
+          onClick={() => view && toggleMarkdownWrap(view, "_", "斜体文本")}
+        />
         <Tool
           disabled={editDisabled}
           icon={Strikethrough}
           label="删除线"
-          onClick={() => wrap("~~")}
+          onClick={() => view && toggleMarkdownWrap(view, "~~", "删除线文本")}
         />
-        <Tool disabled={editDisabled} icon={List} label="无序列表" onClick={() => list("- ")} />
+        <DocumentControlSeparator />
+        <Tool
+          disabled={editDisabled}
+          icon={List}
+          label="无序列表"
+          onClick={() => view && toggleMarkdownList(view, "bullet")}
+        />
         <Tool
           disabled={editDisabled}
           icon={ListOrdered}
           label="有序列表"
-          onClick={() => list("1. ")}
+          onClick={() => view && toggleMarkdownList(view, "ordered")}
         />
         <Tool
           disabled={editDisabled}
-          icon={ListChecks}
+          icon={ListTodo}
           label="任务列表"
-          onClick={() => list("- [ ] ")}
+          onClick={() => view && toggleMarkdownList(view, "task")}
         />
-        <Tool
-          disabled={editDisabled}
-          icon={LinkIcon}
-          label="链接"
-          onClick={() => insert("[链接文字](https://example.com)")}
-        />
-        <Tool
-          disabled={editDisabled}
-          icon={ImagePlus}
-          label="图片"
-          onClick={() => insert("![图片描述](https://example.com/image.png)")}
-        />
+        <DocumentControlSeparator />
+        <MarkdownLinkInsertMenu disabled={editDisabled} view={view} />
+        <MarkdownImageInsertMenu disabled={editDisabled} view={view} />
         <Tool
           disabled={editDisabled}
           icon={Minus}
-          label="分割线"
-          onClick={() => insert("\n\n---\n\n")}
+          label="插入分割线"
+          onClick={() => view && insertMarkdownBlock(view, "---")}
         />
-        <Tool
+        <MarkdownTableInsertMenu
           disabled={editDisabled}
-          icon={List}
-          label="表格"
-          onClick={() => insert("\n\n| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n\n")}
+          onInsert={(rows, columns) => view && insertMarkdownTable(view, rows, columns)}
         />
+        <DocumentControlSeparator />
         <Tool active={mode === "edit"} icon={Pencil} label="编辑" onClick={() => setMode("edit")} />
         <Tool
           active={mode === "split"}
@@ -213,7 +197,12 @@ export function MarkdownDocumentEditor({
             <div className="min-h-96 min-w-0 flex-1">
               <CodeMirror
                 aria-label="Markdown 正文"
-                basicSetup={{ lineNumbers, history: false, foldGutter: false, searchKeymap: false }}
+                basicSetup={{
+                  foldGutter: false,
+                  history: false,
+                  lineNumbers,
+                  searchKeymap: false,
+                }}
                 className="markdown-source-editor h-full"
                 extensions={[
                   markdown({ base: markdownLanguage }),
@@ -239,8 +228,8 @@ export function MarkdownDocumentEditor({
               {title || "无标题 Markdown"}
             </h1>
             <article aria-label="Markdown 预览" className="min-w-0 overflow-hidden">
-              {source.trim() ? (
-                <MessageMarkdown content={source} />
+              {previewSource.trim() ? (
+                <MessageMarkdown content={previewSource} variant="document" />
               ) : (
                 <p className="text-sm text-muted-foreground">暂无 Markdown 内容</p>
               )}
@@ -250,6 +239,318 @@ export function MarkdownDocumentEditor({
       </div>
     </div>
   )
+}
+
+function MarkdownLinkInsertMenu({
+  disabled,
+  view,
+}: {
+  disabled: boolean
+  view: EditorView | null
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [url, setUrl] = React.useState("")
+
+  function applyLink(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!view || !url.trim()) return
+    const selection = view.state.selection.main
+    const selectedText = view.state.doc.sliceString(selection.from, selection.to)
+    const label = selectedText || "链接文字"
+    const href = normalizeMarkdownLinkURL(url)
+    const insert = `[${label.replaceAll("]", "\\]")}](${href})`
+    view.dispatch({
+      changes: { from: selection.from, insert, to: selection.to },
+      selection: selectedText
+        ? { anchor: selection.from + insert.length }
+        : {
+            anchor: selection.from + 1,
+            head: selection.from + 1 + label.length,
+          },
+    })
+    view.focus()
+    setOpen(false)
+  }
+
+  return (
+    <Popover
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) setUrl("")
+      }}
+      open={open}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          aria-label="链接"
+          disabled={disabled}
+          size="icon-sm"
+          title="链接"
+          type="button"
+          variant="ghost"
+        >
+          <LinkIcon />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-80 p-3">
+        <form className="flex items-center gap-2" onSubmit={applyLink}>
+          <Input
+            aria-label="链接地址"
+            autoFocus
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="输入链接地址"
+            value={url}
+          />
+          <Button disabled={!url.trim()} size="sm" type="submit">
+            应用
+          </Button>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function MarkdownImageInsertMenu({
+  disabled,
+  view,
+}: {
+  disabled: boolean
+  view: EditorView | null
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [alt, setAlt] = React.useState("")
+  const [url, setUrl] = React.useState("")
+
+  function applyImage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!view || !url.trim()) return
+    const selection = view.state.selection.main
+    const imageAlt = alt.trim() || "图片"
+    const insert = `![${imageAlt.replaceAll("]", "\\]")}](${normalizeMarkdownImageURL(url)})`
+    view.dispatch({
+      changes: { from: selection.from, insert, to: selection.to },
+      selection: { anchor: selection.from + insert.length },
+    })
+    view.focus()
+    setOpen(false)
+  }
+
+  return (
+    <Popover
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) {
+          setAlt("")
+          setUrl("")
+        }
+      }}
+      open={open}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          aria-label="插入图片"
+          disabled={disabled}
+          size="icon-sm"
+          title="插入图片"
+          type="button"
+          variant="ghost"
+        >
+          <ImagePlus />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-80 p-3">
+        <form className="space-y-2" onSubmit={applyImage}>
+          <Input
+            aria-label="图片地址"
+            autoFocus
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="输入图片地址"
+            value={url}
+          />
+          <Input
+            aria-label="图片描述"
+            onChange={(event) => setAlt(event.target.value)}
+            placeholder="图片描述（可选）"
+            value={alt}
+          />
+          <div className="flex justify-end">
+            <Button disabled={!url.trim()} size="sm" type="submit">
+              插入
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function toggleMarkdownWrap(view: EditorView, marker: string, placeholderText: string) {
+  const selection = view.state.selection.main
+  const selectedText = view.state.doc.sliceString(selection.from, selection.to)
+  const markerLength = marker.length
+  const markerBefore = view.state.doc.sliceString(
+    Math.max(0, selection.from - markerLength),
+    selection.from,
+  )
+  const markerAfter = view.state.doc.sliceString(selection.to, selection.to + markerLength)
+
+  if (
+    selectedText &&
+    markerBefore === marker &&
+    markerAfter === marker &&
+    selection.from >= markerLength
+  ) {
+    view.dispatch({
+      changes: [
+        { from: selection.from - markerLength, to: selection.from },
+        { from: selection.to, to: selection.to + markerLength },
+      ],
+      selection: {
+        anchor: selection.from - markerLength,
+        head: selection.to - markerLength,
+      },
+    })
+  } else if (
+    selectedText.length >= markerLength * 2 &&
+    selectedText.startsWith(marker) &&
+    selectedText.endsWith(marker)
+  ) {
+    const content = selectedText.slice(markerLength, -markerLength)
+    view.dispatch({
+      changes: { from: selection.from, insert: content, to: selection.to },
+      selection: {
+        anchor: selection.from,
+        head: selection.from + content.length,
+      },
+    })
+  } else {
+    const content = selectedText || placeholderText
+    view.dispatch({
+      changes: {
+        from: selection.from,
+        insert: `${marker}${content}${marker}`,
+        to: selection.to,
+      },
+      selection: {
+        anchor: selection.from + markerLength,
+        head: selection.from + markerLength + content.length,
+      },
+    })
+  }
+  view.focus()
+}
+
+function toggleMarkdownList(view: EditorView, listType: MarkdownListType) {
+  const selection = view.state.selection.main
+  const startLine = view.state.doc.lineAt(selection.from)
+  const effectiveEnd =
+    selection.to > selection.from && view.state.doc.lineAt(selection.to).from === selection.to
+      ? selection.to - 1
+      : selection.to
+  const endLine = view.state.doc.lineAt(effectiveEnd)
+  const source = view.state.doc.sliceString(startLine.from, endLine.to)
+  const insert = transformMarkdownList(source, listType)
+
+  view.dispatch({
+    changes: { from: startLine.from, insert, to: endLine.to },
+    selection: {
+      anchor: startLine.from,
+      head: startLine.from + insert.length,
+    },
+  })
+  view.focus()
+}
+
+function insertMarkdownBlock(view: EditorView, block: string) {
+  const selection = view.state.selection.main
+  const before = view.state.doc.sliceString(0, selection.from)
+  const after = view.state.doc.sliceString(selection.to)
+  const insert = `${markdownBlockPrefix(before)}${block}${markdownBlockSuffix(after)}`
+  view.dispatch({
+    changes: { from: selection.from, insert, to: selection.to },
+    scrollIntoView: true,
+    selection: { anchor: selection.from + insert.length },
+  })
+  view.focus()
+}
+
+function insertMarkdownTable(view: EditorView, rows: number, columns: number) {
+  const selection = view.state.selection.main
+  const before = view.state.doc.sliceString(0, selection.from)
+  const after = view.state.doc.sliceString(selection.to)
+  const prefix = markdownBlockPrefix(before)
+  const suffix = markdownBlockSuffix(after)
+  const firstHeader = "列 1"
+  const table = createMarkdownTable(rows, columns)
+  const insert = `${prefix}${table}${suffix}`
+  const headerFrom = selection.from + prefix.length + 2
+
+  view.dispatch({
+    changes: { from: selection.from, insert, to: selection.to },
+    scrollIntoView: true,
+    selection: {
+      anchor: headerFrom,
+      head: headerFrom + firstHeader.length,
+    },
+  })
+  view.focus()
+}
+
+function createMarkdownTable(rows: number, columns: number) {
+  const normalizedRows = Math.max(1, rows)
+  const normalizedColumns = Math.max(1, columns)
+  const header = Array.from({ length: normalizedColumns }, (_, index) => `列 ${index + 1}`)
+  const separator = Array.from({ length: normalizedColumns }, () => "---")
+  const bodyRow = Array.from({ length: normalizedColumns }, () => "")
+  const lines = [markdownTableRow(header), markdownTableRow(separator)]
+
+  for (let row = 1; row < normalizedRows; row += 1) {
+    lines.push(markdownTableRow(bodyRow))
+  }
+  return lines.join("\n")
+}
+
+function markdownTableRow(cells: string[]) {
+  return `| ${cells.join(" | ")} |`
+}
+
+function markdownBlockPrefix(before: string) {
+  if (!before || before.endsWith("\n\n")) return ""
+  return before.endsWith("\n") ? "\n" : "\n\n"
+}
+
+function markdownBlockSuffix(after: string) {
+  if (!after || after.startsWith("\n\n")) return ""
+  return after.startsWith("\n") ? "\n" : "\n\n"
+}
+
+function normalizeMarkdownLinkURL(value: string) {
+  const url = value.trim()
+  return /^(https?:\/\/|mailto:|tel:|\/|#)/i.test(url) ? url : `https://${url}`
+}
+
+function normalizeMarkdownImageURL(value: string) {
+  const url = value.trim()
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`
+}
+
+function useMarkdownPreviewSource(markdownText: Y.Text) {
+  const [source, setSource] = React.useState(() => markdownText.toString())
+
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const update = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => setSource(markdownText.toString()), 120)
+    }
+    markdownText.observe(update)
+    return () => {
+      markdownText.unobserve(update)
+      if (timer) clearTimeout(timer)
+    }
+  }, [markdownText])
+
+  return source
 }
 
 function Tool({

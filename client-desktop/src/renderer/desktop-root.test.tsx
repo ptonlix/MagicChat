@@ -1780,6 +1780,7 @@ function createDesktopBridge(
     closeBehavior: "background" as const,
     fontScale: "normal" as const,
     language: "zh-CN" as const,
+    messageNotificationsEnabled: true,
     messageSoundEnabled: true,
     notificationPrivacy: "metadata" as const,
     screenshotShortcut: "CommandOrControl+Shift+A",

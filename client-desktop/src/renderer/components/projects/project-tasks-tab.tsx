@@ -43,6 +43,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClientProjectMember } from "@/lib/project-data-api"
 import { listAllClientProjectMembers } from "@/lib/project-members"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { listClientProjectTasks } from "@/lib/project-task-data-api"
 import { useOptionalClientData } from "@/lib/client-data-context"
 import {
@@ -438,20 +439,23 @@ async function listAllProjectTasks(projectId: string, filters: TaskFilters) {
   return tasks
 }
 
-function StatusFilter({
+export function StatusFilter({
+  emptyLabel,
   onValueChange,
   value,
 }: {
+  emptyLabel?: string
   onValueChange: (value: ProjectTaskStatus[]) => void
   value: ProjectTaskStatus[]
 }) {
   const { t } = useLocale()
+  const fallbackLabel = emptyLabel ?? t("project.status")
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <FilterButton
           active={value.length > 0}
-          label={getFilterLabel(t("project.status"), value, getStatusOptions(t), t)}
+          label={getFilterLabel(fallbackLabel, value, getStatusOptions(t), t)}
           prefix={value.length > 0 ? t("project.status") : undefined}
         />
       </DropdownMenuTrigger>
@@ -474,20 +478,23 @@ function StatusFilter({
   )
 }
 
-function PriorityFilter({
+export function PriorityFilter({
+  emptyLabel,
   onValueChange,
   value,
 }: {
+  emptyLabel?: string
   onValueChange: (value: ProjectTaskPriority[]) => void
   value: ProjectTaskPriority[]
 }) {
   const { t } = useLocale()
+  const fallbackLabel = emptyLabel ?? t("project.priority")
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <FilterButton
           active={value.length > 0}
-          label={getFilterLabel(t("project.priority"), value, getPriorityOptions(t), t)}
+          label={getFilterLabel(fallbackLabel, value, getPriorityOptions(t), t)}
           prefix={value.length > 0 ? t("project.priority") : undefined}
         />
       </DropdownMenuTrigger>
@@ -510,7 +517,7 @@ function PriorityFilter({
   )
 }
 
-function AssigneeFilter({
+export function AssigneeFilter({
   loading,
   members,
   membersError,
@@ -528,12 +535,15 @@ function AssigneeFilter({
   const { t } = useLocale()
   const [query, setQuery] = React.useState("")
   const searchInputRef = React.useRef<HTMLInputElement | null>(null)
-  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const normalizedQuery = normalizePinyinSearchQuery(query)
   const filteredMembers = normalizedQuery
     ? members.filter((member) =>
-        [member.displayName, member.name, member.nickname, member.email].some((field) =>
-          field.toLocaleLowerCase().includes(normalizedQuery),
-        ),
+        createPinyinSearchText([
+          member.displayName,
+          member.name,
+          member.nickname,
+          member.email,
+        ]).includes(normalizedQuery),
       )
     : members
 

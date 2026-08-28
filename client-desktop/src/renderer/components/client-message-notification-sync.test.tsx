@@ -13,7 +13,7 @@ const {
 } = vi.hoisted(() => ({
   callbacks: new Map<string, (payload: unknown) => void>(),
   playMessageNotificationSound: vi.fn(),
-  soundPreference: { enabled: true },
+  soundPreference: { enabled: true, notificationsEnabled: true },
   showBrowserMessageNotification: vi.fn(() => true),
   showHostMessageNotification: vi.fn(() => true),
 }))
@@ -56,6 +56,7 @@ vi.mock("@/lib/browser-notifications", () => ({
 
 vi.mock("@/lib/desktop-host", () => ({
   isHostMessageNotificationSoundEnabled: () => soundPreference.enabled,
+  isHostMessageNotificationsEnabled: () => soundPreference.notificationsEnabled,
   showHostMessageNotification,
 }))
 
@@ -66,6 +67,7 @@ describe("ClientMessageNotificationSync", () => {
     callbacks.clear()
     conversations = []
     soundPreference.enabled = true
+    soundPreference.notificationsEnabled = true
     playMessageNotificationSound.mockClear()
     showBrowserMessageNotification.mockClear()
     showHostMessageNotification.mockClear()
@@ -119,6 +121,20 @@ describe("ClientMessageNotificationSync", () => {
 
     expect(playMessageNotificationSound).not.toHaveBeenCalled()
     expect(showHostMessageNotification).toHaveBeenCalledOnce()
+  })
+
+  it("suppresses sound and notifications when the master notification switch is disabled", () => {
+    conversations = [createConversation()]
+    soundPreference.notificationsEnabled = false
+    renderNotificationSync()
+
+    act(() => {
+      callbacks.get("message.created")?.(createMessageEvent(false))
+    })
+
+    expect(playMessageNotificationSound).not.toHaveBeenCalled()
+    expect(showHostMessageNotification).not.toHaveBeenCalled()
+    expect(showBrowserMessageNotification).not.toHaveBeenCalled()
   })
 
   it("does not cap host notifications for ordinary conversations", () => {

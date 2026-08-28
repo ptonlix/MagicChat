@@ -13,6 +13,7 @@ import type {
   ContactUser,
 } from "@/lib/client-data-api"
 import { ClientDataRequestError } from "@/lib/client-data-api"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -83,29 +84,30 @@ export function AddGroupMembersDialog({ conversation }: AddGroupMembersDialogPro
     [contactApps, conversation.members],
   )
   const filteredUserCandidates = React.useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
 
     if (!normalizedKeyword) {
       return userCandidates
     }
 
     return userCandidates.filter((candidate) =>
-      [candidate.email, candidate.name, candidate.nickname, candidate.phone].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword),
-      ),
+      createPinyinSearchText([
+        candidate.email,
+        candidate.name,
+        candidate.nickname,
+        candidate.phone,
+      ]).includes(normalizedKeyword),
     )
   }, [keyword, userCandidates])
   const filteredAppCandidates = React.useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase()
+    const normalizedKeyword = normalizePinyinSearchQuery(keyword)
 
     if (!normalizedKeyword) {
       return appCandidates
     }
 
     return appCandidates.filter((candidate) =>
-      [candidate.name, candidate.description].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword),
-      ),
+      createPinyinSearchText([candidate.name, candidate.description]).includes(normalizedKeyword),
     )
   }, [appCandidates, keyword])
   const newMemberIds = React.useMemo(

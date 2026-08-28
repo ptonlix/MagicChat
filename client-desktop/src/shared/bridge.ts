@@ -145,6 +145,7 @@ export type DesktopSettings = Readonly<{
   closeBehavior: "background" | "quit"
   fontScale: DesktopFontScale
   language: DesktopLanguage
+  messageNotificationsEnabled: boolean
   messageSoundEnabled: boolean
   notificationPrivacy: "hidden" | "metadata" | "preview"
   screenshotShortcut: string | null

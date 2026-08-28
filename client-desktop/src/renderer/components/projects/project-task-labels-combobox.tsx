@@ -12,6 +12,7 @@ import {
   ComboboxList,
   useComboboxAnchor,
 } from "@/components/ui/combobox"
+import { createPinyinSearchText, normalizePinyinSearchQuery } from "@/lib/pinyin-search"
 
 export function ProjectTaskLabelsCombobox({
   disabled = false,
@@ -58,7 +59,7 @@ export function ProjectTaskLabelsCombobox({
     <Combobox<string, true>
       disabled={disabled}
       filter={(label, inputValue) =>
-        label.toLocaleLowerCase().includes(inputValue.trim().toLocaleLowerCase())
+        createPinyinSearchText([label]).includes(normalizePinyinSearchQuery(inputValue))
       }
       inputValue={query}
       items={options}

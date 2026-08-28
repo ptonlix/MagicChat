@@ -94,6 +94,7 @@ describe("桌面配置迁移", () => {
       closeBehavior: "background",
       fontScale: "normal",
       language: "zh-CN",
+      messageNotificationsEnabled: true,
       messageSoundEnabled: true,
       notificationPrivacy: "metadata",
       screenshotShortcut: "CommandOrControl+Shift+A",
