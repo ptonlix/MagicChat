@@ -255,6 +255,7 @@ function MarkdownLinkInsertMenu({
   disabled: boolean
   view: EditorView | null
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = React.useState(false)
   const [url, setUrl] = React.useState("")
 
@@ -263,7 +264,7 @@ function MarkdownLinkInsertMenu({
     if (!view || !url.trim()) return
     const selection = view.state.selection.main
     const selectedText = view.state.doc.sliceString(selection.from, selection.to)
-    const label = selectedText || "链接文字"
+    const label = selectedText || t("document.link.defaultLabel")
     const href = normalizeMarkdownLinkURL(url)
     const insert = `[${label.replaceAll("]", "\\]")}](${href})`
     view.dispatch({
@@ -289,10 +290,10 @@ function MarkdownLinkInsertMenu({
     >
       <PopoverTrigger asChild>
         <Button
-          aria-label="链接"
+          aria-label={t("document.link.insert")}
           disabled={disabled}
           size="icon-sm"
-          title="链接"
+          title={t("document.link.insert")}
           type="button"
           variant="ghost"
         >
@@ -302,14 +303,14 @@ function MarkdownLinkInsertMenu({
       <PopoverContent align="center" className="w-80 p-3">
         <form className="flex items-center gap-2" onSubmit={applyLink}>
           <Input
-            aria-label="链接地址"
+            aria-label={t("document.link.url")}
             autoFocus
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="输入链接地址"
+            placeholder={t("document.link.urlPlaceholder")}
             value={url}
           />
           <Button disabled={!url.trim()} size="sm" type="submit">
-            应用
+            {t("document.link.apply")}
           </Button>
         </form>
       </PopoverContent>
@@ -324,6 +325,7 @@ function MarkdownImageInsertMenu({
   disabled: boolean
   view: EditorView | null
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = React.useState(false)
   const [alt, setAlt] = React.useState("")
   const [url, setUrl] = React.useState("")
@@ -332,7 +334,7 @@ function MarkdownImageInsertMenu({
     event.preventDefault()
     if (!view || !url.trim()) return
     const selection = view.state.selection.main
-    const imageAlt = alt.trim() || "图片"
+    const imageAlt = alt.trim() || t("document.image.defaultAlt")
     const insert = `![${imageAlt.replaceAll("]", "\\]")}](${normalizeMarkdownImageURL(url)})`
     view.dispatch({
       changes: { from: selection.from, insert, to: selection.to },
@@ -355,10 +357,10 @@ function MarkdownImageInsertMenu({
     >
       <PopoverTrigger asChild>
         <Button
-          aria-label="插入图片"
+          aria-label={t("document.image.insert")}
           disabled={disabled}
           size="icon-sm"
-          title="插入图片"
+          title={t("document.image.insert")}
           type="button"
           variant="ghost"
         >
@@ -368,21 +370,21 @@ function MarkdownImageInsertMenu({
       <PopoverContent align="center" className="w-80 p-3">
         <form className="space-y-2" onSubmit={applyImage}>
           <Input
-            aria-label="图片地址"
+            aria-label={t("document.image.url")}
             autoFocus
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="输入图片地址"
+            placeholder={t("document.image.urlPlaceholder")}
             value={url}
           />
           <Input
-            aria-label="图片描述"
+            aria-label={t("document.image.alt")}
             onChange={(event) => setAlt(event.target.value)}
-            placeholder="图片描述（可选）"
+            placeholder={t("document.image.altPlaceholder")}
             value={alt}
           />
           <div className="flex justify-end">
             <Button disabled={!url.trim()} size="sm" type="submit">
-              插入
+              {t("document.image.confirm")}
             </Button>
           </div>
         </form>

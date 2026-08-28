@@ -55,12 +55,25 @@ vi.mock("@/components/message-markdown", () => ({
 }))
 vi.mock("@/components/locale-provider", () => ({
   useLocale: () => ({
+    locale: "en",
     t: (key: string, params?: Record<string, number>) => {
       if (key === "document.table.insert") return "Insert table"
       if (key === "document.table.selectDimensions") return "Select table dimensions"
       if (key === "document.table.dimension")
         return `${params?.rows} rows ${params?.columns} columns`
       if (key === "document.table.column") return `Column ${params?.number}`
+      if (key === "document.link.insert") return "Insert link"
+      if (key === "document.link.url") return "Link URL"
+      if (key === "document.link.urlPlaceholder") return "Enter link URL"
+      if (key === "document.link.defaultLabel") return "Link text"
+      if (key === "document.link.apply") return "Apply"
+      if (key === "document.image.insert") return "Insert image"
+      if (key === "document.image.url") return "Image URL"
+      if (key === "document.image.urlPlaceholder") return "Enter image URL"
+      if (key === "document.image.alt") return "Image description"
+      if (key === "document.image.altPlaceholder") return "Image description (optional)"
+      if (key === "document.image.defaultAlt") return "Image"
+      if (key === "document.image.confirm") return "Insert"
       return key
     },
   }),
@@ -118,6 +131,41 @@ describe("MarkdownDocumentEditor", () => {
         changes: expect.objectContaining({
           insert: "| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |",
         }),
+      }),
+    )
+  })
+
+  it("uses English controls and defaults for inserted links and images", async () => {
+    const user = userEvent.setup()
+    const collaborationDocument = new Y.Doc()
+
+    render(
+      <MarkdownDocumentEditor
+        collaborationDocument={collaborationDocument}
+        collaborationProvider={{ awareness: {} } as never}
+        onTitleChange={vi.fn()}
+        title="Document"
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "Insert link" }))
+    expect(screen.getByPlaceholderText("Enter link URL")).toBeVisible()
+    await user.type(screen.getByRole("textbox", { name: "Link URL" }), "example.com")
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+    expect(mocks.dispatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({ insert: "[Link text](https://example.com)" }),
+      }),
+    )
+
+    await user.click(screen.getByRole("button", { name: "Insert image" }))
+    expect(screen.getByPlaceholderText("Enter image URL")).toBeVisible()
+    expect(screen.getByPlaceholderText("Image description (optional)")).toBeVisible()
+    await user.type(screen.getByRole("textbox", { name: "Image URL" }), "example.com/image.png")
+    await user.click(screen.getByRole("button", { name: "Insert" }))
+    expect(mocks.dispatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({ insert: "![Image](https://example.com/image.png)" }),
       }),
     )
   })
