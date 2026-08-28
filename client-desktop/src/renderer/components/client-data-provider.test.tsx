@@ -1930,12 +1930,106 @@ describe("ClientDataProvider", () => {
     ).toHaveLength(2)
     restoreTarget()
   })
+
+  it("keeps the confirmed sidebar preview after a realtime response and late send timeout", async () => {
+    vi.useFakeTimers()
+    const timeout = createDeferred<Response>()
+    let clientMessageId: string | undefined
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === "/api/client/me")
+        return Promise.resolve(jsonResponse(createCurrentUserResponse()))
+      if (url === "/api/client/contacts")
+        return Promise.resolve(jsonResponse(createContactsResponse()))
+      if (url === "/api/client/conversations") {
+        return Promise.resolve(
+          jsonResponse(createConversationsResponse([createConversationResponse("conversation-1")])),
+        )
+      }
+      if (url === "/api/client/projects?limit=100") {
+        return Promise.resolve(jsonResponse(createProjectsResponse()))
+      }
+      if (url === "/api/client/conversations/conversation-1/messages" && init?.method === "POST") {
+        clientMessageId = JSON.parse(String(init.body)).client_message_id
+        return timeout.promise
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <MemoryRouter>
+        <ClientDataProvider>
+          <OptimisticPreviewRaceProbe clientMessageId={() => clientMessageId ?? "missing"} />
+        </ClientDataProvider>
+      </MemoryRouter>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    vi.useRealTimers()
+    await screen.findByTestId("optimistic-preview-id")
+    act(() => screen.getByRole("button", { name: "send optimistic message" }).click())
+    await waitFor(() => expect(clientMessageId).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByTestId("optimistic-preview-id")).toHaveTextContent(
+        `optimistic:${clientMessageId}`,
+      ),
+    )
+
+    act(() => screen.getByRole("button", { name: "receive confirmed message" }).click())
+    await waitFor(() =>
+      expect(screen.getByTestId("optimistic-preview-id")).toHaveTextContent("message-server-1"),
+    )
+
+    await act(async () => {
+      timeout.reject(new Error("network timeout"))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("发送消息失败"))
+    expect(screen.getByTestId("optimistic-preview-id")).toHaveTextContent("message-server-1")
+  })
 })
 
 function ConversationCount() {
   const { conversations } = useClientData()
 
   return <div data-testid="conversation-count">{conversations.length}</div>
+}
+
+function OptimisticPreviewRaceProbe({ clientMessageId }: { clientMessageId: () => string }) {
+  const { conversations, handleIncomingConversationMessage, sendConversationText } = useClientData()
+  const conversation = conversations.find((item) => item.id === "conversation-1")
+
+  return (
+    <>
+      <button
+        aria-label="send optimistic message"
+        onClick={() => void sendConversationText("conversation-1", "timeout message")}
+        type="button"
+      />
+      <button
+        aria-label="receive confirmed message"
+        onClick={() =>
+          handleIncomingConversationMessage({
+            body: { content: "timeout message", type: "text" },
+            clientMessageId: clientMessageId(),
+            conversationId: "conversation-1",
+            createdAt: "2026-08-28T00:00:00Z",
+            id: "message-server-1",
+            reactionVersion: 0,
+            reactions: [],
+            sender: { id: "user-1", type: "user" },
+            seq: 1,
+          })
+        }
+        type="button"
+      />
+      <div data-testid="optimistic-preview-id">{conversation?.lastMessageId ?? "none"}</div>
+    </>
+  )
 }
 
 function ConversationRefreshRaceProbe() {
@@ -2343,11 +2437,13 @@ function jsonErrorResponse(message: string) {
 }
 
 function createDeferred<T>() {
+  let reject!: (reason?: unknown) => void
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((promiseResolve) => {
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve
+    reject = promiseReject
   })
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
 
 function createMessageCacheMock() {

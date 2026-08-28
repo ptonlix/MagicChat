@@ -53,6 +53,18 @@ vi.mock("y-codemirror.next", () => ({
 vi.mock("@/components/message-markdown", () => ({
   MessageMarkdown: ({ content }: { content: string }) => <div>{content}</div>,
 }))
+vi.mock("@/components/locale-provider", () => ({
+  useLocale: () => ({
+    t: (key: string, params?: Record<string, number>) => {
+      if (key === "document.table.insert") return "Insert table"
+      if (key === "document.table.selectDimensions") return "Select table dimensions"
+      if (key === "document.table.dimension")
+        return `${params?.rows} rows ${params?.columns} columns`
+      if (key === "document.table.column") return `Column ${params?.number}`
+      return key
+    },
+  }),
+}))
 
 import { MarkdownDocumentEditor } from "./markdown-document-editor"
 
@@ -82,6 +94,31 @@ describe("MarkdownDocumentEditor", () => {
       expect(mocks.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({ changes: expect.objectContaining({ insert: "**粗体文本**" }) }),
       ),
+    )
+  })
+
+  it("uses the active locale for inserted table headers", async () => {
+    const user = userEvent.setup()
+    const collaborationDocument = new Y.Doc()
+
+    render(
+      <MarkdownDocumentEditor
+        collaborationDocument={collaborationDocument}
+        collaborationProvider={{ awareness: {} } as never}
+        onTitleChange={vi.fn()}
+        title="Document"
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "Insert table" }))
+    await user.click(screen.getByRole("gridcell", { name: "2 rows 3 columns" }))
+
+    expect(mocks.dispatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({
+          insert: "| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |",
+        }),
+      }),
     )
   })
 })

@@ -313,7 +313,7 @@ function composerElement(
   }: {
     draft?: string
     onDraftChange?: (draft: string) => void
-    onSendMessage?: (content?: string) => void
+    onSendMessage?: (content?: string) => Promise<boolean>
   } = {},
 ) {
   return (

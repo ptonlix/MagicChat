@@ -91,7 +91,10 @@ export function useConversationSenders({
       } catch (error: unknown) {
         mergeIncomingConversationMessage(
           { ...temporary, deliveryStatus: "failed" },
-          { markLoaded: true },
+          // A realtime delivery might already have replaced this optimistic
+          // message. Do not let a late HTTP timeout replace the confirmed
+          // conversation preview with the temporary ID.
+          { markLoaded: true, updateList: false },
         )
         toast.error(getClientDataErrorMessage(error, failureText))
         return null

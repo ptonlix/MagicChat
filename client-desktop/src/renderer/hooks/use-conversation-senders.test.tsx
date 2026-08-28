@@ -145,6 +145,10 @@ describe("useConversationSenders", () => {
     expect(mergeIncomingConversationMessage.mock.calls[1]?.[0]).toMatchObject({
       deliveryStatus: "failed",
     })
+    expect(mergeIncomingConversationMessage.mock.calls[1]?.[1]).toEqual({
+      markLoaded: true,
+      updateList: false,
+    })
     expect(conversationMessageStatesRef.current[conversationId].sending).toBe(false)
     expect(mocks.toastError).toHaveBeenCalledTimes(7)
     expect(mocks.toastError).toHaveBeenCalledWith("仅支持向好友发送私信")

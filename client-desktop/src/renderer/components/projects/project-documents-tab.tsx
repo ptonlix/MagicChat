@@ -454,7 +454,7 @@ function DocumentToolbar({
             onSelect={() => onCreate("document", "markdown")}
           >
             <FileCode2 />
-            新建 Markdown 文档
+            {t("docTree.newMarkdownDoc")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onCreate("folder")}>
             <FolderPlus />
@@ -675,7 +675,7 @@ function DocumentTreeRow(props: React.ComponentProps<typeof DocumentTreeItem> & 
                   onSelect={() => props.onCreate("document", props.node.id, "markdown")}
                 >
                   <FileCode2 />
-                  新建子 Markdown 文档
+                  {t("docTree.newChildMarkdownDoc")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => props.onCreate("folder", props.node.id)}>
                   <FolderPlus />
@@ -803,7 +803,7 @@ function DocumentEditDialog({
               : kind === "folder"
                 ? t("docTree.newFolder")
                 : state.mode === "create" && state.documentType === "markdown"
-                  ? "新建 Markdown 文档"
+                  ? t("docTree.newMarkdownDoc")
                   : t("docTree.newDoc")}
           </DialogTitle>
         </DialogHeader>

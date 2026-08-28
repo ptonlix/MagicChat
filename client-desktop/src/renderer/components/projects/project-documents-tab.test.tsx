@@ -25,6 +25,7 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 
 import { KeyboardSensor } from "@dnd-kit/core"
 import { DesktopTargetContext } from "@/lib/desktop-target-context"
+import { translate } from "@/lib/i18n"
 
 import { ProjectDocumentsTab } from "./project-documents-tab"
 
@@ -59,6 +60,11 @@ describe("ProjectDocumentsTab", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response([])))
     renderTab()
     expect(mocks.sensorTypes).toContain(KeyboardSensor)
+  })
+
+  it("provides English labels for Markdown document creation", () => {
+    expect(translate("en", "docTree.newMarkdownDoc")).toBe("New Markdown document")
+    expect(translate("en", "docTree.newChildMarkdownDoc")).toBe("New child Markdown document")
   })
 
   it("加载真实文档并只过滤当前树", async () => {

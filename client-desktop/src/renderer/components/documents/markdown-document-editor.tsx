@@ -32,6 +32,7 @@ import {
   type MarkdownListType,
 } from "@/components/documents/markdown-document-list-command"
 import { MarkdownTableInsertMenu } from "@/components/documents/markdown-table-insert-menu"
+import { useLocale } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
 
 import "./markdown-document-editor.css"
@@ -51,6 +52,7 @@ export function MarkdownDocumentEditor({
   onTitleChange: (title: string) => void
   title: string
 }) {
+  const { t } = useLocale()
   const markdownText = React.useMemo(
     () => collaborationDocument.getText("markdown"),
     [collaborationDocument],
@@ -151,7 +153,12 @@ export function MarkdownDocumentEditor({
         />
         <MarkdownTableInsertMenu
           disabled={editDisabled}
-          onInsert={(rows, columns) => view && insertMarkdownTable(view, rows, columns)}
+          onInsert={(rows, columns) =>
+            view &&
+            insertMarkdownTable(view, rows, columns, (number) =>
+              t("document.table.column", { number }),
+            )
+          }
         />
         <DocumentControlSeparator />
         <Tool active={mode === "edit"} icon={Pencil} label="编辑" onClick={() => setMode("edit")} />
@@ -474,14 +481,19 @@ function insertMarkdownBlock(view: EditorView, block: string) {
   view.focus()
 }
 
-function insertMarkdownTable(view: EditorView, rows: number, columns: number) {
+function insertMarkdownTable(
+  view: EditorView,
+  rows: number,
+  columns: number,
+  columnLabel: (number: number) => string,
+) {
   const selection = view.state.selection.main
   const before = view.state.doc.sliceString(0, selection.from)
   const after = view.state.doc.sliceString(selection.to)
   const prefix = markdownBlockPrefix(before)
   const suffix = markdownBlockSuffix(after)
-  const firstHeader = "列 1"
-  const table = createMarkdownTable(rows, columns)
+  const firstHeader = columnLabel(1)
+  const table = createMarkdownTable(rows, columns, columnLabel)
   const insert = `${prefix}${table}${suffix}`
   const headerFrom = selection.from + prefix.length + 2
 
@@ -496,10 +508,14 @@ function insertMarkdownTable(view: EditorView, rows: number, columns: number) {
   view.focus()
 }
 
-function createMarkdownTable(rows: number, columns: number) {
+function createMarkdownTable(
+  rows: number,
+  columns: number,
+  columnLabel: (number: number) => string,
+) {
   const normalizedRows = Math.max(1, rows)
   const normalizedColumns = Math.max(1, columns)
-  const header = Array.from({ length: normalizedColumns }, (_, index) => `列 ${index + 1}`)
+  const header = Array.from({ length: normalizedColumns }, (_, index) => columnLabel(index + 1))
   const separator = Array.from({ length: normalizedColumns }, () => "---")
   const bodyRow = Array.from({ length: normalizedColumns }, () => "")
   const lines = [markdownTableRow(header), markdownTableRow(separator)]
