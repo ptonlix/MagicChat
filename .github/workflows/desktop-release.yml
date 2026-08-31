@@ -139,7 +139,6 @@ jobs:
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.zip
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.AppImage
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.deb
-            ${{ steps.worktree.outputs.desktop-directory }}/dist/*.blockmap
             ${{ steps.worktree.outputs.desktop-directory }}/dist/latest.yml
             ${{ steps.worktree.outputs.desktop-directory }}/dist/latest-mac.yml
             ${{ steps.worktree.outputs.desktop-directory }}/dist/latest-linux.yml
@@ -174,6 +173,8 @@ jobs:
         run: |
           pnpm release:prepare-assets -- \
             --tag "${{ needs.quality.outputs.tag }}" \
+            --build "${{ github.run_number }}" \
+            --version-base release-version-base.json \
             --commit "${{ needs.quality.outputs.commit }}" \
             --output ../release-assets \
             --input win:x64:../artifacts/magicchat-desktop-win-x64 \
@@ -181,6 +182,14 @@ jobs:
             --input mac:universal:../artifacts/magicchat-desktop-mac-universal \
             --input linux:x64:../artifacts/magicchat-desktop-linux-x64 \
             --input linux:arm64:../artifacts/magicchat-desktop-linux-arm64
+      - name: 生成官网手工上传目录
+        working-directory: client-desktop
+        run: pnpm release:prepare-official -- --input ../release-assets --output ../website-release-upload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: magicchat-website-release-${{ needs.quality.outputs.version }}
+          path: website-release-upload/*
+          if-no-files-found: error
       - name: 通过 Draft 事务发布并复核远端摘要
         working-directory: client-desktop
         env:
