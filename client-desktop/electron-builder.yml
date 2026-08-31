@@ -23,11 +23,6 @@ protocols:
   - name: 即应
     schemes:
       - magicchat
-publish:
-  provider: github
-  owner: ptonlix
-  repo: MagicChat
-  releaseType: release
 win:
   icon: public/logo.png
   target:
@@ -51,8 +46,6 @@ mac:
       NSAllowsLocalNetworking: false
   target:
     - target: dmg
-      arch: [universal]
-    - target: zip
       arch: [universal]
   minimumSystemVersion: "13.0"
 linux:

@@ -30,7 +30,7 @@
     "verify:workflow": "node scripts/verify-release-workflow.mjs",
     "pack": "pnpm build && electron-builder --dir --config electron-builder.yml",
     "pack:win": "pnpm build && electron-builder --win nsis --x64 --arm64 --config electron-builder.yml",
-    "pack:mac": "pnpm build && electron-builder --mac dmg zip --universal --config electron-builder.yml",
+    "pack:mac": "pnpm build && electron-builder --mac dmg --universal --config electron-builder.yml",
     "pack:linux": "pnpm build && electron-builder --linux AppImage deb --x64 --arm64 --config electron-builder.yml"
   },
   "dependencies": {
@@ -105,7 +105,6 @@
     "@vitejs/plugin-react": "6.0.1",
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
-    "electron-updater": "6.8.9",
     "electron-vite": "5.0.0",
     "eslint": "9.39.1",
     "eslint-plugin-react-hooks": "7.0.1",

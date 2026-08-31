@@ -1,5 +1,5 @@
 import path from "node:path"
-import { app, dialog, nativeTheme, powerMonitor, screen, shell } from "electron"
+import { app, dialog, nativeTheme, powerMonitor, screen } from "electron"
 import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
@@ -23,7 +23,6 @@ import { registerIpc } from "@main/ipc"
 import { installLocalProtocol, registerPrivilegedSchemes } from "@main/local-protocol"
 import { NotificationService } from "@main/notification-service"
 import { MessageCacheService } from "@main/message-cache"
-import { migrateLegacyMacApplication } from "@main/macos-brand-migration"
 import { RealtimeController } from "@main/realtime-controller"
 import { ProxyAuthPrompt } from "@main/proxy-auth"
 import { ServerProfiles } from "@main/server-profiles"
@@ -59,47 +58,6 @@ else
 async function start(): Promise<void> {
   await app.whenReady()
   app.setAppUserModelId(STABLE_APP_ID)
-  const migration = await migrateLegacyMacApplication({
-    confirm: async (legacyApplications) => {
-      const result = await dialog.showMessageBox({
-        buttons: ["迁移并继续", "退出并手动处理"],
-        cancelId: 1,
-        defaultId: 0,
-        detail: [
-          "为避免重复应用和 magicchat:// 链接冲突，即应需要将以下旧版应用移到废纸篓：",
-          "",
-          ...legacyApplications,
-          "",
-          "登录状态、聊天记录和本地设置不会删除。",
-        ].join("\n"),
-        message: "检测到旧版 MagicChat",
-        noLink: true,
-        type: "warning",
-      })
-      return result.response === 0
-    },
-    currentExecutablePath: process.execPath,
-    homePath: app.getPath("home"),
-    isPackaged: app.isPackaged,
-    platform: process.platform,
-    trashItem: (applicationPath) => shell.trashItem(applicationPath),
-  })
-  if (migration.status === "blocked") {
-    await dialog.showMessageBox({
-      buttons: ["退出"],
-      detail: [
-        "请先将以下旧版应用移到废纸篓，然后重新打开即应：",
-        "",
-        ...migration.legacyApplications,
-        "",
-        "此操作不会删除登录状态、聊天记录和本地设置。",
-      ].join("\n"),
-      message: "尚未完成旧版应用迁移",
-      type: "error",
-    })
-    app.quit()
-    return
-  }
   registerProtocolClient()
   const diagnostics = new Diagnostics(app.getPath("userData"))
   await diagnostics.initialize()

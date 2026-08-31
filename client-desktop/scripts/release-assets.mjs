@@ -11,20 +11,18 @@ import {
   writeFile,
 } from "node:fs/promises"
 import path from "node:path"
-import { dump } from "js-yaml"
 import {
   fileDigests,
   fileSha256,
   fileSha512,
   linuxArtifactSuffixes,
   mapWithConcurrency,
-  validateManifest,
 } from "./release-tools.mjs"
 import { createDesktopVersionFile } from "./desktop-version-file.mjs"
 
 export const RELEASE_TARGETS = ["win:x64", "win:arm64", "mac:universal", "linux:x64", "linux:arm64"]
-const INSTALL_ASSET = /\.(?:AppImage|deb|dmg|exe|zip)$/
-const MANIFEST = /^latest(?:-mac|-linux|-linux-arm64)?\.yml$/
+const RELEASE_RELEVANT_ASSET =
+  /(?:\.(?:AppImage|deb|dmg|exe|zip|blockmap)|^latest(?:-mac|-linux|-linux-arm64)?\.yml$)$/
 const ASSET_DIGEST_CONCURRENCY = 2
 
 export function parseReleaseInput(value) {
@@ -42,33 +40,16 @@ export function parseReleaseInput(value) {
 
 export function targetAssetModel(version, platform, arch) {
   const prefix = `Jiying-${version}`
-  if (platform === "win") {
-    const installer = `${prefix}-win-${arch}.exe`
-    return {
-      manifest: "latest.yml",
-      manifestAssets: [installer],
-      ignoredAssets: [`${installer}.blockmap`],
-      publicAssets: [installer],
-    }
+  if (platform === "win" && ["x64", "arm64"].includes(arch)) {
+    return { publicAssets: [`${prefix}-win-${arch}.exe`] }
   }
   if (platform === "mac" && arch === "universal") {
-    const dmg = `${prefix}-mac-universal.dmg`
-    const zip = `${prefix}-mac-universal.zip`
-    return {
-      ignoredAssets: [`${dmg}.blockmap`, `${zip}.blockmap`],
-      manifest: "latest-mac.yml",
-      manifestAssets: [dmg, zip],
-      publicAssets: [dmg, zip],
-    }
+    return { publicAssets: [`${prefix}-mac-universal.dmg`] }
   }
   if (platform === "linux" && ["x64", "arm64"].includes(arch)) {
     const suffixes = linuxArtifactSuffixes(arch)
-    const appImage = `${prefix}-${suffixes.appImage}`
-    const deb = `${prefix}-${suffixes.deb}`
     return {
-      manifest: arch === "arm64" ? "latest-linux-arm64.yml" : "latest-linux.yml",
-      manifestAssets: [appImage, deb],
-      publicAssets: [appImage, deb],
+      publicAssets: [`${prefix}-${suffixes.appImage}`, `${prefix}-${suffixes.deb}`],
     }
   }
   throw new Error(`不支持的发布目标：${platform}/${arch}`)
@@ -93,64 +74,17 @@ export async function prepareReleaseAssets({
   )
   try {
     const copied = new Map()
-    const windows = new Map()
     for (const input of inputs) {
       const model = targetAssetModel(version, input.platform, input.arch)
       await assertInputAssets(input.directory, model)
-      const validated = await validateManifest({
-        allowWindowsLegacyFields: input.platform === "win",
-        arch: input.arch,
-        artifactDirectory: input.directory,
-        expectedVersion: version,
-        manifestPath: path.join(input.directory, model.manifest),
-        platform: input.platform,
-      })
-      assertManifestAssetSet(validated, model)
       for (const name of model.publicAssets) {
         await copyUnique(path.join(input.directory, name), path.join(staging, name), copied)
       }
-      if (input.platform === "win") {
-        const installer = model.publicAssets[0]
-        const entry = validated.files.find((value) => value?.url === installer)
-        if (!entry) throw new Error(`Windows ${input.arch} 清单缺少唯一安装器：${installer}`)
-        windows.set(input.arch, { ...entry, url: installer })
-      } else {
-        await writeFile(
-          path.join(staging, model.manifest),
-          dump(validated, { lineWidth: -1, noRefs: true }),
-        )
-      }
     }
-    await writeFile(
-      path.join(staging, "latest.yml"),
-      dump(
-        {
-          version,
-          files: [windows.get("x64"), windows.get("arm64")],
-          releaseDate,
-        },
-        { lineWidth: -1, noRefs: true },
-      ),
-    )
     await writeFile(
       path.join(staging, "version.json"),
       `${JSON.stringify(createDesktopVersionFile(versionBase, { build, tag, version }), null, 2)}\n`,
     )
-    for (const [platform, arch, manifest] of [
-      ["win", "x64", "latest.yml"],
-      ["win", "arm64", "latest.yml"],
-      ["mac", "universal", "latest-mac.yml"],
-      ["linux", "x64", "latest-linux.yml"],
-      ["linux", "arm64", "latest-linux-arm64.yml"],
-    ]) {
-      await validateManifest({
-        arch,
-        artifactDirectory: staging,
-        expectedVersion: version,
-        manifestPath: path.join(staging, manifest),
-        platform,
-      })
-    }
 
     const expected = expectedReleaseAssetNames(version)
     await assertExactSet(staging, expected)
@@ -195,13 +129,7 @@ export async function prepareReleaseAssets({
 }
 
 export function expectedReleaseAssetNames(version) {
-  const names = new Set([
-    "version.json",
-    "latest.yml",
-    "latest-mac.yml",
-    "latest-linux.yml",
-    "latest-linux-arm64.yml",
-  ])
+  const names = new Set(["version.json"])
   for (const target of RELEASE_TARGETS) {
     const [platform, arch] = target.split(":")
     for (const name of targetAssetModel(version, platform, arch).publicAssets) names.add(name)
@@ -215,25 +143,22 @@ export function generateReleaseAppendix({ version }) {
 ### 支持与更新载体
 
 - Windows x64/arm64：NSIS
-- macOS Intel/Apple Silicon：Universal ZIP；DMG 用于安装与恢复
+- macOS Intel/Apple Silicon：Universal DMG
 - Linux x64/arm64：AppImage；deb 用于手动安装与恢复
 
 ### 恢复说明
 
-若 ${version} 无法完成应用内更新，请从同一公开 Release 下载与平台和架构匹配的安装载体。`
+若 ${version} 无法完成应用内更新，请从同一公开 Release 下载与平台和架构匹配的完整安装包。旧版 MagicChat 的 macOS 用户需手动安装即应并移除旧应用程序。`
 }
 
 async function assertInputAssets(directory, model) {
   const names = await readdir(directory)
-  const expected = new Set([...model.publicAssets, model.manifest])
-  const allowed = new Set([...expected, ...(model.ignoredAssets ?? [])])
-  const relevant = names.filter(
-    (name) => INSTALL_ASSET.test(name) || name.endsWith(".blockmap") || MANIFEST.test(name),
-  )
+  const expected = new Set(model.publicAssets)
+  const relevant = names.filter((name) => RELEASE_RELEVANT_ASSET.test(name))
   const missing = [...expected].filter((name) => !relevant.includes(name))
-  const extra = relevant.filter((name) => !allowed.has(name))
+  const extra = relevant.filter((name) => !expected.has(name))
   if (missing.length || extra.length) {
-    throw new Error(`目标资产集合不匹配：缺失 [${missing.join(", ")}]，额外 [${extra.join(", ")}]`)
+    throw new Error(`目标资产集合不匹配：缺失 [${missing.join(", ")}], 额外 [${extra.join(", ")}]`)
   }
 }
 
@@ -242,7 +167,7 @@ async function assertExactSet(directory, expected) {
   const missing = [...expected].filter((name) => !actual.has(name))
   const extra = [...actual].filter((name) => !expected.has(name))
   if (missing.length || extra.length)
-    throw new Error(`最终资产集合不匹配：缺失 [${missing.join(", ")}]，额外 [${extra.join(", ")}]`)
+    throw new Error(`最终资产集合不匹配：缺失 [${missing.join(", ")}], 额外 [${extra.join(", ")}]`)
 }
 
 function assertInputs(inputs) {
@@ -257,18 +182,7 @@ function assertInputs(inputs) {
     extra.length
   ) {
     throw new Error(
-      `发布输入必须恰好包含五个目标：缺失 [${missing.join(", ")}]，额外或重复 [${extra.join(", ")}]`,
-    )
-  }
-}
-
-function assertManifestAssetSet(manifest, model) {
-  const actual = new Set(manifest.files.map((entry) => entry.url))
-  const missing = model.manifestAssets.filter((name) => !actual.has(name))
-  const extra = [...actual].filter((name) => !model.manifestAssets.includes(name))
-  if (missing.length || extra.length || actual.size !== manifest.files.length) {
-    throw new Error(
-      `清单载体集合不匹配：缺失 [${missing.join(", ")}]，额外或重复 [${extra.join(", ")}]`,
+      `发布输入必须恰好包含五个目标：缺失 [${missing.join(", ")}], 额外或重复 [${extra.join(", ")}]`,
     )
   }
 }
@@ -281,13 +195,13 @@ async function assertOutputAvailable(outputDirectory) {
   }
 }
 
-async function copyUnique(source, target, copied) {
-  const name = path.basename(target)
-  const digest = await fileSha512(source)
+async function copyUnique(sourcePath, targetPath, copied) {
+  const name = path.basename(targetPath)
+  const digest = await fileSha512(sourcePath)
   const existing = copied.get(name)
   if (existing && existing !== digest) throw new Error(`矩阵产物发生同名内容冲突：${name}`)
   if (!existing) {
-    await copyFile(source, target)
+    await copyFile(sourcePath, targetPath)
     copied.set(name, digest)
   }
 }

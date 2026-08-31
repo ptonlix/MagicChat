@@ -44,6 +44,10 @@ export function validateDesktopReleaseWorkflow(workflow) {
   }
   const packageCommands = commands(jobs.package)
   assert(!JSON.stringify(jobs.package).includes("*.blockmap"), "package 不得上传外置 blockmap")
+  assert(!JSON.stringify(jobs.package).includes("latest.yml"), "package 不得上传旧版更新清单")
+  assert(!JSON.stringify(jobs.package).includes("latest-mac.yml"), "package 不得上传旧版更新清单")
+  assert(!JSON.stringify(jobs.package).includes("latest-linux"), "package 不得上传旧版更新清单")
+  assert(!JSON.stringify(jobs.package).includes("*.zip"), "macOS 不得生成或上传 ZIP")
   assert(
     !/pnpm (?:check|test|lint|typecheck|verify:boundaries)/.test(packageCommands),
     "package 重复执行平台无关门禁",

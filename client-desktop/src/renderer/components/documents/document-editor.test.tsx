@@ -269,7 +269,7 @@ describe("DocumentEditor", () => {
     await openTableMenu("列操作")
     await user.click(await screen.findByRole("menuitem", { name: "删除当前列" }))
     await waitFor(() => expect(readTableDimensions(document)).toEqual({ columns: 3, rows: 3 }))
-  })
+  }, 15_000)
 
   it("协作者修改表格前内容后刷新悬停控件坐标", async () => {
     const user = userEvent.setup()

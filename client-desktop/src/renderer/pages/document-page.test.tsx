@@ -179,7 +179,9 @@ describe("DocumentPage", () => {
     mocks.refreshProjects.mockReset().mockResolvedValue(undefined)
     mocks.currentRefreshMe = mocks.refreshMe
     mocks.currentRefreshProjects = mocks.refreshProjects
-    mocks.updateCollaborativeDocumentTitle.mockReset().mockResolvedValue(document.title)
+    mocks.updateCollaborativeDocumentTitle
+      .mockReset()
+      .mockImplementation((_documentId: string, title: string) => Promise.resolve(title))
   })
 
   afterEach(() => {

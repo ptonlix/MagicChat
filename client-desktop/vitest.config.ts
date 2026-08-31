@@ -18,6 +18,7 @@ export default defineConfig({
     environmentOptions: {
       jsdom: { url: "http://localhost/" },
     },
+    maxWorkers: 4,
     setupFiles: "./src/renderer/test/setup.ts",
   },
 })

@@ -62,7 +62,7 @@ export default defineConfig({
     build: {
       externalizeDeps: true,
       rollupOptions: {
-        external: ["electron", "electron-log", "electron-updater", "https-proxy-agent", "ws"],
+        external: ["electron", "electron-log", "https-proxy-agent", "ws"],
       },
     },
     define: {

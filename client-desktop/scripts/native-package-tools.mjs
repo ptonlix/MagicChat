@@ -127,20 +127,8 @@ export async function verifyMacPackage({
   expectedVersion,
   executeCommand = execute,
   readAsarVersion = packagedVersion,
-  zip,
 }) {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "magicchat-mac-package-"))
-  const zipRoot = path.join(workspace, "zip")
-  await executeCommand("/usr/bin/ditto", ["-x", "-k", zip, zipRoot])
-  const zipApp = await findUnique(zipRoot, "即应.app", "ZIP 内缺少即应.app", true)
-  await verifyMacApplication(
-    zipApp,
-    expectedVersion,
-    expectedTeamId,
-    executeCommand,
-    readAsarVersion,
-  )
-
   const mountpoint = path.join(workspace, "dmg")
   await mkdir(mountpoint)
   await executeCommand("/usr/bin/hdiutil", [

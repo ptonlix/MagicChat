@@ -112,10 +112,9 @@ describe("原生安装包真实性解析", () => {
     ).rejects.toThrow("目标架构不一致")
   })
 
-  it("从 ZIP/DMG 读取 plist、Universal 架构与 app.asar 版本", async () => {
+  it("从 DMG 读取 plist、Universal 架构与 app.asar 版本", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-mac-fixture-"))
     const executeCommand = async (command, args) => {
-      if (command.endsWith("ditto")) await createMacApplication(path.join(args[3], "即应.app"))
       if (command.endsWith("hdiutil") && args[0] === "attach") {
         await createMacApplication(path.join(args[4], "即应.app"))
       }
@@ -139,7 +138,6 @@ describe("原生安装包真实性解析", () => {
         expectedTeamId: "8RK3WCWST9",
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
-        zip: path.join(root, "app.zip"),
       }),
     ).resolves.toMatchObject({ architectures: ["x86_64", "arm64"] })
     await expect(
@@ -152,7 +150,6 @@ describe("原生安装包真实性解析", () => {
         expectedTeamId: "8RK3WCWST9",
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
-        zip: path.join(root, "bad.zip"),
       }),
     ).rejects.toThrow("Universal")
 
@@ -173,7 +170,6 @@ describe("原生安装包真实性解析", () => {
         expectedTeamId: "8RK3WCWST9",
         expectedVersion: "1.2.3",
         readAsarVersion: async () => "1.2.3",
-        zip: path.join(root, "wrong-team.zip"),
       }),
     ).rejects.toThrow("Team ID")
   })

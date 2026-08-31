@@ -34,14 +34,15 @@ describe("Desktop Stable Release 配置", () => {
     expect(source).not.toContain("${{ github.run_number }}")
   })
 
-  it("固定公开更新仓库与 Stable Release 类型", async () => {
+  it("固定应用身份并禁止 electron-builder 生成旧版更新清单", async () => {
     const builder = await readFile(
       path.join(repository, "client-desktop/electron-builder.yml"),
       "utf8",
     )
-    expect(builder).toContain("owner: ptonlix")
-    expect(builder).toContain("repo: MagicChat")
-    expect(builder).toContain("releaseType: release")
+    expect(builder).toContain("appId: com.magicchat.desktop")
+    expect(builder).toContain("productName: 即应")
+    expect(builder).not.toContain("publish:")
+    expect(builder).not.toContain("target: zip")
     expect(builder).toContain("hardenedRuntime: true")
     expect(builder).toContain("notarize: true")
     expect(builder).not.toContain("identity: null")

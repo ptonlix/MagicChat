@@ -60,7 +60,7 @@ jobs:
             arch: arm64
           - runner: macos-15
             platform: mac
-            target: dmg zip
+            target: dmg
             arch: universal
           - runner: ubuntu-24.04
             platform: linux
@@ -120,7 +120,7 @@ jobs:
           unset NOTARY_API_KEY_BASE64
           export APPLE_API_KEY="$api_key_path"
 
-          pnpm exec electron-builder --mac dmg zip --universal --config electron-builder.yml --publish never
+          pnpm exec electron-builder --mac dmg --universal --config electron-builder.yml --publish never
       - name: 生成非 macOS Stable 制品
         if: matrix.platform != 'mac'
         working-directory: ${{ steps.worktree.outputs.desktop-directory }}
@@ -136,13 +136,8 @@ jobs:
           path: |
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.exe
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.dmg
-            ${{ steps.worktree.outputs.desktop-directory }}/dist/*.zip
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.AppImage
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.deb
-            ${{ steps.worktree.outputs.desktop-directory }}/dist/latest.yml
-            ${{ steps.worktree.outputs.desktop-directory }}/dist/latest-mac.yml
-            ${{ steps.worktree.outputs.desktop-directory }}/dist/latest-linux.yml
-            ${{ steps.worktree.outputs.desktop-directory }}/dist/latest-linux-arm64.yml
           if-no-files-found: error
 
   release:

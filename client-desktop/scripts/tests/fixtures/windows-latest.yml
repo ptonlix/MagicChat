@@ -1,9 +1,0 @@
-version: 1.2.3
-files:
-  - url: Jiying-1.2.3-win-x64.exe
-    sha512: eDY0
-    size: 64
-  - url: Jiying-1.2.3-win-arm64.exe
-    sha512: YXJtNjQ=
-    size: 64
-releaseDate: "2026-07-24T00:00:00.000Z"
