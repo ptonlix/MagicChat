@@ -20,19 +20,15 @@ import { Icon } from 'astro-icon/components';
         <div class="download-menu-panel">
           <article class="download-option">
             <div><h3>Mac客户端</h3><p>macOS 桌面客户端</p></div>
-            <a class="download-option-action" href="https://jiying.chat/releases/jiying.dmg" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
+            <a class="download-option-action" data-release-platform="macos" href="https://jiying.chat/releases/jiying.dmg" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
           </article>
           <article class="download-option">
             <div><h3>Windows客户端</h3><p>Windows 桌面客户端</p></div>
-            <a class="download-option-action" href="https://jiying.chat/releases/jiying.exe" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
+            <a class="download-option-action" data-release-platform="windows" href="https://jiying.chat/releases/jiying.exe" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
           </article>
           <article class="download-option">
-            <div><h3>Linux客户端</h3><p>x64 / AMD64</p></div>
-            <a class="download-option-action" href="https://jiying.chat/releases/jiying.amd.AppImage" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
-          </article>
-          <article class="download-option">
-            <div><h3>Linux客户端</h3><p>ARM64</p></div>
-            <a class="download-option-action" href="https://jiying.chat/releases/jiying.arm.AppImage" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
+            <div><h3>Linux 下载</h3><p>Linux客户端</p></div>
+            <a class="download-option-action" data-release-platform="linux-amd" href="https://jiying.chat/releases/jiying.amd.AppImage" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
           </article>
         </div>
       </details>
@@ -47,11 +43,11 @@ import { Icon } from 'astro-icon/components';
         <div class="download-menu-panel">
           <article class="download-option">
             <div><h3>iOS</h3><p>iPhone 与 iPad</p></div>
-            <a class="download-option-action" href="https://jiying.chat/releases/jiying.dmg" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
+            <a class="download-option-action" data-release-platform="ios" href="https://jiying.chat/releases/jiying.dmg" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
           </article>
           <article class="download-option">
             <div><h3>Android</h3><p>Android 手机和平板</p></div>
-            <a class="download-option-action" href="https://jiying.chat/releases/jiying.apk" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
+            <a class="download-option-action" data-release-platform="android" href="https://jiying.chat/releases/jiying.apk" target="_blank" rel="noopener noreferrer">下载<Icon name="tabler:download" size={15} aria-hidden="true" /></a>
           </article>
         </div>
       </details>
@@ -65,3 +61,9 @@ import { Icon } from 'astro-icon/components';
     </nav>
   </div>
 </header>
+
+<script>
+  import { hydrateReleaseDownloadLinks } from '../lib/release-downloads';
+
+  void hydrateReleaseDownloadLinks();
+</script>
