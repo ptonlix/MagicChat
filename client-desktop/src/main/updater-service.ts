@@ -1,5 +1,5 @@
-import { app, shell } from "electron"
-import updaterModule from "electron-updater"
+import path from "node:path"
+import { app, net, shell } from "electron"
 import type {
   UpdaterErrorCode,
   UpdaterInstallResult,
@@ -8,32 +8,26 @@ import type {
 } from "@shared/bridge"
 import { releaseChannel } from "@main/diagnostics"
 import { determineUpdateEligibility, type UpdateEligibilityInput } from "@main/updater-eligibility"
+import { installDesktopPackage } from "@main/desktop-package-installer"
+import { isStableVersion } from "@main/desktop-version-manifest"
+import { VersionJsonUpdater, type VersionJsonUpdaterEvent } from "@main/version-json-updater"
 
-const { autoUpdater } = updaterModule
 const INITIAL_CHECK_DELAY = 60_000
 const NORMAL_CHECK_DELAY = 6 * 60 * 60_000
 const MINIMUM_RETRY_DELAY = 15 * 60_000
 const MAXIMUM_RETRY_DELAY = 6 * 60 * 60_000
 const RELEASE_BASE_URL = "https://github.com/ptonlix/MagicChat/releases"
 
-type UpdaterEvent =
-  | "checking-for-update"
-  | "download-progress"
-  | "error"
-  | "update-available"
-  | "update-downloaded"
-  | "update-not-available"
+type UpdaterEvent = VersionJsonUpdaterEvent
 
 export type UpdaterAdapter = {
-  allowDowngrade: boolean
-  allowPrerelease: boolean
-  autoDownload: boolean
-  autoInstallOnAppQuit: boolean
+  cancelDownload(): void
   checkForUpdates(): Promise<unknown>
+  discardDownloadedUpdate(): Promise<void>
   downloadUpdate(): Promise<unknown>
+  installUpdate(): Promise<void>
   off(event: UpdaterEvent, listener: (payload?: unknown) => void): unknown
   on(event: UpdaterEvent, listener: (payload?: unknown) => void): unknown
-  quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void
 }
 
 export type UpdaterClock = {
@@ -58,13 +52,14 @@ type UpdaterServiceOptions = Readonly<{
   openExternal?: (url: string) => Promise<void>
   prepareInstall?: () => Promise<InstallRollback | void>
   recordInstallIntent?: (targetVersion: string) => Promise<void>
+  updaterCachePath?: string
 }>
 
 const TRANSITIONS: Readonly<Record<UpdaterStatus, ReadonlySet<UpdaterStatus>>> = {
   available: new Set(["downloading", "error", "manual"]),
   checking: new Set(["available", "error", "idle", "manual"]),
   downloaded: new Set(["available", "error", "installing", "manual"]),
-  downloading: new Set(["downloaded", "error", "manual"]),
+  downloading: new Set(["available", "downloaded", "error", "manual"]),
   error: new Set(["checking", "manual", "unsupported"]),
   idle: new Set(["checking", "manual", "unsupported"]),
   installing: new Set(["downloaded", "error", "manual"]),
@@ -87,18 +82,22 @@ export class UpdaterService {
     readonly [UpdaterEvent, (payload?: unknown) => void]
   >
   private checkPromise?: Promise<UpdaterState>
+  private downloadCanceled = false
   private disposed = false
   private downloadPromise?: Promise<void>
   private installIntent = false
   private installRollback?: InstallRollback
   private retryCount = 0
   private state: UpdaterState
+  private targetDownloadUrl?: string
   private timer?: ReturnType<typeof setTimeout>
 
   constructor(options: UpdaterServiceOptions = {}) {
-    this.adapter = options.adapter ?? electronUpdaterAdapter()
     this.clock = options.clock ?? systemClock()
     this.context = options.context ?? systemContext()
+    this.adapter =
+      options.adapter ??
+      versionJsonUpdaterAdapter(this.context, options.updaterCachePath ?? systemUpdaterCachePath())
     this.discardInstallIntent = options.discardInstallIntent ?? (async () => true)
     this.eligibility = determineUpdateEligibility(this.context)
     this.hasActiveTransfers = options.hasActiveTransfers ?? (() => false)
@@ -106,10 +105,6 @@ export class UpdaterService {
     this.prepareInstall = options.prepareInstall ?? (async () => undefined)
     this.recordInstallIntent = options.recordInstallIntent ?? (async () => undefined)
     this.state = this.initialState()
-    this.adapter.autoDownload = false
-    this.adapter.autoInstallOnAppQuit = false
-    this.adapter.allowPrerelease = false
-    this.adapter.allowDowngrade = false
     this.updaterListeners = this.createUpdaterListeners()
     for (const [event, listener] of this.updaterListeners) this.adapter.on(event, listener)
     if (this.eligibility.canCheck) this.schedule(INITIAL_CHECK_DELAY)
@@ -149,12 +144,30 @@ export class UpdaterService {
       .downloadUpdate()
       .then(() => undefined)
       .catch((error: unknown) => {
+        if (this.downloadCanceled) {
+          this.downloadCanceled = false
+          return
+        }
         this.handleError(error)
       })
       .finally(() => {
+        this.downloadCanceled = false
         this.downloadPromise = undefined
       })
     return this.downloadPromise
+  }
+
+  cancelDownload(): UpdaterState {
+    if (this.disposed || this.state.status !== "downloading") return this.state
+    this.downloadCanceled = true
+    this.adapter.cancelDownload()
+    this.transition({
+      ...this.baseState(),
+      retryable: true,
+      status: "available",
+      targetVersion: this.state.targetVersion,
+    })
+    return this.state
   }
 
   async install(): Promise<UpdaterInstallResult> {
@@ -181,7 +194,7 @@ export class UpdaterService {
       return { reason: "prepare_failed", status: "failed" }
     }
     try {
-      this.adapter.quitAndInstall(false, true)
+      await this.adapter.installUpdate()
       return this.installIntent
         ? { status: "started" }
         : { reason: "install_failed", status: "failed" }
@@ -213,6 +226,7 @@ export class UpdaterService {
 
   discardDownloadedUpdate(): void {
     if (!this.canDiscardDownloadedUpdate() || this.state.status !== "downloaded") return
+    void this.adapter.discardDownloadedUpdate()
     this.transition({
       ...this.baseState(),
       retryable: true,
@@ -225,6 +239,7 @@ export class UpdaterService {
     if (this.disposed) return
     this.disposed = true
     this.clearTimer()
+    this.adapter.cancelDownload()
     for (const [event, listener] of this.updaterListeners) this.adapter.off(event, listener)
     this.installRollback = undefined
     this.listeners.clear()
@@ -271,6 +286,9 @@ export class UpdaterService {
   }
 
   private manualDownloadUrl(): string {
+    if (this.targetDownloadUrl && this.eligibility.installationSource !== "deb") {
+      return this.targetDownloadUrl
+    }
     const version = this.state.targetVersion
     if (!version || !isStableVersion(version)) return `${RELEASE_BASE_URL}/latest`
     const fileName = this.manualInstallerFileName(version)
@@ -313,6 +331,7 @@ export class UpdaterService {
       return
     }
     this.retryCount = 0
+    this.targetDownloadUrl = info.url
     this.transition({
       ...this.baseState(),
       manualAction: this.manualAction(),
@@ -324,6 +343,7 @@ export class UpdaterService {
 
   private handleNotAvailable(): void {
     this.retryCount = 0
+    this.targetDownloadUrl = undefined
     this.transition({ ...this.baseState(), status: "idle" })
   }
 
@@ -424,11 +444,12 @@ export function classifyUpdateError(error: unknown): UpdaterErrorCode {
   return "update_failed"
 }
 
-function updateInfo(value: unknown): { version: string } | undefined {
+function updateInfo(value: unknown): { url?: string; version: string } | undefined {
   if (!value || typeof value !== "object" || !("version" in value)) return undefined
   const version = value.version
   if (typeof version !== "string") return undefined
-  return { version }
+  const url = "url" in value && typeof value.url === "string" ? value.url : undefined
+  return { ...(url ? { url } : {}), version }
 }
 
 function progressPercent(value: unknown): number | undefined {
@@ -437,10 +458,6 @@ function progressPercent(value: unknown): number | undefined {
   return typeof percent === "number" && Number.isFinite(percent)
     ? Math.max(0, Math.min(100, percent))
     : undefined
-}
-
-function isStableVersion(value: string): boolean {
-  return /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value)
 }
 
 function systemContext(): UpdaterContext {
@@ -462,37 +479,34 @@ function systemClock(): UpdaterClock {
   }
 }
 
-function electronUpdaterAdapter(): UpdaterAdapter {
-  return {
-    get allowDowngrade() {
-      return autoUpdater.allowDowngrade
-    },
-    set allowDowngrade(value) {
-      autoUpdater.allowDowngrade = value
-    },
-    get allowPrerelease() {
-      return autoUpdater.allowPrerelease
-    },
-    set allowPrerelease(value) {
-      autoUpdater.allowPrerelease = value
-    },
-    get autoDownload() {
-      return autoUpdater.autoDownload
-    },
-    set autoDownload(value) {
-      autoUpdater.autoDownload = value
-    },
-    get autoInstallOnAppQuit() {
-      return autoUpdater.autoInstallOnAppQuit
-    },
-    set autoInstallOnAppQuit(value) {
-      autoUpdater.autoInstallOnAppQuit = value
-    },
-    checkForUpdates: () => autoUpdater.checkForUpdates(),
-    downloadUpdate: () => autoUpdater.downloadUpdate(),
-    off: (event, listener) => autoUpdater.off(event, listener),
-    on: (event, listener) => autoUpdater.on(event, listener),
-    quitAndInstall: (isSilent, isForceRunAfter) =>
-      autoUpdater.quitAndInstall(isSilent, isForceRunAfter),
-  }
+function versionJsonUpdaterAdapter(
+  context: UpdaterContext,
+  cacheDirectory: string,
+): UpdaterAdapter {
+  return new VersionJsonUpdater({
+    arch: context.arch,
+    cacheDirectory,
+    currentVersion: context.currentVersion,
+    fetcher: (url, init) => net.fetch(url, init),
+    installPackage: (downloadedPath) =>
+      installDesktopPackage({
+        appImagePath: context.appImagePath,
+        downloadedPath,
+        openPath: (filePath) => shell.openPath(filePath),
+        platform: context.platform,
+        quit: () => app.quit(),
+      }),
+    platform: context.platform,
+  })
+}
+
+function systemUpdaterCachePath(): string {
+  const home = app.getPath("home")
+  const parent =
+    process.platform === "darwin"
+      ? path.join(home, "Library", "Caches")
+      : process.platform === "win32"
+        ? (process.env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"))
+        : (process.env.XDG_CACHE_HOME ?? path.join(home, ".cache"))
+  return path.join(parent, `${app.getName()}-updater`)
 }

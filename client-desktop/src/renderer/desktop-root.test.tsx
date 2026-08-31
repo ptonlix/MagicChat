@@ -1949,6 +1949,7 @@ function createDesktopBridge(
       streamStart: vi.fn(),
     },
     updater: {
+      cancelDownload: vi.fn().mockResolvedValue(initialUpdaterState),
       check: vi.fn(),
       download: vi.fn(),
       getState: vi.fn().mockResolvedValue(initialUpdaterState),

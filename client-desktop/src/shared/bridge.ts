@@ -118,6 +118,7 @@ export const IPC = {
   transportStreamStart: "desktop:v1:transport-stream-start",
   transportRequest: "desktop:v1:transport-request",
   updaterCheck: "desktop:v1:updater-check",
+  updaterCancel: "desktop:v1:updater-cancel",
   updaterDownload: "desktop:v1:updater-download",
   updaterGetState: "desktop:v1:updater-get-state",
   updaterInstall: "desktop:v1:updater-install",
@@ -343,6 +344,7 @@ export interface DesktopBridge {
     ): Promise<string>
   }
   updater: {
+    cancelDownload(): Promise<UpdaterState>
     check(): Promise<UpdaterState>
     download(): Promise<void>
     getState(): Promise<UpdaterState>

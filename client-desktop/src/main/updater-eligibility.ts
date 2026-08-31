@@ -31,6 +31,9 @@ export function determineUpdateEligibility(input: UpdateEligibilityInput): Updat
   if (input.channel !== "stable") {
     return { canCheck: false, installationSource: platformSource(input.platform), mode: "manual" }
   }
+  if (input.platform === "win32" && input.arch === "arm64") {
+    return { canCheck: false, installationSource: "nsis", mode: "manual" }
+  }
   if (input.platform === "linux") {
     return input.appImagePath
       ? { canCheck: true, installationSource: "appimage", mode: "ota" }

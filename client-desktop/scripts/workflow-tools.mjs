@@ -43,6 +43,7 @@ export function validateDesktopReleaseWorkflow(workflow) {
     assert(qualityCommands.includes(command), `quality 缺少命令：${command}`)
   }
   const packageCommands = commands(jobs.package)
+  assert(!JSON.stringify(jobs.package).includes("*.blockmap"), "package 不得上传外置 blockmap")
   assert(
     !/pnpm (?:check|test|lint|typecheck|verify:boundaries)/.test(packageCommands),
     "package 重复执行平台无关门禁",
@@ -79,6 +80,7 @@ export function validateDesktopReleaseWorkflow(workflow) {
   )
   const releaseCommands = commands(jobs.release)
   assert(releaseCommands.includes("release:prepare-assets"), "release 必须使用单一资产准备入口")
+  assert(releaseCommands.includes("release:prepare-official"), "release 必须生成官网手工上传目录")
   assert(releaseCommands.includes("release:publish"), "release 必须使用 Draft 发布事务")
   assert(!releaseCommands.includes("gh release delete"), "禁止按 Tag 删除 Release")
   assert(!releaseCommands.includes("release-assets/*"), "禁止通过通配符上传 Release 资产")

@@ -20,6 +20,7 @@ import {
   mapWithConcurrency,
   validateManifest,
 } from "./release-tools.mjs"
+import { createDesktopVersionFile } from "./desktop-version-file.mjs"
 
 export const RELEASE_TARGETS = ["win:x64", "win:arm64", "mac:universal", "linux:x64", "linux:arm64"]
 const INSTALL_ASSET = /\.(?:AppImage|deb|dmg|exe|zip)$/
@@ -46,17 +47,18 @@ export function targetAssetModel(version, platform, arch) {
     return {
       manifest: "latest.yml",
       manifestAssets: [installer],
-      publicAssets: [installer, `${installer}.blockmap`],
+      ignoredAssets: [`${installer}.blockmap`],
+      publicAssets: [installer],
     }
   }
   if (platform === "mac" && arch === "universal") {
     const dmg = `${prefix}-mac-universal.dmg`
     const zip = `${prefix}-mac-universal.zip`
     return {
-      ignoredAssets: [`${dmg}.blockmap`],
+      ignoredAssets: [`${dmg}.blockmap`, `${zip}.blockmap`],
       manifest: "latest-mac.yml",
       manifestAssets: [dmg, zip],
-      publicAssets: [dmg, zip, `${zip}.blockmap`],
+      publicAssets: [dmg, zip],
     }
   }
   if (platform === "linux" && ["x64", "arm64"].includes(arch)) {
@@ -73,6 +75,7 @@ export function targetAssetModel(version, platform, arch) {
 }
 
 export async function prepareReleaseAssets({
+  build,
   commit,
   inputs,
   notes,
@@ -80,6 +83,7 @@ export async function prepareReleaseAssets({
   releaseDate,
   tag,
   version,
+  versionBase,
 }) {
   assertInputs(inputs)
   await assertOutputAvailable(outputDirectory)
@@ -127,6 +131,10 @@ export async function prepareReleaseAssets({
         },
         { lineWidth: -1, noRefs: true },
       ),
+    )
+    await writeFile(
+      path.join(staging, "version.json"),
+      `${JSON.stringify(createDesktopVersionFile(versionBase, { build, tag, version }), null, 2)}\n`,
     )
     for (const [platform, arch, manifest] of [
       ["win", "x64", "latest.yml"],
@@ -188,6 +196,7 @@ export async function prepareReleaseAssets({
 
 export function expectedReleaseAssetNames(version) {
   const names = new Set([
+    "version.json",
     "latest.yml",
     "latest-mac.yml",
     "latest-linux.yml",

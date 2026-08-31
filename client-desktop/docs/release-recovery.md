@@ -2,24 +2,24 @@
 
 ## 发布定位
 
-Desktop 通过公开 Stable Release 向 Windows、macOS 和 Linux 客户端提供版本更新。
-Release Notes、客户端设置界面和常规发布文档不展示构建签名状态，发布链路持续校验
-HTTPS、版本、平台、架构、文件大小和 SHA-512。
+Desktop 新版本通过 `https://jiying.chat/releases/version.json` 发现更新，并下载其中指向的
+完整安装包。GitHub Release 继续作为构建、验证和旧客户端桥接入口；桥接用 `latest*.yml`
+保留，但新客户端不再依赖 electron-updater Provider 或外置 blockmap。
 
-唯一公开更新仓库为 `ptonlix/MagicChat`。普通客户端匿名读取公开 Feed、更新清单和制品，
+唯一公开构建仓库为 `ptonlix/MagicChat`。普通客户端匿名读取官网清单和公开制品，
 不携带 GitHub Token；`GITHUB_TOKEN` 仅允许在 GitHub Actions 的最终 `release` Job 中创建
 和修改 Release，`quality` 与 `package` Job 只有 `contents: read`。
 
 ## 载体与清单
 
-- Windows x64/arm64：NSIS OTA；Release 只发布一个 `latest.yml`，`files` 分别引用文件名
-  带 `x64` 和 `arm64` 的两个安装器，不包含顶层 `path` 或 `sha512`。
-- macOS Intel/Apple Silicon：Universal ZIP 是 `latest-mac.yml` 的 OTA 主载体；DMG 只用于
-  首次安装、平台拒绝应用内替换后的手动升级和恢复。公开 Release 保留 ZIP blockmap，
-  不发布客户端不会使用的 DMG blockmap。
-- Linux x64：AppImage 使用 `latest-linux.yml`，文件名架构为 `x86_64`；对应 deb 文件名架构
-  为 `amd64`。arm64 AppImage 使用 `latest-linux-arm64.yml`，AppImage 和 deb 均使用
-  `arm64`。deb 不作为自更新包，只提供匹配架构的手动下载。
+- Windows x64：`version.json.windows` 指向完整 NSIS EXE。Windows ARM64 因现有清单没有
+  独立字段，仅提供 GitHub Release 手动下载，不能误用 x64 URL。
+- macOS Intel/Apple Silicon：`version.json.macos` 指向 Universal DMG；客户端下载后打开 DMG，
+  由用户完成覆盖安装。
+- Linux x64/arm64 AppImage：分别读取 `linux-amd`、`linux-arm`，下载完整 AppImage 后安全替换。
+  deb 不自替换，只提供手动升级。
+- GitHub Release 仍包含四个 `latest*.yml`、ZIP 和完整安装包，供旧客户端升级到桥接版；
+  Release 与 Actions artifact 均不得包含独立 `.blockmap`。
 
 开发运行、test/preview 通道、Linux deb、便携解压、只读目录和未知安装来源不得通过静默
 兼容分支强行进入 OTA。平台或安装器拒绝替换时，必须保留当前版本并转为可诊断的手动升级。
@@ -76,10 +76,10 @@ Gatekeeper。任一步失败都不得上传或发布 macOS 制品。
 4. 每个原生 Runner 校验真实构建内容：Windows 检查最终 NSIS 的 PE/版本、同次生成的打包
    应用 PE 架构与 `app.asar` 版本，macOS 检查 ZIP/DMG、plist 和 Universal 二进制，
    Linux 检查 AppImage ELF 与 deb 元数据。验证后只上传隔离的 Actions artifact。
-5. `release:prepare-assets` 恰好接收五个目标，在内部 staging 目录生成 Windows 双架构清单，
-   复核四类清单、Windows NSIS 与 macOS ZIP 外置 blockmap、AppImage 内嵌 blockmap、size、
-   SHA-256、SHA-512 和精确公开资产集合，并输出 `release-plan.json`。最终 Notes 完整保留
-   Tag 人工正文，只追加自动资产附录。
+5. `release:prepare-assets` 恰好接收五个目标，在内部 staging 目录生成 Windows 双架构桥接
+   清单和完整 `version.json`，保留基线文件的 Android/iOS 字段，复核 size、SHA-256、
+   SHA-512 和精确的 13 个公开资产，并输出 `release-plan.json`。随后生成官网手工上传
+   artifact，其中包含四个固定文件名安装包、官网 URL 版 `version.json` 和 `SHA256SUMS.txt`。
 6. `release` Job 在任何写操作前重新检查远端状态，创建不可发现的 Draft 并立即记录 Release
    ID、Tag、仓库和 workflow run 所有权。脚本只上传 `release-plan.json` 列出的文件。
 7. 上传后按 Release ID 读取远端资产，复核名称、大小、数量、唯一性，并轮询 GitHub Asset
@@ -106,13 +106,12 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
 
 - Windows x64/arm64：校验最终 NSIS 是有效 PE 且 ProductVersion 与 Tag 一致；同时从
   electron-builder 同次生成的 `win-unpacked` / `win-arm64-unpacked` 读取主程序 PE
-  Machine、ProductVersion 与 `app.asar` 版本。最终安装器继续通过清单 size、SHA-512 和
-  外置 blockmap 复核。
+  Machine、ProductVersion 与 `app.asar` 版本。最终安装器继续通过清单 size 和 SHA-512 复核。
 - macOS Universal：`ditto` 解 ZIP，`hdiutil` 只读挂载 DMG，`plutil` 读取版本，
   `lipo -archs` 必须精确返回 `x86_64` 与 `arm64`；ZIP 与 DMG 内应用还必须分别通过
   `codesign --verify`、Developer ID/Team ID 检查、`stapler validate` 和 `spctl --assess`。
-- Linux x64/arm64：AppImage 自解包后由 Node 读取主程序 ELF Machine，并从文件尾部验证
-  内嵌 blockmap；`dpkg-deb -f/-x` 分别读取 deb 的 Architecture、Version 与包内主程序。
+- Linux x64/arm64：AppImage 自解包后由 Node 读取主程序 ELF Machine，并验证 electron-builder
+  内嵌元数据；`dpkg-deb -f/-x` 分别读取 deb 的 Architecture、Version 与包内主程序。
 
 预期 Machine 为 PE x64 `0x8664`、PE arm64 `0xAA64`、ELF x64 `0x003E`、ELF arm64
 `0x00B7`。任一解包命令失败、内部架构包缺失、包内版本不一致或工具不可用均阻断当前
@@ -137,7 +136,7 @@ pnpm verify:package -- --platform <win|mac|linux> --arch <x64|arm64|universal> -
   远端状态；若已公开，停止其成为 Latest 或发布更高补丁版本。
 - 同 Tag 已有公开 Release 或未知 Draft：当前运行立即失败，不上传、不覆盖、不删除。
 - 网络、超时或限流：保留当前版本，按 15 分钟至 6 小时、带随机抖动的上限退避重试。
-- 清单、版本、平台、架构、大小或 SHA-512 不匹配：拒绝安装并清理不可信缓存。
+- 清单、版本、平台、架构、可选大小或可选 SHA-512 不匹配：拒绝安装并清理不可信缓存。
 - Windows 安装器被系统策略阻止：不添加绕过系统安全检查的代码；使用 Release 中匹配
   架构的 NSIS 手动恢复。
 - macOS 原生更新器或系统策略拒绝应用内替换：返回

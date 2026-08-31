@@ -85,13 +85,10 @@ assert(
   main.includes("!app.isPackaged") || /![A-Za-z0-9_$]*electron\.app\.isPackaged/.test(main),
   "开发地址没有受 packaged 条件保护",
 )
+assert(!main.includes("electron-updater"), "Main 仍然依赖 electron-updater Provider")
 assert(
-  !/import\s*\{[^}]*autoUpdater[^}]*\}\s*from\s*["']electron-updater["']/.test(main),
-  "Main 使用了不兼容 CommonJS 的 electron-updater 命名导入",
-)
-assert(
-  /import\s+\w+\s+from\s+["']electron-updater["']/.test(main),
-  "Main 缺少 electron-updater 默认导入",
+  main.includes("https://jiying.chat/releases/version.json"),
+  "Main 缺少官网 version.json 更新源",
 )
 assert((await stat(path.join(root, "out/preload/index.cjs"))).size > 0, "Preload 产物为空")
 assert(messageCacheWorker.length > 0, "消息缓存 Worker 产物为空")

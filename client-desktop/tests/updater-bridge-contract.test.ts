@@ -12,6 +12,7 @@ describe("Updater Bridge 契约", () => {
       readFile(path.join(root, "src/main/ipc.ts"), "utf8"),
     ])
     for (const name of [
+      "updaterCancel",
       "updaterCheck",
       "updaterDownload",
       "updaterGetState",

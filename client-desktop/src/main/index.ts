@@ -160,6 +160,7 @@ async function start(): Promise<void> {
     hasActiveTransfers: () => files.hasActiveTransfers() || uploads.hasActiveTransfers(),
     prepareInstall: () => prepareUpdateInstall({ documentWindows, messageCache, windows }),
     recordInstallIntent: (targetVersion) => updateCache.recordInstallIntent(targetVersion),
+    updaterCachePath: updaterCachePath(),
   })
   const storage = new StorageService({
     installationPath: appInstallationPath(),

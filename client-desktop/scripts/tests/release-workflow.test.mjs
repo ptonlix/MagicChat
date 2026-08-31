@@ -62,5 +62,10 @@ describe("Desktop Stable Release 配置", () => {
     )
     expect(`${updater}\n${builder}`).not.toMatch(/GITHUB_TOKEN|GH_TOKEN|Authorization/i)
     expect(updater).toContain("https://github.com/ptonlix/MagicChat/releases")
+    const manifest = await readFile(
+      path.join(repository, "client-desktop/src/main/desktop-version-manifest.ts"),
+      "utf8",
+    )
+    expect(manifest).toContain("https://jiying.chat/releases/version.json")
   })
 })

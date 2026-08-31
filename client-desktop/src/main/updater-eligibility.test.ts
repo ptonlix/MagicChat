@@ -4,7 +4,7 @@ import { determineUpdateEligibility } from "@main/updater-eligibility"
 describe("更新资格判定", () => {
   it.each([
     ["win32", "x64", undefined, "ota", "nsis", true],
-    ["win32", "arm64", undefined, "ota", "nsis", true],
+    ["win32", "arm64", undefined, "manual", "nsis", false],
     ["darwin", "x64", undefined, "ota", "mac_app", true],
     ["darwin", "arm64", undefined, "ota", "mac_app", true],
     ["linux", "x64", "/tmp/MagicChat.AppImage", "ota", "appimage", true],

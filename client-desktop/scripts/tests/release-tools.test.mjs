@@ -100,12 +100,11 @@ describe("Desktop Stable 发布工具", () => {
     expect(() => linuxArtifactSuffixes("ia32")).toThrow("不支持的 Linux 制品架构")
   })
 
-  it("接受 electron-builder 未声明 blockMapSize 的 Windows 外置 blockmap", async () => {
+  it("Windows 清单校验不依赖外置 blockmap", async () => {
     const directory = await fixtureDirectory()
     const installer = "MagicChat-1.2.3-win-x64.exe"
     const artifactPath = path.join(directory, installer)
     await writeFile(artifactPath, "installer")
-    await writeFile(`${artifactPath}.blockmap`, "blockmap")
     const manifestPath = path.join(directory, "latest.yml")
     await writeFile(
       manifestPath,
@@ -123,14 +122,13 @@ describe("Desktop Stable 发布工具", () => {
     ).resolves.toBeTruthy()
   })
 
-  it("macOS 只要求 ZIP blockmap，不要求 DMG blockmap", async () => {
+  it("macOS 清单校验不依赖 ZIP 或 DMG 外置 blockmap", async () => {
     const directory = await fixtureDirectory()
     const dmg = "MagicChat-1.2.3-mac-universal.dmg"
     const zip = "MagicChat-1.2.3-mac-universal.zip"
     await Promise.all([
       writeFile(path.join(directory, dmg), "dmg"),
       writeFile(path.join(directory, zip), "zip"),
-      writeFile(path.join(directory, `${zip}.blockmap`), "zip-blockmap"),
     ])
     const manifestPath = path.join(directory, "latest-mac.yml")
     await writeManifest(manifestPath, directory, [dmg, zip], "1.2.3")
@@ -143,7 +141,6 @@ describe("Desktop Stable 发布工具", () => {
         platform: "mac",
       }),
     ).resolves.toBeTruthy()
-    await writeFile(path.join(directory, `${zip}.blockmap`), "")
     await expect(
       validateManifest({
         arch: "universal",
@@ -152,7 +149,7 @@ describe("Desktop Stable 发布工具", () => {
         manifestPath,
         platform: "mac",
       }),
-    ).rejects.toThrow("blockMapSize")
+    ).resolves.toBeTruthy()
   })
 
   it("拒绝损坏的 AppImage 内嵌 blockmap", async () => {
@@ -226,8 +223,8 @@ describe("Desktop Stable 发布工具", () => {
     await Promise.all([mkdir(x64), mkdir(arm64)])
     await createWindowsCandidate(x64, "x64")
     await createWindowsCandidate(arm64, "arm64")
-    await writeFile(path.join(x64, "shared.blockmap"), "x64")
-    await writeFile(path.join(arm64, "shared.blockmap"), "arm64")
+    await writeFile(path.join(x64, "shared.zip"), "x64")
+    await writeFile(path.join(arm64, "shared.zip"), "arm64")
     await expect(
       aggregateRelease({
         expectedVersion: "1.2.3",
@@ -249,8 +246,8 @@ describe("Desktop Stable 发布工具", () => {
     await createWindowsCandidate(x64, "x64")
     await createWindowsCandidate(arm64, "arm64")
     await Promise.all([
-      writeFile(path.join(x64, "shared.blockmap"), "same"),
-      writeFile(path.join(arm64, "shared.blockmap"), "same"),
+      writeFile(path.join(x64, "shared.zip"), "same"),
+      writeFile(path.join(arm64, "shared.zip"), "same"),
     ])
     await aggregateRelease({
       expectedVersion: "1.2.3",
@@ -260,7 +257,7 @@ describe("Desktop Stable 发布工具", () => {
       ],
       outputDirectory: output,
     })
-    expect(await readFile(path.join(output, "shared.blockmap"), "utf8")).toBe("same")
+    expect(await readFile(path.join(output, "shared.zip"), "utf8")).toBe("same")
   })
 })
 

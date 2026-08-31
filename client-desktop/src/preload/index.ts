@@ -165,6 +165,7 @@ const bridge: DesktopBridge = {
     streamStart: (target, request) => ipcRenderer.invoke(IPC.transportStreamStart, target, request),
   },
   updater: {
+    cancelDownload: () => ipcRenderer.invoke(IPC.updaterCancel),
     check: () => ipcRenderer.invoke(IPC.updaterCheck),
     download: () => ipcRenderer.invoke(IPC.updaterDownload),
     getState: () => ipcRenderer.invoke(IPC.updaterGetState),

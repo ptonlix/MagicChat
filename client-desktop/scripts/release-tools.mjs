@@ -16,7 +16,7 @@ const RELEASE_MANIFESTS = new Set([
   "latest-mac.yml",
   "latest.yml",
 ])
-const RELEASE_ARTIFACT_EXTENSION = /\.(?:AppImage|blockmap|deb|dmg|exe|zip)$/
+const RELEASE_ARTIFACT_EXTENSION = /\.(?:AppImage|deb|dmg|exe|zip)$/
 
 export async function readManifest(manifestPath) {
   const value = load(await readFile(manifestPath, "utf8"), { json: true })
@@ -85,16 +85,12 @@ export async function validateManifest({
     const blockMapSize = entry.blockMapSize
     if (fileName.endsWith(".AppImage")) {
       await validateEmbeddedBlockMap(artifactPath, artifactStat.size, blockMapSize, fileName)
-    } else if (fileName.endsWith(".exe") || fileName.endsWith(".zip")) {
-      const blockmapPath = path.join(artifactDirectory, `${fileName}.blockmap`)
-      const blockmapStat = await stat(blockmapPath).catch(() => undefined)
-      if (!blockmapStat?.isFile()) throw new Error(`缺少差分文件：${fileName}.blockmap`)
-      if (
-        blockMapSize != null &&
-        (!Number.isSafeInteger(blockMapSize) || blockMapSize !== blockmapStat.size)
-      ) {
-        throw new Error(`blockMapSize 与差分文件大小不匹配：${fileName}`)
-      }
+    } else if (
+      (fileName.endsWith(".exe") || fileName.endsWith(".zip")) &&
+      blockMapSize != null &&
+      (!Number.isSafeInteger(blockMapSize) || blockMapSize <= 0)
+    ) {
+      throw new Error(`blockMapSize 无效：${fileName}`)
     }
     files.push({ ...entry, url: fileName })
   }

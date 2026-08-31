@@ -285,6 +285,7 @@ export function registerIpc(deps: IpcDependencies): () => void {
     if (kind !== "screen") throw new Error("权限设置类型无效")
     return deps.system.openPermissionSettings(kind)
   })
+  register(IPC.updaterCancel, () => deps.updater.cancelDownload())
   register(IPC.updaterCheck, () => deps.updater.check())
   register(IPC.updaterDownload, () => deps.updater.download())
   register(IPC.updaterGetState, () => deps.updater.current())

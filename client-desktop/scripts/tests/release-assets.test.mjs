@@ -13,11 +13,28 @@ import {
 import { fileSha512 } from "../release-tools.mjs"
 
 const release = {
+  build: 42,
   commit: "0123456789012345678901234567890123456789",
   notes: "MagicChat Desktop 1.2.3\n\n## 版本亮点\n\n- 更安全。\n\n## Bug 修复\n\n- 修复发布流程。",
   releaseDate: "2026-07-24T00:00:00.000Z",
   tag: "desktop-v1.2.3",
   version: "1.2.3",
+  versionBase: {
+    android: { build: 10, version: "1.4.0", url: "https://jiying.chat/releases/jiying.apk" },
+    ios: { build: 1, version: "1.0.0", url: "https://jiying.chat/releases/jiying.dmg" },
+    windows: { build: 1, version: "1.0.0", url: "https://jiying.chat/releases/jiying.exe" },
+    macos: { build: 1, version: "1.0.0", url: "https://jiying.chat/releases/jiying.dmg" },
+    "linux-amd": {
+      build: 1,
+      version: "1.0.0",
+      url: "https://jiying.chat/releases/jiying.amd.AppImage",
+    },
+    "linux-arm": {
+      build: 1,
+      version: "1.0.0",
+      url: "https://jiying.chat/releases/jiying.arm.AppImage",
+    },
+  },
 }
 
 describe("确定性发布资产计划", () => {
@@ -59,6 +76,15 @@ describe("确定性发布资产计划", () => {
     expect(notes).not.toContain("不得覆盖同一 Tag 的既有资产")
     expect(notes).toContain("## 版本亮点")
     expect(await readdir(first)).not.toContain("MagicChat-1.2.3-mac-universal.dmg.blockmap")
+    expect(plan.assets).toHaveLength(13)
+    const versionFile = JSON.parse(await readFile(path.join(first, "version.json"), "utf8"))
+    expect(versionFile.android).toEqual(release.versionBase.android)
+    expect(versionFile.ios).toEqual(release.versionBase.ios)
+    expect(versionFile.windows).toEqual({
+      build: 42,
+      version: "1.2.3",
+      url: "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.3/MagicChat-1.2.3-win-x64.exe",
+    })
   })
 
   it("拒绝缺失、额外、重复目标和陈旧输出", async () => {
@@ -97,7 +123,7 @@ describe("确定性发布资产计划", () => {
     expect(await readdir(stale)).toEqual(["old.exe"])
   })
 
-  it("拒绝缺失 blockmap 和 blockMapSize 不一致", async () => {
+  it("发布资产不依赖外置 blockmap", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-assets-blockmap-"))
     const inputs = await createInputs(root)
     const model = targetAssetModel("1.2.3", "win", "x64")
@@ -105,10 +131,10 @@ describe("确定性发布资产计划", () => {
     const manifest = load(await readFile(manifestPath, "utf8"))
     manifest.files[0].blockMapSize += 1
     await writeFile(manifestPath, dump(manifest))
-    await expect(
-      prepareReleaseAssets({ ...release, inputs, outputDirectory: path.join(root, "output") }),
-    ).rejects.toThrow("blockMapSize")
-    await expect(readdir(path.join(root, "output"))).rejects.toThrow()
+    await prepareReleaseAssets({ ...release, inputs, outputDirectory: path.join(root, "output") })
+    expect(
+      (await readdir(path.join(root, "output"))).some((name) => name.endsWith(".blockmap")),
+    ).toBe(false)
   })
 })
 

@@ -980,6 +980,20 @@ function DesktopUpdateSettingsSection({
                 : t("settings.update.download")}
             </button>
           )}
+          {state.status === "downloading" && (
+            <button
+              className="settings-secondary-button"
+              disabled={actionPending}
+              onClick={() =>
+                runSettingsUpdateAction(async () => {
+                  onStateChange(await window.desktop.updater.cancelDownload())
+                })
+              }
+              type="button"
+            >
+              {t("settings.update.cancelDownload")}
+            </button>
+          )}
           {state.status === "downloaded" && (
             <>
               <button className="settings-secondary-button" onClick={onClose} type="button">

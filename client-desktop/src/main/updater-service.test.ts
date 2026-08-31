@@ -5,21 +5,6 @@ vi.mock("electron", () => ({
   app: { getVersion: () => "1.0.0", isPackaged: true },
   shell: { openExternal: vi.fn() },
 }))
-vi.mock("electron-updater", () => ({
-  default: {
-    autoUpdater: {
-      allowDowngrade: false,
-      allowPrerelease: false,
-      autoDownload: false,
-      autoInstallOnAppQuit: false,
-      checkForUpdates: vi.fn(),
-      downloadUpdate: vi.fn(),
-      off: vi.fn(),
-      on: vi.fn(),
-      quitAndInstall: vi.fn(),
-    },
-  },
-}))
 
 const { UpdaterService, classifyUpdateError } = await import("@main/updater-service")
 
@@ -40,8 +25,6 @@ describe("UpdaterService", () => {
     const second = service.check()
     expect(first).toBe(second)
     expect(adapter.checkCalls).toBe(1)
-    expect(adapter.allowDowngrade).toBe(false)
-    expect(adapter.allowPrerelease).toBe(false)
     pending.resolve(undefined)
     await first
   })
@@ -132,6 +115,26 @@ describe("UpdaterService", () => {
     await download
   })
 
+  it("取消全量包下载后恢复为可重新下载状态", async () => {
+    const pending = deferred<unknown>()
+    adapter.downloadResult = pending.promise
+    const service = createService(adapter, clock)
+    const check = service.check()
+    adapter.emit("update-available", { version: "1.1.0" })
+    await check
+    const download = service.download()
+
+    expect(service.cancelDownload()).toMatchObject({
+      retryable: true,
+      status: "available",
+      targetVersion: "1.1.0",
+    })
+    pending.reject(new Error("network download canceled"))
+    await download
+    expect(adapter.cancelCalls).toBe(1)
+    expect(service.current().status).toBe("available")
+  })
+
   it("为已验证版本生成固定仓库的发布页地址", async () => {
     const opened: string[] = []
     const service = createService(adapter, clock, {
@@ -192,10 +195,12 @@ describe("UpdaterService", () => {
     },
   )
 
-  it("安装前阻止活跃传输并保证 quitAndInstall 顺序", async () => {
+  it("安装前阻止活跃传输并保证安装器启动顺序", async () => {
     let active = true
     const order: string[] = []
-    adapter.quitAndInstall = () => order.push("quit")
+    adapter.installUpdate = async () => {
+      order.push("quit")
+    }
     const service = createService(adapter, clock, {
       hasActiveTransfers: () => active,
       prepareInstall: async () => {
@@ -277,7 +282,7 @@ describe("UpdaterService", () => {
   it("安装器同步报告失败时回滚退出准备并返回失败", async () => {
     const rollback = vi.fn()
     const discardInstallIntent = vi.fn().mockResolvedValue(true)
-    adapter.quitAndInstall = () => {
+    adapter.installUpdate = async () => {
       adapter.emit("error", new Error("permission denied"))
     }
     const service = createService(adapter, clock, {
@@ -335,9 +340,11 @@ describe("UpdaterService", () => {
     ["win32", undefined],
     ["darwin", undefined],
     ["linux", "/tmp/MagicChat.AppImage"],
-  ] as const)("在 %s 按准备、quitAndInstall 顺序安装", async (platform, appImagePath) => {
+  ] as const)("在 %s 按准备、全量安装器顺序安装", async (platform, appImagePath) => {
     const order: string[] = []
-    adapter.quitAndInstall = () => order.push("quit")
+    adapter.installUpdate = async () => {
+      order.push("quit")
+    }
     const service = createService(adapter, clock, {
       context: {
         appImagePath,
@@ -400,10 +407,7 @@ function createService(
 }
 
 class FakeUpdater implements UpdaterAdapter {
-  allowDowngrade = true
-  allowPrerelease = true
-  autoDownload = true
-  autoInstallOnAppQuit = true
+  cancelCalls = 0
   checkCalls = 0
   checkResult: Promise<unknown> = Promise.resolve(undefined)
   downloadResult: Promise<unknown> = Promise.resolve(undefined)
@@ -417,6 +421,18 @@ class FakeUpdater implements UpdaterAdapter {
 
   downloadUpdate(): Promise<unknown> {
     return this.downloadResult
+  }
+
+  cancelDownload(): void {
+    this.cancelCalls += 1
+  }
+
+  discardDownloadedUpdate(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  installUpdate(): Promise<void> {
+    return Promise.resolve()
   }
 
   on(event: string, listener: (payload?: unknown) => void): void {
@@ -433,8 +449,6 @@ class FakeUpdater implements UpdaterAdapter {
   emit(event: string, payload?: unknown): void {
     for (const listener of this.listeners.get(event) ?? []) listener(payload)
   }
-
-  quitAndInstall(): void {}
 }
 
 class FakeClock implements UpdaterClock {
@@ -460,8 +474,10 @@ class FakeClock implements UpdaterClock {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve
+    reject = nextReject
   })
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
