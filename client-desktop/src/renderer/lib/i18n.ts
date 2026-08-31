@@ -173,8 +173,8 @@ const zhCN = {
   "settings.update.mac.desc":
     "自动更新不可用时，可以下载安装包覆盖当前版本，聊天记录和本地设置会保留。",
   "settings.update.mac.step1": "下载并打开 DMG 安装包",
-  "settings.update.mac.step2": "将即应拖入“应用程序”，选择替换",
-  "settings.update.mac.step3": "重新打开即应，确认版本已更新",
+  "settings.update.mac.step2": "将即应拖入“应用程序”并打开",
+  "settings.update.mac.step3": "按提示迁移旧版 MagicChat，再确认版本已更新",
   "settings.update.status.manual": "当前通道或安装来源仅支持手动升级",
   "settings.update.status.unsupported": "当前平台或架构不支持更新",
   "settings.update.status.installing": "正在准备重启安装",
@@ -1707,8 +1707,9 @@ const en: Record<TranslationKey, string> = {
   "settings.update.mac.desc":
     "If automatic updates are unavailable, download the installer to replace the current version. Chat history and local settings are preserved.",
   "settings.update.mac.step1": "Download and open the DMG installer",
-  "settings.update.mac.step2": "Drag Jiying into the Applications folder and choose Replace",
-  "settings.update.mac.step3": "Reopen Jiying and confirm the version has been updated",
+  "settings.update.mac.step2": "Drag Jiying into the Applications folder and open it",
+  "settings.update.mac.step3":
+    "Follow the prompt to migrate the legacy MagicChat app, then confirm the version",
   "settings.update.status.manual":
     "Manual updates are required for this channel or installation source",
   "settings.update.status.unsupported":

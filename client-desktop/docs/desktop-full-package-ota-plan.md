@@ -621,7 +621,8 @@ Cache-Control: no-cache
 
 1. 现有 JSON 没有 `size` 和 `sha512`，完整性保护弱于当前 electron-updater 清单；建议后续兼容扩展。
 2. Windows ARM64 没有独立字段，第一阶段不能安全自动更新。
-3. macOS JSON 目前指向 DMG，因此第一阶段是下载并打开安装器，不是 ZIP 无交互自动替换。
+3. macOS JSON 目前指向 DMG，因此第一阶段是下载并打开安装器，不是 ZIP 无交互自动替换；
+   品牌迁移版本还必须将 `即应.app` 拖入“应用程序”并完成首次启动迁移。
 4. 自定义下载和安装比切换 Generic Provider 改造范围更大，必须进行多平台真机验证。
 5. `android`、`ios` 与桌面共用一个文件，发布流程必须防止移动端配置丢失。
 6. 固定安装包文件会被覆盖，必须先原子替换包、最后原子替换清单。
@@ -656,6 +657,9 @@ Cache-Control: no-cache
 - 下载支持单任务复用、超时、进度、取消、不完整文件清理、可选 `size/sha512` 校验和平台
   文件头/架构校验。
 - Windows 启动完整 EXE，macOS 打开完整 DMG，Linux AppImage 在退出后以暂存和备份方式替换。
+- macOS 品牌迁移版本从“应用程序”目录首次启动时，在注册 URL Scheme 前识别相同 Bundle ID
+  的旧 `MagicChat.app`，经用户确认后移入废纸篓；拒绝或失败时阻止新应用继续启动，避免
+  `MagicChat.app` 与 `即应.app` 并存后争抢 `magicchat://`。
 - 发布聚合自动生成保留 Android/iOS 的 GitHub URL 版 `version.json`。
 - Release 精确资产集合改为 13 个文件，不上传任何外置 `.blockmap`，继续保留四个
   `latest*.yml` 作为旧客户端桥接入口。

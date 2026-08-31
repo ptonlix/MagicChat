@@ -90,8 +90,10 @@ Gatekeeper。任一步失败都不得上传或发布 macOS 制品。
 
 安装后的应用展示名称为“即应”，GitHub Release 安装包使用 `Jiying-<version>-...` 文件名。
 `appId=com.magicchat.desktop`、`magicchat://` 和 `magicchat-desktop` 用户数据目录保持稳定。
-首个品牌迁移版本必须从上一版真机覆盖安装，复核登录状态、快捷方式、卸载项和 macOS
-“应用程序”目录中是否留下旧 `MagicChat.app`。
+首个品牌迁移版本在 macOS 上将 `即应.app` 拖入“应用程序”并首次启动时，会先识别相同
+Bundle ID 的旧 `MagicChat.app`，由用户确认后移入废纸篓，再注册 `magicchat://` 协议；
+用户拒绝或迁移失败时新应用不会继续启动。直接从 DMG 运行不会删除旧应用。必须从上一版
+真机升级，复核登录状态、快捷方式、卸载项，并确认“应用程序”目录只保留 `即应.app`。
 
 自动化命令从 `client-desktop/` 执行：
 
