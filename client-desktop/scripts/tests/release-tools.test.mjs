@@ -57,8 +57,8 @@ describe("Desktop Stable 发布工具", () => {
 
   it("校验清单中的版本、大小和 SHA-512", async () => {
     const directory = await fixtureDirectory()
-    const appImage = "MagicChat-1.2.3-linux-x86_64.AppImage"
-    const deb = "MagicChat-1.2.3-linux-amd64.deb"
+    const appImage = "Jiying-1.2.3-linux-x86_64.AppImage"
+    const deb = "Jiying-1.2.3-linux-amd64.deb"
     await Promise.all([
       writeFile(path.join(directory, appImage), "appimage"),
       writeFile(path.join(directory, deb), "deb"),
@@ -102,7 +102,7 @@ describe("Desktop Stable 发布工具", () => {
 
   it("Windows 清单校验不依赖外置 blockmap", async () => {
     const directory = await fixtureDirectory()
-    const installer = "MagicChat-1.2.3-win-x64.exe"
+    const installer = "Jiying-1.2.3-win-x64.exe"
     const artifactPath = path.join(directory, installer)
     await writeFile(artifactPath, "installer")
     const manifestPath = path.join(directory, "latest.yml")
@@ -124,8 +124,8 @@ describe("Desktop Stable 发布工具", () => {
 
   it("macOS 清单校验不依赖 ZIP 或 DMG 外置 blockmap", async () => {
     const directory = await fixtureDirectory()
-    const dmg = "MagicChat-1.2.3-mac-universal.dmg"
-    const zip = "MagicChat-1.2.3-mac-universal.zip"
+    const dmg = "Jiying-1.2.3-mac-universal.dmg"
+    const zip = "Jiying-1.2.3-mac-universal.zip"
     await Promise.all([
       writeFile(path.join(directory, dmg), "dmg"),
       writeFile(path.join(directory, zip), "zip"),
@@ -154,7 +154,7 @@ describe("Desktop Stable 发布工具", () => {
 
   it("拒绝损坏的 AppImage 内嵌 blockmap", async () => {
     const directory = await fixtureDirectory()
-    const appImage = "MagicChat-1.2.3-linux-x86_64.AppImage"
+    const appImage = "Jiying-1.2.3-linux-x86_64.AppImage"
     const artifactPath = path.join(directory, appImage)
     const compressed = Buffer.from("invalid-blockmap")
     const sizeBuffer = Buffer.alloc(4)
@@ -210,8 +210,8 @@ describe("Desktop Stable 发布工具", () => {
       outputDirectory: output,
     })
     const manifest = await readFile(path.join(output, "latest.yml"), "utf8")
-    expect(manifest).toContain("MagicChat-1.2.3-win-x64.exe")
-    expect(manifest).toContain("MagicChat-1.2.3-win-arm64.exe")
+    expect(manifest).toContain("Jiying-1.2.3-win-x64.exe")
+    expect(manifest).toContain("Jiying-1.2.3-win-arm64.exe")
     expect(manifest).not.toMatch(/^path:|^sha512:/m)
     expect(await readdir(output)).not.toContain("builder-debug.yml")
   })
@@ -266,7 +266,7 @@ async function fixtureDirectory() {
 }
 
 async function createWindowsCandidate(directory, arch) {
-  const fileName = `MagicChat-1.2.3-win-${arch}.exe`
+  const fileName = `Jiying-1.2.3-win-${arch}.exe`
   await writeFile(path.join(directory, fileName), arch)
   await writeManifest(path.join(directory, "latest.yml"), directory, fileName, "1.2.3")
 }

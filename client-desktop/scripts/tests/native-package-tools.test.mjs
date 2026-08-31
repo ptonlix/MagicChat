@@ -98,7 +98,7 @@ describe("原生安装包真实性解析", () => {
     await mkdir(path.join(applicationDirectory, "resources"), { recursive: true })
     const artifact = path.join(root, "installer.exe")
     await writeFile(artifact, peFixture(0x14c))
-    await writeFile(path.join(applicationDirectory, "MagicChat.exe"), peFixture(0x8664))
+    await writeFile(path.join(applicationDirectory, "即应.exe"), peFixture(0x8664))
     await writeFile(path.join(applicationDirectory, "resources/app.asar"), "asar")
     await expect(
       verifyWindowsPackage({
@@ -115,9 +115,9 @@ describe("原生安装包真实性解析", () => {
   it("从 ZIP/DMG 读取 plist、Universal 架构与 app.asar 版本", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-mac-fixture-"))
     const executeCommand = async (command, args) => {
-      if (command.endsWith("ditto")) await createMacApplication(path.join(args[3], "MagicChat.app"))
+      if (command.endsWith("ditto")) await createMacApplication(path.join(args[3], "即应.app"))
       if (command.endsWith("hdiutil") && args[0] === "attach") {
-        await createMacApplication(path.join(args[4], "MagicChat.app"))
+        await createMacApplication(path.join(args[4], "即应.app"))
       }
       if (command.endsWith("plutil")) {
         return { stdout: args[1] === "CFBundleIdentifier" ? "com.magicchat.desktop\n" : "1.2.3\n" }
@@ -219,12 +219,12 @@ describe("原生安装包真实性解析", () => {
 
 async function windowsPackageFixture(arch) {
   const root = await mkdtemp(path.join(os.tmpdir(), "magicchat-nsis-version-fixture-"))
-  const artifact = path.join(root, `MagicChat-1.2.3-win-${arch}.exe`)
+  const artifact = path.join(root, `Jiying-1.2.3-win-${arch}.exe`)
   const applicationDirectory = path.join(root, "application")
   await mkdir(path.join(applicationDirectory, "resources"), { recursive: true })
   await writeFile(artifact, peFixture(0x14c))
   await writeFile(
-    path.join(applicationDirectory, "MagicChat.exe"),
+    path.join(applicationDirectory, "即应.exe"),
     peFixture(arch === "x64" ? 0x8664 : 0xaa64),
   )
   await writeFile(path.join(applicationDirectory, "resources/app.asar"), "asar")
@@ -278,6 +278,6 @@ async function createMacApplication(application) {
   await mkdir(path.join(application, "Contents/MacOS"), { recursive: true })
   await mkdir(path.join(application, "Contents/Resources"), { recursive: true })
   await writeFile(path.join(application, "Contents/Info.plist"), "plist")
-  await writeFile(path.join(application, "Contents/MacOS/MagicChat"), "binary")
+  await writeFile(path.join(application, "Contents/MacOS/即应"), "binary")
   await writeFile(path.join(application, "Contents/Resources/app.asar"), "asar")
 }

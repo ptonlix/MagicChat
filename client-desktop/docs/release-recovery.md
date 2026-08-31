@@ -80,11 +80,18 @@ Gatekeeper。任一步失败都不得上传或发布 macOS 制品。
    清单和完整 `version.json`，保留基线文件的 Android/iOS 字段，复核 size、SHA-256、
    SHA-512 和精确的 13 个公开资产，并输出 `release-plan.json`。随后生成官网手工上传
    artifact，其中包含四个固定文件名安装包、官网 URL 版 `version.json` 和 `SHA256SUMS.txt`。
+   Desktop `build` 取同一 workflow run 的 `github.run_attempt`：新版本首次运行为 1，
+   发布前使用 `Re-run all jobs` 重跑时递增。已公开的版本不得覆盖，修复必须发布更高版本。
 6. `release` Job 在任何写操作前重新检查远端状态，创建不可发现的 Draft 并立即记录 Release
    ID、Tag、仓库和 workflow run 所有权。脚本只上传 `release-plan.json` 列出的文件。
 7. 上传后按 Release ID 读取远端资产，复核名称、大小、数量、唯一性，并轮询 GitHub Asset
    `digest`，直至每项 `sha256:<hex>` 与本地 SHA-256 一致；全部通过后才将同一 Release ID
    转为 `draft=false`、`prerelease=false` 的公开 Stable Release。
+
+安装后的应用展示名称为“即应”，GitHub Release 安装包使用 `Jiying-<version>-...` 文件名。
+`appId=com.magicchat.desktop`、`magicchat://` 和 `magicchat-desktop` 用户数据目录保持稳定。
+首个品牌迁移版本必须从上一版真机覆盖安装，复核登录状态、快捷方式、卸载项和 macOS
+“应用程序”目录中是否留下旧 `MagicChat.app`。
 
 自动化命令从 `client-desktop/` 执行：
 

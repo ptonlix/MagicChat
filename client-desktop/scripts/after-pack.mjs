@@ -6,12 +6,11 @@ const execute = promisify(execFile)
 
 export default async function afterPack(context) {
   if (context.electronPlatformName !== "darwin") return
-  const plistPath = path.join(
+  const applicationPath = path.join(
     context.appOutDir,
     `${context.packager.appInfo.productFilename}.app`,
-    "Contents",
-    "Info.plist",
   )
+  const plistPath = path.join(applicationPath, "Contents", "Info.plist")
   await execute("/usr/bin/plutil", [
     "-replace",
     "NSAppTransportSecurity.NSAllowsArbitraryLoads",
@@ -31,4 +30,5 @@ export default async function afterPack(context) {
     "NSAppTransportSecurity.NSExceptionDomains",
     plistPath,
   ]).catch(() => undefined)
+  await execute("/usr/bin/xattr", ["-cr", applicationPath])
 }

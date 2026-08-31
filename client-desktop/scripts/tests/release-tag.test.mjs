@@ -8,7 +8,7 @@ import { inspectReleaseTag, validateReleaseNotes } from "../release-tag.mjs"
 import { prepareReleaseWorktree, releaseWorktreeRoot } from "../release-worktree.mjs"
 
 const execute = promisify(execFile)
-const validNotes = `MagicChat Desktop 1.2.3
+const validNotes = `即应 Desktop 1.2.3
 
 ## 版本亮点
 

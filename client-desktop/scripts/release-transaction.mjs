@@ -33,7 +33,7 @@ export async function publishReleaseTransaction({
     created = await adapter.createDraft({
       body: notes,
       commit: plan.commit,
-      name: `MagicChat Desktop ${plan.version}`,
+      name: `即应 Desktop ${plan.version}`,
       owner,
       repository,
       tag: plan.tag,

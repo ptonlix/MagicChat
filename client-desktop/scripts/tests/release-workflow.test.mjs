@@ -28,6 +28,12 @@ describe("Desktop Stable Release 配置", () => {
     }
   })
 
+  it("使用同一版本的 workflow 执行轮次作为 build", async () => {
+    const source = await readFile(workflowPath, "utf8")
+    expect(source).toContain("${{ github.run_attempt }}")
+    expect(source).not.toContain("${{ github.run_number }}")
+  })
+
   it("固定公开更新仓库与 Stable Release 类型", async () => {
     const builder = await readFile(
       path.join(repository, "client-desktop/electron-builder.yml"),

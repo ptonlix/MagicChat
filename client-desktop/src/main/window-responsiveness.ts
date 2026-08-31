@@ -58,7 +58,7 @@ export function monitorWindowResponsiveness(
           buttons: ["继续等待", "重新加载"],
           defaultId: 0,
           cancelId: 0,
-          message: "MagicChat 暂时没有响应",
+          message: "即应暂时没有响应",
           detail: "应用仍在处理数据。你可以继续等待，或重新加载当前窗口。",
           signal: controller.signal,
         })

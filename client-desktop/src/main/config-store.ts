@@ -14,7 +14,7 @@ const CURRENT_SCHEMA = 1
 
 export class UnsupportedConfigVersionError extends Error {
   constructor() {
-    super("桌面配置来自更高版本，请重新安装较新版本的 MagicChat")
+    super("桌面配置来自更高版本，请重新安装较新版本的即应")
   }
 }
 

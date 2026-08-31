@@ -14,7 +14,7 @@ describe("VersionJsonUpdater", () => {
     installer[0] = 0x4d
     installer[1] = 0x5a
     const packageUrl =
-      "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.0/MagicChat-1.2.0-win-x64.exe"
+      "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.0/Jiying-1.2.0-win-x64.exe"
     const manifest = {
       windows: {
         build: 12,
@@ -58,6 +58,7 @@ describe("VersionJsonUpdater", () => {
     expect(requested[1]).toBe(packageUrl)
     expect(requested.every((url) => !url.endsWith(".blockmap"))).toBe(true)
     const downloadedPath = installPackage.mock.calls[0][0]
+    expect(path.basename(downloadedPath)).toBe("Jiying-1.2.0.exe")
     await expect(access(downloadedPath)).resolves.toBeUndefined()
     await updater.discardDownloadedUpdate()
     await expect(access(downloadedPath)).rejects.toThrow()

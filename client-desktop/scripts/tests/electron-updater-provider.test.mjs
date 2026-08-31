@@ -36,7 +36,7 @@ describe("electron-updater Windows Provider 回归", () => {
         updateInfo,
         new URL("https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.3/"),
       )
-      expect(findFile(files, "exe").info.url).toBe(`MagicChat-1.2.3-win-${arch}.exe`)
+      expect(findFile(files, "exe").info.url).toBe(`Jiying-1.2.3-win-${arch}.exe`)
     } finally {
       if (descriptor) Object.defineProperty(process, "arch", descriptor)
     }

@@ -121,7 +121,7 @@ describe("AppLayout", () => {
       screen.getByRole("link", { name: "通讯录" }),
       screen.getByRole("link", { name: "项目" }),
       screen.getByRole("link", { name: "打开即应官网" }),
-      screen.getByRole("link", { name: "在 GitHub 查看 MagicChat" }),
+      screen.getByRole("link", { name: "在 GitHub 查看即应" }),
       screen.getByRole("button", { name: "配色：跟随系统" }),
       screen.getByRole("button", { name: "设置" }),
     ]
@@ -223,7 +223,7 @@ describe("AppLayout", () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole("link", { name: "在 GitHub 查看 MagicChat" })).toMatchObject({
+    expect(screen.getByRole("link", { name: "在 GitHub 查看即应" })).toMatchObject({
       href: "https://github.com/chaitin/MagicChat",
       rel: "noopener noreferrer",
       target: "_blank",

@@ -205,5 +205,5 @@ async function setLinuxAutoLaunch(enabled: boolean): Promise<void> {
 
 export function linuxAutostartEntry(executable: string): string {
   const escaped = executable.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/%/g, "%%")
-  return `[Desktop Entry]\nType=Application\nName=MagicChat\nExec="${escaped}" --hidden\nTerminal=false\nX-GNOME-Autostart-enabled=true\n`
+  return `[Desktop Entry]\nType=Application\nName=即应\nExec="${escaped}" --hidden\nTerminal=false\nX-GNOME-Autostart-enabled=true\n`
 }

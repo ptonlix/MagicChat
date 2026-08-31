@@ -11,22 +11,22 @@ export function createDesktopVersionFile(base, { build, tag, version }) {
     windows: {
       build,
       version,
-      url: `${prefix}/MagicChat-${version}-win-x64.exe`,
+      url: `${prefix}/Jiying-${version}-win-x64.exe`,
     },
     macos: {
       build,
       version,
-      url: `${prefix}/MagicChat-${version}-mac-universal.dmg`,
+      url: `${prefix}/Jiying-${version}-mac-universal.dmg`,
     },
     "linux-amd": {
       build,
       version,
-      url: `${prefix}/MagicChat-${version}-linux-x86_64.AppImage`,
+      url: `${prefix}/Jiying-${version}-linux-x86_64.AppImage`,
     },
     "linux-arm": {
       build,
       version,
-      url: `${prefix}/MagicChat-${version}-linux-arm64.AppImage`,
+      url: `${prefix}/Jiying-${version}-linux-arm64.AppImage`,
     },
   }
   const result = {

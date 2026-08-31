@@ -84,8 +84,8 @@ export class Diagnostics {
     }
     try {
       crashReporter.start({
-        companyName: "MagicChat",
-        productName: "MagicChat",
+        companyName: "即应",
+        productName: "即应",
         submitURL: "",
         uploadToServer: false,
         compress: false,
@@ -164,7 +164,7 @@ export class Diagnostics {
 
   async export(): Promise<{ path?: string }> {
     const result = await dialog.showSaveDialog({
-      defaultPath: `MagicChat-diagnostics-${new Date().toISOString().slice(0, 10)}.json`,
+      defaultPath: `Jiying-diagnostics-${new Date().toISOString().slice(0, 10)}.json`,
     })
     if (result.canceled || !result.filePath) return {}
     await this.flushPendingRuntimeStall()

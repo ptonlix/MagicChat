@@ -367,7 +367,7 @@ export class ScreenshotController {
 
       if (assembly.action === "save") {
         const result = await dialog.showSaveDialog(overlay.window, {
-          defaultPath: `MagicChat-${new Date().toISOString().replace(/[:.]/g, "-")}.png`,
+          defaultPath: `Jiying-${new Date().toISOString().replace(/[:.]/g, "-")}.png`,
           filters: [{ extensions: ["png"], name: "PNG 图片" }],
           properties: ["createDirectory", "showOverwriteConfirmation"],
         })
@@ -387,7 +387,7 @@ export class ScreenshotController {
         try {
           this.options.onConversationResult({
             conversationId,
-            fileName: `MagicChat-${Date.now()}.png`,
+            fileName: `Jiying-${Date.now()}.png`,
             resourceUrl: `magicchat-capture://result/${encodeURIComponent(session.id)}/${token}`,
             sessionId: session.id,
           })

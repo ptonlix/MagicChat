@@ -3,6 +3,11 @@ import { app, dialog, nativeTheme, powerMonitor, screen } from "electron"
 import { IPC } from "@shared/bridge"
 import { AuthController } from "@main/auth-controller"
 import { ASRController } from "@main/asr-controller"
+import {
+  APP_DISPLAY_NAME,
+  stableUserDataPath,
+  STABLE_UPDATER_CACHE_DIRECTORY_NAME,
+} from "@main/app-identity"
 import { DocumentCollaborationController } from "@main/document-collaboration-controller"
 import { DocumentWindowManager } from "@main/document-window-manager"
 import { FileDocumentWindowStateStore } from "@main/document-window-state"
@@ -33,6 +38,7 @@ import { StorageService } from "@main/storage-service"
 import { UpdateCacheLifecycle } from "@main/update-cache-lifecycle"
 import messageCacheWorkerPath from "@main/message-cache/message-cache-worker?modulePath"
 
+app.setPath("userData", stableUserDataPath(app.getPath("appData")))
 registerPrivilegedSchemes()
 
 const initialDeepLink = process.argv.find((value) => value.startsWith("magicchat://"))
@@ -42,7 +48,7 @@ else
   void start().catch(async (error: unknown) => {
     await app.whenReady()
     dialog.showErrorBox(
-      "MagicChat 无法启动",
+      `${APP_DISPLAY_NAME} 无法启动`,
       error instanceof Error ? error.message : "桌面客户端初始化失败",
     )
     app.exit(1)
@@ -352,7 +358,7 @@ async function start(): Promise<void> {
           cancelId: 0,
           defaultId: 0,
           message: "此链接指向尚未配置的服务器",
-          detail: "确认前 MagicChat 不会向该服务器发送现有凭据。",
+          detail: `确认前 ${APP_DISPLAY_NAME} 不会向该服务器发送现有凭据。`,
         })
         if (result.response === 1)
           windows.send("desktop:v1:unknown-server", { serverId: action.serverId })
@@ -365,7 +371,7 @@ async function start(): Promise<void> {
     } catch (error) {
       await dialog.showMessageBox({
         type: "error",
-        message: "无法打开 MagicChat 链接",
+        message: `无法打开 ${APP_DISPLAY_NAME} 链接`,
         detail: error instanceof Error ? error.message : "链接无效",
       })
     }
@@ -392,7 +398,7 @@ function updaterCachePath(): string {
       : process.platform === "win32"
         ? (process.env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"))
         : (process.env.XDG_CACHE_HOME ?? path.join(home, ".cache"))
-  return path.join(parent, `${app.getName()}-updater`)
+  return path.join(parent, STABLE_UPDATER_CACHE_DIRECTORY_NAME)
 }
 
 function appInstallationPath(): string | undefined {

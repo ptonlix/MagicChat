@@ -30,9 +30,9 @@ describe("桌面发布 version.json", () => {
     expect(result.windows).toEqual({
       build: 18,
       version: "1.8.0",
-      url: "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/MagicChat-1.8.0-win-x64.exe",
+      url: "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.8.0-win-x64.exe",
     })
-    expect(result["linux-arm"].url).toContain("MagicChat-1.8.0-linux-arm64.AppImage")
+    expect(result["linux-arm"].url).toContain("Jiying-1.8.0-linux-arm64.AppImage")
   })
 
   it("缺少移动端字段或字段不合法时终止生成", () => {

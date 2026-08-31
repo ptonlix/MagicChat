@@ -1,4 +1,4 @@
-# MagicChat Desktop
+# 即应 Desktop
 
 `client-desktop` 是 MagicChat 的 Electron 桌面客户端，使用一套代码支持 Windows、
 macOS 和 Linux，并通过公开 Stable Release 提供跨版本更新。
@@ -55,7 +55,7 @@ macOS DMG 只用于首次安装和失败恢复，Linux deb 只提供匹配架构
 macOS 本地打包后可直接启动对应架构的应用，例如：
 
 ```bash
-open dist/mac-universal/MagicChat.app
+open dist/mac-universal/即应.app
 ```
 
 跨平台安装、验收和发布要求见

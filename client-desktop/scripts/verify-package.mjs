@@ -27,6 +27,7 @@ const expectedVersion = tag ? parseDesktopTag(tag) : packageJson.version
 assert(packageJson.version === expectedVersion, "package.json 版本与 Tag 不一致")
 const builder = load(await readFile(path.join(root, "electron-builder.yml"), "utf8"))
 assert(builder.appId === "com.magicchat.desktop", "应用 ID 配置无效")
+assert(builder.productName === "即应", "应用展示名称配置无效")
 assert(builder.publish?.provider === "github", "Desktop 更新源必须使用 GitHub provider")
 assert(
   builder.publish?.owner === "ptonlix" && builder.publish?.repo === "MagicChat",
@@ -80,7 +81,7 @@ await validateManifest({
 console.log(JSON.stringify({ appId: builder.appId, ...nativeResult }))
 
 function artifact(suffix) {
-  const expected = `MagicChat-${expectedVersion}-${suffix}`
+  const expected = `Jiying-${expectedVersion}-${suffix}`
   if (!names.includes(expected)) throw new Error(`缺少发布制品：${expected}`)
   return path.join(dist, expected)
 }

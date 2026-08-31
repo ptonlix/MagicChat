@@ -159,13 +159,13 @@ describe("UpdaterService", () => {
   })
 
   it.each([
-    ["darwin", "arm64", undefined, "MagicChat-1.1.0-mac-universal.dmg"],
-    ["win32", "x64", undefined, "MagicChat-1.1.0-win-x64.exe"],
-    ["win32", "arm64", undefined, "MagicChat-1.1.0-win-arm64.exe"],
-    ["linux", "x64", "/tmp/MagicChat.AppImage", "MagicChat-1.1.0-linux-x86_64.AppImage"],
-    ["linux", "arm64", "/tmp/MagicChat.AppImage", "MagicChat-1.1.0-linux-arm64.AppImage"],
-    ["linux", "x64", undefined, "MagicChat-1.1.0-linux-amd64.deb"],
-    ["linux", "arm64", undefined, "MagicChat-1.1.0-linux-arm64.deb"],
+    ["darwin", "arm64", undefined, "Jiying-1.1.0-mac-universal.dmg"],
+    ["win32", "x64", undefined, "Jiying-1.1.0-win-x64.exe"],
+    ["win32", "arm64", undefined, "Jiying-1.1.0-win-arm64.exe"],
+    ["linux", "x64", "/tmp/MagicChat.AppImage", "Jiying-1.1.0-linux-x86_64.AppImage"],
+    ["linux", "arm64", "/tmp/MagicChat.AppImage", "Jiying-1.1.0-linux-arm64.AppImage"],
+    ["linux", "x64", undefined, "Jiying-1.1.0-linux-amd64.deb"],
+    ["linux", "arm64", undefined, "Jiying-1.1.0-linux-arm64.deb"],
   ] as const)(
     "为 %s %s 生成匹配安装来源的下载地址",
     async (platform, arch, appImagePath, fileName) => {

@@ -72,7 +72,7 @@ describe("Windows 品牌图标", () => {
       await readFile(path.resolve(import.meta.dirname, "../../electron-builder.yml"), "utf8"),
     )
 
-    expect(builderConfig).toContain("productName: MagicChat")
+    expect(builderConfig).toContain("productName: 即应")
     expect(builderConfig).toContain("nsis:\n  shortcutName: 即应")
   })
 

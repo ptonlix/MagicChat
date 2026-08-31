@@ -41,7 +41,7 @@ export function parseReleaseInput(value) {
 }
 
 export function targetAssetModel(version, platform, arch) {
-  const prefix = `MagicChat-${version}`
+  const prefix = `Jiying-${version}`
   if (platform === "win") {
     const installer = `${prefix}-win-${arch}.exe`
     return {

@@ -132,7 +132,7 @@ jobs:
         run: pnpm verify:package -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --tag "${{ needs.quality.outputs.tag }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: magicchat-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          name: jiying-desktop-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.exe
             ${{ steps.worktree.outputs.desktop-directory }}/dist/*.dmg
@@ -173,21 +173,21 @@ jobs:
         run: |
           pnpm release:prepare-assets -- \
             --tag "${{ needs.quality.outputs.tag }}" \
-            --build "${{ github.run_number }}" \
+            --build "${{ github.run_attempt }}" \
             --version-base release-version-base.json \
             --commit "${{ needs.quality.outputs.commit }}" \
             --output ../release-assets \
-            --input win:x64:../artifacts/magicchat-desktop-win-x64 \
-            --input win:arm64:../artifacts/magicchat-desktop-win-arm64 \
-            --input mac:universal:../artifacts/magicchat-desktop-mac-universal \
-            --input linux:x64:../artifacts/magicchat-desktop-linux-x64 \
-            --input linux:arm64:../artifacts/magicchat-desktop-linux-arm64
+            --input win:x64:../artifacts/jiying-desktop-win-x64 \
+            --input win:arm64:../artifacts/jiying-desktop-win-arm64 \
+            --input mac:universal:../artifacts/jiying-desktop-mac-universal \
+            --input linux:x64:../artifacts/jiying-desktop-linux-x64 \
+            --input linux:arm64:../artifacts/jiying-desktop-linux-arm64
       - name: 生成官网手工上传目录
         working-directory: client-desktop
         run: pnpm release:prepare-official -- --input ../release-assets --output ../website-release-upload
       - uses: actions/upload-artifact@v4
         with:
-          name: magicchat-website-release-${{ needs.quality.outputs.version }}
+          name: jiying-website-release-${{ needs.quality.outputs.version }}
           path: website-release-upload/*
           if-no-files-found: error
       - name: 通过 Draft 事务发布并复核远端摘要

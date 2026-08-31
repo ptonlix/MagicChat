@@ -12,10 +12,10 @@ describe("官网手工上传资产", () => {
     await mkdir(input)
     const version = "1.8.0"
     const files = {
-      windows: `MagicChat-${version}-win-x64.exe`,
-      macos: `MagicChat-${version}-mac-universal.dmg`,
-      "linux-amd": `MagicChat-${version}-linux-x86_64.AppImage`,
-      "linux-arm": `MagicChat-${version}-linux-arm64.AppImage`,
+      windows: `Jiying-${version}-win-x64.exe`,
+      macos: `Jiying-${version}-mac-universal.dmg`,
+      "linux-amd": `Jiying-${version}-linux-x86_64.AppImage`,
+      "linux-arm": `Jiying-${version}-linux-arm64.AppImage`,
     }
     for (const name of Object.values(files)) await writeFile(path.join(input, name), name)
     const prefix = `https://github.com/ptonlix/MagicChat/releases/download/desktop-v${version}`

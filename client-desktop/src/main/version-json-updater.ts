@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto"
 import { chmod, mkdir, open, rename, rm } from "node:fs/promises"
 import path from "node:path"
+import { RELEASE_ASSET_PREFIX } from "@main/app-identity"
 import {
   compareStableVersions,
   DESKTOP_VERSION_MANIFEST_URL,
@@ -65,7 +66,7 @@ export class VersionJsonUpdater {
     const extension = packageExtension(entry.url)
     const finalPath = path.join(
       this.options.cacheDirectory,
-      `MagicChat-${entry.version}${extension}`,
+      `${RELEASE_ASSET_PREFIX}-${entry.version}${extension}`,
     )
     const temporaryPath = `${finalPath}.${randomUUID()}.part`
     const abort = new AbortController()

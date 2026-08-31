@@ -7,6 +7,7 @@ import type {
   UpdaterStatus,
 } from "@shared/bridge"
 import { releaseChannel } from "@main/diagnostics"
+import { RELEASE_ASSET_PREFIX, STABLE_UPDATER_CACHE_DIRECTORY_NAME } from "@main/app-identity"
 import { determineUpdateEligibility, type UpdateEligibilityInput } from "@main/updater-eligibility"
 import { installDesktopPackage } from "@main/desktop-package-installer"
 import { isStableVersion } from "@main/desktop-version-manifest"
@@ -298,17 +299,18 @@ export class UpdaterService {
   }
 
   private manualInstallerFileName(version: string): string | undefined {
-    if (this.context.platform === "darwin") return `MagicChat-${version}-mac-universal.dmg`
+    if (this.context.platform === "darwin")
+      return `${RELEASE_ASSET_PREFIX}-${version}-mac-universal.dmg`
     if (this.context.platform === "win32") {
-      return `MagicChat-${version}-win-${this.context.arch}.exe`
+      return `${RELEASE_ASSET_PREFIX}-${version}-win-${this.context.arch}.exe`
     }
     if (this.context.platform !== "linux") return undefined
     if (this.eligibility.installationSource === "deb") {
       const arch = this.context.arch === "x64" ? "amd64" : this.context.arch
-      return `MagicChat-${version}-linux-${arch}.deb`
+      return `${RELEASE_ASSET_PREFIX}-${version}-linux-${arch}.deb`
     }
     const arch = this.context.arch === "x64" ? "x86_64" : this.context.arch
-    return `MagicChat-${version}-linux-${arch}.AppImage`
+    return `${RELEASE_ASSET_PREFIX}-${version}-linux-${arch}.AppImage`
   }
 
   private createUpdaterListeners(): ReadonlyArray<
@@ -508,5 +510,5 @@ function systemUpdaterCachePath(): string {
       : process.platform === "win32"
         ? (process.env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"))
         : (process.env.XDG_CACHE_HOME ?? path.join(home, ".cache"))
-  return path.join(parent, `${app.getName()}-updater`)
+  return path.join(parent, STABLE_UPDATER_CACHE_DIRECTORY_NAME)
 }

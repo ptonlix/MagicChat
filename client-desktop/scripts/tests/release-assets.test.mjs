@@ -15,7 +15,7 @@ import { fileSha512 } from "../release-tools.mjs"
 const release = {
   build: 42,
   commit: "0123456789012345678901234567890123456789",
-  notes: "MagicChat Desktop 1.2.3\n\n## 版本亮点\n\n- 更安全。\n\n## Bug 修复\n\n- 修复发布流程。",
+  notes: "即应 Desktop 1.2.3\n\n## 版本亮点\n\n- 更安全。\n\n## Bug 修复\n\n- 修复发布流程。",
   releaseDate: "2026-07-24T00:00:00.000Z",
   tag: "desktop-v1.2.3",
   version: "1.2.3",
@@ -75,7 +75,7 @@ describe("确定性发布资产计划", () => {
     expect(notes).not.toContain("### 公开资产与 SHA-512")
     expect(notes).not.toContain("不得覆盖同一 Tag 的既有资产")
     expect(notes).toContain("## 版本亮点")
-    expect(await readdir(first)).not.toContain("MagicChat-1.2.3-mac-universal.dmg.blockmap")
+    expect(await readdir(first)).not.toContain("Jiying-1.2.3-mac-universal.dmg.blockmap")
     expect(plan.assets).toHaveLength(13)
     const versionFile = JSON.parse(await readFile(path.join(first, "version.json"), "utf8"))
     expect(versionFile.android).toEqual(release.versionBase.android)
@@ -83,7 +83,7 @@ describe("确定性发布资产计划", () => {
     expect(versionFile.windows).toEqual({
       build: 42,
       version: "1.2.3",
-      url: "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.3/MagicChat-1.2.3-win-x64.exe",
+      url: "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.3/Jiying-1.2.3-win-x64.exe",
     })
   })
 

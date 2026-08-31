@@ -5,7 +5,7 @@
 - 状态：已按方案完成代码改造
 - 实施状态：自动化检查完成，等待 GitHub Actions 原生打包和跨版本真机验收
 - 实施日期：2026-08-31
-- 适用范围：MagicChat Desktop Stable 桌面客户端
+- 适用范围：即应 Desktop Stable 桌面客户端
 - 构建与制品仓库：`https://github.com/ptonlix/MagicChat/releases`
 - 正式版本清单：`https://jiying.chat/releases/version.json`
 - 正式安装包目录：`https://jiying.chat/releases/`
@@ -159,7 +159,7 @@ ptonlix/MagicChat GitHub Release
 1. 读取并校验一个完整基础清单。
 2. 原样保留 `android`、`ios`。
 3. 用当前 Desktop Tag 更新 `windows`、`macos`、`linux-amd`、`linux-arm` 的 `version`。
-4. 更新对应的递增 `build`。
+4. 当前 Tag 首次 workflow run 使用 `build=1`，发布前重跑同一 run 时按 `github.run_attempt` 递增。
 5. 验证阶段生成 GitHub Release 下载 URL。
 6. 输出格式化 JSON 并加入 Release 资产。
 
@@ -190,7 +190,7 @@ release-version-base.json
 远端 1.7.1 < 当前 1.8.0 → 不允许自动降级
 ```
 
-`build` 保持为正整数并随发布递增，用于与现有清单格式保持一致，也可作为同版本构建诊断信息；第一阶段不使用 `build` 绕过 SemVer 执行同版本覆盖更新。
+`build` 保持为正整数，表示同一版本的 workflow 执行轮次；新版本从 1 开始，只允许在正式发布前通过原 Actions Run 的 `Re-run all jobs` 递增。客户端 OTA 只比较 SemVer `version`，不使用 `build` 绕过 SemVer 执行同版本覆盖更新。正式发布后必须发布更高版本。
 
 ## 7. GitHub 验证阶段的 `version.json`
 
@@ -211,22 +211,22 @@ release-version-base.json
   "windows": {
     "build": 8,
     "version": "1.8.0",
-    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/MagicChat-1.8.0-win-x64.exe"
+    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.8.0-win-x64.exe"
   },
   "macos": {
     "build": 8,
     "version": "1.8.0",
-    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/MagicChat-1.8.0-mac-universal.dmg"
+    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.8.0-mac-universal.dmg"
   },
   "linux-amd": {
     "build": 8,
     "version": "1.8.0",
-    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/MagicChat-1.8.0-linux-x86_64.AppImage"
+    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.8.0-linux-x86_64.AppImage"
   },
   "linux-arm": {
     "build": 8,
     "version": "1.8.0",
-    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/MagicChat-1.8.0-linux-arm64.AppImage"
+    "url": "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.8.0-linux-arm64.AppImage"
   }
 }
 ```
@@ -393,16 +393,16 @@ latest-mac.yml
 latest-linux.yml
 latest-linux-arm64.yml
 
-MagicChat-1.8.0-win-x64.exe
-MagicChat-1.8.0-win-arm64.exe
+Jiying-1.8.0-win-x64.exe
+Jiying-1.8.0-win-arm64.exe
 
-MagicChat-1.8.0-mac-universal.zip
-MagicChat-1.8.0-mac-universal.dmg
+Jiying-1.8.0-mac-universal.zip
+Jiying-1.8.0-mac-universal.dmg
 
-MagicChat-1.8.0-linux-x86_64.AppImage
-MagicChat-1.8.0-linux-arm64.AppImage
-MagicChat-1.8.0-linux-amd64.deb
-MagicChat-1.8.0-linux-arm64.deb
+Jiying-1.8.0-linux-x86_64.AppImage
+Jiying-1.8.0-linux-arm64.AppImage
+Jiying-1.8.0-linux-amd64.deb
+Jiying-1.8.0-linux-arm64.deb
 ```
 
 共 13 个文件，不包含任何独立 `.blockmap`。
@@ -433,16 +433,16 @@ MagicChat-1.8.0-linux-arm64.deb
 从 GitHub Release 下载并上传：
 
 ```text
-MagicChat-1.8.0-win-x64.exe
+Jiying-1.8.0-win-x64.exe
 → data/releases/jiying.exe
 
-MagicChat-1.8.0-mac-universal.dmg
+Jiying-1.8.0-mac-universal.dmg
 → data/releases/jiying.dmg
 
-MagicChat-1.8.0-linux-x86_64.AppImage
+Jiying-1.8.0-linux-x86_64.AppImage
 → data/releases/jiying.amd.AppImage
 
-MagicChat-1.8.0-linux-arm64.AppImage
+Jiying-1.8.0-linux-arm64.AppImage
 → data/releases/jiying.arm.AppImage
 ```
 
@@ -659,7 +659,7 @@ Cache-Control: no-cache
 - 发布聚合自动生成保留 Android/iOS 的 GitHub URL 版 `version.json`。
 - Release 精确资产集合改为 13 个文件，不上传任何外置 `.blockmap`，继续保留四个
   `latest*.yml` 作为旧客户端桥接入口。
-- GitHub Actions 另外生成 `magicchat-website-release-<version>` artifact，内含可直接交给
+- GitHub Actions 另外生成 `jiying-website-release-<version>` artifact，内含可直接交给
   官网维护人员的 `jiying.exe`、`jiying.dmg`、两个 AppImage、官网 URL 版 `version.json`
   和 `SHA256SUMS.txt`。
 - 官网 Caddy 对 `version.json` 使用 `no-store`，对固定安装包使用 `no-cache`，并允许任意
