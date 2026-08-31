@@ -1,6 +1,6 @@
 import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { fileSha256 } from "./release-tools.mjs"
+import { fileSha256, fileSha512 } from "./release-tools.mjs"
 import { validateVersionFile } from "./desktop-version-file.mjs"
 
 const OFFICIAL_URLS = {
@@ -28,6 +28,9 @@ export async function prepareOfficialReleaseAssets({ inputDirectory, outputDirec
       const sourceState = await stat(sourcePath).catch(() => undefined)
       if (!sourceState?.isFile() || sourceState.size <= 0) {
         throw new Error(`缺少官网全量安装包：${sourceName}`)
+      }
+      if (sourceState.size !== entry.size || (await fileSha512(sourcePath)) !== entry.sha512) {
+        throw new Error(`官网全量安装包完整性不匹配：${sourceName}`)
       }
       const targetName = path.basename(new URL(officialUrl).pathname)
       await copyFile(sourcePath, path.join(staging, targetName))

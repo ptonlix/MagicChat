@@ -4,21 +4,39 @@ import { describe, expect, it } from "vitest"
 import {
   compareStableVersions,
   desktopVersionKey,
+  isAllowedDesktopManifestUrl,
   selectDesktopVersionEntry,
 } from "@main/desktop-version-manifest"
 
+const sha512 = Buffer.alloc(64, 0x5a).toString("base64")
 const manifest = {
-  windows: { build: 8, version: "1.8.0", url: "https://example.com/MagicChat.exe" },
-  macos: { build: 8, version: "1.8.0", url: "https://example.com/MagicChat.dmg" },
+  windows: {
+    build: 8,
+    sha512,
+    size: 1024,
+    version: "1.8.0",
+    url: "https://jiying.chat/releases/jiying.exe",
+  },
+  macos: {
+    build: 8,
+    sha512,
+    size: 1024,
+    version: "1.8.0",
+    url: "https://jiying.chat/releases/jiying.dmg",
+  },
   "linux-amd": {
     build: 8,
+    sha512,
+    size: 1024,
     version: "1.8.0",
-    url: "https://example.com/MagicChat-x86_64.AppImage",
+    url: "https://jiying.chat/releases/jiying.amd.AppImage",
   },
   "linux-arm": {
     build: 8,
+    sha512,
+    size: 1024,
     version: "1.8.0",
-    url: "https://example.com/MagicChat-arm64.AppImage",
+    url: "https://jiying.chat/releases/jiying.arm.AppImage",
   },
 }
 
@@ -36,13 +54,23 @@ describe("桌面 version.json", () => {
 
   it("读取当前平台字段并拒绝不安全元数据", () => {
     expect(selectDesktopVersionEntry(manifest, "win32", "x64")).toEqual(manifest.windows)
-    expect(() =>
-      selectDesktopVersionEntry(
-        { ...manifest, windows: { ...manifest.windows, url: "http://example.com/MagicChat.exe" } },
-        "win32",
-        "x64",
-      ),
-    ).toThrow("url")
+    for (const url of [
+      "http://jiying.chat/releases/jiying.exe",
+      "https://evil.example/Jiying-1.8.0-win-x64.exe",
+      "https://user:pass@jiying.chat/releases/jiying.exe",
+      "https://jiying.chat/releases/jiying.exe?mirror=evil",
+      "https://jiying.chat/releases/jiying.exe#download",
+      "https://github.com/other/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.8.0-win-x64.exe",
+      "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.8.0/Jiying-1.9.0-win-x64.exe",
+    ]) {
+      expect(() =>
+        selectDesktopVersionEntry(
+          { ...manifest, windows: { ...manifest.windows, url } },
+          "win32",
+          "x64",
+        ),
+      ).toThrow("url")
+    }
     expect(() =>
       selectDesktopVersionEntry(
         { ...manifest, windows: { ...manifest.windows, version: "1.8.0-beta.1" } },
@@ -50,6 +78,31 @@ describe("桌面 version.json", () => {
         "x64",
       ),
     ).toThrow("version")
+  })
+
+  it("强制要求安装包大小和 SHA-512", () => {
+    const missingSize = { ...manifest.windows } as Partial<typeof manifest.windows>
+    delete missingSize.size
+    expect(() =>
+      selectDesktopVersionEntry({ ...manifest, windows: missingSize }, "win32", "x64"),
+    ).toThrow("size")
+
+    const missingSha512 = { ...manifest.windows } as Partial<typeof manifest.windows>
+    delete missingSha512.sha512
+    expect(() =>
+      selectDesktopVersionEntry({ ...manifest, windows: missingSha512 }, "win32", "x64"),
+    ).toThrow("sha512")
+  })
+
+  it("只接受官网固定的 manifest 地址和单一缓存参数", () => {
+    expect(isAllowedDesktopManifestUrl("https://jiying.chat/releases/version.json")).toBe(true)
+    expect(isAllowedDesktopManifestUrl("https://jiying.chat/releases/version.json?_=123")).toBe(
+      true,
+    )
+    expect(isAllowedDesktopManifestUrl("https://evil.example/releases/version.json")).toBe(false)
+    expect(
+      isAllowedDesktopManifestUrl("https://jiying.chat/releases/version.json?_=123&next=evil"),
+    ).toBe(false)
   })
 
   it("只按 Stable SemVer 判断升级与降级", () => {

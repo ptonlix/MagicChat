@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -67,9 +68,16 @@ describe("确定性发布资产计划", () => {
     const versionFile = JSON.parse(await readFile(path.join(output, "version.json"), "utf8"))
     expect(versionFile.windows).toEqual({
       build: 42,
+      sha512: expect.any(String),
+      size: expect.any(Number),
       version: "1.2.3",
       url: "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.3/Jiying-1.2.3-win-x64.exe",
     })
+    const windowsPackage = await readFile(path.join(output, "Jiying-1.2.3-win-x64.exe"))
+    expect(versionFile.windows.size).toBe(windowsPackage.byteLength)
+    expect(versionFile.windows.sha512).toBe(
+      createHash("sha512").update(windowsPackage).digest("base64"),
+    )
   })
 
   it("拒绝缺失、额外、重复目标、旧版更新清单和陈旧输出", async () => {

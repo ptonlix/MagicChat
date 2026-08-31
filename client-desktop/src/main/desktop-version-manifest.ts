@@ -4,11 +4,18 @@ export type DesktopVersionKey = "linux-amd" | "linux-arm" | "macos" | "windows"
 
 export type DesktopVersionEntry = Readonly<{
   build: number
-  sha512?: string
-  size?: number
+  sha512: string
+  size: number
   url: string
   version: string
 }>
+
+const officialPackagePaths: Readonly<Record<DesktopVersionKey, string>> = {
+  "linux-amd": "/releases/jiying.amd.AppImage",
+  "linux-arm": "/releases/jiying.arm.AppImage",
+  macos: "/releases/jiying.dmg",
+  windows: "/releases/jiying.exe",
+}
 
 export function selectDesktopVersionEntry(
   value: unknown,
@@ -48,6 +55,49 @@ export function isStableVersion(value: unknown): value is string {
   return typeof value === "string" && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value)
 }
 
+export function desktopPackageFileName(key: DesktopVersionKey, version: string): string {
+  if (!isStableVersion(version)) throw new Error(`metadata invalid version: ${version}`)
+  if (key === "windows") return `Jiying-${version}-win-x64.exe`
+  if (key === "macos") return `Jiying-${version}-mac-universal.dmg`
+  if (key === "linux-amd") return `Jiying-${version}-linux-x86_64.AppImage`
+  return `Jiying-${version}-linux-arm64.AppImage`
+}
+
+export function isAllowedDesktopManifestUrl(value: string): boolean {
+  const url = parseUrl(value)
+  if (
+    !url ||
+    url.origin !== "https://jiying.chat" ||
+    url.pathname !== "/releases/version.json" ||
+    url.hash
+  ) {
+    return false
+  }
+  const keys = Array.from(url.searchParams.keys())
+  return (
+    keys.length === 0 ||
+    (keys.length === 1 && keys[0] === "_" && /^\d+$/.test(url.searchParams.get("_") ?? ""))
+  )
+}
+
+export function isAllowedDesktopPackageUrl(
+  value: string,
+  key: DesktopVersionKey,
+  version: string,
+): boolean {
+  if (!isStableVersion(version)) return false
+  const url = parseUrl(value)
+  if (!url || url.hash || url.search) return false
+  if (url.origin === "https://jiying.chat") {
+    return url.pathname === officialPackagePaths[key]
+  }
+  if (url.origin !== "https://github.com") return false
+  return (
+    url.pathname ===
+    `/ptonlix/MagicChat/releases/download/desktop-v${version}/${desktopPackageFileName(key, version)}`
+  )
+}
+
 function parseDesktopVersionEntry(value: unknown, key: DesktopVersionKey): DesktopVersionEntry {
   if (!isObject(value)) throw new Error(`metadata invalid ${key}`)
   const { build, sha512, size, url, version } = value
@@ -55,36 +105,33 @@ function parseDesktopVersionEntry(value: unknown, key: DesktopVersionKey): Deskt
     throw new Error(`metadata invalid ${key} build`)
   }
   if (!isStableVersion(version)) throw new Error(`metadata invalid ${key} version`)
-  if (typeof url !== "string" || !isAllowedPackageUrl(url, key)) {
+  if (typeof url !== "string" || !isAllowedDesktopPackageUrl(url, key, version)) {
     throw new Error(`metadata invalid ${key} url`)
   }
-  if (size !== undefined && (!Number.isSafeInteger(size) || (size as number) <= 0)) {
+  if (!Number.isSafeInteger(size) || (size as number) <= 0) {
     throw new Error(`metadata invalid ${key} size`)
   }
-  if (sha512 !== undefined && (typeof sha512 !== "string" || !isSha512(sha512))) {
+  if (typeof sha512 !== "string" || !isSha512(sha512)) {
     throw new Error(`metadata invalid ${key} sha512`)
   }
   return {
     build: build as number,
-    ...(sha512 === undefined ? {} : { sha512 }),
-    ...(size === undefined ? {} : { size: size as number }),
+    sha512,
+    size: size as number,
     url,
     version,
   }
 }
 
-function isAllowedPackageUrl(value: string, key: DesktopVersionKey): boolean {
+function parseUrl(value: string): URL | undefined {
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    return false
+    return undefined
   }
-  if (url.protocol !== "https:" || url.username || url.password) return false
-  const pathname = decodeURIComponent(url.pathname)
-  if (key === "windows") return pathname.toLowerCase().endsWith(".exe")
-  if (key === "macos") return pathname.toLowerCase().endsWith(".dmg")
-  return pathname.toLowerCase().endsWith(".appimage")
+  if (url.protocol !== "https:" || url.username || url.password || url.port) return undefined
+  return url
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

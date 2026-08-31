@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -27,7 +28,13 @@ describe("官网手工上传资产", () => {
         ...Object.fromEntries(
           Object.entries(files).map(([key, name]) => [
             key,
-            { build: 18, version, url: `${prefix}/${name}` },
+            {
+              build: 18,
+              sha512: createHash("sha512").update(name).digest("base64"),
+              size: Buffer.byteLength(name),
+              version,
+              url: `${prefix}/${name}`,
+            },
           ]),
         ),
       }),
@@ -46,8 +53,19 @@ describe("官网手工上传资产", () => {
     const manifest = JSON.parse(await readFile(path.join(output, "version.json"), "utf8"))
     expect(manifest.android.url).toBe("https://jiying.chat/releases/jiying.apk")
     expect(manifest.windows.url).toBe("https://jiying.chat/releases/jiying.exe")
+    expect(manifest.windows.sha512).toBe(
+      createHash("sha512").update(files.windows).digest("base64"),
+    )
     expect(await readFile(path.join(output, "SHA256SUMS.txt"), "utf8")).toContain(
       "jiying.arm.AppImage",
     )
+
+    await writeFile(path.join(input, files.windows), "tampered-package")
+    await expect(
+      prepareOfficialReleaseAssets({
+        inputDirectory: input,
+        outputDirectory: path.join(root, "official-tampered"),
+      }),
+    ).rejects.toThrow("完整性不匹配")
   })
 })

@@ -18,7 +18,7 @@ import {
   linuxArtifactSuffixes,
   mapWithConcurrency,
 } from "./release-tools.mjs"
-import { createDesktopVersionFile } from "./desktop-version-file.mjs"
+import { createDesktopVersionFile, desktopPackageFileNames } from "./desktop-version-file.mjs"
 
 export const RELEASE_TARGETS = ["win:x64", "win:arm64", "mac:universal", "linux:x64", "linux:arm64"]
 const RELEASE_RELEVANT_ASSET =
@@ -81,26 +81,27 @@ export async function prepareReleaseAssets({
         await copyUnique(path.join(input.directory, name), path.join(staging, name), copied)
       }
     }
+    const expected = expectedReleaseAssetNames(version)
+    const packageNames = [...expected].filter((name) => name !== "version.json").sort()
+    const packageAssets = await mapWithConcurrency(packageNames, ASSET_DIGEST_CONCURRENCY, (name) =>
+      createReleaseAsset(staging, name),
+    )
+    const packageAssetsByName = new Map(packageAssets.map((asset) => [asset.name, asset]))
+    const integrity = Object.fromEntries(
+      Object.entries(desktopPackageFileNames(version)).map(([key, name]) => {
+        const asset = packageAssetsByName.get(name)
+        if (!asset) throw new Error(`缺少 Desktop 更新安装包：${name}`)
+        return [key, { sha512: asset.sha512, size: asset.size }]
+      }),
+    )
     await writeFile(
       path.join(staging, "version.json"),
-      `${JSON.stringify(createDesktopVersionFile(versionBase, { build, tag, version }), null, 2)}\n`,
+      `${JSON.stringify(createDesktopVersionFile(versionBase, { build, integrity, tag, version }), null, 2)}\n`,
     )
-
-    const expected = expectedReleaseAssetNames(version)
     await assertExactSet(staging, expected)
-    const assets = await mapWithConcurrency(
-      [...expected].sort(),
-      ASSET_DIGEST_CONCURRENCY,
-      async (name) => {
-        const filePath = path.join(staging, name)
-        const [digests, fileStat] = await Promise.all([fileDigests(filePath), stat(filePath)])
-        return {
-          name,
-          path: name,
-          ...digests,
-          size: fileStat.size,
-        }
-      },
+    const versionAsset = await createReleaseAsset(staging, "version.json")
+    const assets = [...packageAssets, versionAsset].sort((left, right) =>
+      left.name.localeCompare(right.name),
     )
     const appendix = generateReleaseAppendix({ version })
     const finalNotes = `${notes.trim()}\n\n---\n\n${appendix}\n`
@@ -125,6 +126,17 @@ export async function prepareReleaseAssets({
   } catch (error) {
     await rm(staging, { force: true, recursive: true })
     throw error
+  }
+}
+
+async function createReleaseAsset(directory, name) {
+  const filePath = path.join(directory, name)
+  const [digests, fileStat] = await Promise.all([fileDigests(filePath), stat(filePath)])
+  return {
+    name,
+    path: name,
+    ...digests,
+    size: fileStat.size,
   }
 }
 
