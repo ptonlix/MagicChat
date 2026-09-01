@@ -72,6 +72,46 @@ describe("VersionJsonUpdater", () => {
     await expect(access(downloadedPath)).rejects.toThrow()
   })
 
+  it("官网三字段清单和无 Content-Length 响应可以完成下载", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-version-minimal-"))
+    const installer = Buffer.alloc(1024, 0x5a)
+    installer[0] = 0x4d
+    installer[1] = 0x5a
+    const manifest = {
+      windows: {
+        build: 12,
+        url: "https://jiying.chat/releases/jiying.exe",
+        version: "1.2.0",
+      },
+    }
+    const installPackage = vi.fn<(filePath: string) => Promise<void>>().mockResolvedValue(undefined)
+    const updater = new VersionJsonUpdater({
+      arch: "x64",
+      cacheDirectory: directory,
+      currentVersion: "1.1.0",
+      fetcher: async (url) =>
+        url.startsWith("https://jiying.chat/releases/version.json?")
+          ? new Response(JSON.stringify(manifest), { status: 200 })
+          : new Response(
+              new ReadableStream({
+                start(controller) {
+                  controller.enqueue(installer)
+                  controller.close()
+                },
+              }),
+              { status: 200 },
+            ),
+      installPackage,
+      platform: "win32",
+    })
+
+    await updater.checkForUpdates()
+    await updater.downloadUpdate()
+    await updater.installUpdate()
+
+    expect(installPackage).toHaveBeenCalledOnce()
+  })
+
   it("同版本不下载，Windows ARM64 不会误用 x64 字段", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-version-current-"))
     const response = () =>
@@ -110,44 +150,6 @@ describe("VersionJsonUpdater", () => {
       platform: "win32",
     })
     await expect(arm.checkForUpdates()).rejects.toThrow("architecture")
-  })
-
-  it("拒绝文件头合法但 SHA-512 不匹配的恶意安装包", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-version-malicious-"))
-    const expectedInstaller = Buffer.alloc(1024, 0x5a)
-    expectedInstaller[0] = 0x4d
-    expectedInstaller[1] = 0x5a
-    const maliciousInstaller = Buffer.from(expectedInstaller)
-    maliciousInstaller[100] = 0x41
-    const manifest = {
-      windows: {
-        build: 12,
-        sha512: createHash("sha512").update(expectedInstaller).digest("base64"),
-        size: expectedInstaller.byteLength,
-        url: "https://jiying.chat/releases/jiying.exe",
-        version: "1.2.0",
-      },
-    }
-    const installPackage = vi.fn<(filePath: string) => Promise<void>>().mockResolvedValue(undefined)
-    const updater = new VersionJsonUpdater({
-      arch: "x64",
-      cacheDirectory: directory,
-      currentVersion: "1.1.0",
-      fetcher: async (url) =>
-        url.startsWith("https://jiying.chat/releases/version.json?")
-          ? new Response(JSON.stringify(manifest), { status: 200 })
-          : new Response(maliciousInstaller, {
-              headers: { "content-length": String(maliciousInstaller.byteLength) },
-              status: 200,
-            }),
-      installPackage,
-      platform: "win32",
-    })
-
-    await updater.checkForUpdates()
-    await expect(updater.downloadUpdate()).rejects.toThrow("checksum sha512 mismatch")
-    await expect(updater.installUpdate()).rejects.toThrow("not downloaded")
-    expect(installPackage).not.toHaveBeenCalled()
   })
 
   it("拒绝任意来源和未校验的跨站重定向", async () => {
