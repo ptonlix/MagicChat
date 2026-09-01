@@ -3,7 +3,8 @@
 本文描述 Desktop 当前实现。正式发布前尚未落地的能力会明确标记为长期方案，不能
 将其视为已经可用。
 
-Stable OTA 校验 HTTPS、Stable SemVer、平台、架构、清单、文件大小和 SHA-512。
+Stable OTA 校验 HTTPS、Stable SemVer、平台、架构、清单和安装包格式。官网清单只要求
+`build`、`version` 和 `url`，下载不依赖文件大小或 SHA-512 字段。
 Renderer 只接收 Main 归一化后的更新状态和纯文本发布说明，不接收构建签名状态、
 GitHub Token、完整更新 URL、Header 或本地缓存路径；手动下载地址由 Main 根据固定仓库
 `ptonlix/MagicChat` 生成。

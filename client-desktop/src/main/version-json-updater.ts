@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto"
+import { randomUUID } from "node:crypto"
 import { chmod, mkdir, open, rename, rm } from "node:fs/promises"
 import path from "node:path"
 import { RELEASE_ASSET_PREFIX } from "@main/app-identity"
@@ -95,11 +95,7 @@ export class VersionJsonUpdater {
       if (!response.ok) throw httpError(response.status, "package")
       if (!response.body) throw new Error("network response body missing")
       const declaredLength = contentLength(response.headers.get("content-length"))
-      if (declaredLength !== undefined && declaredLength !== entry.size) {
-        throw new Error("checksum size mismatch")
-      }
       const handle = await open(temporaryPath, "wx", 0o600)
-      const digest = createHash("sha512")
       let received = 0
       try {
         const reader = response.body.getReader()
@@ -108,24 +104,17 @@ export class VersionJsonUpdater {
           if (chunk.done) break
           if (chunk.value.byteLength === 0) continue
           await handle.write(chunk.value)
-          digest.update(chunk.value)
           received += chunk.value.byteLength
-          if (received > entry.size) throw new Error("checksum size mismatch")
-          this.emit("download-progress", {
-            percent: Math.min(99, (received / entry.size) * 100),
-          })
+          if (declaredLength !== undefined && declaredLength > 0) {
+            this.emit("download-progress", {
+              percent: Math.min(99, (received / declaredLength) * 100),
+            })
+          }
         }
       } finally {
         await handle.close()
       }
-      if (received <= 0) throw new Error("checksum empty package")
-      if (received !== entry.size) throw new Error("checksum size mismatch")
-      if (declaredLength !== undefined && received !== declaredLength) {
-        throw new Error("network incomplete package")
-      }
-      if (digest.digest("base64") !== entry.sha512) {
-        throw new Error("checksum sha512 mismatch")
-      }
+      if (received <= 0) throw new Error("package empty")
       await validatePackageHeader(temporaryPath, this.options.platform, this.options.arch)
       await rm(finalPath, { force: true })
       await rename(temporaryPath, finalPath)

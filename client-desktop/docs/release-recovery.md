@@ -47,7 +47,9 @@ version.json
 SHA256SUMS.txt
 ```
 
-运维必须上传这六个文件并保持文件名不变。`version.json` 应最后上传，避免客户端先看到新版本却下载到旧安装包；上传后匿名访问每个 URL，并使用 `SHA256SUMS.txt` 复核文件摘要。
+运维必须上传这六个文件并保持文件名不变。官网 `version.json` 的 Desktop 条目只包含
+`build`、`version` 和 `url`。`version.json` 应最后上传，避免客户端先看到新版本却下载到
+旧安装包；上传后匿名访问每个 URL，并使用 `SHA256SUMS.txt` 复核文件摘要。
 
 ## Stable 发布流程
 

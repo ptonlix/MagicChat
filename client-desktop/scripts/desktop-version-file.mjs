@@ -14,6 +14,7 @@ export function createDesktopVersionFile(base, { build, integrity, tag, version 
     throw new Error("Desktop Tag 与版本不匹配")
   }
   if (!isObject(integrity)) throw new Error("Desktop 安装包完整性元数据无效")
+  for (const key of DESKTOP_KEYS) validateIntegrityEntry(integrity[key], key)
   const prefix = `https://github.com/ptonlix/MagicChat/releases/download/${tag}`
   const fileNames = desktopPackageFileNames(version)
   const desktop = {
@@ -48,6 +49,16 @@ export function createDesktopVersionFile(base, { build, integrity, tag, version 
   }
   validateVersionFile(result)
   return result
+}
+
+function validateIntegrityEntry(value, key) {
+  if (!isObject(value)) throw new Error(`Desktop ${key} 完整性元数据无效`)
+  if (!Number.isSafeInteger(value.size) || value.size <= 0) {
+    throw new Error(`Desktop ${key} size 必须为正整数`)
+  }
+  if (typeof value.sha512 !== "string" || !isSha512(value.sha512)) {
+    throw new Error(`Desktop ${key} sha512 必须是 SHA-512 Base64`)
+  }
 }
 
 export function desktopPackageFileNames(version) {
@@ -90,12 +101,6 @@ function validateEntry(value, key) {
   if (DESKTOP_KEYS.includes(key)) {
     if (!isAllowedDesktopPackageUrl(url, key, value.version)) {
       throw new Error(`version.json ${key}.url 不是受信任发布地址`)
-    }
-    if (!Number.isSafeInteger(value.size) || value.size <= 0) {
-      throw new Error(`version.json ${key}.size 必须为正整数`)
-    }
-    if (typeof value.sha512 !== "string" || !isSha512(value.sha512)) {
-      throw new Error(`version.json ${key}.sha512 必须是 SHA-512 Base64`)
     }
   }
 }

@@ -140,7 +140,7 @@ export class UpdaterService {
       return Promise.resolve()
     }
     if (this.downloadPromise) return this.downloadPromise
-    this.transition({ ...this.state, progress: 0, status: "downloading" })
+    this.transition({ ...this.state, progress: undefined, status: "downloading" })
     this.downloadPromise = this.adapter
       .downloadUpdate()
       .then(() => undefined)
