@@ -114,7 +114,7 @@ export class VersionJsonUpdater {
       } finally {
         await handle.close()
       }
-      if (received <= 0) throw new Error("checksum empty package")
+      if (received <= 0) throw new Error("package empty")
       await validatePackageHeader(temporaryPath, this.options.platform, this.options.arch)
       await rm(finalPath, { force: true })
       await rename(temporaryPath, finalPath)

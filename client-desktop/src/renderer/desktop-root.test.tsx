@@ -1226,6 +1226,28 @@ describe("桌面设置服务器管理", () => {
     expect(window.desktop.updater.download).not.toHaveBeenCalled()
   })
 
+  it("下载进度未知时显示正在下载而不是 0%", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: createDesktopBridge({
+        currentVersion: "1.0.0",
+        installMode: "ota",
+        installationSource: "nsis",
+        retryable: false,
+        status: "downloading",
+        targetVersion: "1.1.0",
+      }),
+    })
+    render(<DesktopRoot />)
+
+    expect(await screen.findByRole("button", { name: "正在下载" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    )
+    expect(screen.getByRole("status")).toHaveTextContent("正在下载")
+    expect(screen.queryByText("下载中 0%")).not.toBeInTheDocument()
+  })
+
   it("更新状态变化时同步刷新无障碍实时文本", async () => {
     const bridge = createDesktopBridge({
       currentVersion: "1.0.0",

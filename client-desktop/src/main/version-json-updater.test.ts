@@ -112,6 +112,31 @@ describe("VersionJsonUpdater", () => {
     expect(installPackage).toHaveBeenCalledOnce()
   })
 
+  it("空安装包使用实际错误语义而不是 checksum 错误", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-version-empty-"))
+    const manifest = {
+      windows: {
+        build: 12,
+        url: "https://jiying.chat/releases/jiying.exe",
+        version: "1.2.0",
+      },
+    }
+    const updater = new VersionJsonUpdater({
+      arch: "x64",
+      cacheDirectory: directory,
+      currentVersion: "1.1.0",
+      fetcher: async (url) =>
+        url.startsWith("https://jiying.chat/releases/version.json?")
+          ? new Response(JSON.stringify(manifest), { status: 200 })
+          : new Response(new Uint8Array(), { status: 200 }),
+      installPackage: async () => undefined,
+      platform: "win32",
+    })
+
+    await updater.checkForUpdates()
+    await expect(updater.downloadUpdate()).rejects.toThrow("package empty")
+  })
+
   it("同版本不下载，Windows ARM64 不会误用 x64 字段", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "magicchat-version-current-"))
     const response = () =>

@@ -40,6 +40,7 @@ describe("UpdaterService", () => {
     expect(service.current()).toMatchObject({ status: "available", targetVersion: "1.1.0" })
     expect(service.current()).not.toHaveProperty("releaseNotes")
     const download = service.download()
+    expect(service.current().progress).toBeUndefined()
     adapter.emit("download-progress", { percent: 60 })
     adapter.emit("download-progress", { percent: 20 })
     expect(service.current().progress).toBe(60)
@@ -381,6 +382,7 @@ describe("更新错误归一化", () => {
   it("分类稳定错误码", () => {
     expect(classifyUpdateError(new Error("ENOSPC: no space"))).toBe("disk_full")
     expect(classifyUpdateError(new Error("checksum mismatch"))).toBe("checksum_invalid")
+    expect(classifyUpdateError(new Error("package empty"))).toBe("update_failed")
     expect(classifyUpdateError(new Error("Gatekeeper signature"))).toBe(
       "platform_signature_required",
     )
