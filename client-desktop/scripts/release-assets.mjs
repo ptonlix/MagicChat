@@ -18,6 +18,7 @@ import {
   linuxArtifactSuffixes,
   mapWithConcurrency,
 } from "./release-tools.mjs"
+import { desktopReleaseBuildFromVersionBase } from "./release-build.mjs"
 import { createDesktopVersionFile, desktopPackageFileNames } from "./desktop-version-file.mjs"
 
 export const RELEASE_TARGETS = ["win:x64", "win:arm64", "mac:universal", "linux:x64", "linux:arm64"]
@@ -66,6 +67,9 @@ export async function prepareReleaseAssets({
   version,
   versionBase,
 }) {
+  if (desktopReleaseBuildFromVersionBase(versionBase) !== build) {
+    throw new Error("发布 build 与 release-version-base.json 不一致")
+  }
   assertInputs(inputs)
   await assertOutputAvailable(outputDirectory)
   await mkdir(path.dirname(outputDirectory), { recursive: true })
@@ -110,6 +114,7 @@ export async function prepareReleaseAssets({
     const plan = {
       schemaVersion: 1,
       assets,
+      build,
       commit,
       notes: "release-notes.md",
       notesSha256: await fileSha256(notesPath),
