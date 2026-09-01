@@ -13,6 +13,7 @@ import {
   leaveGroupConversation as leaveGroupConversationRequest,
   openAppConversation,
   openDirectConversation,
+  restoreConversation,
   setConversationMuted as setConversationMutedRequest,
   setConversationPinned as setConversationPinnedRequest,
   updateGroupConversationAnnouncement as updateGroupConversationAnnouncementRequest,
@@ -30,6 +31,7 @@ import { queryKeys } from "@/data/query"
 
 export type OpenEntityConversationInput = {
   id: string
+  joined?: boolean
   type: "user" | "app" | "group"
 }
 
@@ -42,7 +44,9 @@ export function useOpenEntityConversation(target: AuthenticatedTarget) {
       if (input.type === "app") {
         return openAppConversation(target, input.id)
       }
-      return joinGroupConversation(target, input.id)
+      return input.joined
+        ? restoreConversation(target, input.id)
+        : joinGroupConversation(target, input.id)
     },
     onMutate: () => ({ startedAt: conversationManager.beginOperation(target) }),
     onSuccess: async (conversation, input, context) => {

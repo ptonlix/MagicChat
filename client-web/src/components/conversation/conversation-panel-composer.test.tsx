@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { expect, it, vi } from "vitest"
 
@@ -138,6 +138,47 @@ it("adopts real same-conversation external drafts but ignores its own echo", () 
   expect(editor).toHaveValue("撤回后重新编辑")
 })
 
+it("clears the submitted text immediately without clearing new input", async () => {
+  let resolve!: (accepted: boolean) => void
+  const onDraftChange = vi.fn()
+  const onSendMessage = vi.fn(
+    () =>
+      new Promise<boolean>((done) => {
+        resolve = done
+      })
+  )
+  render(
+    <MemoryRouter>
+      <ConversationPanelComposer
+        conversation={conversation}
+        draft="第一条"
+        draftMentions={[]}
+        onCancelReply={vi.fn()}
+        onDraftChange={onDraftChange}
+        onRichTextModeChange={vi.fn()}
+        onSendFile={async () => null}
+        onSendImage={async () => null}
+        onSendMessage={onSendMessage}
+        onSendVoice={async () => null}
+        replyTarget={null}
+        richTextMode={false}
+        sending={false}
+      />
+    </MemoryRouter>
+  )
+  const editor = screen.getByPlaceholderText("输入消息")
+
+  fireEvent.keyDown(editor, { key: "Enter" })
+  expect(editor).toHaveValue("")
+  expect(onDraftChange).toHaveBeenLastCalledWith("", [])
+
+  fireEvent.change(editor, { target: { value: "第二条" } })
+  expect(editor).toHaveValue("第二条")
+  resolve(true)
+  await Promise.resolve()
+  expect(editor).toHaveValue("第二条")
+})
+
 it("retains a rejected send and prevents rapid duplicate sends", async () => {
   let resolve!: (accepted: boolean) => void
   const onSendMessage = vi.fn(
@@ -169,9 +210,9 @@ it("retains a rejected send and prevents rapid duplicate sends", async () => {
   fireEvent.keyDown(editor, { key: "Enter" })
   fireEvent.keyDown(editor, { key: "Enter" })
   expect(onSendMessage).toHaveBeenCalledTimes(1)
+  expect(editor).toHaveValue("")
   resolve(false)
-  await Promise.resolve()
-  expect(editor).toHaveValue("不能丢")
+  await waitFor(() => expect(editor).toHaveValue("不能丢"))
 })
 
 const conversation: ClientConversation = {

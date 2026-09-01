@@ -160,6 +160,22 @@ export async function fetchConversations(
   return data.conversations.map(normalizeConversation)
 }
 
+export async function restoreConversation(
+  target: AuthenticatedTarget,
+  conversationId: string,
+  options: ConversationRequestOptions = {}
+) {
+  const data = await createProtectedApiClient(target, options.fetcher).request<
+    ConversationActionResponse
+  >(`/api/client/conversations/${encodeURIComponent(conversationId)}/restore`, {
+    errorMessage: "恢复会话失败",
+    method: "POST",
+    signal: options.signal,
+  })
+
+  return normalizeConversationAction(data, "恢复会话响应格式不正确")
+}
+
 export async function setConversationPinned(
   target: AuthenticatedTarget,
   conversationId: string,

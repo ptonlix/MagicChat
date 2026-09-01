@@ -330,9 +330,17 @@ export const ConversationPanelComposer = React.forwardRef<
     if (!localDraft.trim() || sendInFlightRef.current) return
 
     const submitted = localDraftRef.current
+    const empty = { mentions: [] as ConversationDraftMention[], text: "" }
     sendInFlightRef.current = true
     shouldFocusAfterSendingRef.current = true
     flushLocalDraft()
+    localDraftRef.current = empty
+    lastEmittedDraftRef.current = empty
+    setLocalDraft("")
+    setLocalDraftMentions([])
+    onDraftChangeRef.current("", [])
+    setMentionTrigger(null)
+    setSelectedMentionIndex(0)
     try {
       let accepted = false
       try {
@@ -340,23 +348,21 @@ export const ConversationPanelComposer = React.forwardRef<
           createDraftMentionTemplate(submitted.text, submitted.mentions)
         )
       } catch {
-        // The page owns error presentation; a rejected send keeps the draft.
+        // The page owns error presentation.
       }
-      if (!accepted) return
-      // Do not erase text typed while this send was awaiting acceptance; make
-      // sure the parent stores that newer text instead of the submitted text.
-      if (localDraftRef.current !== submitted) {
+      if (accepted) {
+        if (localDraftRef.current !== empty) flushLocalDraft()
+        return
+      }
+      if (localDraftRef.current !== empty) {
         flushLocalDraft()
         return
       }
-      const empty = { mentions: [] as ConversationDraftMention[], text: "" }
-      localDraftRef.current = empty
-      lastEmittedDraftRef.current = empty
-      setLocalDraft("")
-      setLocalDraftMentions([])
-      onDraftChangeRef.current("", [])
-      setMentionTrigger(null)
-      setSelectedMentionIndex(0)
+      localDraftRef.current = submitted
+      lastEmittedDraftRef.current = submitted
+      setLocalDraft(submitted.text)
+      setLocalDraftMentions(submitted.mentions)
+      onDraftChangeRef.current(submitted.text, submitted.mentions)
     } finally {
       sendInFlightRef.current = false
     }

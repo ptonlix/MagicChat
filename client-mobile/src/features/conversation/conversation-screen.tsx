@@ -18,6 +18,7 @@ import {
   APP_HEADER_HEIGHT,
   AppHeader,
 } from "@/components/navigation/app-header"
+import type { ClientConversation } from "@/core/models"
 import { ApiRequestError, isUnauthorizedError } from "@/data/api-client"
 import {
   useConversationMessages,
@@ -27,6 +28,7 @@ import {
   openResourceExternally,
   useMessageResources,
 } from "@/data/resources"
+import { conversationManager } from "@/data/conversations"
 import {
   useConversationTopic,
   useCreateConversationTopic,
@@ -115,6 +117,8 @@ export function ConversationScreen() {
   const [messageActionTarget, setMessageActionTarget] =
     useState<ScopedMessageActionTarget | null>(null)
   const [messageActionSheetOpen, setMessageActionSheetOpen] = useState(false)
+  const [unlistedConversation, setUnlistedConversation] =
+    useState<ClientConversation>()
   const forwardMessage =
     forwardMessageState?.conversationId === conversationId
       ? forwardMessageState
@@ -154,7 +158,44 @@ export function ConversationScreen() {
     conversationId,
     expectsTopic
   )
-  const conversationSource = topicQuery.data?.conversation ?? listedConversation
+  const cachedConversation =
+    unlistedConversation?.id === conversationId
+      ? unlistedConversation
+      : undefined
+  useEffect(() => {
+    if (!isReady || listedConversation || expectsTopic) return
+    if (!conversationId) {
+      router.dismissTo("/messages")
+      return
+    }
+
+    let active = true
+    void conversationManager.get(session, conversationId).then(
+      (storedConversation) => {
+        if (!active) return
+        if (storedConversation) {
+          setUnlistedConversation(storedConversation)
+          return
+        }
+        router.dismissTo("/messages")
+      },
+      () => {
+        if (active) router.dismissTo("/messages")
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [
+    conversationId,
+    expectsTopic,
+    isReady,
+    listedConversation,
+    router,
+    session,
+  ])
+  const conversationSource =
+    topicQuery.data?.conversation ?? listedConversation ?? cachedConversation
   const topicSourceMessage = topicQuery.data?.sourceMessage
   const conversationUserIds = useMemo(
     () =>
@@ -421,12 +462,6 @@ export function ConversationScreen() {
     topicQuery.error,
   ])
 
-  useEffect(() => {
-    if (isReady && !conversation && !expectsTopic) {
-      router.dismissTo("/messages")
-    }
-  }, [conversation, expectsTopic, isReady, router])
-
   useConversationReadSync({
     conversation,
     conversationId,
@@ -553,11 +588,11 @@ export function ConversationScreen() {
         >
           {!conversation ? (
             <ContentState
-              loading={expectsTopic && topicQuery.isLoading}
+              loading={!isReady || !expectsTopic || topicQuery.isLoading}
               message={
                 expectsTopic
                   ? topicQuery.error?.message ?? "正在加载话题"
-                  : "该会话不存在或已被移除"
+                  : "正在打开会话"
               }
               tone={topicQuery.error ? "error" : undefined}
             />

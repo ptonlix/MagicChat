@@ -81,20 +81,29 @@ export function EntityDetailScreen() {
   async function handlePrimaryAction() {
     if (!profile || openConversationMutation.isPending) return
 
-    if (profile.type === "group" && profile.joined) {
+    const hasListedGroupConversation =
+      profile.type === "group" &&
+      conversations.some((conversation) => conversation.id === profile.id)
+    if (profile.type === "group" && profile.joined && hasListedGroupConversation) {
       router.push(buildConversationHref(profile.id))
       return
     }
 
     toast.show({
       duration: 0,
-      message: profile.type === "group" ? "正在加入群聊" : "正在发起会话",
+      message:
+        profile.type === "group"
+          ? profile.joined
+            ? "正在打开群聊"
+            : "正在加入群聊"
+          : "正在发起会话",
       type: "loading",
     })
 
     try {
       const conversation = await openConversationMutation.mutateAsync({
         id: profile.id,
+        joined: profile.type === "group" ? profile.joined : undefined,
         type: profile.type,
       })
       toast.hide()
@@ -259,7 +268,7 @@ function getPageTitle(type: EntityType | null) {
 function getActionErrorTitle(profile: EntityProfile) {
   if (profile.type === "user") return "无法发起私聊"
   if (profile.type === "app") return "无法发起应用会话"
-  return "无法加入群聊"
+  return profile.joined ? "无法打开群聊" : "无法加入群聊"
 }
 
 function getFirstParam(value: string | string[] | undefined) {

@@ -11,7 +11,10 @@ const {
 const ACTIVITY_MARKER = "MessageTextSelectionActionModeCallback"
 const IOS_SOURCE_FILE_NAME = "MagicChatMessageSelectionMenu.mm"
 
-const androidImports = `import android.view.ActionMode
+const androidImports = `import android.graphics.Rect
+import android.text.Selection
+import android.text.Spannable
+import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -23,9 +26,12 @@ import cloud.baizhi.messageselection.MessageSelectionEvents`
 
 const activityMembers = `
   private val configuredMessageTextViews = WeakHashMap<TextView, Unit>()
+  private var activeMessageSelectionActionMode: ActionMode? = null
+  private var activeMessageSelectionTextView: TextView? = null
 
   override fun dispatchTouchEvent(event: MotionEvent): Boolean {
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      dismissMessageTextSelectionOutside(event)
       installMessageSelectionCallbacks(window.decorView)
     }
     return super.dispatchTouchEvent(event)
@@ -40,6 +46,9 @@ const activityMembers = `
   ) : ActionMode.Callback2() {
     override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
       val context = findMessageSelectionContext(textView) ?: return false
+      activeMessageSelectionActionMode?.takeIf { it !== mode }?.finish()
+      activeMessageSelectionActionMode = mode
+      activeMessageSelectionTextView = textView
       configureMessageSelectionMenu(menu, context.canRevoke)
       return true
     }
@@ -50,7 +59,9 @@ const activityMembers = `
 
     override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
       if (item.itemId == android.R.id.copy) {
-        return textView.onTextContextMenuItem(item.itemId)
+        val handled = textView.onTextContextMenuItem(item.itemId)
+        mode.finish()
+        return handled
       }
 
       val context = findMessageSelectionContext(textView) ?: return false
@@ -67,7 +78,29 @@ const activityMembers = `
       return true
     }
 
-    override fun onDestroyActionMode(mode: ActionMode) = Unit
+    override fun onDestroyActionMode(mode: ActionMode) {
+      clearMessageTextSelection(textView)
+      if (activeMessageSelectionActionMode === mode) {
+        activeMessageSelectionActionMode = null
+        activeMessageSelectionTextView = null
+      }
+    }
+  }
+
+  private fun dismissMessageTextSelectionOutside(event: MotionEvent) {
+    val textView = activeMessageSelectionTextView ?: return
+    val bounds = Rect()
+    val touchedSelection =
+      textView.getGlobalVisibleRect(bounds) &&
+        bounds.contains(event.rawX.toInt(), event.rawY.toInt())
+    if (!touchedSelection) {
+      activeMessageSelectionActionMode?.finish()
+    }
+  }
+
+  private fun clearMessageTextSelection(textView: TextView) {
+    (textView.text as? Spannable)?.let { Selection.removeSelection(it) }
+    textView.clearFocus()
   }
 
   private fun configureMessageSelectionMenu(menu: Menu, canRevoke: Boolean) {
