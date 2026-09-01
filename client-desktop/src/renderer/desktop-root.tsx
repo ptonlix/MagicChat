@@ -342,6 +342,7 @@ function DesktopRoutedWorkspace() {
 
 function useDesktopUpdaterState() {
   const [updater, setUpdater] = useState<UpdaterState>({
+    currentBuild: 0,
     currentVersion: "",
     installMode: "manual",
     installationSource: "development",

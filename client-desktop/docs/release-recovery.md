@@ -60,12 +60,15 @@ SHA256SUMS.txt
    git push origin desktop-v1.8.2
    ```
 
+   创建 Tag 前先将 `release-version-base.json` 中四个 Desktop 平台的 build 统一递增并提交。线上 Desktop build 1 之后的首个 build-only
+   发布使用 build 2；后续每个新的正式安装包集合继续递增，不能因 SemVer 变化而重置。
+
 2. `quality` Job 执行静态检查、完整测试、生产构建、构建验证和工作流验证。
 3. 五个原生目标生成并验证 7 个完整安装包。macOS 只生成签名、公证后的 Universal DMG。
 4. `release` Job 生成 `version.json` 和精确的八文件发布计划，以 Draft 事务上传，复核名称、大小和 SHA-256 后公开。
 5. 下载官网六文件 artifact，先上传四个固定文件名安装包和校验文件，最后上传 `version.json`。
 
-Desktop `build` 使用同一次 workflow run 的 `github.run_attempt`。同一版本重跑会递增；已经公开的版本不得覆盖，修复应发布更高版本号。
+Desktop `build` 来自 Tag 所指提交中的 `release-version-base.json`，脚本要求 `windows`、`macos`、`linux-amd` 和 `linux-arm` 的 build 一致；Android 和 iOS 不参与该校验。同一 Tag 的失败重跑复用原 build；只有新的正式发布才提交更大的 build。已经公开的版本和 Tag 不得覆盖，修复应同时发布更高版本号和更大 build。`version` 只用于展示和发布身份，客户端是否更新只比较 build。
 
 ## 失败恢复
 

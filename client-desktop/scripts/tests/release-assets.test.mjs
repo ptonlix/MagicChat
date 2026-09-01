@@ -20,15 +20,15 @@ const release = {
   versionBase: {
     android: { build: 10, version: "1.4.0", url: "https://jiying.chat/releases/jiying.apk" },
     ios: { build: 1, version: "1.0.0", url: "https://jiying.chat/releases/jiying.dmg" },
-    windows: { build: 1, version: "1.0.0", url: "https://jiying.chat/releases/jiying.exe" },
-    macos: { build: 1, version: "1.0.0", url: "https://jiying.chat/releases/jiying.dmg" },
+    windows: { build: 42, version: "1.0.0", url: "https://jiying.chat/releases/jiying.exe" },
+    macos: { build: 42, version: "1.0.0", url: "https://jiying.chat/releases/jiying.dmg" },
     "linux-amd": {
-      build: 1,
+      build: 42,
       version: "1.0.0",
       url: "https://jiying.chat/releases/jiying.amd.AppImage",
     },
     "linux-arm": {
-      build: 1,
+      build: 42,
       version: "1.0.0",
       url: "https://jiying.chat/releases/jiying.arm.AppImage",
     },
@@ -54,6 +54,7 @@ describe("确定性发布资产计划", () => {
     await prepareReleaseAssets({ ...release, inputs, outputDirectory: output })
     const plan = JSON.parse(await readFile(path.join(output, "release-plan.json"), "utf8"))
 
+    expect(plan.build).toBe(42)
     expect(new Set(plan.assets.map((asset) => asset.name))).toEqual(
       expectedReleaseAssetNames("1.2.3"),
     )
@@ -109,6 +110,20 @@ describe("确定性发布资产计划", () => {
     await expect(
       prepareReleaseAssets({ ...release, inputs: cleanInputs, outputDirectory: stale }),
     ).rejects.toThrow("必须不存在或为空")
+  })
+
+  it("拒绝发布参数与 version base 的 Desktop build 不一致", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "jiying-assets-build-mismatch-"))
+    const inputs = await createInputs(root)
+
+    await expect(
+      prepareReleaseAssets({
+        ...release,
+        build: 43,
+        inputs,
+        outputDirectory: path.join(root, "release"),
+      }),
+    ).rejects.toThrow("release-version-base.json 不一致")
   })
 })
 

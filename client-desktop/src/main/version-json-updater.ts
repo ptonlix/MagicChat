@@ -3,7 +3,6 @@ import { chmod, mkdir, open, rename, rm } from "node:fs/promises"
 import path from "node:path"
 import { RELEASE_ASSET_PREFIX } from "@main/app-identity"
 import {
-  compareStableVersions,
   desktopPackageFileName,
   desktopVersionKey,
   DESKTOP_VERSION_MANIFEST_URL,
@@ -33,6 +32,7 @@ type FetchTarget =
 type VersionJsonUpdaterOptions = Readonly<{
   arch: string
   cacheDirectory: string
+  currentBuild: number
   currentVersion: string
   fetcher: (url: string, init: RequestInit) => Promise<FetchResponse>
   installPackage: (filePath: string, entry: DesktopVersionEntry) => Promise<void>
@@ -46,7 +46,11 @@ export class VersionJsonUpdater {
   private downloadedPath?: string
   private readonly listeners = new Map<VersionJsonUpdaterEvent, Set<(payload?: unknown) => void>>()
 
-  constructor(private readonly options: VersionJsonUpdaterOptions) {}
+  constructor(private readonly options: VersionJsonUpdaterOptions) {
+    if (!Number.isSafeInteger(options.currentBuild) || options.currentBuild < 0) {
+      throw new Error("current build invalid")
+    }
+  }
 
   async checkForUpdates(): Promise<void> {
     this.emit("checking-for-update")
@@ -62,9 +66,12 @@ export class VersionJsonUpdater {
       this.options.arch,
     )
     if (!entry) throw new Error("platform architecture mismatch")
-    if (compareStableVersions(entry.version, this.options.currentVersion) <= 0) {
+    if (entry.build <= this.options.currentBuild) {
       this.available = undefined
-      this.emit("update-not-available", { version: this.options.currentVersion })
+      this.emit("update-not-available", {
+        build: this.options.currentBuild,
+        version: this.options.currentVersion,
+      })
       return
     }
     this.available = entry
@@ -78,7 +85,7 @@ export class VersionJsonUpdater {
     const extension = packageExtension(entry.url)
     const finalPath = path.join(
       this.options.cacheDirectory,
-      `${RELEASE_ASSET_PREFIX}-${entry.version}${extension}`,
+      `${RELEASE_ASSET_PREFIX}-${entry.version}.build-${entry.build}${extension}`,
     )
     const temporaryPath = `${finalPath}.${randomUUID()}.part`
     const abort = new AbortController()

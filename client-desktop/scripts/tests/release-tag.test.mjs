@@ -129,6 +129,8 @@ signed-tag-fixture
       await readFile(path.join(result.desktopDirectory, "package.json"), "utf8"),
     )
     expect(prepared.version).toBe("1.2.3")
+    expect(prepared.desktopBuild).toBe(2)
+    expect(result.build).toBe(2)
     expect(path.relative(releaseWorktreeRoot(), result.worktree)).not.toMatch(/^\.\.(?:[\\/]|$)/)
     expect(await repositorySnapshot(repository)).toEqual(before)
   })
@@ -143,6 +145,15 @@ async function createRepository(withDesktopPackage = false) {
   if (withDesktopPackage) {
     await mkdir(path.join(repository, "client-desktop"))
     await writeFile(path.join(repository, "client-desktop/package.json"), '{"version":"0.1.0"}\n')
+    await writeFile(
+      path.join(repository, "client-desktop/release-version-base.json"),
+      JSON.stringify({
+        windows: { build: 2 },
+        macos: { build: 2 },
+        "linux-amd": { build: 2 },
+        "linux-arm": { build: 2 },
+      }),
+    )
     const remote = await mkdtemp(path.join(os.tmpdir(), "magicchat-remote-"))
     await git(remote, ["init", "--bare"])
     await git(repository, ["remote", "add", "origin", remote])

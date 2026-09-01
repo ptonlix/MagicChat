@@ -4,6 +4,7 @@ import { updateStatusText } from "@/lib/desktop-updater-ui"
 import { translate, type Translator } from "@/lib/i18n"
 
 const baseState: UpdaterState = {
+  currentBuild: 1,
   currentVersion: "1.0.0",
   installMode: "ota",
   installationSource: "nsis",

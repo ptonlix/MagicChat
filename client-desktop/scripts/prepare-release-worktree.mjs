@@ -16,7 +16,7 @@ const githubOutput = argument("github-output")
 if (githubOutput) {
   await appendFile(
     githubOutput,
-    `desktop-directory=${result.desktopDirectory}\nworktree=${result.worktree}\ntag=${result.tag}\ncommit=${result.commit}\nversion=${result.version}\n`,
+    `desktop-directory=${result.desktopDirectory}\nworktree=${result.worktree}\ntag=${result.tag}\ncommit=${result.commit}\nversion=${result.version}\nbuild=${result.build}\n`,
   )
 }
 console.log(JSON.stringify(result))
