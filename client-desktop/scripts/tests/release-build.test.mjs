@@ -6,8 +6,11 @@ import { promisify } from "node:util"
 import { describe, expect, it } from "vitest"
 import {
   assertDesktopBuildIncreases,
+  fetchPublishedDesktopBuild,
+  githubReleaseVersionUrl,
   readDesktopReleaseBuild,
   readPreviousDesktopReleaseBuild,
+  resolveDesktopReleaseBuild,
 } from "../release-build.mjs"
 
 const execute = promisify(execFile)
@@ -60,13 +63,19 @@ describe("Desktop release build", () => {
     )
   })
 
-  it("没有历史正式 Tag 时不返回上一 build", async () => {
+  it("没有历史正式 Tag 时不返回上一 build，并分配 1", async () => {
     const repository = await createRepository(2)
     await createAnnotatedTag(repository, "desktop-v1.2.3")
 
     await expect(
       readPreviousDesktopReleaseBuild({ currentTag: "desktop-v1.2.3", repository }),
     ).resolves.toBeUndefined()
+    await expect(
+      resolveDesktopReleaseBuild({ currentTag: "desktop-v1.2.3", repository }),
+    ).resolves.toEqual({
+      build: 1,
+      previous: undefined,
+    })
   })
 
   it("返回其他正式 Tag 中的最大 build，并忽略当前 Tag", async () => {
@@ -83,6 +92,23 @@ describe("Desktop release build", () => {
     await expect(
       readPreviousDesktopReleaseBuild({ currentTag: "desktop-v1.2.4", repository }),
     ).resolves.toEqual({ build: 4, tag: "desktop-v1.3.0" })
+    await expect(
+      resolveDesktopReleaseBuild({ currentTag: "desktop-v1.3.0", repository }),
+    ).resolves.toEqual({
+      build: 6,
+      previous: { build: 5, tag: "desktop-v1.2.4" },
+    })
+  })
+
+  it("同一 Tag 两次解析得到同一个自动分配的 build", async () => {
+    const repository = await createRepository(2)
+    await createAnnotatedTag(repository, "desktop-v1.2.3")
+    await createAnnotatedTag(repository, "desktop-v1.2.4")
+
+    const first = await resolveDesktopReleaseBuild({ currentTag: "desktop-v1.2.4", repository })
+    const second = await resolveDesktopReleaseBuild({ currentTag: "desktop-v1.2.4", repository })
+    expect(first).toEqual({ build: 3, previous: { build: 2, tag: "desktop-v1.2.3" } })
+    expect(second).toEqual(first)
   })
 
   it("跳过 lightweight、错格式、缺失文件和无效清单的 Tag", async () => {
@@ -106,6 +132,97 @@ describe("Desktop release build", () => {
     await expect(
       readPreviousDesktopReleaseBuild({ currentTag: "desktop-v1.2.8", repository }),
     ).resolves.toEqual({ build: 2, tag: "desktop-v1.2.3" })
+  })
+
+  it("没有 version base 时从已公开 version.json 读取上一 build", async () => {
+    const repository = await createRepository(2)
+    await createAnnotatedTag(repository, "desktop-v1.2.3")
+    await git(repository, ["rm", "client-desktop/release-version-base.json"])
+    await git(repository, ["commit", "-m", "remove version base"])
+    await createAnnotatedTag(repository, "desktop-v1.2.4")
+
+    await expect(
+      readPreviousDesktopReleaseBuild({
+        currentTag: "desktop-v1.2.5",
+        readPublishedDesktopBuild: async (tag) => (tag === "desktop-v1.2.4" ? 7 : undefined),
+        repository,
+      }),
+    ).resolves.toEqual({ build: 7, tag: "desktop-v1.2.4" })
+    await expect(
+      resolveDesktopReleaseBuild({
+        currentTag: "desktop-v1.2.5",
+        readPublishedDesktopBuild: async (tag) => (tag === "desktop-v1.2.4" ? 7 : undefined),
+        repository,
+      }),
+    ).resolves.toEqual({
+      build: 8,
+      previous: { build: 7, tag: "desktop-v1.2.4" },
+    })
+  })
+
+  it("优先使用 Tag 提交中的 version base，而不是公开 version.json", async () => {
+    const repository = await createRepository(4)
+    await createAnnotatedTag(repository, "desktop-v1.2.3")
+
+    await expect(
+      readPreviousDesktopReleaseBuild({
+        currentTag: "desktop-v1.2.4",
+        readPublishedDesktopBuild: async () => 99,
+        repository,
+      }),
+    ).resolves.toEqual({ build: 4, tag: "desktop-v1.2.3" })
+  })
+
+  it("公开 version.json 的 404 视为该 Tag 尚未发布", async () => {
+    await expect(
+      fetchPublishedDesktopBuild("desktop-v1.2.3", {
+        fetchImpl: async () => ({ status: 404, ok: false }),
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  it("公开 version.json 网络或内容错误时失败", async () => {
+    await expect(
+      fetchPublishedDesktopBuild("desktop-v1.2.3", {
+        fetchImpl: async () => {
+          throw new Error("offline")
+        },
+      }),
+    ).rejects.toThrow("无法读取 desktop-v1.2.3 的公开 version.json：offline")
+    await expect(
+      fetchPublishedDesktopBuild("desktop-v1.2.3", {
+        fetchImpl: async () => ({ ok: false, status: 500 }),
+      }),
+    ).rejects.toThrow("HTTP 500")
+    await expect(
+      fetchPublishedDesktopBuild("desktop-v1.2.3", {
+        fetchImpl: async () => ({
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error("nope")
+          },
+        }),
+      }),
+    ).rejects.toThrow("公开 version.json 无效")
+  })
+
+  it("从公开 version.json 读取四个平台一致的 build", async () => {
+    expect(githubReleaseVersionUrl("desktop-v1.2.3")).toBe(
+      "https://github.com/ptonlix/MagicChat/releases/download/desktop-v1.2.3/version.json",
+    )
+    await expect(
+      fetchPublishedDesktopBuild("desktop-v1.2.3", {
+        fetchImpl: async (url) => {
+          expect(url).toBe(githubReleaseVersionUrl("desktop-v1.2.3"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => JSON.parse(desktopVersionBase(9)),
+          }
+        },
+      }),
+    ).resolves.toBe(9)
   })
 })
 

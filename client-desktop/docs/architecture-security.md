@@ -149,8 +149,7 @@ NSIS、macOS 打包应用和 Linux AppImage 可以进入 OTA；Linux deb、开�
 会同时删除安装意图，且 Renderer 不会获得本地路径或新增的更新清理 IPC。
 
 Stable OTA 只使用数字 build 判断更新：远端平台 build 大于包内 `desktopBuild` 时提供更新，
-否则不更新，SemVer 不参与比较。正式 Desktop build 来自 tagged commit 的
-`release-version-base.json` 中四个 Desktop 平台一致的 build，跨 SemVer 递增；Android 和 iOS build 独立维护，公开资产名称和官网固定文件名不包含 build。
+否则不更新，SemVer 不参与比较。正式 Desktop build 由 CI 根据已有正式 Tag 自动取 max+1，跨 SemVer 递增；Android 和 iOS build 独立维护，公开资产名称和官网固定文件名不包含 build。
 
 开发环境仅允许 localhost HTTP；打包应用只接受 HTTPS/WSS 和系统信任链。目前不支持
 忽略证书错误、应用内导入私有 CA 或 mTLS。网络使用 Electron/Chromium 系统代理，

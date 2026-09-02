@@ -1,10 +1,46 @@
 const REQUIRED_KEYS = ["android", "ios", "windows", "macos", "linux-amd", "linux-arm"]
 const DESKTOP_KEYS = ["windows", "macos", "linux-amd", "linux-arm"]
+export const OFFICIAL_VERSION_MANIFEST_URL = "https://jiying.chat/releases/version.json"
+const GITHUB_LATEST_VERSION_URL =
+  "https://github.com/ptonlix/MagicChat/releases/latest/download/version.json"
 const OFFICIAL_PACKAGE_PATHS = {
   windows: "/releases/jiying.exe",
   macos: "/releases/jiying.dmg",
   "linux-amd": "/releases/jiying.amd.AppImage",
   "linux-arm": "/releases/jiying.arm.AppImage",
+}
+
+export async function readOfficialVersionBase({ fetchImpl = globalThis.fetch } = {}) {
+  const urls = [OFFICIAL_VERSION_MANIFEST_URL, GITHUB_LATEST_VERSION_URL]
+  const errors = []
+  for (const url of urls) {
+    try {
+      return await readVersionBaseFromUrl(url, fetchImpl)
+    } catch (error) {
+      errors.push(`${url}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  throw new Error(`无法读取移动端 version 字段：${errors.join("；")}`)
+}
+
+async function readVersionBaseFromUrl(url, fetchImpl) {
+  let response
+  try {
+    response = await fetchImpl(url)
+  } catch (error) {
+    throw new Error(error instanceof Error && error.message ? error.message : String(error))
+  }
+  if (!response?.ok) {
+    throw new Error(`HTTP ${response?.status ?? "网络错误"}`)
+  }
+  let value
+  try {
+    value = await response.json()
+  } catch {
+    throw new Error("内容无效")
+  }
+  validateVersionBase(value)
+  return value
 }
 
 export function createDesktopVersionFile(base, { build, integrity, tag, version }) {

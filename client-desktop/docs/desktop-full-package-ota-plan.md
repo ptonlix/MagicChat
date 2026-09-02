@@ -10,7 +10,7 @@ Desktop 只使用官网 `https://jiying.chat/releases/version.json` 发现更新
 
 ```text
 desktop-v<version> Tag
-  -> 读取 tagged commit 的 release-version-base.json 中四个 Desktop 平台的统一 build
+  -> CI 读取其他正式 Tag 的 Desktop build（旧提交中的 release-version-base.json，或已公开 Release 的 version.json），自动取 max+1
   -> GitHub Actions 构建并验证 7 个完整安装包
   -> GitHub Release 发布 7 个安装包 + version.json
   -> Actions 生成官网六文件上传目录
@@ -23,7 +23,7 @@ desktop-v<version> Tag
 
 `build` 是唯一更新依据，并在每次新的正式 Desktop 发布中跨 SemVer 严格递增。`version` 只用于展示、唯一 Tag、资产名称和手动恢复 URL；即使远端 version 更高，只要 build 没有增加就不更新。线上现有 build 1 之后的首个 build-only 发布使用 build 2。
 
-仓库通过 `release-version-base.json` 中 `windows`、`macos`、`linux-amd` 和 `linux-arm` 的统一 `build` 保存下一次正式发布的 Desktop build。这四项必须保持一致；Android 和 iOS build 独立维护。本地开发、失败重跑和同一个 Tag 的 workflow 重试不得递增；产生新的正式安装包前必须提交更大的 Desktop build，并创建新的 `desktop-v<semver>` Tag。同一个 SemVer 和 Tag 不重复发布。
+CI 在每次新的 `desktop-v<semver>` 正式发布中，将四个 Desktop 平台的统一 `build` 设为上一正式版本 + 1。历史 build 优先来自该 Tag 提交中遗留的 `release-version-base.json`，否则来自该 Tag 已公开 Release 的 `version.json`。Android 和 iOS 字段从当前官网 `version.json` 原样带入，独立维护。本地开发、失败重跑和同一个 Tag 的 workflow 重试不得递增。同一个 SemVer 和 Tag 不重复发布。
 
 ## 平台映射
 

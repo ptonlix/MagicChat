@@ -129,34 +129,15 @@ signed-tag-fixture
       await readFile(path.join(result.desktopDirectory, "package.json"), "utf8"),
     )
     expect(prepared.version).toBe("1.2.3")
-    expect(prepared.desktopBuild).toBe(2)
-    expect(result.build).toBe(2)
+    expect(prepared.desktopBuild).toBe(1)
+    expect(result.build).toBe(1)
     expect(path.relative(releaseWorktreeRoot(), result.worktree)).not.toMatch(/^\.\.(?:[\\/]|$)/)
     expect(await repositorySnapshot(repository)).toEqual(before)
   })
 
-  it("拒绝复用或降低上一正式 Desktop build", async () => {
+  it("自动将 Desktop build 设为上一正式版本 + 1", async () => {
     const repository = await createRepository(true)
     await createAnnotatedTag(repository, "desktop-v1.2.3")
-    await createAnnotatedTag(repository, "desktop-v1.2.4")
-    await expect(
-      prepareReleaseWorktree({
-        expectedCommit: "HEAD",
-        repository,
-        tag: "desktop-v1.2.4",
-      }),
-    ).rejects.toThrow("必须严格大于上一正式版本 2（desktop-v1.2.3），当前为 2")
-  })
-
-  it("允许大于上一正式 Desktop build 的发布", async () => {
-    const repository = await createRepository(true)
-    await createAnnotatedTag(repository, "desktop-v1.2.3")
-    const basePath = path.join(repository, "client-desktop/release-version-base.json")
-    const value = JSON.parse(await readFile(basePath, "utf8"))
-    for (const key of ["windows", "macos", "linux-amd", "linux-arm"]) value[key].build = 3
-    await writeFile(basePath, `${JSON.stringify(value)}\n`)
-    await git(repository, ["add", "."])
-    await git(repository, ["commit", "-m", "bump build"])
     await createAnnotatedTag(repository, "desktop-v1.2.4")
     const result = await prepareReleaseWorktree({
       expectedCommit: "HEAD",
@@ -164,6 +145,23 @@ signed-tag-fixture
       tag: "desktop-v1.2.4",
     })
     expect(result.build).toBe(3)
+  })
+
+  it("同一 Tag 重跑复用自动分配的 Desktop build", async () => {
+    const repository = await createRepository(true)
+    await createAnnotatedTag(repository, "desktop-v1.2.3")
+    const first = await prepareReleaseWorktree({
+      expectedCommit: "HEAD",
+      repository,
+      tag: "desktop-v1.2.3",
+    })
+    const second = await prepareReleaseWorktree({
+      expectedCommit: "HEAD",
+      repository,
+      tag: "desktop-v1.2.3",
+    })
+    expect(first.build).toBe(1)
+    expect(second.build).toBe(1)
   })
 })
 

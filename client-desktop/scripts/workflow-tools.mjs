@@ -85,8 +85,12 @@ export function validateDesktopReleaseWorkflow(workflow) {
   const releaseCommands = commands(jobs.release)
   assert(releaseCommands.includes("release:prepare-assets"), "release 必须使用单一资产准备入口")
   assert(
+    !releaseCommands.includes("release-version-base.json"),
+    "不得再依赖仓库中的 release-version-base.json",
+  )
+  assert(
     releaseCommands.includes("needs.quality.outputs.build"),
-    "Desktop build 必须来自 tagged commit",
+    "Desktop build 必须来自 quality 输出",
   )
   assert(
     !releaseCommands.includes("github.run_attempt"),

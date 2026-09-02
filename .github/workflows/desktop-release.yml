@@ -170,7 +170,6 @@ jobs:
           pnpm release:prepare-assets -- \
             --tag "${{ needs.quality.outputs.tag }}" \
             --build "${{ needs.quality.outputs.build }}" \
-            --version-base release-version-base.json \
             --commit "${{ needs.quality.outputs.commit }}" \
             --output ../release-assets \
             --input win:x64:../artifacts/jiying-desktop-win-x64 \
