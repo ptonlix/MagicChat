@@ -3,11 +3,7 @@ import { mkdtemp, readFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
-import {
-  assertDesktopBuildIncreases,
-  readDesktopReleaseBuild,
-  readPreviousDesktopReleaseBuild,
-} from "./release-build.mjs"
+import { resolveDesktopReleaseBuild } from "./release-build.mjs"
 import { inspectReleaseTag } from "./release-tag.mjs"
 import { writePackageMetadata } from "./release-version.mjs"
 
@@ -17,7 +13,12 @@ export function releaseWorktreeRoot(environment = process.env) {
   return environment.RUNNER_TEMP || os.tmpdir()
 }
 
-export async function prepareReleaseWorktree({ expectedCommit, repository, tag }) {
+export async function prepareReleaseWorktree({
+  expectedCommit,
+  readPublishedDesktopBuild,
+  repository,
+  tag,
+}) {
   const release = await inspectReleaseTag({ expectedCommit, repository, tag })
   const sourcePackage = path.join(repository, "client-desktop/package.json")
   const sourceBefore = await readFile(sourcePackage, "utf8")
@@ -26,11 +27,11 @@ export async function prepareReleaseWorktree({ expectedCommit, repository, tag }
     cwd: repository,
   })
   const desktopDirectory = path.join(worktree, "client-desktop")
-  const build = await readDesktopReleaseBuild(
-    path.join(desktopDirectory, "release-version-base.json"),
-  )
-  const previous = await readPreviousDesktopReleaseBuild({ currentTag: tag, repository })
-  assertDesktopBuildIncreases(build, previous?.build, previous?.tag)
+  const { build } = await resolveDesktopReleaseBuild({
+    currentTag: tag,
+    readPublishedDesktopBuild,
+    repository,
+  })
   await writePackageMetadata(path.join(desktopDirectory, "package.json"), {
     build,
     version: release.version,

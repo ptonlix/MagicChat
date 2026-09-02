@@ -28,7 +28,7 @@ describe("Desktop Stable Release 配置", () => {
     }
   })
 
-  it("使用 tagged commit 中的 Desktop build", async () => {
+  it("使用 quality 输出的 Desktop build", async () => {
     const source = await readFile(workflowPath, "utf8")
     expect(source).toContain("${{ needs.quality.outputs.build }}")
     expect(source).not.toContain("${{ github.run_attempt }}")

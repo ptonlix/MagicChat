@@ -4,6 +4,7 @@ import { promisify } from "node:util"
 import { parseDesktopTag } from "./release-version.mjs"
 
 const DESKTOP_KEYS = ["windows", "macos", "linux-amd", "linux-arm"]
+const GITHUB_RELEASE_DOWNLOAD = "https://github.com/ptonlix/MagicChat/releases/download"
 const execute = promisify(execFile)
 
 export async function readDesktopReleaseBuild(filePath) {
@@ -48,16 +49,62 @@ export function assertDesktopBuildIncreases(currentBuild, previousBuild, previou
   }
 }
 
-export async function readPreviousDesktopReleaseBuild({ currentTag, repository }) {
+export async function resolveDesktopReleaseBuild({
+  currentTag,
+  readPublishedDesktopBuild,
+  repository,
+}) {
+  parseDesktopTag(currentTag)
+  const previous = await readPreviousDesktopReleaseBuild({
+    currentTag,
+    readPublishedDesktopBuild,
+    repository,
+  })
+  const build = (previous?.build ?? 0) + 1
+  assertDesktopBuildIncreases(build, previous?.build, previous?.tag)
+  return { build, previous }
+}
+
+export async function readPreviousDesktopReleaseBuild({
+  currentTag,
+  readPublishedDesktopBuild,
+  repository,
+}) {
   parseDesktopTag(currentTag)
   let previous
   for (const tag of await listOfficialDesktopTags(repository)) {
     if (tag === currentTag) continue
-    const build = await readTagDesktopBuild(repository, tag)
+    const build = await readTagDesktopBuild(repository, tag, readPublishedDesktopBuild)
     if (build === undefined) continue
     if (previous === undefined || build > previous.build) previous = { build, tag }
   }
   return previous
+}
+
+export function githubReleaseVersionUrl(tag) {
+  parseDesktopTag(tag)
+  return `${GITHUB_RELEASE_DOWNLOAD}/${tag}/version.json`
+}
+
+export async function fetchPublishedDesktopBuild(tag, { fetchImpl = globalThis.fetch } = {}) {
+  const url = githubReleaseVersionUrl(tag)
+  let response
+  try {
+    response = await fetchImpl(url)
+  } catch (error) {
+    throw new Error(`无法读取 ${tag} 的公开 version.json：${errorMessage(error)}`)
+  }
+  if (response.status === 404) return undefined
+  if (!response.ok) {
+    throw new Error(`无法读取 ${tag} 的公开 version.json：HTTP ${response.status}`)
+  }
+  let value
+  try {
+    value = await response.json()
+  } catch {
+    throw new Error(`${tag} 的公开 version.json 无效`)
+  }
+  return desktopReleaseBuildFromVersionBase(value)
 }
 
 async function listOfficialDesktopTags(repository) {
@@ -80,7 +127,14 @@ async function listOfficialDesktopTags(repository) {
   return tags
 }
 
-async function readTagDesktopBuild(repository, tag) {
+async function readTagDesktopBuild(repository, tag, readPublishedDesktopBuild) {
+  const fromFile = await readTagDesktopBuildFile(repository, tag)
+  if (fromFile !== undefined) return fromFile
+  if (!readPublishedDesktopBuild) return undefined
+  return readPublishedDesktopBuild(tag)
+}
+
+async function readTagDesktopBuildFile(repository, tag) {
   let contents
   try {
     contents = await git(repository, [
@@ -104,4 +158,8 @@ async function git(repository, arguments_) {
     maxBuffer: 1024 * 1024,
   })
   return stdout.trim()
+}
+
+function errorMessage(error) {
+  return error instanceof Error && error.message ? error.message : String(error)
 }
