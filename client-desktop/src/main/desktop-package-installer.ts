@@ -8,6 +8,7 @@ type DesktopPackageInstallerOptions = Readonly<{
   platform: NodeJS.Platform
   quit: () => void
   runtimePid?: number
+  runtimeExecutablePath?: string
   spawnDetached?: typeof spawn
 }>
 
@@ -15,8 +16,35 @@ export async function installDesktopPackage(
   options: DesktopPackageInstallerOptions,
 ): Promise<void> {
   if (options.platform === "darwin") {
-    const error = await options.openPath(options.downloadedPath)
-    if (error) throw new Error(`platform failed to open macOS installer: ${error}`)
+    const executablePath = options.runtimeExecutablePath ?? process.execPath
+    const targetAppPath = executablePath.split("/Contents/")[0]
+    const script = `
+set -eu
+parent_pid="$1"
+dmg_path="$2"
+target_app="$3"
+mount_path="$(mktemp -d /tmp/magicchat-update.XXXXXX)"
+while kill -0 "$parent_pid" 2>/dev/null; do sleep 1; done
+mounted=0
+cleanup() {
+  if [ "$mounted" -eq 1 ]; then hdiutil detach "$mount_path" -quiet || true; fi
+  rmdir "$mount_path" 2>/dev/null || true
+}
+trap cleanup EXIT
+hdiutil attach "$dmg_path" -mountpoint "$mount_path" -nobrowse -readonly -quiet
+mounted=1
+source_app="$(find "$mount_path" -maxdepth 1 -name '*.app' -print -quit)"
+if [ -z "$source_app" ]; then exit 1; fi
+ditto "$source_app" "$target_app"
+open "$target_app"
+`.trim()
+    const child = (options.spawnDetached ?? spawn)(
+      "/bin/sh",
+      ["-c", script, "magicchat-macos-updater", String(options.runtimePid ?? process.pid), options.downloadedPath, targetAppPath],
+      { detached: true, stdio: "ignore" },
+    )
+    await waitForSpawn(child)
+    child.unref()
     options.quit()
     return
   }
