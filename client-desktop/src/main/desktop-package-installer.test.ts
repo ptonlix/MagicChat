@@ -9,18 +9,45 @@ import { describe, expect, it, vi } from "vitest"
 import { installDesktopPackage } from "@main/desktop-package-installer"
 
 describe("桌面全量包安装协调", () => {
-  it("macOS 打开 DMG 后退出应用", async () => {
-    const order: string[] = []
+  it("macOS 启动后台安装助手复制 DMG 中的 app 后退出应用", async () => {
+    const calls: unknown[][] = []
+    const spawnDetached = ((...args: unknown[]) => {
+      calls.push(args)
+      const child = new EventEmitter() as EventEmitter & { unref(): void }
+      child.unref = vi.fn()
+      queueMicrotask(() => child.emit("spawn"))
+      return child
+    }) as unknown as typeof spawn
+    const quit = vi.fn()
+
     await installDesktopPackage({
       downloadedPath: "/tmp/MagicChat.dmg",
-      openPath: async () => {
-        order.push("open")
-        return ""
-      },
+      openPath: async () => "",
       platform: "darwin",
-      quit: () => order.push("quit"),
+      quit,
+      runtimeExecutablePath: "/Applications/即应.app/Contents/MacOS/即应",
+      runtimePid: 1234,
+      spawnDetached,
     })
-    expect(order).toEqual(["open", "quit"])
+
+    expect(calls[0][0]).toBe("/bin/sh")
+    expect(calls[0][1]).toEqual([
+      "-c",
+      expect.stringContaining('hdiutil attach "$dmg_path"'),
+      "magicchat-macos-updater",
+      "1234",
+      "/tmp/MagicChat.dmg",
+      "/Applications/即应.app",
+    ])
+    expect(calls[0][1]).toEqual([
+      "-c",
+      expect.stringContaining('ditto "$source_app" "$target_app"'),
+      "magicchat-macos-updater",
+      "1234",
+      "/tmp/MagicChat.dmg",
+      "/Applications/即应.app",
+    ])
+    expect(quit).toHaveBeenCalledOnce()
   })
 
   it("Linux 在退出前把 AppImage 暂存到目标目录并启动替换助手", async () => {
