@@ -40,7 +40,14 @@ open "$target_app"
 `.trim()
     const child = (options.spawnDetached ?? spawn)(
       "/bin/sh",
-      ["-c", script, "magicchat-macos-updater", String(options.runtimePid ?? process.pid), options.downloadedPath, targetAppPath],
+      [
+        "-c",
+        script,
+        "magicchat-macos-updater",
+        String(options.runtimePid ?? process.pid),
+        options.downloadedPath,
+        targetAppPath,
+      ],
       { detached: true, stdio: "ignore" },
     )
     await waitForSpawn(child)
